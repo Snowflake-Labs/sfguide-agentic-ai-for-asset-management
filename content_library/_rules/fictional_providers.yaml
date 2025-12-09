@@ -1,0 +1,100 @@
+# Fictional Provider Names - SAM Demo Pre-Generated Content
+# All broker and NGO names must be fictional to avoid trademark issues
+
+# Fictional Broker Names (15 total)
+fictional_brokers:
+  - Ashfield Partners
+  - Northgate Analytics
+  - Blackstone Ridge Research
+  - Fairmont Capital Insights
+  - Kingswell Securities Research
+  - Brookline Advisory Group
+  - Harrow Street Markets
+  - Marlowe & Co. Research
+  - Crescent Point Analytics
+  - Sterling Wharf Intelligence
+  - Granite Peak Advisory
+  - Alder & Finch Investments
+  - Bluehaven Capital Research
+  - Regent Square Analytics
+  - Whitestone Equity Research
+
+# Fictional NGO Names (10 total, categorized by ESG area)
+fictional_ngos:
+  environmental:
+    - Global Sustainability Watch
+    - Environmental Justice Initiative
+    - Climate Action Network
+    - Green Future Alliance
+  
+  social:
+    - Human Rights Monitor
+    - Labour Rights Observatory
+    - Ethical Investment Coalition
+    - Fair Workplace Institute
+  
+  governance:
+    - Corporate Accountability Forum
+    - Transparency Advocacy Group
+    - Corporate Responsibility Institute
+    - Ethical Governance Council
+
+# Forbidden Real Provider Names (validation only)
+forbidden_providers:
+  brokers:
+    - Goldman Sachs
+    - Morgan Stanley
+    - J.P. Morgan
+    - JPMorgan
+    - Bank of America
+    - Barclays
+    - UBS
+    - Citigroup
+    - Credit Suisse
+    - Deutsche Bank
+    - Wells Fargo
+    - BNP Paribas
+    - HSBC
+    - Jefferies
+    - Raymond James
+  
+  ngos:
+    - Greenpeace
+    - Amnesty International
+    - Human Rights Watch
+    - Oxfam
+    - WWF
+    - World Wildlife Fund
+    - Sierra Club
+    - Natural Resources Defense Council
+    - NRDC
+    - Environmental Defense Fund
+    - EDF
+    - Friends of the Earth
+    - Transparency International
+    - Fair Labor Association
+
+# Usage Instructions
+usage:
+  broker_selection:
+    method: "Random selection with deterministic seed"
+    distribution: "Equal probability across all 15 brokers"
+    seed_pattern: "hash(entity_id:broker:RNG_SEED) % len(fictional_brokers)"
+  
+  ngo_selection:
+    method: "Category-based selection with deterministic seed"
+    mapping:
+      environmental: ["Global Sustainability Watch", "Environmental Justice Initiative", "Climate Action Network", "Green Future Alliance"]
+      social: ["Human Rights Monitor", "Labour Rights Observatory", "Ethical Investment Coalition", "Fair Workplace Institute"]
+      governance: ["Corporate Accountability Forum", "Transparency Advocacy Group", "Corporate Responsibility Institute", "Ethical Governance Council"]
+    seed_pattern: "hash(entity_id:ngo:category:RNG_SEED) % len(category_ngos)"
+  
+  analyst_names:
+    pattern: "Analyst_{ID}"
+    id_generation: "UNIFORM(1, 100, RANDOM())"
+  
+  executive_names:
+    ceo_pattern: "CEO_{COMPANY_HASH}"
+    cfo_pattern: "CFO_{COMPANY_HASH}"
+    generation: "Deterministic based on company name hash"
+

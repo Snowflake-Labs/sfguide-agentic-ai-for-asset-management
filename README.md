@@ -23,8 +23,28 @@ Demonstration of Snowflake Intelligence for asset management with 8 specialized 
 
 ```
 sfguide-agentic-ai-for-asset-management/
-├── README.md                # Setup guide
-├── scripts/setup.sql        # Automated setup (15-20 min)
+├── README.md                           # This file
+├── scripts/
+│   └── setup.sql                       # One-click automated setup (~15-20 min)
+├── notebooks/
+│   ├── environment.yml                 # Python dependencies
+│   └── 0_start_here.ipynb              # Setup notebook (auto-executed via Git)
+├── python/                             # am_ai_demo Python modules
+│   ├── config.py                       # Configuration settings
+│   ├── generate_structured.py          # Data model generation
+│   ├── generate_unstructured.py        # Document generation
+│   ├── hydration_engine.py             # Template hydration
+│   ├── build_ai.py                     # Cortex Search/Analyst builder
+│   ├── create_agents.py                # Agent creation
+│   ├── create_semantic_views.py        # Semantic view definitions
+│   ├── create_cortex_search.py         # Search service definitions
+│   └── extract_real_assets.py          # Real asset extraction
+├── content_library/                    # 69 document templates
+│   ├── security/                       # Broker research, earnings, press releases
+│   ├── issuer/                         # NGO reports, engagement notes
+│   ├── portfolio/                      # IPS, portfolio reviews
+│   ├── global/                         # Policy docs, sales templates
+│   └── regulatory/                     # Form ADV, CRS, updates
 ├── LICENSE
 └── LEGAL.md
 ```
@@ -34,26 +54,33 @@ sfguide-agentic-ai-for-asset-management/
 - Snowflake account with Cortex features enabled
 - ACCOUNTADMIN role (for setup)
 - Snowflake Intelligence available
-- SEC Filings dataset (Cybersyn) access
+- [Snowflake Public Data (Free)](https://app.snowflake.com/marketplace/listing/GZTSZ290BV255/snowflake-public-data-products-snowflake-public-data-free) Marketplace dataset
 
-## Getting Started
+## Getting Started (One-Click Setup!)
 
-### 1. Run Setup Script
+### Run Setup Script
 
-Execute [`scripts/setup.sql`](scripts/setup.sql) in Snowsight (15-20 minutes)
+**Simply copy and paste** [`scripts/setup.sql`](scripts/setup.sql) **into a Snowflake SQL Worksheet and run it!**
 
-Creates:
-- `SAM_DEMO` database (14,000+ real securities, 30+ tables, 3,463 documents)
-- 7 semantic views for Cortex Analyst
-- 16 Cortex Search services
-- 8 AI agents registered with Snowflake Intelligence
+This single script automatically:
+1. Creates database infrastructure (SAM_DEMO)
+2. Connects to Snowflake Public Data (Free) Marketplace dataset
+3. Sets up Git integration to this repository
+4. Loads and executes the setup notebook from Git
+5. Generates 14,000+ real securities and 24 CURATED tables
+6. Creates 3,463 documents from 69 templates (24 RAW tables)
+7. Creates 22 Cortex Search services
+8. Creates 7 Cortex Analyst semantic views
+9. Creates 8 Snowflake Intelligence agents
 
-### 2. Open Snowflake Intelligence
 
-1. Navigate to Snowflake Intelligence
-2. Select `SAM_DEMO` database
-3. Choose an agent
-4. Start asking questions (see example prompts below)
+### Access Agents
+
+Once setup completes:
+1. Navigate to **Snowflake Intelligence** in your Snowflake UI
+2. Select **SAM_DEMO** database
+3. Choose an agent (e.g., Portfolio Copilot)
+4. Start asking questions!
 
 ## Example Prompts
 
@@ -81,37 +108,24 @@ I need a comprehensive ESG risk review for our SAM ESG Leaders Global Equity por
 
 ```
 SAM_DEMO
-├── RAW (Source data from SEC Filings)
+├── RAW (Source data from SEC Filings + Generated documents)
 ├── CURATED (Business-ready data)
 │   ├── Dimensions: Issuers (3,303), Securities (14,000+), Portfolios (10)
 │   ├── Facts: Transactions, Holdings (27,000+), Market Data (4M+)
-│   └── Documents: 3,463 across 19 types
+│   └── Document Corpus: 3,463 across 19 types
 └── AI (Snowflake Intelligence)
-    ├── 7 Semantic Views
-    ├── 16 Cortex Search Services
+    ├── 7 Semantic Views (Cortex Analyst)
+    ├── 22 Cortex Search Services
     └── 8 AI Agents
 ```
 
 ## Key Features
 
 - **100% Real Assets**: 14,000+ authentic securities from SEC Filings (OpenFIGI)
-- **Realistic Documents**: 3,463 documents from 50+ curated templates
+- **Realistic Documents**: 3,463 documents from 69 curated templates
 - **Industry-Standard Model**: Dimension/fact architecture with transaction audit trail
 - **Multi-Tool Intelligence**: Cortex Analyst (SQL) + Cortex Search (documents)
-
-## Troubleshooting
-
-**"SEC_FILINGS database not found"**  
-→ Request SEC Filings dataset access in Snowflake Marketplace
-
-**"Snowflake Intelligence not found"**  
-→ Run `CREATE SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;`
-
-**"Cortex Search service creation failed"**  
-→ Verify Cortex features enabled in your account/region
-
-**"Semantic view compilation error"**  
-→ Check column names match exactly (case-sensitive)
+- **Git Integration**: Notebook auto-loaded and executed from repository
 
 ## Resources
 
@@ -123,4 +137,3 @@ SAM_DEMO
 ## License
 
 Apache 2.0 - Educational purposes. Securities data from public SEC filings via Snowflake Marketplace.
-
