@@ -72,7 +72,7 @@ SECURITIES = {
     },
     'real_assets_view': 'V_REAL_ASSETS',
     'sec_filings_database': 'MARKETPLACE_CYBERSYN',  # Created from Marketplace listing
-    'sec_filings_schema': 'CYBERSYN'
+    'sec_filings_schema': 'PUBLIC_DATA_FREE'
 }
 
 # Helper function for test mode counts
