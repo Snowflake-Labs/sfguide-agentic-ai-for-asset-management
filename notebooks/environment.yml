@@ -2,11 +2,6 @@ name: sam_demo_setup
 channels:
   - snowflake
 dependencies:
-  - python=3.11
   - snowflake-snowpark-python
   - pandas
   - numpy
-  - pip
-  - pip:
-    - pyyaml
-    - markdown
