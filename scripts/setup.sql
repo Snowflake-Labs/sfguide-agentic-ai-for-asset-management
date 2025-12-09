@@ -98,18 +98,8 @@ GRANT IMPORTED PRIVILEGES ON DATABASE MARKETPLACE_CYBERSYN TO ROLE SAM_DEMO_ROLE
 -- SECTION 5: Git Integration & Notebook Setup
 -- ============================================================================
 
--- Create API integration for Git (allows connecting to GitHub)
-CREATE OR REPLACE API INTEGRATION GITHUB_INTEGRATION_SAM_DEMO
-  API_PROVIDER = git_https_api
-  API_ALLOWED_PREFIXES = ('https://github.com/')
-  ENABLED = TRUE
-  COMMENT = 'Git integration with GitHub for SAM Demo repository';
-
--- Create secret for GitHub authentication (required for private repos)
--- IMPORTANT: Replace 'your-github-pat-here' with your actual GitHub Personal Access Token
--- To create a PAT: GitHub > Settings > Developer Settings > Personal Access Tokens > Tokens (classic)
--- Required scopes: repo (full control of private repositories)
--- IMPORTANT: Replace '<YOUR_GITHUB_PAT>' with your actual GitHub Personal Access Token
+-- Create secret for GitHub authentication FIRST (required for private repos)
+-- IMPORTANT: Replace '<YOUR_GITHUB_USERNAME>' and '<YOUR_GITHUB_PAT>' with your actual values
 -- To create a PAT: GitHub > Settings > Developer Settings > Personal Access Tokens > Tokens (classic)
 -- Required scopes: repo (full control of private repositories)
 CREATE OR REPLACE SECRET SAM_DEMO.PUBLIC.GITHUB_SECRET
@@ -121,6 +111,14 @@ CREATE OR REPLACE SECRET SAM_DEMO.PUBLIC.GITHUB_SECRET
 -- Grant secret usage to role
 GRANT USAGE ON SECRET SAM_DEMO.PUBLIC.GITHUB_SECRET TO ROLE SAM_DEMO_ROLE;
 
+-- Create API integration for Git (must reference the secret in ALLOWED_AUTHENTICATION_SECRETS)
+CREATE OR REPLACE API INTEGRATION GITHUB_INTEGRATION_SAM_DEMO
+  API_PROVIDER = git_https_api
+  API_ALLOWED_PREFIXES = ('https://github.com/')
+  ALLOWED_AUTHENTICATION_SECRETS = (SAM_DEMO.PUBLIC.GITHUB_SECRET)
+  ENABLED = TRUE
+  COMMENT = 'Git integration with GitHub for SAM Demo repository';
+
 -- Create Git repository object pointing to the SAM demo repo (with authentication)
 CREATE OR REPLACE GIT REPOSITORY SAM_DEMO.PUBLIC.sam_demo_repo
   API_INTEGRATION = GITHUB_INTEGRATION_SAM_DEMO
@@ -131,15 +129,14 @@ CREATE OR REPLACE GIT REPOSITORY SAM_DEMO.PUBLIC.sam_demo_repo
 -- Fetch latest code from Git
 ALTER GIT REPOSITORY SAM_DEMO.PUBLIC.sam_demo_repo FETCH;
 
--- Create notebook from Git repository
+-- Create notebook from Git repository (FROM must be a directory, MAIN_FILE specifies the notebook)
 CREATE OR REPLACE NOTEBOOK SAM_DEMO.PUBLIC.SAM_Demo_Complete_Setup
-  FROM @SAM_DEMO.PUBLIC.sam_demo_repo/branches/main/notebooks/0_start_here.ipynb
+  FROM '@SAM_DEMO.PUBLIC.sam_demo_repo/branches/main/notebooks/'
   QUERY_WAREHOUSE = SAM_DEMO_WH
   MAIN_FILE = '0_start_here.ipynb'
   COMMENT = 'Complete SAM demo setup - creates data model, documents, search services, semantic views, and agents';
 
--- Grant notebook ownership to SAM_DEMO_ROLE
-GRANT OWNERSHIP ON NOTEBOOK SAM_DEMO.PUBLIC.SAM_Demo_Complete_Setup TO ROLE SAM_DEMO_ROLE;
+-- Note: Notebook ownership is automatically assigned to the creating role
 
 -- ============================================================================
 -- SECTION 6: Execute Complete Setup
@@ -148,6 +145,9 @@ GRANT OWNERSHIP ON NOTEBOOK SAM_DEMO.PUBLIC.SAM_Demo_Complete_Setup TO ROLE SAM_
 -- Switch to SAM_DEMO_ROLE for notebook execution
 USE ROLE SAM_DEMO_ROLE;
 USE WAREHOUSE SAM_DEMO_WH;
+
+-- Create a live version of the notebook (required before execution)
+ALTER NOTEBOOK SAM_DEMO.PUBLIC.SAM_Demo_Complete_Setup ADD LIVE VERSION FROM LAST;
 
 -- Execute the notebook to build everything
 -- This will take ~15-20 minutes to complete
