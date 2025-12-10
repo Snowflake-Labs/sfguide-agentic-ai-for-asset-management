@@ -24,10 +24,15 @@ def build_all(session: Session, document_types: List[str], test_mode: bool = Fal
     
     Args:
         session: Active Snowpark session
-        document_types: List of document types to generate
+        document_types: List of document types to generate (or ['all'] for all types)
         test_mode: If True, use reduced document counts for faster development
     """
     # print("Building unstructured data...")
+    
+    # Handle 'all' keyword - expand to all document types
+    if 'all' in document_types:
+        document_types = list(config.DOCUMENT_TYPES.keys())
+        print(f"Expanding 'all' to {len(document_types)} document types")
     
     # Ensure database context is set
     try:

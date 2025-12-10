@@ -13,6 +13,11 @@ import config
 def create_semantic_views(session: Session, scenarios: List[str] = None):
     """Create semantic views required for the specified scenarios."""
     
+    # Handle 'all' keyword - expand to all scenarios
+    if scenarios and 'all' in scenarios:
+        scenarios = list(config.SCENARIO_DATA_REQUIREMENTS.keys())
+        print(f"Expanding 'all' to {len(scenarios)} scenarios for semantic views")
+    
     # Always create the main analyst view
     try:
         create_analyst_semantic_view(session)
