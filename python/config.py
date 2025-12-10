@@ -460,43 +460,43 @@ AVAILABLE_SCENARIOS = [
 # Scenario to agent mapping with descriptions
 SCENARIO_AGENTS = {
     'portfolio_copilot': {
-        'agent_name': 'AM_portfolio_copilot',
-        'display_name': 'Portfolio Co-Pilot',
+        'agent_name': 'portfolio_advisor',
+        'display_name': 'Portfolio Advisor',
         'description': 'Portfolio analytics and benchmarking'
     },
     'research_copilot': {
-        'agent_name': 'AM_research_copilot',
-        'display_name': 'Research Co-Pilot',
+        'agent_name': 'research_advisor',
+        'display_name': 'Research Advisor',
         'description': 'Document research and analysis'
     },
     'thematic_macro_advisor': {
-        'agent_name': 'AM_thematic_macro_advisor',
+        'agent_name': 'thematic_macro_advisor',
         'display_name': 'Thematic Macro Advisor',
         'description': 'Thematic investment strategy'
     },
     'esg_guardian': {
-        'agent_name': 'AM_esg_guardian',
+        'agent_name': 'esg_guardian',
         'display_name': 'ESG Guardian',
         'description': 'ESG risk monitoring'
     },
     'compliance_advisor': {
-        'agent_name': 'AM_compliance_advisor',
+        'agent_name': 'compliance_advisor',
         'display_name': 'Compliance Advisor',
         'description': 'Mandate monitoring'
     },
     'sales_advisor': {
-        'agent_name': 'AM_sales_advisor',
+        'agent_name': 'sales_advisor',
         'display_name': 'Sales Advisor',
         'description': 'Client reporting'
     },
     'quant_analyst': {
-        'agent_name': 'AM_quant_analyst',
+        'agent_name': 'quant_analyst',
         'display_name': 'Quant Analyst',
         'description': 'Factor analysis'
     },
     'middle_office_copilot': {
-        'agent_name': 'AM_middle_office_copilot',
-        'display_name': 'Middle Office Co-Pilot',
+        'agent_name': 'middle_office_advisor',
+        'display_name': 'Middle Office Advisor',
         'description': 'Operations monitoring and NAV calculation'
     }
 }

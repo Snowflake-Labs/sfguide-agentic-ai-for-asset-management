@@ -83,8 +83,14 @@ GRANT USAGE ON WAREHOUSE SAM_DEMO_WH TO ROLE SAM_DEMO_ROLE;
 -- SECTION 4: Marketplace Data Access
 -- ============================================================================
 
--- Request access to Snowflake Public Data (Free) dataset
+-- PREREQUISITE: Accept Marketplace listing terms first (see README Step 1)
 -- https://app.snowflake.com/marketplace/listing/GZTSZ290BV255
+-- 
+-- If you already have this listing installed with a DIFFERENT database name:
+--   1. Comment out the CALL and CREATE DATABASE lines below
+--   2. Update MARKETPLACE_CYBERSYN references to your database name
+--   3. Update python/config.py: sec_filings_database to match
+
 CALL SYSTEM$REQUEST_LISTING_AND_WAIT('GZTSZ290BV255');
 
 CREATE DATABASE IF NOT EXISTS MARKETPLACE_CYBERSYN 
@@ -98,10 +104,6 @@ GRANT IMPORTED PRIVILEGES ON DATABASE MARKETPLACE_CYBERSYN TO ROLE SAM_DEMO_ROLE
 -- SECTION 5: Git Integration & Notebook Setup
 -- ============================================================================
 
--- Create secret for GitHub authentication FIRST (required for private repos)
--- IMPORTANT: Replace '<YOUR_GITHUB_USERNAME>' and '<YOUR_GITHUB_PAT>' with your actual values
--- To create a PAT: GitHub > Settings > Developer Settings > Personal Access Tokens > Tokens (classic)
--- Required scopes: repo (full control of private repositories)
 CREATE OR REPLACE SECRET SAM_DEMO.PUBLIC.GITHUB_SECRET
   TYPE = PASSWORD
   USERNAME = '<YOUR_GITHUB_USERNAME>'

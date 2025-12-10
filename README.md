@@ -34,31 +34,43 @@ sfguide-agentic-ai-for-asset-management/
 └── LEGAL.md
 ```
 
-## 8 AI Agents
+## 8 Cortex Agents
 
-| Agent | Role | Key Capabilities |
-|-------|------|-----------------|
-| **Portfolio Copilot** | Portfolio Manager | Analytics, concentration risk, event impact, implementation |
-| **Research Copilot** | Research Analyst | Document research, company analysis, earnings intelligence |
-| **Thematic Macro Advisor** | Thematic Strategist | Theme positioning, emerging trends, strategic allocation |
-| **Quant Analyst** | Quantitative Analyst | Factor screening, performance attribution, factor evolution |
-| **Sales Advisor** | Client Relations | Client reporting, template formatting, compliance review |
-| **ESG Guardian** | ESG Officer | ESG monitoring, controversy detection, remediation planning |
-| **Compliance Advisor** | Compliance Officer | Mandate monitoring, breach detection, regulatory tracking |
-| **Middle Office Copilot** | Operations | Settlement monitoring, reconciliation, NAV validation |
+| Agent | Key Capabilities |
+|-------|-----------------|
+| **Portfolio Advisor** | Analytics, concentration risk, event impact, implementation planning |
+| **Research Advisor** | Document research, company analysis, earnings intelligence |
+| **Thematic Macro Advisor** | Theme positioning, emerging trends, strategic allocation |
+| **Quant Analyst** | Factor screening, performance attribution, factor evolution |
+| **Sales Advisor** | Client reporting, template formatting, compliance review |
+| **ESG Guardian** | ESG monitoring, controversy detection, remediation planning |
+| **Compliance Advisor** | Mandate monitoring, breach detection, regulatory tracking |
+| **Middle Office Advisor** | Settlement monitoring, reconciliation, NAV validation |
 
 ## Prerequisites
 
 - Snowflake account with Cortex features enabled
 - ACCOUNTADMIN role (for setup)
 - Snowflake Intelligence available
-- [Snowflake Public Data (Free)](https://app.snowflake.com/marketplace/listing/GZTSZ290BV255/snowflake-public-data-products-snowflake-public-data-free) Marketplace dataset
 
-## Getting Started (One-Click Setup!)
+### Step 1: Accept Marketplace Terms (One-Time Setup)
 
-### Run Setup Script
+Before running the setup script, accept the terms for the Snowflake Public Data dataset:
 
-**Simply copy and paste** [`scripts/setup.sql`](scripts/setup.sql) **into a Snowflake SQL Worksheet and run it!**
+1. Go to [Snowflake Public Data (Free)](https://app.snowflake.com/marketplace/listing/GZTSZ290BV255)
+2. Click **"Get"**
+3. Enter your **email** and click **Submit**
+4. **Accept the terms and conditions**
+5. For database name, enter: `MARKETPLACE_CYBERSYN`
+6. Click **"Get"** to complete
+
+> ⚠️ This is required only once. The setup script will fail without accepting these terms.
+
+## Getting Started
+
+### Step 2: Run Setup Script
+
+**Copy and paste** [`scripts/setup.sql`](scripts/setup.sql) **into a Snowflake SQL Worksheet and run it!**
 
 This single script automatically:
 1. Creates database infrastructure (SAM_DEMO)
@@ -72,49 +84,285 @@ This single script automatically:
 9. Creates 8 Snowflake Intelligence agents
 
 
-### Access Agents
+### Step 3: Access Snowflake Intelligence
 
 Once setup completes:
 1. Navigate to **Snowflake Intelligence** in your Snowflake UI
-2. Select **SAM_DEMO** database
-3. Choose an agent (e.g., Portfolio Copilot)
-4. Start asking questions!
+2. Choose an agent (e.g., Portfolio Advisor)
+3. Start asking questions!
 
-## Example Prompts
+## Example Prompts by Agent
 
-**Portfolio Copilot**:
+### Portfolio Advisor
+
+**Primary - Holdings Analysis**:
 ```
 What are my top 10 holdings by market value in the SAM Technology & Infrastructure portfolio?
 ```
 
-**Research Copilot**:
+**Follow-up - Broker Research**:
+```
+Based on those top holdings you just showed me, what is the latest broker research saying about our three largest positions?
+```
+
+**Follow-up - Concentration Risk**:
+```
+Looking at those top holdings and their research, what's our sector concentration risk in this portfolio, especially for the companies with the largest positions?
+```
+
+**Follow-up - Implementation Plan**:
+```
+Based on our complete analysis, provide me with a specific implementation plan including exact position sizes, timelines, and dollar amounts for the portfolio actions we should take.
+```
+
+**Event Impact - Taiwan Earthquake**:
+```
+I just received an alert about a major earthquake in Taiwan affecting semiconductor production. Can you verify this event and tell me what sectors are affected?
+```
+
+**Event Impact - Direct Exposure**:
+```
+What is my direct exposure to Taiwan-based semiconductor companies across all portfolios?
+```
+
+**Event Impact - Supply Chain**:
+```
+What is my indirect exposure through supply chain dependencies? Show me which US companies in my portfolio depend on Taiwan semiconductor suppliers.
+```
+
+**Mandate Compliance - ESG Breach**:
+```
+I've received an alert that META has been downgraded to ESG grade D. Can you verify this breach for the SAM AI & Digital Innovation portfolio and show me our current exposure?
+```
+
+**Mandate Compliance - Replacements**:
+```
+Based on that breach, what are our pre-screened replacement candidates that meet the mandate requirements and maintain our AI growth focus?
+```
+
+**Mandate Compliance - Company Analysis**:
+```
+Give me a comprehensive analysis of NVDA as a replacement—include financial health, recent analyst views, and earnings guidance
+```
+
+**Mandate Compliance - Committee Memo**:
+```
+Generate an investment committee memo documenting this compliance breach and recommending NVDA as a replacement
+```
+
+---
+
+### Research Advisor
+
+**Primary - Multi-Source Research**:
 ```
 What is the latest research saying about AI and cloud computing opportunities in technology companies?
 ```
 
-**ESG Guardian**:
+**Deep-Dive - Company Analysis**:
+```
+From those companies mentioned in the AI and cloud research, pick the one with the strongest themes and give me a detailed analysis of their recent performance and strategic positioning
+```
+
+**Competitive Intelligence**:
+```
+How does [the company from previous analysis]'s AI strategy compare to what other technology companies mentioned are doing?
+```
+
+**Earnings Intelligence**:
+```
+Give me a comprehensive analysis of Microsoft's latest quarterly earnings, including reported financial metrics versus consensus estimates and key management commentary from the earnings call.
+```
+
+**Sentiment Analysis**:
+```
+Compare the sentiment between Microsoft's prepared remarks and the Q&A session. Are there any concerning shifts or defensive language that could indicate management uncertainty?
+```
+
+---
+
+### Thematic Macro Advisor
+
+**Primary - Comprehensive Thematic Strategy**:
+```
+I'm developing our Q1 2025 thematic investment strategy around artificial intelligence infrastructure. Can you:
+1. Analyze our current portfolio exposure to AI and data center themes across all portfolios
+2. Find the latest broker research identifying key AI infrastructure sub-themes and investment opportunities
+3. Review what major technology company managements are saying in earnings calls about AI spending and data center capacity plans
+4. Check recent corporate announcements for AI infrastructure investments and partnerships
+5. Synthesize this into a thematic positioning recommendation showing where we're under-positioned relative to the emerging AI infrastructure opportunity
+```
+
+**Theme Exposure Analysis**:
+```
+Analyze our current exposure to AI and technology themes across portfolios
+```
+
+**Emerging Opportunities**:
+```
+Based on our current AI and technology exposure, what are the emerging thematic investment opportunities that could enhance our positioning?
+```
+
+---
+
+### Quant Analyst
+
+**Primary - Multi-Factor Screening**:
+```
+I'm building a multi-factor stock screening strategy focusing on Value, Quality, and improving Momentum. Can you:
+1. Screen our investment universe for securities with high Quality and Value factor exposures
+2. Within those results, identify companies showing improving Momentum factor trends over the last 6 months
+3. Validate the financial fundamentals using SEC filing data - confirm revenue growth, margin expansion, and balance sheet quality
+4. Cross-reference with analyst research to see if broker recommendations align with our factor signals
+5. Check earnings transcripts for management commentary supporting the quality and growth characteristics
+6. Provide a ranked list with factor scores, fundamental validation, analyst views, and statistical significance testing (R-squared, p-values) for the systematic investment strategy
+```
+
+**Simple Factor Screening**:
+```
+Screen for stocks with improving momentum and quality factors over the last 6 months.
+```
+
+**Factor Comparison**:
+```
+For the stocks with improving momentum and quality factors, compare their factor loadings against our current Value strategy and Growth strategy portfolios.
+```
+
+**Factor Evolution**:
+```
+Analyze the factor exposure trends of our momentum and quality securities over the last 3 years and show how their factor characteristics have evolved.
+```
+
+**Fundamental Validation**:
+```
+For the securities with the strongest factor evolution trends, what fundamental themes and research support their improving factor characteristics?
+```
+
+---
+
+### Sales Advisor
+
+**Primary - Quarterly Client Presentation**:
+```
+I need to prepare a quarterly client presentation for our SAM ESG Leaders Global Equity portfolio. Can you:
+1. Get Q4 2024 performance data including portfolio returns vs benchmark, top holdings, sector allocation, and ESG metrics
+2. Retrieve our quarterly client report template to follow the approved structure and formatting
+3. Find our ESG investment philosophy documentation to integrate our differentiated approach and sustainable development beliefs
+4. Get the required regulatory disclaimers and risk warnings from compliance policies
+5. Generate a professional client-ready quarterly report that combines performance data, investment philosophy, and compliance disclosures in the approved template format
+```
+
+**Simple Client Report**:
+```
+Generate a client report for the SAM Technology & Infrastructure portfolio showing quarterly performance, top holdings, and sector allocation
+```
+
+**Template Formatting**:
+```
+Format this into a professional monthly client report using our approved template structure with proper sections and branding
+```
+
+**Philosophy Integration**:
+```
+Integrate our ESG investment philosophy and technology innovation messaging to align the report with SAM's strategic positioning
+```
+
+**Compliance Review**:
+```
+Complete the compliance review by adding all required regulatory disclosures, risk warnings, and fiduciary language for final client delivery
+```
+
+---
+
+### ESG Guardian
+
+**Primary - Comprehensive ESG Review**:
 ```
 I need a comprehensive ESG risk review for our SAM ESG Leaders Global Equity portfolio. Can you:
-1. Scan NGO reports for High or Medium severity ESG controversies
-2. Calculate exact exposure to companies with these controversies
-3. Review our Sustainable Investment Policy requirements
-4. Check engagement history with flagged companies
-5. Provide a remediation plan with timelines and committee reviews
+1. Scan NGO reports for any recent High or Medium severity ESG controversies affecting our holdings
+2. Check our portfolio holdings to calculate exact exposure to companies with these controversies
+3. Review our Sustainable Investment Policy to confirm ESG grade requirements and controversy tolerance thresholds
+4. Check our engagement history with any flagged companies to see if we've already initiated stewardship activities
+5. Provide a complete remediation plan with severity-based timelines, required committee reviews, and documentation requirements
 ```
 
-## Data Architecture
-
+**Controversy Scanning**:
 ```
-SAM_DEMO
-├── RAW (Source data from SEC Filings + Generated documents)
-├── CURATED (Business-ready data)
-│   ├── Dimensions: Issuers (3,303), Securities (14,000+), Portfolios (10)
-│   ├── Facts: Transactions, Holdings (27,000+), Market Data (4M+)
-│   └── Document Corpus: 3,463 across 19 types
-└── AI (Snowflake Intelligence)
-    ├── 7 Semantic Views (Cortex Analyst)
-    ├── 22 Cortex Search Services
-    └── 8 AI Agents
+Scan for any new ESG controversies affecting our portfolio companies in the last 30 days.
+```
+
+**Engagement History**:
+```
+For the companies flagged, do we have any engagement history with these companies regarding the specific ESG issues identified?
+```
+
+**Policy Review**:
+```
+What does our ESG policy say about the specific issues identified, and what's our total exposure to each of the flagged companies?
+```
+
+**Committee Summary**:
+```
+Draft a comprehensive ESG committee summary covering all the companies and issues we've analyzed.
+```
+
+---
+
+### Compliance Advisor
+
+**Primary - Comprehensive Compliance Review**:
+```
+I need a comprehensive compliance review for SAM Technology & Infrastructure portfolio. Can you:
+1. Retrieve our Concentration Risk Policy and Investment Mandate to confirm all position limits and requirements
+2. Check current portfolio holdings against concentration limits (single position, issuer, sector) 
+3. Identify any breaches with exact percentages above thresholds and dollar amounts
+4. Review any engagement notes documenting previous concentration discussions with portfolio management
+5. Check latest regulatory updates for any new rules affecting technology sector concentration limits
+6. Provide a formal compliance report with breach severity, remediation timelines, required committee actions, and audit trail documentation
+```
+
+**Breach Detection**:
+```
+Check all portfolios for active compliance breaches as of today.
+```
+
+**Policy Clauses**:
+```
+For the specific breaches identified, show me the exact policy clauses and concentration limits that are being violated
+```
+
+**Remediation Options**:
+```
+For each breach identified, what are our remediation options and what's the priority order for addressing these violations?
+```
+
+**Incident Report**:
+```
+Generate a comprehensive compliance incident report covering all breaches with our complete remediation plan
+```
+
+---
+
+### Middle Office Advisor
+
+**Primary - Settlement Failures**:
+```
+Show me all failed settlements from the past 3 business days and help me understand what's causing them.
+```
+
+**Reconciliation Breaks**:
+```
+Summarize today's reconciliation breaks for all portfolios and flag any that are critical.
+```
+
+**NAV Calculation Status**:
+```
+What's the status of today's NAV calculation across all funds? Are there any anomalies I need to investigate?
+```
+
+**Corporate Actions**:
+```
+Show me all pending corporate actions for the next 5 business days and highlight any that require immediate processing.
 ```
 
 ## Key Features

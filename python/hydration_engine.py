@@ -163,9 +163,17 @@ def select_template(templates: List[Dict[str, Any]], context: Dict[str, Any]) ->
         return templates[0]
     
     # Get entity ID for deterministic selection
-    entity_id = context.get('SECURITY_ID') or context.get('ISSUER_ID') or context.get('PORTFOLIO_ID') or 0
+    entity_id = context.get('SECURITY_ID') or context.get('ISSUER_ID') or context.get('PORTFOLIO_ID')
+    doc_num = context.get('_doc_num', 0)
     doc_type = context.get('_doc_type', 'unknown')
     
+    # For GLOBAL documents (no entity linkage): cycle through all templates
+    # This ensures each template is used (e.g., all 3 policy docs get different templates)
+    if entity_id is None:
+        template_index = doc_num % len(templates)
+        return templates[template_index]
+    
+    # For entity-linked documents: use sector-aware selection
     # Sector-aware routing: map SIC description to GICS sector for template matching
     entity_sector = context.get('SIC_DESCRIPTION', '')
     

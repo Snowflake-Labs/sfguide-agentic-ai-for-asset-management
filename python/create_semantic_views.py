@@ -93,17 +93,12 @@ CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_ANALYST_VIEW
 		ISSUERS AS {config.DATABASE['name']}.CURATED.DIM_ISSUER
 			PRIMARY KEY (ISSUERID) 
 			WITH SYNONYMS=('issuers','entities','corporates') 
-			COMMENT='Issuer and corporate hierarchy data',
-		ESG_SCORES AS {config.DATABASE['name']}.CURATED.FACT_ESG_SCORES
-			PRIMARY KEY (SECURITYID, SCORE_DATE, SCORE_TYPE)
-			WITH SYNONYMS=('esg_ratings','esg_data','sustainability_scores','esg')
-			COMMENT='ESG (Environmental, Social, Governance) scores and ratings. Contains E/S/G component scores and Overall ESG grades (A/B/C/D). Use for ESG compliance checks, mandate validation, and sustainability analysis.'
+			COMMENT='Issuer and corporate hierarchy data'
 	)
 	RELATIONSHIPS (
 		HOLDINGS_TO_PORTFOLIOS AS HOLDINGS(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID),
 		HOLDINGS_TO_SECURITIES AS HOLDINGS(SECURITYID) REFERENCES SECURITIES(SECURITYID),
-		SECURITIES_TO_ISSUERS AS SECURITIES(ISSUERID) REFERENCES ISSUERS(ISSUERID),
-		ESG_TO_SECURITIES AS ESG_SCORES(SECURITYID) REFERENCES SECURITIES(SECURITYID)
+		SECURITIES_TO_ISSUERS AS SECURITIES(ISSUERID) REFERENCES ISSUERS(ISSUERID)
 	)
 	DIMENSIONS (
 		-- Portfolio dimensions
@@ -121,13 +116,7 @@ CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_ANALYST_VIEW
 		ISSUERS.CountryOfIncorporation AS COUNTRYOFINCORPORATION WITH SYNONYMS=('domicile','country_of_risk','country') COMMENT='Country of incorporation using 2-letter ISO codes (e.g., TW for Taiwan, US for United States, GB for United Kingdom)',
 		
 		-- Time dimensions
-		HOLDINGS.HOLDINGDATE AS HoldingDate WITH SYNONYMS=('position_date','as_of_date','date') COMMENT='Holdings as-of date',
-		
-		-- ESG dimensions
-		ESG_SCORES.SCORE_TYPE AS ESGScoreType WITH SYNONYMS=('esg_component','esg_pillar','esg_category') COMMENT='ESG score type: Environmental, Social, Governance, or Overall ESG',
-		ESG_SCORES.SCORE_GRADE AS ESGGrade WITH SYNONYMS=('esg_rating','esg_grade','sustainability_rating','esg_letter_grade') COMMENT='ESG letter grade: A (>=80), B (60-79), C (40-59), D (<40). ESG-labelled portfolios require minimum BBB (B grade or above).',
-		ESG_SCORES.PROVIDER AS ESGProvider WITH SYNONYMS=('rating_agency','esg_source','rating_provider') COMMENT='ESG rating provider (e.g., MSCI)',
-		ESG_SCORES.SCORE_DATE AS ESGScoreDate WITH SYNONYMS=('esg_date','rating_date','esg_as_of_date') COMMENT='Date of ESG score assessment'
+		HOLDINGS.HOLDINGDATE AS HoldingDate WITH SYNONYMS=('position_date','as_of_date','date') COMMENT='Holdings as-of date'
 	)
 	METRICS (
 		-- Core position metrics
@@ -143,12 +132,6 @@ CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_ANALYST_VIEW
 		
 		-- Concentration metrics
 		HOLDINGS.MAX_POSITION_WEIGHT AS MAX(PortfolioWeight) WITH SYNONYMS=('largest_position','max_weight','concentration') COMMENT='Largest single position weight',
-		
-		-- ESG metrics
-		ESG_SCORES.ESG_SCORE_VALUE AS AVG(SCORE_VALUE) WITH SYNONYMS=('esg_score','sustainability_score','esg_numeric_score') COMMENT='ESG numeric score (0-100). Higher is better. Environmental, Social, Governance, and Overall ESG scores available.',
-		ESG_SCORES.AVG_ESG_SCORE AS AVG(CASE WHEN SCORE_TYPE = ''Overall ESG'' THEN SCORE_VALUE END) WITH SYNONYMS=('overall_esg','average_esg','portfolio_esg_score','weighted_esg') COMMENT='Average Overall ESG score (0-100) for portfolio holdings. Use to calculate portfolio-weighted ESG scores.',
-		ESG_SCORES.ESG_GRADE_COUNT AS COUNT(DISTINCT CASE WHEN SCORE_TYPE = ''Overall ESG'' AND SCORE_GRADE IN (''A'', ''B'') THEN SECURITYID END) WITH SYNONYMS=('holdings_above_bbb','compliant_holdings','esg_compliant_count') COMMENT='Count of holdings with ESG grade A or B (meets BBB minimum requirement)',
-		ESG_SCORES.ESG_BELOW_BBB_COUNT AS COUNT(DISTINCT CASE WHEN SCORE_TYPE = ''Overall ESG'' AND SCORE_GRADE IN (''C'', ''D'') THEN SECURITYID END) WITH SYNONYMS=('holdings_below_bbb','esg_breach_count','non_compliant_holdings') COMMENT='Count of holdings with ESG grade C or D (below BBB minimum requirement)',
 		
 		-- Mandate compliance metrics (for Scenario 3.2)
 		HOLDINGS.AI_GROWTH_SCORE AS AVG(CASE 

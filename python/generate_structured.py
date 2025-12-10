@@ -44,15 +44,16 @@ def build_all(session: Session, scenarios: List[str], test_mode: bool = False):
     # print("Structured data generation complete")
 
 def create_database_structure(session: Session):
-    """Create database and schema structure."""
+    """Create schema structure (database already created by setup.sql)."""
     try:
-        session.sql(f"CREATE OR REPLACE DATABASE {config.DATABASE['name']}").collect()
-        session.sql(f"CREATE OR REPLACE SCHEMA {config.DATABASE['name']}.RAW").collect()
-        session.sql(f"CREATE OR REPLACE SCHEMA {config.DATABASE['name']}.CURATED").collect()
-        session.sql(f"CREATE OR REPLACE SCHEMA {config.DATABASE['name']}.AI").collect()
-        # print(f" Database structure created: {config.DATABASE['name']}")
+        # Database is already created by setup.sql with ACCOUNTADMIN
+        # Just ensure schemas exist (SAM_DEMO_ROLE has privileges for this)
+        session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.RAW").collect()
+        session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.CURATED").collect()
+        session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.AI").collect()
+        # print(f" Database structure verified: {config.DATABASE['name']}")
     except Exception as e:
-        print(f"ERROR: Failed to create database structure: {e}")
+        print(f"ERROR: Failed to create schema structure: {e}")
         raise
 
 def build_foundation_tables(session: Session, test_mode: bool = False):
