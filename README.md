@@ -61,7 +61,7 @@ Before running the setup script, accept the terms for the Snowflake Public Data 
 2. Click **"Get"**
 3. Enter your **email** and click **Submit**
 4. **Accept the terms and conditions**
-5. For database name, enter: `MARKETPLACE_CYBERSYN`
+5. For database name, enter: `SNOWFLAKE_PUBLIC_DATA_FREE`
 6. Click **"Get"** to complete
 
 > ⚠️ This is required only once. The setup script will fail without accepting these terms.

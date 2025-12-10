@@ -71,7 +71,7 @@ SECURITIES = {
         'etfs': 1000
     },
     'real_assets_view': 'V_REAL_ASSETS',
-    'sec_filings_database': 'MARKETPLACE_CYBERSYN',  # Created from Marketplace listing
+    'sec_filings_database': 'SNOWFLAKE_PUBLIC_DATA_FREE',  # Created from Marketplace listing
     'sec_filings_schema': 'PUBLIC_DATA_FREE'
 }
 
