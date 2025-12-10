@@ -502,10 +502,11 @@ SCENARIO_AGENTS = {
 }
 
 SCENARIO_DATA_REQUIREMENTS = {
-    'portfolio_copilot': ['broker_research', 'earnings_transcripts', 'press_releases', 'macro_events', 'report_templates'],
-    'research_copilot': ['broker_research', 'earnings_transcripts'],
-    'thematic_macro_advisor': ['broker_research', 'press_releases'],
-    'esg_guardian': ['ngo_reports', 'engagement_notes', 'policy_docs'],
+    # Each agent's search tools mapped to required document types
+    'portfolio_copilot': ['broker_research', 'earnings_transcripts', 'press_releases', 'macro_events', 'report_templates', 'policy_docs'],
+    'research_copilot': ['broker_research', 'earnings_transcripts', 'press_releases'],
+    'thematic_macro_advisor': ['broker_research', 'press_releases', 'earnings_transcripts', 'macro_events'],
+    'esg_guardian': ['ngo_reports', 'engagement_notes', 'policy_docs', 'press_releases', 'earnings_transcripts'],
     'sales_advisor': ['sales_templates', 'philosophy_docs', 'policy_docs'],
     'quant_analyst': ['broker_research', 'earnings_transcripts'],
     'compliance_advisor': ['policy_docs', 'engagement_notes', 'form_adv', 'form_crs', 'regulatory_updates'],

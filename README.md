@@ -1,23 +1,8 @@
 # Agentic AI for Asset Management
 
-Demonstration of Snowflake Intelligence for asset management with 8 specialized AI agents combining structured analytics and unstructured document intelligence.
-
 ## Overview
 
 **Snowcrest Asset Management (SAM)** - A fictional investment firm managing £2.5B across 10 strategies. This guide shows how Snowflake Intelligence transforms workflows through AI agents that integrate portfolio data, research documents, and compliance monitoring in natural language.
-
-## 8 AI Agents
-
-| Agent | Role | Key Capabilities |
-|-------|------|-----------------|
-| **Portfolio Copilot** | Portfolio Manager | Analytics, concentration risk, event impact, implementation |
-| **Research Copilot** | Research Analyst | Document research, company analysis, earnings intelligence |
-| **Thematic Macro Advisor** | Thematic Strategist | Theme positioning, emerging trends, strategic allocation |
-| **Quant Analyst** | Quantitative Analyst | Factor screening, performance attribution, factor evolution |
-| **Sales Advisor** | Client Relations | Client reporting, template formatting, compliance review |
-| **ESG Guardian** | ESG Officer | ESG monitoring, controversy detection, remediation planning |
-| **Compliance Advisor** | Compliance Officer | Mandate monitoring, breach detection, regulatory tracking |
-| **Middle Office Copilot** | Operations | Settlement monitoring, reconciliation, NAV validation |
 
 ## Repository Structure
 
@@ -48,6 +33,19 @@ sfguide-agentic-ai-for-asset-management/
 ├── LICENSE
 └── LEGAL.md
 ```
+
+## 8 AI Agents
+
+| Agent | Role | Key Capabilities |
+|-------|------|-----------------|
+| **Portfolio Copilot** | Portfolio Manager | Analytics, concentration risk, event impact, implementation |
+| **Research Copilot** | Research Analyst | Document research, company analysis, earnings intelligence |
+| **Thematic Macro Advisor** | Thematic Strategist | Theme positioning, emerging trends, strategic allocation |
+| **Quant Analyst** | Quantitative Analyst | Factor screening, performance attribution, factor evolution |
+| **Sales Advisor** | Client Relations | Client reporting, template formatting, compliance review |
+| **ESG Guardian** | ESG Officer | ESG monitoring, controversy detection, remediation planning |
+| **Compliance Advisor** | Compliance Officer | Mandate monitoring, breach detection, regulatory tracking |
+| **Middle Office Copilot** | Operations | Settlement monitoring, reconciliation, NAV validation |
 
 ## Prerequisites
 
