@@ -124,15 +124,18 @@ def load_sub_template(partial_name: str, base_template_path: str) -> str:
     Load a sub-template partial (for market data partials).
     
     Args:
-        partial_name: Name of partial (e.g., 'equity_markets')
+        partial_name: Name of partial (e.g., 'equity_markets' or '_partials/equity_markets')
         base_template_path: Path to main template for resolving relative paths
     
     Returns:
         Partial markdown content
     """
+    # Strip _partials/ prefix if present (templates may use {{> _partials/name}} or {{> name}})
+    clean_partial_name = partial_name.replace('_partials/', '').replace('_partials\\', '')
+    
     # Construct path to partial
     template_dir = os.path.dirname(base_template_path)
-    partial_path = os.path.join(template_dir, '_partials', f'{partial_name}.md')
+    partial_path = os.path.join(template_dir, '_partials', f'{clean_partial_name}.md')
     
     if not os.path.exists(partial_path):
         raise FileNotFoundError(f"Partial not found: {partial_path}")
@@ -305,6 +308,9 @@ def build_security_context(session: Session, security_id: int, doc_type: str) ->
     # Add Tier 1 numerics
     context.update(generate_tier1_numerics(context, doc_type))
     
+    # Add Tier 2 real data from database (CURRENT_PRICE, POSITION_SIZE, etc.)
+    context.update(query_tier2_security_metrics(session, security_id, doc_type))
+    
     return context
 
 def build_portfolio_context(session: Session, portfolio_id: int, doc_type: str) -> Dict[str, Any]:
@@ -429,10 +435,108 @@ def build_global_context(doc_type: str, doc_num: int = 0) -> Dict[str, Any]:
     # Add market data regime for market_data documents
     if doc_type == 'market_data':
         context['_regime'] = select_market_regime()
+        # Add market indicators
+        context.update(generate_market_indicators(context['_regime']))
     
     # Add Tier 1 numerics for market data
     if doc_type == 'market_data':
         context.update(generate_tier1_numerics(context, doc_type))
+    
+    # Add compliance/regulatory context
+    if doc_type in ['compliance_manual', 'form_adv', 'form_crs', 'policy_docs']:
+        context.update(generate_compliance_context())
+    
+    return context
+
+
+def generate_market_indicators(regime: str) -> Dict[str, Any]:
+    """
+    Generate market indicator values based on regime.
+    
+    Args:
+        regime: Market regime ('risk_on', 'risk_off', 'mixed')
+    
+    Returns:
+        Dict with market indicators (VIX, PUT_CALL_RATIO, FEAR_GREED, etc.)
+    """
+    indicators = {}
+    
+    if regime == 'risk_on':
+        indicators['VIX_LEVEL'] = round(random.uniform(12, 18), 1)
+        indicators['VIX_CHANGE'] = round(random.uniform(-15, -5), 1)
+        indicators['PUT_CALL_RATIO'] = round(random.uniform(0.65, 0.85), 2)
+        indicators['FEAR_GREED'] = random.randint(60, 85)
+        indicators['MARKET_SENTIMENT'] = 'bullish'
+        indicators['RISK_APPETITE'] = 'elevated'
+    elif regime == 'risk_off':
+        indicators['VIX_LEVEL'] = round(random.uniform(22, 35), 1)
+        indicators['VIX_CHANGE'] = round(random.uniform(10, 30), 1)
+        indicators['PUT_CALL_RATIO'] = round(random.uniform(1.1, 1.4), 2)
+        indicators['FEAR_GREED'] = random.randint(15, 35)
+        indicators['MARKET_SENTIMENT'] = 'bearish'
+        indicators['RISK_APPETITE'] = 'diminished'
+    else:  # mixed
+        indicators['VIX_LEVEL'] = round(random.uniform(18, 24), 1)
+        indicators['VIX_CHANGE'] = round(random.uniform(-5, 8), 1)
+        indicators['PUT_CALL_RATIO'] = round(random.uniform(0.85, 1.1), 2)
+        indicators['FEAR_GREED'] = random.randint(40, 60)
+        indicators['MARKET_SENTIMENT'] = 'neutral'
+        indicators['RISK_APPETITE'] = 'cautious'
+    
+    # Add index performance
+    if regime == 'risk_on':
+        indicators['SP500_CHANGE'] = round(random.uniform(0.5, 2.5), 2)
+        indicators['NASDAQ_CHANGE'] = round(random.uniform(0.8, 3.0), 2)
+        indicators['DOW_CHANGE'] = round(random.uniform(0.3, 2.0), 2)
+    elif regime == 'risk_off':
+        indicators['SP500_CHANGE'] = round(random.uniform(-3.0, -0.5), 2)
+        indicators['NASDAQ_CHANGE'] = round(random.uniform(-4.0, -0.8), 2)
+        indicators['DOW_CHANGE'] = round(random.uniform(-2.5, -0.3), 2)
+    else:
+        indicators['SP500_CHANGE'] = round(random.uniform(-1.0, 1.0), 2)
+        indicators['NASDAQ_CHANGE'] = round(random.uniform(-1.5, 1.5), 2)
+        indicators['DOW_CHANGE'] = round(random.uniform(-0.8, 0.8), 2)
+    
+    # Add bond yields
+    indicators['TREASURY_10Y'] = round(random.uniform(3.8, 4.8), 2)
+    indicators['TREASURY_2Y'] = round(random.uniform(4.0, 5.2), 2)
+    indicators['YIELD_CURVE'] = round(indicators['TREASURY_10Y'] - indicators['TREASURY_2Y'], 2)
+    
+    # Add currency and commodity
+    indicators['DXY_LEVEL'] = round(random.uniform(100, 108), 1)
+    indicators['GOLD_PRICE'] = round(random.uniform(1900, 2100), 0)
+    indicators['OIL_PRICE'] = round(random.uniform(70, 95), 1)
+    
+    return indicators
+
+
+def generate_compliance_context() -> Dict[str, Any]:
+    """
+    Generate compliance and regulatory document context.
+    
+    Returns:
+        Dict with compliance-related placeholders
+    """
+    context = {}
+    
+    # Firm information
+    context['FIRM_NAME'] = 'Snowcrest Asset Management'
+    context['FIRM_CAPITAL'] = f"${random.randint(500, 2000)} million"
+    context['INSURANCE_COVERAGE'] = f"${random.randint(10, 50)} million"
+    context['AUM_TOTAL'] = f"${random.randint(5, 25)} billion"
+    context['EMPLOYEE_COUNT'] = random.randint(50, 200)
+    context['OFFICE_LOCATIONS'] = random.randint(3, 8)
+    
+    # Regulatory information
+    context['SEC_FILE_NUMBER'] = f"801-{random.randint(10000, 99999)}"
+    context['CRD_NUMBER'] = str(random.randint(100000, 999999))
+    context['EFFECTIVE_DATE'] = datetime.now().strftime('%B %d, %Y')
+    context['LAST_UPDATE'] = (datetime.now() - timedelta(days=random.randint(30, 180))).strftime('%B %d, %Y')
+    
+    # Compliance metrics
+    context['COMPLIANCE_STAFF'] = random.randint(5, 15)
+    context['AUDIT_FREQUENCY'] = 'annually'
+    context['FIDUCIARY_STANDARD'] = 'Yes'
     
     return context
 
@@ -651,6 +755,10 @@ def generate_provider_context(context: Dict[str, Any], doc_type: str) -> Dict[st
         
         # Select rating from distribution
         provider_context['RATING'] = select_from_distribution('rating')
+        
+        # Add sub-industry based on SIC description
+        sic_desc = context.get('SIC_DESCRIPTION', 'Diversified')
+        provider_context['SUB_INDUSTRY'] = sic_desc[:50] if sic_desc else 'Diversified'
         
         # Add portfolio name for investment memos
         if doc_type == 'investment_memo':
@@ -1188,6 +1296,20 @@ def get_numeric_bounds_for_doc_type(doc_type: str, sector: str) -> Dict[str, Dic
                 'GA': {'min': 1, 'max': 10},
                 'DIVIDENDS': {'min': 100, 'max': 600},
                 'BUYBACKS': {'min': 500, 'max': 3000},
+                # Additional investment memo placeholders
+                'ROE_PCT': {'min': 10, 'max': 30},
+                'ROIC_PCT': {'min': 8, 'max': 25},
+                'DEBT_TO_EQUITY': {'min': 0.2, 'max': 1.5},
+                'CURRENT_RATIO': {'min': 1.0, 'max': 3.0},
+                'QUICK_RATIO': {'min': 0.8, 'max': 2.5},
+                # Market data placeholders (backup for non-regime context)
+                'VIX_LEVEL': {'min': 12, 'max': 35},
+                'VIX_CHANGE': {'min': -15, 'max': 25},
+                'PUT_CALL_RATIO': {'min': 0.6, 'max': 1.4},
+                'FEAR_GREED': {'min': 20, 'max': 80},
+                'SP500_CHANGE': {'min': -2, 'max': 2},
+                'NASDAQ_CHANGE': {'min': -3, 'max': 3},
+                'TREASURY_10Y': {'min': 3.5, 'max': 5.0},
                 'EPS_LOW': {'min': 0.8, 'max': 3.8},
                 'EPS_HIGH': {'min': 1.0, 'max': 4.2},
                 'FY_LOW': {'min': 8, 'max': 16},
@@ -1297,7 +1419,16 @@ def query_tier2_portfolio_metrics(session: Session, portfolio_id: int) -> Dict[s
             metrics['TOP10_WEIGHT_PCT'] = round(sum([h['WEIGHT_PCT'] for h in top10]), 1)
             metrics['LARGEST_POSITION_NAME'] = top10[0]['COMPANY_NAME']
             metrics['LARGEST_POSITION_WEIGHT'] = round(top10[0]['WEIGHT_PCT'], 2)
-            metrics['CONCENTRATION_WARNING'] = 'YES' if top10[0]['WEIGHT_PCT'] > config.COMPLIANCE_RULES['concentration']['warning_threshold'] * 100 else 'NO'
+            metrics['POSITION_COUNT'] = len(top10)
+            
+            # Concentration warning
+            warning_threshold = config.COMPLIANCE_RULES['concentration']['warning_threshold'] * 100
+            if top10[0]['WEIGHT_PCT'] > warning_threshold:
+                metrics['CONCENTRATION_WARNING'] = 'YES'
+                metrics['CONCENTRATION_WARNING_TEXT'] = f"⚠️ {top10[0]['COMPANY_NAME']} at {round(top10[0]['WEIGHT_PCT'], 1)}% exceeds {warning_threshold}% threshold"
+            else:
+                metrics['CONCENTRATION_WARNING'] = 'NO'
+                metrics['CONCENTRATION_WARNING_TEXT'] = 'All positions within concentration limits'
         
         # Query sector allocation
         sectors = session.sql(f"""
@@ -1315,12 +1446,144 @@ def query_tier2_portfolio_metrics(session: Session, portfolio_id: int) -> Dict[s
         
         if sectors:
             metrics['SECTOR_ALLOCATION_TABLE'] = sectors
+            # Calculate tech weight (look for technology-related sectors)
+            tech_weight = sum([
+                s['WEIGHT_PCT'] for s in sectors 
+                if any(kw in s['SECTOR'].lower() for kw in ['technology', 'software', 'computer', 'semiconductor', 'electronic'])
+            ])
+            metrics['TECH_WEIGHT'] = round(tech_weight, 1)
+            metrics['TECH_BENCH_WEIGHT'] = round(random.uniform(25, 35), 1)  # Typical benchmark tech weight
+        
+        # Generate relative performance metrics
+        qtd_return = metrics.get('QTD_RETURN_PCT', random.uniform(-5, 10))
+        benchmark_return = metrics.get('BENCHMARK_QTD_PCT', random.uniform(-4, 8))
+        metrics['RELATIVE_RETURN_DIFF'] = round(qtd_return - benchmark_return, 2)
+        metrics['YTD_RELATIVE_PERFORMANCE'] = round(random.uniform(-3, 5), 2)
+        
+        # Market condition
+        market_conditions = ['favorable market conditions', 'challenging market environment', 'mixed market signals', 'volatile trading conditions']
+        metrics['MARKET_CONDITION'] = random.choice(market_conditions)
     
     except Exception as e:
         print(f"   WARNING:  Tier 2 query failed for portfolio {portfolio_id}: {e}")
-        # print(f"   ℹ️  Falling back to Tier 1 numerics")
-        # Fallback to Tier 1 if queries fail
-        pass
+        # Fallback values
+        metrics['POSITION_COUNT'] = random.randint(20, 50)
+        metrics['CONCENTRATION_WARNING_TEXT'] = 'All positions within concentration limits'
+        metrics['RELATIVE_RETURN_DIFF'] = round(random.uniform(-2, 3), 2)
+        metrics['YTD_RELATIVE_PERFORMANCE'] = round(random.uniform(-3, 5), 2)
+        metrics['TECH_WEIGHT'] = round(random.uniform(20, 40), 1)
+        metrics['TECH_BENCH_WEIGHT'] = round(random.uniform(25, 35), 1)
+        metrics['MARKET_CONDITION'] = 'mixed market conditions'
+    
+    return metrics
+
+
+def query_tier2_security_metrics(session: Session, security_id: int, doc_type: str) -> Dict[str, Any]:
+    """
+    Query actual security metrics from CURATED tables (Tier 2).
+    
+    Args:
+        session: Snowpark session
+        security_id: SecurityID
+        doc_type: Document type for context-specific queries
+    
+    Returns:
+        Dict with real data metrics (CURRENT_PRICE, POSITION_SIZE_PCT, etc.)
+    """
+    metrics = {}
+    
+    try:
+        # Query current price from market data
+        price_data = session.sql(f"""
+            SELECT 
+                Price_Close as CURRENT_PRICE,
+                Price_Open,
+                Price_High,
+                Price_Low,
+                Volume
+            FROM {config.DATABASE['name']}.CURATED.FACT_MARKETDATA_TIMESERIES
+            WHERE SecurityID = {security_id}
+            AND PriceDate = (
+                SELECT MAX(PriceDate) 
+                FROM {config.DATABASE['name']}.CURATED.FACT_MARKETDATA_TIMESERIES 
+                WHERE SecurityID = {security_id}
+            )
+            LIMIT 1
+        """).collect()
+        
+        if price_data:
+            metrics['CURRENT_PRICE'] = round(float(price_data[0]['CURRENT_PRICE']), 2)
+            metrics['PRICE_OPEN'] = round(float(price_data[0]['PRICE_OPEN']), 2)
+            metrics['PRICE_HIGH'] = round(float(price_data[0]['PRICE_HIGH']), 2)
+            metrics['PRICE_LOW'] = round(float(price_data[0]['PRICE_LOW']), 2)
+            
+            # Calculate fair value range based on current price
+            current = metrics['CURRENT_PRICE']
+            metrics['FAIR_VALUE_LOW'] = round(current * 0.85, 2)
+            metrics['FAIR_VALUE_HIGH'] = round(current * 1.25, 2)
+        
+        # Query position size from portfolio holdings (average across portfolios)
+        position_data = session.sql(f"""
+            SELECT 
+                AVG(PortfolioWeight) * 100 as AVG_POSITION_SIZE_PCT,
+                SUM(MarketValue_Base) as TOTAL_POSITION_USD,
+                COUNT(DISTINCT PortfolioID) as PORTFOLIO_COUNT
+            FROM {config.DATABASE['name']}.CURATED.FACT_POSITION_DAILY_ABOR
+            WHERE SecurityID = {security_id}
+            AND HoldingDate = (
+                SELECT MAX(HoldingDate) 
+                FROM {config.DATABASE['name']}.CURATED.FACT_POSITION_DAILY_ABOR
+            )
+        """).collect()
+        
+        if position_data and position_data[0]['AVG_POSITION_SIZE_PCT']:
+            metrics['POSITION_SIZE_PCT'] = round(float(position_data[0]['AVG_POSITION_SIZE_PCT']), 2)
+            metrics['POSITION_SIZE_USD'] = round(float(position_data[0]['TOTAL_POSITION_USD'] or 0) / max(1, position_data[0]['PORTFOLIO_COUNT']), 0)
+            metrics['POSITION_COUNT'] = int(position_data[0]['PORTFOLIO_COUNT'] or 0)
+        else:
+            # Default values if not in any portfolio
+            metrics['POSITION_SIZE_PCT'] = round(random.uniform(1.5, 5.0), 2)
+            metrics['POSITION_SIZE_USD'] = round(random.uniform(500000, 5000000), 0)
+            metrics['POSITION_COUNT'] = random.randint(1, 5)
+        
+        # Query revenue breakdown estimates (simulated from sector patterns)
+        # These would ideally come from FACT_FUNDAMENTALS but we'll generate realistic values
+        sector = metrics.get('SIC_DESCRIPTION', '')
+        if 'software' in sector.lower() or 'technology' in sector.lower() or 'computer' in sector.lower():
+            metrics['CLOUD_REVENUE_PCT'] = round(random.uniform(35, 65), 1)
+            metrics['SOFTWARE_REVENUE_PCT'] = round(random.uniform(20, 40), 1)
+            metrics['SERVICES_REVENUE_PCT'] = round(100 - metrics['CLOUD_REVENUE_PCT'] - metrics['SOFTWARE_REVENUE_PCT'], 1)
+            metrics['R_AND_D_INTENSITY_PCT'] = round(random.uniform(12, 25), 1)
+            metrics['CLOUD_GROWTH'] = round(random.uniform(18, 45), 1)
+            metrics['CURRENT_MARGIN'] = round(random.uniform(20, 40), 1)
+        else:
+            metrics['CLOUD_REVENUE_PCT'] = round(random.uniform(10, 30), 1)
+            metrics['SOFTWARE_REVENUE_PCT'] = round(random.uniform(15, 35), 1)
+            metrics['SERVICES_REVENUE_PCT'] = round(random.uniform(30, 50), 1)
+            metrics['R_AND_D_INTENSITY_PCT'] = round(random.uniform(5, 15), 1)
+            metrics['CLOUD_GROWTH'] = round(random.uniform(10, 25), 1)
+            metrics['CURRENT_MARGIN'] = round(random.uniform(15, 30), 1)
+        
+        # Calculate upside potential
+        if 'CURRENT_PRICE' in metrics and 'FAIR_VALUE_HIGH' in metrics:
+            metrics['UPSIDE_PCT'] = round((metrics['FAIR_VALUE_HIGH'] / metrics['CURRENT_PRICE'] - 1) * 100, 1)
+        else:
+            metrics['UPSIDE_PCT'] = round(random.uniform(10, 35), 1)
+        
+    except Exception as e:
+        # Fallback to generated values if queries fail
+        metrics['CURRENT_PRICE'] = round(random.uniform(50, 500), 2)
+        metrics['FAIR_VALUE_LOW'] = round(metrics['CURRENT_PRICE'] * 0.85, 2)
+        metrics['FAIR_VALUE_HIGH'] = round(metrics['CURRENT_PRICE'] * 1.25, 2)
+        metrics['POSITION_SIZE_PCT'] = round(random.uniform(1.5, 5.0), 2)
+        metrics['POSITION_SIZE_USD'] = round(random.uniform(500000, 5000000), 0)
+        metrics['CLOUD_REVENUE_PCT'] = round(random.uniform(20, 50), 1)
+        metrics['SOFTWARE_REVENUE_PCT'] = round(random.uniform(20, 40), 1)
+        metrics['SERVICES_REVENUE_PCT'] = round(random.uniform(15, 35), 1)
+        metrics['R_AND_D_INTENSITY_PCT'] = round(random.uniform(8, 20), 1)
+        metrics['UPSIDE_PCT'] = round(random.uniform(10, 35), 1)
+        metrics['CLOUD_GROWTH'] = round(random.uniform(15, 35), 1)
+        metrics['CURRENT_MARGIN'] = round(random.uniform(18, 35), 1)
     
     return metrics
 

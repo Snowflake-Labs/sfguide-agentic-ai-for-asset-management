@@ -13,16 +13,17 @@ import config
 def create_search_services(session: Session, scenarios: List[str]):
     """Create Cortex Search services for required document types."""
     
-    # Handle 'all' keyword - expand to all scenarios
+    # Handle 'all' keyword - expand to ALL document types (not just scenario-linked ones)
     if 'all' in scenarios:
-        scenarios = list(config.SCENARIO_DATA_REQUIREMENTS.keys())
-        print(f"   Expanding 'all' to {len(scenarios)} scenarios")
-    
-    # Determine required document types from scenarios
-    required_doc_types = set()
-    for scenario in scenarios:
-        if scenario in config.SCENARIO_DATA_REQUIREMENTS:
-            required_doc_types.update(config.SCENARIO_DATA_REQUIREMENTS[scenario])
+        # Include ALL document types defined in config, not just scenario-linked ones
+        required_doc_types = set(config.DOCUMENT_TYPES.keys())
+        print(f"   Expanding 'all' to {len(required_doc_types)} document types for search services")
+    else:
+        # Determine required document types from specific scenarios
+        required_doc_types = set()
+        for scenario in scenarios:
+            if scenario in config.SCENARIO_DATA_REQUIREMENTS:
+                required_doc_types.update(config.SCENARIO_DATA_REQUIREMENTS[scenario])
     
     # print(f"   📑 Document types: {', '.join(required_doc_types)}")
     
