@@ -1972,6 +1972,23 @@ def query_tier2_security_metrics(session: Session, security_id: int, doc_type: s
         metrics['SOFTWARE_PREMIUM'] = round(random.uniform(20, 40), 0)
         metrics['PREMIUM_DISCOUNT'] = round(random.uniform(-15, 25), 1)
         
+        # Additional metrics used in investment documents
+        metrics['INTL_TARGET'] = round(random.uniform(20, 35), 1)
+        metrics['NET_CASH'] = round(random.uniform(5, 25), 1)
+        metrics['FCF_MARGIN'] = round(random.uniform(15, 35), 1)
+        metrics['FAIR_VALUE_USD'] = round(random.uniform(100, 400), 0)
+        metrics['VALUATION_LOW'] = round(random.uniform(80, 150), 0)
+        metrics['VALUATION_HIGH'] = round(random.uniform(200, 350), 0)
+        metrics['TECH_ALLOCATION'] = round(random.uniform(22, 35), 1)
+        metrics['AI_ALLOCATION'] = round(random.uniform(5, 15), 1)
+        metrics['THEMATIC_ALLOCATION'] = round(random.uniform(10, 25), 1)
+        metrics['PORTFOLIO_RISK_CONTRIBUTION'] = round(random.uniform(2, 12), 1)
+        metrics['CARBON_NEUTRAL_STATUS'] = random.choice([
+            'carbon neutrality in Scope 1 and 2 emissions',
+            'working toward carbon neutrality',
+            'committed to net-zero by 2030'
+        ])
+        
     except Exception as e:
         # Fallback to generated values if queries fail
         metrics['CURRENT_PRICE'] = round(random.uniform(50, 500), 2)
@@ -2009,6 +2026,18 @@ def query_tier2_security_metrics(session: Session, security_id: int, doc_type: s
         metrics['RATE_SENSITIVITY_PCT'] = round(random.uniform(2, 8), 1)
         metrics['DEPOSIT_BETA_PCT'] = round(random.uniform(30, 60), 0)
         metrics['LOAN_GROWTH_PCT'] = round(random.uniform(3, 12), 1)
+        # Additional metrics
+        metrics['INTL_TARGET'] = round(random.uniform(20, 35), 1)
+        metrics['NET_CASH'] = round(random.uniform(5, 25), 1)
+        metrics['FCF_MARGIN'] = round(random.uniform(15, 35), 1)
+        metrics['FAIR_VALUE_USD'] = round(random.uniform(100, 400), 0)
+        metrics['VALUATION_LOW'] = round(random.uniform(80, 150), 0)
+        metrics['VALUATION_HIGH'] = round(random.uniform(200, 350), 0)
+        metrics['TECH_ALLOCATION'] = round(random.uniform(22, 35), 1)
+        metrics['AI_ALLOCATION'] = round(random.uniform(5, 15), 1)
+        metrics['THEMATIC_ALLOCATION'] = round(random.uniform(10, 25), 1)
+        metrics['PORTFOLIO_RISK_CONTRIBUTION'] = round(random.uniform(2, 12), 1)
+        metrics['CARBON_NEUTRAL_STATUS'] = 'working toward carbon neutrality'
     
     return metrics
 
