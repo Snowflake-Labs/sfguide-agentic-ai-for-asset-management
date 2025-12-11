@@ -9,6 +9,9 @@ from snowflake.snowpark import Session
 from typing import List, Dict
 import config
 
+# Get warehouse name from config (matches setup.sql)
+EXECUTION_WAREHOUSE = config.WAREHOUSES['execution']['name']
+
 def create_all_agents(session: Session, scenarios: List[str] = None):
     """
     Create all Snowflake Intelligence agents for the specified scenarios.
@@ -35,7 +38,8 @@ def create_all_agents(session: Session, scenarios: List[str] = None):
         ('compliance_advisor', create_compliance_advisor),
         ('sales_advisor', create_sales_advisor),
         ('quant_analyst', create_quant_analyst),
-        ('middle_office_copilot', create_middle_office_copilot)
+        ('middle_office_copilot', create_middle_office_copilot),
+        ('executive_copilot', create_executive_copilot)
     ]
     
     # Track results
@@ -48,7 +52,7 @@ def create_all_agents(session: Session, scenarios: List[str] = None):
             print(f"   Creating agent: {agent_name}...")
             creator_func(session)
             
-            # Get the full agent name from config
+            # Get the full agent name with AM_ prefix from config
             full_agent_name = config.SCENARIO_AGENTS[agent_name]['agent_name']
             
             # Register with Snowflake Intelligence
@@ -112,7 +116,7 @@ def register_agent_with_intelligence(session: Session, database_name: str, ai_sc
         session: Snowpark session
         database_name: Database name where agent was created
         ai_schema: AI schema name where agent was created
-        agent_name: Name of the agent (e.g., 'portfolio_advisor')
+        agent_name: Name of the agent (e.g., 'AM_portfolio_copilot')
     
     Returns:
         True if registration succeeded, False otherwise
@@ -1064,9 +1068,9 @@ def create_portfolio_copilot(session: Session):
     orchestration_formatted = format_instructions_for_yaml(instructions['orchestration'])
     
     sql = f"""
-CREATE OR REPLACE AGENT {database_name}.{ai_schema}.portfolio_advisor
+CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
   COMMENT = 'Expert AI assistant for portfolio managers providing instant access to portfolio analytics, holdings analysis, benchmark comparisons, and supporting research. Helps portfolio managers make informed investment decisions by combining quantitative portfolio data with qualitative market intelligence.'
-  PROFILE = '{{"display_name": "Portfolio Advisor"}}'
+  PROFILE = '{{"display_name": "Portfolio Co-Pilot (AM Demo)"}}'
   FROM SPECIFICATION
   $$
   models:
@@ -1140,25 +1144,25 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.portfolio_advisor
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{EXECUTION_WAREHOUSE}"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     financial_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{EXECUTION_WAREHOUSE}"
       semantic_view: "{database_name}.AI.SAM_SEC_FILINGS_VIEW"
     implementation_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{EXECUTION_WAREHOUSE}"
       semantic_view: "{database_name}.AI.SAM_IMPLEMENTATION_VIEW"
     supply_chain_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{EXECUTION_WAREHOUSE}"
       semantic_view: "{database_name}.AI.SAM_SUPPLY_CHAIN_VIEW"
     search_broker_research:
       search_service: "{database_name}.AI.SAM_BROKER_RESEARCH"
@@ -1194,7 +1198,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.portfolio_advisor
       execution_environment:
         query_timeout: 60
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{EXECUTION_WAREHOUSE}"
       identifier: "{database_name}.AI.GENERATE_INVESTMENT_COMMITTEE_PDF"
       name: "GENERATE_INVESTMENT_COMMITTEE_PDF(VARCHAR, VARCHAR, VARCHAR)"
       type: "procedure"
@@ -1213,9 +1217,9 @@ def create_research_copilot(session: Session):
     ai_schema = config.DATABASE['schemas']['ai']
     
     sql = f"""
-CREATE OR REPLACE AGENT {database_name}.{ai_schema}.research_advisor
+CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_research_copilot
   COMMENT = 'Expert research assistant specializing in document analysis, investment research synthesis, and market intelligence. Provides comprehensive analysis by searching across broker research, earnings transcripts, and press releases to deliver actionable investment insights.'
-  PROFILE = '{{"display_name": "Research Advisor"}}'
+  PROFILE = '{{"display_name": "Research Co-Pilot (AM Demo)"}}'
   FROM SPECIFICATION
   $$
   models:
@@ -1245,7 +1249,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.research_advisor
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{EXECUTION_WAREHOUSE}"
       semantic_view: "{database_name}.AI.SAM_SEC_FILINGS_VIEW"
     search_broker_research:
       search_service: "{database_name}.AI.SAM_BROKER_RESEARCH"
@@ -1273,9 +1277,9 @@ def create_thematic_macro_advisor(session: Session):
     ai_schema = config.DATABASE['schemas']['ai']
     
     sql = f"""
-CREATE OR REPLACE AGENT {database_name}.{ai_schema}.thematic_macro_advisor
+CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_thematic_macro_advisor
   COMMENT = 'Expert thematic investment strategist specializing in macro-economic trends, sectoral themes, and strategic asset allocation. Combines portfolio analytics with comprehensive research synthesis to identify and validate thematic investment opportunities across global markets.'
-  PROFILE = '{{"display_name": "Thematic Macro Advisor"}}'
+  PROFILE = '{{"display_name": "Thematic Macro Advisor (AM Demo)"}}'
   FROM SPECIFICATION
   $$
   models:
@@ -1309,7 +1313,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.thematic_macro_advisor
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{EXECUTION_WAREHOUSE}"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     search_broker_research:
       search_service: "{database_name}.AI.SAM_BROKER_RESEARCH"
@@ -1342,9 +1346,9 @@ def create_esg_guardian(session: Session):
     ai_schema = config.DATABASE['schemas']['ai']
     
     sql = f"""
-CREATE OR REPLACE AGENT {database_name}.{ai_schema}.esg_guardian
+CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_esg_guardian
   COMMENT = 'ESG risk monitoring specialist providing comprehensive analysis of environmental, social, and governance factors across portfolio holdings. Monitors ESG ratings, controversies, and policy compliance to ensure mandate adherence and risk mitigation.'
-  PROFILE = '{{"display_name": "ESG Guardian"}}'
+  PROFILE = '{{"display_name": "ESG Guardian (AM Demo)"}}'
   FROM SPECIFICATION
   $$
   models:
@@ -1382,7 +1386,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.esg_guardian
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{EXECUTION_WAREHOUSE}"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     search_ngo_reports:
       search_service: "{database_name}.AI.SAM_NGO_REPORTS"
@@ -1420,9 +1424,9 @@ def create_compliance_advisor(session: Session):
     ai_schema = config.DATABASE['schemas']['ai']
     
     sql = f"""
-CREATE OR REPLACE AGENT {database_name}.{ai_schema}.compliance_advisor
+CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_compliance_advisor
   COMMENT = 'Compliance monitoring specialist ensuring portfolio mandate adherence and regulatory compliance. Monitors concentration limits, ESG requirements, and investment policy guidelines with automated breach detection and remediation tracking.'
-  PROFILE = '{{"display_name": "Compliance Advisor"}}'
+  PROFILE = '{{"display_name": "Compliance Advisor (AM Demo)"}}'
   FROM SPECIFICATION
   $$
   models:
@@ -1448,7 +1452,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.compliance_advisor
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{EXECUTION_WAREHOUSE}"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     search_policies:
       search_service: "{database_name}.AI.SAM_POLICY_DOCS"
@@ -1471,9 +1475,9 @@ def create_sales_advisor(session: Session):
     ai_schema = config.DATABASE['schemas']['ai']
     
     sql = f"""
-CREATE OR REPLACE AGENT {database_name}.{ai_schema}.sales_advisor
+CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_sales_advisor
   COMMENT = 'Client reporting specialist creating professional investment reports and communications. Formats portfolio performance, holdings analysis, and market commentary into client-ready documents following SAM brand guidelines and reporting templates.'
-  PROFILE = '{{"display_name": "Sales Advisor"}}'
+  PROFILE = '{{"display_name": "Sales Advisor (AM Demo)"}}'
   FROM SPECIFICATION
   $$
   models:
@@ -1503,7 +1507,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.sales_advisor
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{EXECUTION_WAREHOUSE}"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     search_sales_templates:
       search_service: "{database_name}.AI.SAM_SALES_TEMPLATES"
@@ -1531,9 +1535,9 @@ def create_quant_analyst(session: Session):
     ai_schema = config.DATABASE['schemas']['ai']
     
     sql = f"""
-CREATE OR REPLACE AGENT {database_name}.{ai_schema}.quant_analyst
+CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_quant_analyst
   COMMENT = 'Quantitative analysis specialist providing advanced portfolio analytics including factor exposures, performance attribution, and risk decomposition. Delivers sophisticated quantitative insights for portfolio construction and risk management.'
-  PROFILE = '{{"display_name": "Quant Analyst"}}'
+  PROFILE = '{{"display_name": "Quant Analyst (AM Demo)"}}'
   FROM SPECIFICATION
   $$
   models:
@@ -1563,13 +1567,13 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.quant_analyst
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{EXECUTION_WAREHOUSE}"
       semantic_view: "{database_name}.AI.SAM_QUANT_VIEW"
     financial_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{EXECUTION_WAREHOUSE}"
       semantic_view: "{database_name}.AI.SAM_SEC_FILINGS_VIEW"
     search_broker_research:
       search_service: "{database_name}.AI.SAM_BROKER_RESEARCH"
@@ -2157,9 +2161,9 @@ Alternative: Present last known good data and clearly mark current data as suspe
     orchestration_formatted = format_instructions_for_yaml(orchestration_instructions)
     
     sql = f"""
-CREATE OR REPLACE AGENT {database_name}.{ai_schema}.middle_office_advisor
+CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_middle_office_copilot
   COMMENT = 'Middle office operations specialist monitoring trade settlements, reconciliations, NAV calculations, corporate actions, and cash management. Provides real-time operational intelligence and exception management for middle office operations teams.'
-  PROFILE = '{{"display_name": "Middle Office Advisor"}}'
+  PROFILE = '{{"display_name": "Middle Office Co-Pilot (AM Demo)"}}'
   FROM SPECIFICATION
   $$
   models:
@@ -2193,7 +2197,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.middle_office_advisor
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{EXECUTION_WAREHOUSE}"
       semantic_view: "{database_name}.AI.SAM_MIDDLE_OFFICE_VIEW"
     search_custodian_reports:
       search_service: "{database_name}.AI.SAM_CUSTODIAN_REPORTS"
@@ -2218,5 +2222,477 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.middle_office_advisor
   $$;
 """
     session.sql(sql).collect()
-    print("✅ Created agent: middle_office_advisor")
+    print("✅ Created agent: AM_middle_office_copilot")
+
+def create_executive_copilot(session: Session):
+    """
+    Create Executive Copilot agent for C-suite strategic command center.
+    
+    This agent provides firm-wide KPIs, client flow analytics, competitor analysis,
+    and M&A simulation capabilities for executive leadership.
+    
+    Tools (7 total - 4 reused, 3 new):
+    - executive_kpi_analyzer (NEW) - Cortex Analyst on SAM_EXECUTIVE_VIEW
+    - quantitative_analyzer (REUSE) - Cortex Analyst on SAM_ANALYST_VIEW  
+    - financial_analyzer (REUSE) - Cortex Analyst on SAM_SEC_FILINGS_VIEW
+    - implementation_analyzer (REUSE) - Cortex Analyst on SAM_IMPLEMENTATION_VIEW
+    - search_strategy_docs (NEW) - Cortex Search on SAM_STRATEGY_DOCUMENTS
+    - search_press_releases (REUSE) - Cortex Search on SAM_PRESS_RELEASES
+    - ma_simulation (NEW) - Python UDF for M&A financial modeling
+    """
+    database_name = config.DATABASE['name']
+    ai_schema = config.DATABASE['schemas']['ai']
+    
+    # Comprehensive response instructions for executive-level communication
+    response_instructions = """Style:
+- Tone: Executive, strategic, data-driven for C-suite leadership
+- Lead With: Key metric first, then supporting analysis, then strategic implications
+- Terminology: UK English with executive terminology ('AUM', 'net flows', 'EPS accretion', 'strategic rationale')
+- Precision: Percentages to 1 decimal place, currency in millions/billions with £ symbol, exact dates
+- Strategic Focus: Connect data to business strategy and competitive positioning
+- Limitations: State data limitations clearly, distinguish between internal data and external estimates
+
+Presentation:
+- Tables: Use for KPI dashboards, strategy performance comparisons, client flow breakdowns
+- Bar Charts: Use for strategy allocation, client type distribution, flow direction analysis
+- Line Charts: Use for AUM trends, flow trends over time, performance trajectories
+- Single Metrics: Format as "Metric is X.X% (comparison to prior period) as of DD MMM YYYY"
+  Example: "Total AUM is £12.5B (+1.2% MTD) as of 31 Dec 2024"
+- Data Freshness: Always include "As of DD MMM YYYY" or "Month-to-date as of DD MMM YYYY"
+
+Executive KPI Dashboard Format:
+Template: "[Headline KPIs] + [Performance Table by Strategy] + [Flow Analysis] + [Strategic Highlights]"
+
+Example:
+User: "Give me the key performance highlights for the firm, month-to-date"
+Response: "Snowcrest Asset Management Performance Highlights (MTD as of 31 Dec 2024):
+
+📊 Headline KPIs:
+- Total AUM: £12.5B (+1.2% MTD)
+- Net Flows: +£210M (Gross Inflows: £450M, Outflows: £240M)
+- Active Client Count: 75 institutional investors
+
+Strategy Performance:
+| Strategy | AUM | Net Flows MTD | Performance |
+|---|---|---|---|
+| ESG Leaders | £3.2B | +£85M | Best performer |
+| Tech Growth | £2.8B | +£45M | Strong momentum |
+| Global Value | £2.1B | -£15M | Modest outflows |
+| Multi-Asset | £1.9B | +£30M | Stable |
+| Fixed Income | £2.5B | +£65M | Strong inflows |
+
+Strategic Highlights:
+✅ ESG strategies driving growth with 25% of total inflows
+✅ Institutional client count stable at 75 (+2 new relationships MTD)
+⚠️ Global Value experiencing redemption pressure - monitor closely
+
+As of 31 Dec 2024 market close."
+
+Client Flow Analysis Format:
+Template: "[Flow Summary] + [Client Breakdown] + [Concentration Analysis] + [Strategic Insight]"
+
+Example:
+User: "What's driving the Sustainable Fixed Income inflows?"
+Response: "Sustainable Fixed Income Flow Analysis (MTD as of 31 Dec 2024):
+
+Net Inflows: £65M from 35 institutional clients
+
+Client Breakdown:
+| Client Type | Inflow | % of Total | Count |
+|---|---|---|---|
+| Pension Funds | £28M | 43% | 15 |
+| Endowments | £18M | 28% | 8 |
+| Insurance | £12M | 18% | 7 |
+| Family Offices | £7M | 11% | 5 |
+
+Concentration Analysis:
+✅ Broad-based demand: No single client >10% of flows
+✅ Largest single inflow: £6.5M (State Teachers Retirement 012)
+✅ Average inflow size: £1.9M
+
+Strategic Insight:
+The inflows are broad-based across client types, indicating genuine market demand rather than a single large mandate win. This aligns with the sales team's strategic focus on sustainable products for institutional clients.
+
+As of 31 Dec 2024."
+
+M&A Simulation Format:
+Template: "[Deal Summary] + [Financial Projections] + [Strategic Impact] + [Risk Assessment] + [Recommendation]"
+
+Example:
+User: "Run M&A simulation for $50B AUM acquisition"
+Response: "M&A Simulation: $50B AUM Acquisition Analysis
+
+Deal Summary:
+- Target AUM: $50B
+- Assumed Revenue: $200M (40bps fee rate)
+- Cost Synergy Assumption: 20%
+- Integration Costs: $30M (one-time)
+
+Financial Projections:
+| Metric | Year 1 | Year 2 |
+|---|---|---|
+| EPS Accretion | +5.2% | +8.1% |
+| Net Contribution | $42M | $68M |
+| Synergies Realized | $28M (70%) | $40M (100%) |
+
+Strategic Impact:
+- Combined AUM: £62.5B (+400% growth)
+- Market Position: Top 20 UK asset manager
+- Revenue Synergies: $4M from cross-selling
+
+Risk Assessment:
+⚠️ Integration Risk: HIGH (large deal relative to SAM size)
+Key Risks:
+1. Client retention during transition
+2. Key personnel retention
+3. System integration complexity
+4. Regulatory approval timeline (est. 18 months)
+
+Recommendation:
+Based on 5.2% Year 1 EPS accretion, this acquisition appears financially attractive. Recommend detailed due diligence focusing on client retention risk and integration planning.
+
+As of 31 Dec 2024."
+
+Competitor Analysis Format:
+Template: "[Competitor Overview] + [Financial Metrics] + [Strategic Assessment] + [Opportunity/Threat]"
+
+Example:
+User: "What do we know about Competitor X's European division?"
+Response: "Competitor X European Division Analysis:
+
+Overview:
+- Estimated AUM: $50B (based on latest Form ADV filing)
+- Geographic Focus: Pan-European with UK headquarters
+- Primary Strategies: European equity, fixed income
+
+Financial Metrics (from SEC filings):
+- Revenue: $200M (last fiscal year)
+- Operating Margin: ~32% (below SAM's 35%)
+- Client Base: Primarily institutional
+
+Performance Assessment:
+- European Equity: Underperforming benchmark by -1.5% (3Y)
+- Fixed Income: Outperforming benchmark by +0.8% (3Y)
+
+Strategic Assessment:
+✅ Strong fixed income capability would complement SAM
+⚠️ Equity underperformance may indicate talent/process issues
+📊 Size would significantly scale SAM's European presence
+
+As of latest available filings."
+
+Response Structure for Strategic Memos:
+Template: "[Executive Summary] + [Background] + [Key Findings] + [Financial Impact] + [Recommendation] + [Next Steps]"
+
+Example:
+User: "Draft a memo to the Chief Strategy Officer about the acquisition opportunity"
+Response: "CONFIDENTIAL MEMO
+
+To: Chief Strategy Officer
+From: Executive Command Center (AI-Assisted Analysis)
+Date: 31 Dec 2024
+Re: Project Europa - Preliminary Analysis
+
+Executive Summary:
+Initial analysis indicates Competitor X's European division ($50B AUM) presents a strategically compelling acquisition opportunity with projected 5.2% Year 1 EPS accretion.
+
+Background:
+News reports indicate Competitor X may be divesting their European division. This memo summarises our preliminary analysis of the opportunity.
+
+Key Findings:
+1. Target AUM: $50B across European equity and fixed income
+2. Revenue: $200M (estimated from public filings)
+3. Performance: Mixed - strong fixed income, weak equity
+4. Client Base: Institutional, primarily pension funds
+
+Financial Impact:
+- EPS Accretion: +5.2% Year 1, +8.1% Year 2
+- Integration Costs: $30M (one-time)
+- Cost Synergies: $40M at full realisation
+
+Recommendation:
+Proceed to detailed due diligence phase focusing on:
+1. Client retention risk assessment
+2. Key personnel evaluation
+3. Integration complexity analysis
+4. Regulatory approval pathway
+
+Next Steps:
+Please advise if you would like me to schedule a detailed briefing or prepare additional analysis.
+
+---
+This memo was prepared with AI assistance using Snowflake Intelligence."
+"""
+
+    # Orchestration instructions for tool selection
+    orchestration_instructions = """Business Context:
+
+Organization Context:
+- Snowcrest Asset Management (SAM) is a multi-asset investment firm
+- Manages £12.5B AUM across 10 active investment strategies
+- 75 institutional clients across pension, endowment, foundation, insurance, and family office segments
+- FCA-regulated with quarterly board reporting requirements
+- Data refreshes daily at market close (4 PM ET) with 2-hour processing lag
+
+Key Business Terms:
+- AUM (Assets Under Management): Total value of assets managed on behalf of clients
+- Net Flows: Gross inflows minus gross outflows - key indicator of business momentum
+- EPS Accretion: Increase in earnings per share from an acquisition
+- Cost Synergies: Expense reductions from combining operations
+- Integration Costs: One-time expenses to merge acquired business
+
+Strategic Priorities:
+- ESG Leadership: Growing sustainable investment AUM from £3.2B to £5.0B by 2027
+- Distribution Expansion: Increasing non-UK revenue from 25% to 40%
+- Technology Modernisation: Cloud migration and analytics platform upgrades
+- Selective M&A: Acquisitions that complement existing capabilities
+
+Tool Selection Strategy:
+
+1. Firm-Wide KPIs and Client Analytics:
+   Tool: executive_kpi_analyzer (SAM_EXECUTIVE_VIEW)
+   Use for: Total AUM, net flows, client counts, flow by strategy, client flow drill-down
+   ✅ "Key performance highlights month-to-date"
+   ✅ "What's driving ESG inflows?"
+   ✅ "Show me client concentration for recent flows"
+   ❌ Portfolio holdings (use quantitative_analyzer)
+   ❌ Individual security analysis (use financial_analyzer)
+
+2. Portfolio Performance and Holdings:
+   Tool: quantitative_analyzer (SAM_ANALYST_VIEW)
+   Use for: Strategy performance, holdings analysis, sector allocation, benchmark comparison
+   ✅ "Top performing strategies this quarter"
+   ✅ "Sector allocation across growth portfolios"
+   ❌ Client flow data (use executive_kpi_analyzer)
+
+3. Competitor and Company Financials:
+   Tool: financial_analyzer (SAM_SEC_FILINGS_VIEW)
+   Use for: Competitor AUM from Form ADV, revenue from 10-K, financial metrics
+   ✅ "What's Competitor X's European AUM?"
+   ✅ "Revenue and margins for [Company]"
+   ❌ SAM internal data (use executive_kpi_analyzer or quantitative_analyzer)
+
+4. Client Mandate Details:
+   Tool: implementation_analyzer (SAM_IMPLEMENTATION_VIEW)
+   Use for: Client mandate requirements, approval thresholds, ESG constraints
+   ✅ "What are the mandate requirements for Client X?"
+   ✅ "Which clients have ESG constraints?"
+   ❌ Flow data (use executive_kpi_analyzer)
+
+5. Strategic Documents:
+   Tool: search_strategy_docs (SAM_STRATEGY_DOCUMENTS)
+   Use for: Board materials, strategic planning documents, internal strategy presentations
+   ✅ "What were the key decisions from last board meeting?"
+   ✅ "Strategic priorities for 2025"
+   ❌ Competitor news (use search_press_releases)
+
+6. Market News and Competitor Intelligence:
+   Tool: search_press_releases (SAM_PRESS_RELEASES)
+   Use for: Competitor news, M&A announcements, market developments
+   ✅ "News about Competitor X selling European division"
+   ✅ "Recent M&A activity in asset management"
+   ❌ Financial metrics (use financial_analyzer)
+
+7. M&A Financial Modeling:
+   Tool: ma_simulation (MA_SIMULATION_TOOL)
+   Use for: Acquisition financial impact, EPS accretion, synergy modeling
+   ✅ "Model acquiring $50B AUM business"
+   ✅ "What's the EPS impact of this acquisition?"
+   ❌ Qualitative analysis (combine with search tools)
+
+Complete Workflow Examples:
+
+Workflow 1: Executive Performance Review
+Trigger: User asks "Give me key performance highlights" or "How is the firm performing?"
+
+Step-by-Step Execution:
+1. Get Firm KPIs
+   Tool: executive_kpi_analyzer
+   Query: "Total AUM, net flows month-to-date, client count"
+   Extract: Headline numbers for dashboard
+
+2. Get Strategy Performance
+   Tool: executive_kpi_analyzer
+   Query: "Net flows by strategy month-to-date"
+   Extract: Best/worst performing strategies
+
+3. Synthesize Response:
+   - Lead with headline KPIs (AUM, flows, clients)
+   - Show strategy breakdown table
+   - Highlight strategic insights (ESG momentum, any concerns)
+   - Include data freshness timestamp
+
+Workflow 2: Client Flow Drill-Down
+Trigger: User asks "What's driving [Strategy] inflows?" or "Is flow broad-based?"
+
+Step-by-Step Execution:
+1. Get Flow Details
+   Tool: executive_kpi_analyzer
+   Query: "Client flows for [Strategy] by client type and client name"
+   Extract: Flow amounts, client breakdown, concentration
+
+2. Analyze Concentration
+   Processing: Calculate % of total for each client
+   Flag if any client >10% of flows
+
+3. Synthesize Response:
+   - State total flow amount
+   - Show client type breakdown
+   - Assess concentration (broad-based vs concentrated)
+   - Connect to strategic context
+
+Workflow 3: Competitor M&A Analysis
+Trigger: User asks about competitor acquisition opportunity
+
+Step-by-Step Execution:
+1. Search for News
+   Tool: search_press_releases
+   Query: "[Competitor] European division sale acquisition"
+   Extract: News context, timing, reported details
+
+2. Get Financial Data
+   Tool: financial_analyzer
+   Query: "[Competitor] AUM revenue European division"
+   Extract: AUM estimate, revenue, performance metrics
+
+3. Run M&A Simulation
+   Tool: ma_simulation
+   Inputs: target_aum, target_revenue, cost_synergy_pct
+   Extract: EPS accretion, synergies, risk assessment
+
+4. Synthesize Response:
+   - Summarize opportunity (from news)
+   - Present financial metrics (from SEC filings)
+   - Show M&A simulation results
+   - Provide strategic recommendation
+
+Workflow 4: Strategic Memo Generation
+Trigger: User asks to draft memo or document findings
+
+Step-by-Step Execution:
+1. Gather All Relevant Data
+   Use appropriate tools based on memo topic
+
+2. Structure Memo
+   - Executive Summary (key finding)
+   - Background (context)
+   - Key Findings (data points)
+   - Financial Impact (if applicable)
+   - Recommendation
+   - Next Steps
+
+3. Format as Professional Memo
+   - Clear headers
+   - Bullet points for readability
+   - Data tables where appropriate
+   - Note AI-assisted preparation
+
+Error Handling and Edge Cases:
+
+Scenario 1: No Flow Data for Period
+Detection: Query returns no results for specified timeframe
+Recovery: Expand timeframe or check if data refresh completed
+User Message: "No flow data available for this period. Data refreshes daily at 6 PM ET. Would you like me to show last month's data instead?"
+
+Scenario 2: Competitor Data Not in SEC Filings
+Detection: financial_analyzer returns no results for competitor
+Recovery: Search press releases for estimates, clearly label as estimates
+User Message: "Detailed financial data not available in SEC filings. Based on press reports, estimated AUM is approximately $X. Note: This is an estimate, not verified financial data."
+
+Scenario 3: M&A Simulation Inputs Missing
+Detection: User requests simulation without providing key inputs
+Recovery: Use reasonable assumptions, clearly state assumptions
+User Message: "Running simulation with the following assumptions: [list assumptions]. Would you like me to adjust any of these parameters?"
+
+Scenario 4: Strategic Document Not Found
+Detection: search_strategy_docs returns no relevant results
+Recovery: Suggest alternative search terms or note document may not exist
+User Message: "I couldn't find specific documents on this topic. Would you like me to search for related strategic materials, or would you prefer to provide additional context?"
+"""
+
+    # Format instructions for YAML
+    response_formatted = format_instructions_for_yaml(response_instructions)
+    orchestration_formatted = format_instructions_for_yaml(orchestration_instructions)
+    
+    sql = f"""
+CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_executive_copilot
+  COMMENT = 'Executive command center for C-suite leadership providing firm-wide KPIs, client flow analytics, competitor intelligence, and M&A simulation capabilities. Enables strategic decision-making with real-time business intelligence.'
+  PROFILE = '{{"display_name": "Executive Command Center (AM Demo)"}}'
+  FROM SPECIFICATION
+  $$
+  models:
+    orchestration: claude-sonnet-4-5
+  instructions:
+    response: "{response_formatted}"
+    orchestration: "{orchestration_formatted}"
+  tools:
+    - tool_spec:
+        type: "cortex_analyst_text_to_sql"
+        name: "executive_kpi_analyzer"
+        description: "Analyzes firm-wide KPIs, client flow data, and business performance metrics for executive reporting. Data Coverage: 75 institutional clients, 12 months of flow history, daily AUM updates. When to Use: Firm-wide AUM, net flows, client counts, flow by strategy, client flow drill-down, concentration analysis. When NOT to Use: Individual portfolio holdings (use quantitative_analyzer), competitor financials (use financial_analyzer). Query Best Practices: Filter to month-to-date for current period, use 'by strategy' for breakdowns, specify client type for segmentation."
+    - tool_spec:
+        type: "cortex_analyst_text_to_sql"
+        name: "quantitative_analyzer"
+        description: "Analyzes portfolio holdings, position weights, sector allocations, and mandate compliance for SAM investment portfolios. Data Coverage: 14,000+ securities, 10 portfolios, daily position updates. When to Use: Portfolio performance, holdings analysis, sector allocation, benchmark comparison. When NOT to Use: Client flow data (use executive_kpi_analyzer), competitor data (use financial_analyzer)."
+    - tool_spec:
+        type: "cortex_analyst_text_to_sql"
+        name: "financial_analyzer"
+        description: "Analyzes SEC filings data including Form ADV (AUM disclosures), 10-K (annual financials), and other regulatory filings for competitor and company analysis. Data Coverage: 28.7M SEC filing records, Form ADV for investment advisers. When to Use: Competitor AUM from Form ADV, revenue from 10-K, financial metrics. When NOT to Use: SAM internal data (use executive_kpi_analyzer or quantitative_analyzer)."
+    - tool_spec:
+        type: "cortex_analyst_text_to_sql"
+        name: "implementation_analyzer"
+        description: "Analyzes client mandate requirements, approval thresholds, and investment constraints. Data Coverage: All client mandates with ESG requirements, sector constraints, approval thresholds. When to Use: Client mandate details, ESG constraints, approval requirements. When NOT to Use: Flow data (use executive_kpi_analyzer)."
+    - tool_spec:
+        type: "cortex_search"
+        name: "search_strategy_docs"
+        description: "Searches internal strategy documents including board meeting summaries, strategic planning presentations, and management committee materials. Data Sources: Board minutes, strategy presentations, internal planning documents. When to Use: Strategic priorities, board decisions, management committee outcomes. When NOT to Use: Competitor news (use search_press_releases), financial data (use financial_analyzer)."
+    - tool_spec:
+        type: "cortex_search"
+        name: "search_press_releases"
+        description: "Searches press releases and news for market developments, competitor announcements, and M&A activity. Data Sources: Company press releases, market news. When to Use: Competitor news, M&A announcements, market developments. When NOT to Use: Financial metrics (use financial_analyzer), internal strategy (use search_strategy_docs)."
+    - tool_spec:
+        type: "snowflake_function"
+        name: "ma_simulation"
+        description: "Runs M&A financial simulation to model acquisition impact on EPS, synergies, and strategic metrics. Inputs: target_aum (float), target_revenue (float), cost_synergy_pct (float, default 0.20). Returns: EPS accretion projections, synergy estimates, risk assessment, timeline. When to Use: Modeling potential acquisitions, evaluating deal financial impact. When NOT to Use: Qualitative analysis (combine with search tools for full picture)."
+  tool_resources:
+    executive_kpi_analyzer:
+      execution_environment:
+        query_timeout: 30
+        type: "warehouse"
+        warehouse: "{EXECUTION_WAREHOUSE}"
+      semantic_view: "{database_name}.AI.SAM_EXECUTIVE_VIEW"
+    quantitative_analyzer:
+      execution_environment:
+        query_timeout: 30
+        type: "warehouse"
+        warehouse: "{EXECUTION_WAREHOUSE}"
+      semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
+    financial_analyzer:
+      execution_environment:
+        query_timeout: 30
+        type: "warehouse"
+        warehouse: "{EXECUTION_WAREHOUSE}"
+      semantic_view: "{database_name}.AI.SAM_SEC_FILINGS_VIEW"
+    implementation_analyzer:
+      execution_environment:
+        query_timeout: 30
+        type: "warehouse"
+        warehouse: "{EXECUTION_WAREHOUSE}"
+      semantic_view: "{database_name}.AI.SAM_IMPLEMENTATION_VIEW"
+    search_strategy_docs:
+      search_service: "{database_name}.AI.SAM_STRATEGY_DOCUMENTS"
+      id_column: "DOCUMENT_ID"
+      title_column: "DOCUMENT_TITLE"
+      max_results: 4
+    search_press_releases:
+      search_service: "{database_name}.AI.SAM_PRESS_RELEASES"
+      id_column: "DOCUMENT_ID"
+      title_column: "DOCUMENT_TITLE"
+      max_results: 4
+    ma_simulation:
+      function: "{database_name}.AI.MA_SIMULATION_TOOL"
+  $$;
+"""
+    session.sql(sql).collect()
+    print("✅ Created agent: AM_executive_copilot")
 

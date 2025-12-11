@@ -16,7 +16,7 @@ def create_search_services(session: Session, scenarios: List[str]):
     # Handle 'all' keyword - expand to all scenarios
     if 'all' in scenarios:
         scenarios = list(config.SCENARIO_DATA_REQUIREMENTS.keys())
-        print(f"Expanding 'all' to {len(scenarios)} scenarios")
+        print(f"   Expanding 'all' to {len(scenarios)} scenarios")
     
     # Determine required document types from scenarios
     required_doc_types = set()

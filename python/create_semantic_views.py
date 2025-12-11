@@ -16,7 +16,7 @@ def create_semantic_views(session: Session, scenarios: List[str] = None):
     # Handle 'all' keyword - expand to all scenarios
     if scenarios and 'all' in scenarios:
         scenarios = list(config.SCENARIO_DATA_REQUIREMENTS.keys())
-        print(f"Expanding 'all' to {len(scenarios)} scenarios for semantic views")
+        print(f"   Expanding 'all' to {len(scenarios)} scenarios for semantic views")
     
     # Always create the main analyst view
     try:
@@ -71,6 +71,13 @@ def create_semantic_views(session: Session, scenarios: List[str] = None):
             create_middle_office_semantic_view(session)
         except Exception as e:
             print(f"   ⚠️  Warning: Could not create middle office semantic view: {e}")
+    
+    # Create executive semantic view for firm-wide KPIs and client analytics
+    if scenarios and 'executive_copilot' in scenarios:
+        try:
+            create_executive_semantic_view(session)
+        except Exception as e:
+            print(f"   ⚠️  Warning: Could not create executive semantic view: {e}")
 
 def create_analyst_semantic_view(session: Session):
     """Create main portfolio analytics semantic view (SAM_ANALYST_VIEW)."""
@@ -753,3 +760,99 @@ CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_MIDDLE_OFFICE_V
     """).collect()
     
     print("   ✅ Created semantic view: SAM_MIDDLE_OFFICE_VIEW")
+
+def create_executive_semantic_view(session: Session):
+    """
+    Create semantic view for executive KPIs, client analytics, and firm-wide performance.
+    
+    Used by: Executive Copilot for C-suite queries
+    Supports: Firm-wide AUM, net flows, client flow drill-down, strategy performance
+    
+    Reuses: DIM_PORTFOLIO (existing), DIM_CLIENT_MANDATES (existing)
+    New: DIM_CLIENT, FACT_CLIENT_FLOWS, FACT_FUND_FLOWS
+    """
+    
+    # Check if required tables exist
+    required_tables = [
+        'DIM_CLIENT',
+        'FACT_CLIENT_FLOWS',
+        'FACT_FUND_FLOWS',
+        'DIM_PORTFOLIO'
+    ]
+    
+    for table in required_tables:
+        try:
+            session.sql(f"SELECT 1 FROM {config.DATABASE['name']}.CURATED.{table} LIMIT 1").collect()
+        except:
+            print(f"WARNING: Executive table {table} not found, skipping executive view creation")
+            return
+    
+    session.sql(f"""
+CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_EXECUTIVE_VIEW
+    TABLES (
+        CLIENTS AS {config.DATABASE['name']}.CURATED.DIM_CLIENT
+            PRIMARY KEY (CLIENTID) 
+            WITH SYNONYMS=('clients','investors','accounts','institutional_clients') 
+            COMMENT='Institutional client dimension with client types, regions, and AUM',
+        CLIENT_FLOWS AS {config.DATABASE['name']}.CURATED.FACT_CLIENT_FLOWS
+            PRIMARY KEY (FLOWID)
+            WITH SYNONYMS=('flows','subscriptions','redemptions','client_flows')
+            COMMENT='Client-level flow transactions including subscriptions, redemptions, and transfers',
+        FUND_FLOWS AS {config.DATABASE['name']}.CURATED.FACT_FUND_FLOWS
+            PRIMARY KEY (FUNDFLOWID)
+            WITH SYNONYMS=('fund_flows','strategy_flows','portfolio_flows','aggregated_flows')
+            COMMENT='Aggregated fund-level flows by portfolio and strategy for executive KPIs',
+        PORTFOLIOS AS {config.DATABASE['name']}.CURATED.DIM_PORTFOLIO
+            PRIMARY KEY (PORTFOLIOID) 
+            WITH SYNONYMS=('funds','strategies','mandates','portfolios') 
+            COMMENT='Investment portfolios and fund information'
+    )
+    RELATIONSHIPS (
+        CLIENT_FLOWS_TO_CLIENTS AS CLIENT_FLOWS(CLIENTID) REFERENCES CLIENTS(CLIENTID),
+        CLIENT_FLOWS_TO_PORTFOLIOS AS CLIENT_FLOWS(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID),
+        FUND_FLOWS_TO_PORTFOLIOS AS FUND_FLOWS(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID)
+    )
+    DIMENSIONS (
+        -- Client dimensions
+        CLIENTS.ClientName AS CLIENTNAME WITH SYNONYMS=('client_name','investor_name','account_name') COMMENT='Institutional client name',
+        CLIENTS.ClientType AS CLIENTTYPE WITH SYNONYMS=('client_type','investor_type','account_type') COMMENT='Client type: Pension, Endowment, Foundation, Insurance, Corporate, Family Office',
+        CLIENTS.Region AS REGION WITH SYNONYMS=('client_region','geography','location') COMMENT='Client geographic region',
+        CLIENTS.PrimaryContact AS PRIMARYCONTACT WITH SYNONYMS=('contact','relationship_manager','rm') COMMENT='Primary relationship manager contact',
+        
+        -- Portfolio dimensions
+        PORTFOLIOS.PORTFOLIONAME AS PORTFOLIONAME WITH SYNONYMS=('fund_name','strategy_name','portfolio_name') COMMENT='Portfolio or fund name',
+        PORTFOLIOS.STRATEGY AS STRATEGY WITH SYNONYMS=('investment_strategy','portfolio_strategy','strategy_type') COMMENT='Investment strategy: Value, Growth, ESG, Core, Multi-Asset, Income',
+        
+        -- Flow dimensions
+        CLIENT_FLOWS.FlowType AS FLOWTYPE WITH SYNONYMS=('flow_type','transaction_type') COMMENT='Flow type: Subscription, Redemption, Transfer',
+        
+        -- Time dimensions
+        CLIENT_FLOWS.FlowDate AS FLOWDATE WITH SYNONYMS=('flow_date','transaction_date') COMMENT='Date of client flow transaction',
+        FUND_FLOWS.FlowDate AS FUNDFLOWDATE WITH SYNONYMS=('fund_flow_date','aggregated_date') COMMENT='Date of aggregated fund flows'
+    )
+    METRICS (
+        -- Client AUM metrics
+        CLIENTS.TOTAL_CLIENT_AUM AS SUM(AUM_with_SAM) WITH SYNONYMS=('client_aum','total_client_assets','assets_under_management') COMMENT='Total AUM from clients',
+        CLIENTS.CLIENT_COUNT AS COUNT(DISTINCT ClientID) WITH SYNONYMS=('number_of_clients','client_count','investor_count') COMMENT='Count of institutional clients',
+        CLIENTS.AVG_CLIENT_SIZE AS AVG(AUM_with_SAM) WITH SYNONYMS=('average_client_size','avg_aum','typical_client_size') COMMENT='Average client AUM',
+        
+        -- Client flow metrics (detailed)
+        CLIENT_FLOWS.TOTAL_FLOW_AMOUNT AS SUM(FlowAmount) WITH SYNONYMS=('net_flows','total_flows','flow_amount') COMMENT='Net flow amount (positive = inflow, negative = outflow)',
+        CLIENT_FLOWS.GROSS_INFLOWS AS SUM(CASE WHEN FlowAmount > 0 THEN FlowAmount ELSE 0 END) WITH SYNONYMS=('inflows','subscriptions','gross_inflows') COMMENT='Gross subscription inflows',
+        CLIENT_FLOWS.GROSS_OUTFLOWS AS SUM(CASE WHEN FlowAmount < 0 THEN ABS(FlowAmount) ELSE 0 END) WITH SYNONYMS=('outflows','redemptions','gross_outflows') COMMENT='Gross redemption outflows',
+        CLIENT_FLOWS.FLOW_TRANSACTION_COUNT AS COUNT(FlowID) WITH SYNONYMS=('flow_count','transaction_count','number_of_flows') COMMENT='Number of flow transactions',
+        
+        -- Fund flow metrics (aggregated for KPIs)
+        FUND_FLOWS.FUND_NET_FLOWS AS SUM(NetFlows) WITH SYNONYMS=('net_fund_flows','strategy_net_flows','portfolio_net_flows') COMMENT='Net flows at fund/strategy level',
+        FUND_FLOWS.FUND_GROSS_INFLOWS AS SUM(GrossInflows) WITH SYNONYMS=('fund_inflows','strategy_inflows') COMMENT='Gross inflows at fund level',
+        FUND_FLOWS.FUND_GROSS_OUTFLOWS AS SUM(GrossOutflows) WITH SYNONYMS=('fund_outflows','strategy_outflows') COMMENT='Gross outflows at fund level',
+        FUND_FLOWS.FUND_CLIENT_COUNT AS SUM(ClientCount) WITH SYNONYMS=('active_clients','contributing_clients') COMMENT='Number of clients with flows',
+        
+        -- Flow concentration metrics
+        CLIENT_FLOWS.MAX_SINGLE_CLIENT_FLOW AS MAX(ABS(FlowAmount)) WITH SYNONYMS=('largest_flow','max_flow','biggest_transaction') COMMENT='Largest single client flow'
+    )
+    COMMENT='Executive semantic view for firm-wide KPIs, client analytics, and flow analysis. Use for C-suite performance reviews and strategic planning.'
+    WITH EXTENSION (CA='{{"tables":[{{"name":"CLIENTS","metrics":[{{"name":"AVG_CLIENT_SIZE"}},{{"name":"CLIENT_COUNT"}},{{"name":"TOTAL_CLIENT_AUM"}}]}},{{"name":"CLIENT_FLOWS","metrics":[{{"name":"FLOW_TRANSACTION_COUNT"}},{{"name":"GROSS_INFLOWS"}},{{"name":"GROSS_OUTFLOWS"}},{{"name":"MAX_SINGLE_CLIENT_FLOW"}},{{"name":"TOTAL_FLOW_AMOUNT"}}],"time_dimensions":[{{"name":"flow_date","expr":"FLOWDATE","data_type":"DATE","synonyms":["flow_date","transaction_date","subscription_date"],"description":"Date of client flow transaction. Use for flow trend analysis."}},{{"name":"flow_month","expr":"DATE_TRUNC(\\'MONTH\\', FLOWDATE)","data_type":"DATE","synonyms":["month","monthly","flow_month"],"description":"Monthly aggregation for flow trend analysis."}}]}},{{"name":"FUND_FLOWS","metrics":[{{"name":"FUND_CLIENT_COUNT"}},{{"name":"FUND_GROSS_INFLOWS"}},{{"name":"FUND_GROSS_OUTFLOWS"}},{{"name":"FUND_NET_FLOWS"}}],"time_dimensions":[{{"name":"fund_flow_date","expr":"FLOWDATE","data_type":"DATE","synonyms":["fund_date","aggregated_date"],"description":"Date of aggregated fund flows."}},{{"name":"fund_flow_month","expr":"DATE_TRUNC(\\'MONTH\\', FLOWDATE)","data_type":"DATE","synonyms":["month","monthly"],"description":"Monthly aggregation for fund flow trends."}}]}},{{"name":"PORTFOLIOS","dimensions":[{{"name":"PORTFOLIONAME"}},{{"name":"STRATEGY"}}]}}],"relationships":[{{"name":"CLIENT_FLOWS_TO_CLIENTS"}},{{"name":"CLIENT_FLOWS_TO_PORTFOLIOS"}},{{"name":"FUND_FLOWS_TO_PORTFOLIOS"}}],"verified_queries":[{{"name":"firm_kpis_mtd","question":"What are the key performance highlights for the firm month-to-date?","sql":"SELECT SUM(__FUND_FLOWS.NETFLOWS) as NET_FLOWS_MTD, SUM(__FUND_FLOWS.GROSSINFLOWS) as GROSS_INFLOWS_MTD, SUM(__FUND_FLOWS.GROSSOUTFLOWS) as GROSS_OUTFLOWS_MTD, SUM(__FUND_FLOWS.CLIENTCOUNT) as ACTIVE_CLIENTS FROM __FUND_FLOWS WHERE __FUND_FLOWS.FLOWDATE >= DATE_TRUNC(\\'MONTH\\', CURRENT_DATE())","use_as_onboarding_question":true}},{{"name":"flows_by_strategy","question":"Which strategies are seeing the strongest inflows?","sql":"SELECT __FUND_FLOWS.STRATEGY, SUM(__FUND_FLOWS.NETFLOWS) as NET_FLOWS, SUM(__FUND_FLOWS.GROSSINFLOWS) as GROSS_INFLOWS FROM __FUND_FLOWS WHERE __FUND_FLOWS.FLOWDATE >= DATE_TRUNC(\\'MONTH\\', CURRENT_DATE()) GROUP BY __FUND_FLOWS.STRATEGY ORDER BY NET_FLOWS DESC","use_as_onboarding_question":true}},{{"name":"client_flow_drilldown","question":"What clients are driving the inflows for a specific strategy?","sql":"SELECT __CLIENTS.CLIENTNAME, __CLIENTS.CLIENTTYPE, SUM(__CLIENT_FLOWS.FLOWAMOUNT) as TOTAL_FLOW FROM __CLIENT_FLOWS JOIN __CLIENTS ON __CLIENT_FLOWS.CLIENTID = __CLIENTS.CLIENTID JOIN __PORTFOLIOS ON __CLIENT_FLOWS.PORTFOLIOID = __PORTFOLIOS.PORTFOLIOID WHERE __PORTFOLIOS.STRATEGY = \\'ESG\\' AND __CLIENT_FLOWS.FLOWDATE >= DATE_TRUNC(\\'MONTH\\', CURRENT_DATE()) GROUP BY __CLIENTS.CLIENTNAME, __CLIENTS.CLIENTTYPE ORDER BY TOTAL_FLOW DESC","use_as_onboarding_question":false}},{{"name":"client_concentration","question":"Is the flow from one large client or broad-based demand?","sql":"SELECT __CLIENTS.CLIENTNAME, __CLIENTS.CLIENTTYPE, SUM(__CLIENT_FLOWS.FLOWAMOUNT) as FLOW_AMOUNT, COUNT(*) as TRANSACTION_COUNT FROM __CLIENT_FLOWS JOIN __CLIENTS ON __CLIENT_FLOWS.CLIENTID = __CLIENTS.CLIENTID WHERE __CLIENT_FLOWS.FLOWDATE >= DATE_TRUNC(\\'MONTH\\', CURRENT_DATE()) AND __CLIENT_FLOWS.FLOWAMOUNT > 0 GROUP BY __CLIENTS.CLIENTNAME, __CLIENTS.CLIENTTYPE ORDER BY FLOW_AMOUNT DESC","use_as_onboarding_question":false}}],"module_custom_instructions":{{"sql_generation":"For month-to-date queries, filter to current month using DATE_TRUNC(\\'MONTH\\', CURRENT_DATE()). When showing flows, always display both gross inflows and outflows alongside net flows for context. For client concentration analysis, show the count of distinct clients alongside flow amounts. Round flow amounts to nearest thousand for readability. When asked about \\'driving\\' flows, drill down to client level using CLIENT_FLOWS table.","question_categorization":"If users ask about \\'firm performance\\' or \\'KPIs\\', use FUND_FLOWS for aggregated metrics. If users ask about \\'what\\'s driving\\' or \\'client concentration\\', drill down to CLIENT_FLOWS. If users ask about \\'broad-based\\' demand, count distinct clients."}}}}');
+    """).collect()
+    
+    print("   ✅ Created semantic view: SAM_EXECUTIVE_VIEW")

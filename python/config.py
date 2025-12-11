@@ -10,7 +10,7 @@ import os
 # =============================================================================
 
 # Connection and execution
-DEFAULT_CONNECTION_NAME = 'sfseeurope-mstellwall-aws-us-west3'
+DEFAULT_CONNECTION_NAME = 'default'
 RNG_SEED = 42
 YEARS_OF_HISTORY = 5
 TEST_MODE_MULTIPLIER = 0.1
@@ -35,15 +35,15 @@ def get_table_path(schema: str, table: str) -> str:
 
 WAREHOUSES = {
     'execution': {
-        'name': 'SAM_DEMO_WH',
+        'name': 'SAM_DEMO_WH',  
         'size': 'MEDIUM',
-        'comment': 'Warehouse for SAM demo operations'
+        'comment': 'Warehouse for SAM demo data generation and execution'
     },
     'cortex_search': {
         'name': 'SAM_DEMO_WH',
         'size': 'MEDIUM',
         'target_lag': '5 minutes',
-        'comment': 'Warehouse for SAM demo operations'
+        'comment': 'Warehouse for SAM demo Cortex Search services'
     }
 }
 
@@ -71,7 +71,7 @@ SECURITIES = {
         'etfs': 1000
     },
     'real_assets_view': 'V_REAL_ASSETS',
-    'sec_filings_database': 'SNOWFLAKE_PUBLIC_DATA_FREE',  # Created from Marketplace listing
+    'sec_filings_database': 'SNOWFLAKE_PUBLIC_DATA_FREE',
     'sec_filings_schema': 'PUBLIC_DATA_FREE'
 }
 
@@ -454,64 +454,70 @@ AVAILABLE_SCENARIOS = [
     'sales_advisor',
     'quant_analyst',
     'compliance_advisor',
-    'middle_office_copilot'
+    'middle_office_copilot',
+    'executive_copilot'
 ]
 
 # Scenario to agent mapping with descriptions
 SCENARIO_AGENTS = {
     'portfolio_copilot': {
-        'agent_name': 'portfolio_advisor',
-        'display_name': 'Portfolio Advisor',
+        'agent_name': 'AM_portfolio_copilot',
+        'display_name': 'Portfolio Co-Pilot',
         'description': 'Portfolio analytics and benchmarking'
     },
     'research_copilot': {
-        'agent_name': 'research_advisor',
-        'display_name': 'Research Advisor',
+        'agent_name': 'AM_research_copilot',
+        'display_name': 'Research Co-Pilot',
         'description': 'Document research and analysis'
     },
     'thematic_macro_advisor': {
-        'agent_name': 'thematic_macro_advisor',
+        'agent_name': 'AM_thematic_macro_advisor',
         'display_name': 'Thematic Macro Advisor',
         'description': 'Thematic investment strategy'
     },
     'esg_guardian': {
-        'agent_name': 'esg_guardian',
+        'agent_name': 'AM_esg_guardian',
         'display_name': 'ESG Guardian',
         'description': 'ESG risk monitoring'
     },
     'compliance_advisor': {
-        'agent_name': 'compliance_advisor',
+        'agent_name': 'AM_compliance_advisor',
         'display_name': 'Compliance Advisor',
         'description': 'Mandate monitoring'
     },
     'sales_advisor': {
-        'agent_name': 'sales_advisor',
+        'agent_name': 'AM_sales_advisor',
         'display_name': 'Sales Advisor',
         'description': 'Client reporting'
     },
     'quant_analyst': {
-        'agent_name': 'quant_analyst',
+        'agent_name': 'AM_quant_analyst',
         'display_name': 'Quant Analyst',
         'description': 'Factor analysis'
     },
     'middle_office_copilot': {
-        'agent_name': 'middle_office_advisor',
-        'display_name': 'Middle Office Advisor',
+        'agent_name': 'AM_middle_office_copilot',
+        'display_name': 'Middle Office Co-Pilot',
         'description': 'Operations monitoring and NAV calculation'
+    },
+    'executive_copilot': {
+        'agent_name': 'AM_executive_copilot',
+        'display_name': 'Executive Command Center',
+        'description': 'Firm-wide KPIs, client analytics, and strategic M&A analysis'
     }
 }
 
 SCENARIO_DATA_REQUIREMENTS = {
-    # Each agent's search tools mapped to required document types
-    'portfolio_copilot': ['broker_research', 'earnings_transcripts', 'press_releases', 'macro_events', 'report_templates', 'policy_docs'],
-    'research_copilot': ['broker_research', 'earnings_transcripts', 'press_releases'],
-    'thematic_macro_advisor': ['broker_research', 'press_releases', 'earnings_transcripts', 'macro_events'],
-    'esg_guardian': ['ngo_reports', 'engagement_notes', 'policy_docs', 'press_releases', 'earnings_transcripts'],
+    'portfolio_copilot': ['broker_research', 'earnings_transcripts', 'press_releases', 'macro_events', 'report_templates'],
+    'research_copilot': ['broker_research', 'earnings_transcripts'],
+    'thematic_macro_advisor': ['broker_research', 'press_releases'],
+    'esg_guardian': ['ngo_reports', 'engagement_notes', 'policy_docs'],
     'sales_advisor': ['sales_templates', 'philosophy_docs', 'policy_docs'],
     'quant_analyst': ['broker_research', 'earnings_transcripts'],
     'compliance_advisor': ['policy_docs', 'engagement_notes', 'form_adv', 'form_crs', 'regulatory_updates'],
     'middle_office_copilot': ['custodian_reports', 'reconciliation_notes', 'ssi_documents', 'ops_procedures'],
-    'mandate_compliance': ['report_templates']  # Alias for portfolio_copilot mandate compliance mode
+    'mandate_compliance': ['report_templates'],  # Alias for portfolio_copilot mandate compliance mode
+    'executive_copilot': ['strategy_documents', 'press_releases', 'broker_research']  # Executive leadership scenario
 }
 
 # =============================================================================
@@ -956,6 +962,17 @@ DOCUMENT_TYPES = {
         'template_dir': 'global/ops_procedures',
         'procedure_types': ['settlement_failure_resolution', 'nav_calculation_process', 'reconciliation_workflow'],
         'docs_total': 3
+    },
+    'strategy_documents': {
+        'table_name': 'STRATEGY_DOCUMENTS_RAW',
+        'corpus_name': 'STRATEGY_DOCUMENTS_CORPUS',
+        'search_service': 'SAM_STRATEGY_DOCUMENTS',
+        'word_count_range': (1100, 1400),
+        'applies_to': None,
+        'linkage_level': 'global',
+        'template_dir': 'global/strategy_documents',
+        'document_types': ['strategic_planning_presentation', 'board_meeting_summary'],
+        'docs_total': 2
     }
 }
 

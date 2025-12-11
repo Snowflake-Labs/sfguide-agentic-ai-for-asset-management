@@ -2,10 +2,7 @@
 -- SAM Demo - Infrastructure Setup
 -- ============================================================================
 -- This file creates the foundational database infrastructure
--- Run this first, then use the notebook for data generation and AI components
---
 -- Purpose: Database, schemas, role, and warehouse setup
--- Time: < 1 minute
 -- Requires: ACCOUNTADMIN role
 -- ============================================================================
 
@@ -137,27 +134,10 @@ CREATE OR REPLACE NOTEBOOK SAM_DEMO.PUBLIC.SAM_Demo_Complete_Setup
 USE ROLE SAM_DEMO_ROLE;
 USE WAREHOUSE SAM_DEMO_WH;
 
--- Create a live version of the notebook (required before execution)
+-- Create a live version of the notebook 
 ALTER NOTEBOOK SAM_DEMO.PUBLIC.SAM_Demo_Complete_Setup ADD LIVE VERSION FROM LAST;
-
--- Execute the notebook to build everything
--- This will take ~15-20 minutes to complete
--- Progress can be viewed in the Notebook Editor
 EXECUTE NOTEBOOK SAM_DEMO.PUBLIC.SAM_Demo_Complete_Setup();
 
 -- ============================================================================
 -- Setup Complete!
--- ============================================================================
--- All components have been created:
--- Database infrastructure (SAM_DEMO database with RAW, CURATED, AI schemas)
--- Data model (24 CURATED tables with real company data)
--- Documents (24 RAW tables populated from 69 templates)
--- Cortex Search (22 search services for document retrieval)
--- Cortex Analyst (7 semantic views for structured queries)
--- Snowflake Intelligence (8 AI agents ready to use)
---
--- Next Steps:
--- 1. Open Snowflake Intelligence UI
--- 2. Select an agent (e.g., Portfolio Copilot)
--- 3. Try demo prompts from SNOWFLAKE_INTELLIGENCE_PROMPTS_CATALOG.md
 -- ============================================================================

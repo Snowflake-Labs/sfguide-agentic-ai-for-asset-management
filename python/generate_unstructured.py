@@ -32,7 +32,7 @@ def build_all(session: Session, document_types: List[str], test_mode: bool = Fal
     # Handle 'all' keyword - expand to all document types
     if 'all' in document_types:
         document_types = list(config.DOCUMENT_TYPES.keys())
-        print(f"Expanding 'all' to {len(document_types)} document types")
+        print(f"   Expanding 'all' to {len(document_types)} document types")
     
     # Ensure database context is set
     try:

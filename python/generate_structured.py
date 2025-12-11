@@ -89,6 +89,11 @@ def build_foundation_tables(session: Session, test_mode: bool = False):
     build_client_mandate_data(session)
     build_tax_implications_data(session)
     
+    # Executive copilot tables (client analytics)
+    build_dim_client(session, test_mode)
+    build_fact_client_flows(session, test_mode)
+    build_fact_fund_flows(session)
+    
     # Middle office tables
     build_dim_counterparty(session)
     build_dim_custodian(session)
@@ -1722,6 +1727,237 @@ def build_client_mandate_data(session: Session):
     """).collect()
     
     # print(" Created client mandate and approval requirements data")
+
+def build_dim_client(session: Session, test_mode: bool = False):
+    """
+    Build client dimension table with institutional client entities.
+    Links to portfolios via FACT_CLIENT_FLOWS for client flow analytics.
+    
+    Used by: Executive Copilot for client flow analysis
+    Can also be used by: Sales Advisor for client-specific reporting
+    """
+    database_name = config.DATABASE['name']
+    random.seed(config.RNG_SEED)
+    
+    # Client types for institutional asset management
+    client_types = ['Pension', 'Endowment', 'Foundation', 'Insurance', 'Corporate', 'Family Office']
+    regions = ['North America', 'Europe', 'Asia Pacific', 'Middle East', 'Latin America']
+    
+    # Generate 75 clients (or 10 in test mode)
+    num_clients = 10 if test_mode else 75
+    
+    session.sql(f"""
+        CREATE OR REPLACE TABLE {database_name}.CURATED.DIM_CLIENT AS
+        WITH client_seed AS (
+            SELECT 
+                ROW_NUMBER() OVER (ORDER BY RANDOM()) as ClientID,
+                seq4() as seed_val
+            FROM TABLE(GENERATOR(ROWCOUNT => {num_clients}))
+        )
+        SELECT 
+            cs.ClientID,
+            CASE MOD(cs.ClientID, 15)
+                WHEN 0 THEN 'State Teachers Retirement System'
+                WHEN 1 THEN 'University Endowment Fund'
+                WHEN 2 THEN 'Corporate Pension Trust'
+                WHEN 3 THEN 'Healthcare Workers Pension'
+                WHEN 4 THEN 'Municipal Employees Retirement'
+                WHEN 5 THEN 'Private Foundation Trust'
+                WHEN 6 THEN 'Insurance General Account'
+                WHEN 7 THEN 'Family Office Holdings'
+                WHEN 8 THEN 'Sovereign Wealth Reserve'
+                WHEN 9 THEN 'Corporate Treasury Fund'
+                WHEN 10 THEN 'Public Employees Pension'
+                WHEN 11 THEN 'Charitable Foundation'
+                WHEN 12 THEN 'Life Insurance Portfolio'
+                WHEN 13 THEN 'Multi-Family Office'
+                ELSE 'Institutional Investor'
+            END || ' ' || LPAD(cs.ClientID::VARCHAR, 3, '0') as ClientName,
+            CASE MOD(cs.ClientID, 6)
+                WHEN 0 THEN 'Pension'
+                WHEN 1 THEN 'Endowment'
+                WHEN 2 THEN 'Foundation'
+                WHEN 3 THEN 'Insurance'
+                WHEN 4 THEN 'Corporate'
+                ELSE 'Family Office'
+            END as ClientType,
+            CASE MOD(cs.ClientID, 5)
+                WHEN 0 THEN 'North America'
+                WHEN 1 THEN 'Europe'
+                WHEN 2 THEN 'Asia Pacific'
+                WHEN 3 THEN 'Middle East'
+                ELSE 'Latin America'
+            END as Region,
+            -- AUM with SAM (between $50M and $500M)
+            ROUND(UNIFORM(50000000, 500000000, RANDOM()), -6) as AUM_with_SAM,
+            -- Relationship start date (1-8 years ago)
+            DATEADD('day', -UNIFORM(365, 2920, RANDOM()), CURRENT_DATE()) as RelationshipStartDate,
+            -- Primary contact
+            CASE MOD(cs.ClientID, 8)
+                WHEN 0 THEN 'Sarah Chen'
+                WHEN 1 THEN 'Michael O''Brien'
+                WHEN 2 THEN 'Jennifer Martinez'
+                WHEN 3 THEN 'David Kim'
+                WHEN 4 THEN 'Emma Thompson'
+                WHEN 5 THEN 'Robert Singh'
+                WHEN 6 THEN 'Lisa Anderson'
+                ELSE 'James Wilson'
+            END as PrimaryContact,
+            -- Account status
+            'Active' as AccountStatus
+        FROM client_seed cs
+    """).collect()
+    
+    # Verify creation
+    count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.DIM_CLIENT").collect()[0]['CNT']
+    # print(f"   ✅ Created DIM_CLIENT with {count} institutional clients")
+
+def build_fact_client_flows(session: Session, test_mode: bool = False):
+    """
+    Build client flow fact table with subscription/redemption data.
+    Links DIM_CLIENT to DIM_PORTFOLIO for flow analytics.
+    
+    Used by: Executive Copilot for analyzing client inflows/outflows
+    Supports: "What's driving Sustainable Fixed Income inflows?" queries
+    """
+    database_name = config.DATABASE['name']
+    random.seed(config.RNG_SEED + 100)  # Different seed for variety
+    
+    # Generate 12 months of flow data
+    months_of_history = 12
+    
+    session.sql(f"""
+        CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_CLIENT_FLOWS AS
+        WITH 
+        -- Get all clients
+        clients AS (
+            SELECT ClientID, ClientName, ClientType, Region, AUM_with_SAM
+            FROM {database_name}.CURATED.DIM_CLIENT
+        ),
+        -- Get all portfolios
+        portfolios AS (
+            SELECT PortfolioID, PortfolioName, Strategy
+            FROM {database_name}.CURATED.DIM_PORTFOLIO
+        ),
+        -- Generate date range (last 12 months, monthly)
+        date_range AS (
+            SELECT DATEADD('month', -seq4(), DATE_TRUNC('month', CURRENT_DATE())) as FlowDate
+            FROM TABLE(GENERATOR(ROWCOUNT => {months_of_history}))
+        ),
+        -- Create client-portfolio assignments (each client invests in 1-3 portfolios)
+        client_portfolio_map AS (
+            SELECT 
+                c.ClientID,
+                p.PortfolioID,
+                -- Weight for this client-portfolio pair (for flow sizing)
+                UNIFORM(0.3, 1.0, RANDOM()) as AllocationWeight
+            FROM clients c
+            CROSS JOIN portfolios p
+            WHERE 
+                -- Each client invests in 1-3 portfolios based on their ID
+                p.PortfolioID <= (MOD(c.ClientID, 3) + 1) * 3
+                AND p.PortfolioID > MOD(c.ClientID, 3) * 3
+        ),
+        -- Generate flows
+        flow_data AS (
+            SELECT 
+                ROW_NUMBER() OVER (ORDER BY d.FlowDate, cpm.ClientID, cpm.PortfolioID) as FlowID,
+                d.FlowDate,
+                cpm.ClientID,
+                cpm.PortfolioID,
+                -- Flow type: mostly subscriptions with some redemptions
+                CASE 
+                    WHEN UNIFORM(0, 100, RANDOM()) < 75 
+                    THEN 'Subscription'
+                    WHEN UNIFORM(0, 100, RANDOM()) < 95
+                    THEN 'Redemption'
+                    ELSE 'Transfer'
+                END as FlowType,
+                -- Flow amount based on client AUM and allocation
+                ROUND(
+                    c.AUM_with_SAM * cpm.AllocationWeight * 
+                    UNIFORM(0.01, 0.05, RANDOM()) *
+                    CASE 
+                        -- ESG strategies getting more inflows recently
+                        WHEN p.Strategy = 'ESG' AND d.FlowDate > DATEADD('month', -6, CURRENT_DATE()) THEN 1.5
+                        -- Growth strategies volatile
+                        WHEN p.Strategy = 'Growth' THEN UNIFORM(0.8, 1.2, RANDOM())
+                        ELSE 1.0
+                    END,
+                    -4  -- Round to nearest 10,000
+                ) as FlowAmount
+            FROM date_range d
+            CROSS JOIN client_portfolio_map cpm
+            JOIN clients c ON cpm.ClientID = c.ClientID
+            JOIN portfolios p ON cpm.PortfolioID = p.PortfolioID
+            -- Not every client-portfolio has a flow every month
+            WHERE UNIFORM(0, 100, RANDOM()) < 40
+        )
+        SELECT 
+            FlowID,
+            FlowDate,
+            ClientID,
+            PortfolioID,
+            FlowType,
+            CASE 
+                WHEN FlowType = 'Redemption' THEN -ABS(FlowAmount)
+                ELSE ABS(FlowAmount)
+            END as FlowAmount,
+            -- Add currency
+            'USD' as Currency
+        FROM flow_data
+        WHERE FlowAmount != 0
+    """).collect()
+    
+    # Verify creation
+    count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.FACT_CLIENT_FLOWS").collect()[0]['CNT']
+    # print(f"   ✅ Created FACT_CLIENT_FLOWS with {count} flow records")
+
+def build_fact_fund_flows(session: Session):
+    """
+    Build aggregated fund flow fact table for executive KPI queries.
+    Pre-aggregates FACT_CLIENT_FLOWS by portfolio/strategy for fast queries.
+    
+    Used by: Executive Copilot for firm-wide KPIs
+    Supports: "Key performance highlights month-to-date" queries
+    """
+    database_name = config.DATABASE['name']
+    
+    session.sql(f"""
+        CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_FUND_FLOWS AS
+        WITH flow_aggregates AS (
+            SELECT 
+                cf.FlowDate,
+                cf.PortfolioID,
+                p.PortfolioName,
+                p.Strategy,
+                SUM(CASE WHEN cf.FlowAmount > 0 THEN cf.FlowAmount ELSE 0 END) as GrossInflows,
+                SUM(CASE WHEN cf.FlowAmount < 0 THEN ABS(cf.FlowAmount) ELSE 0 END) as GrossOutflows,
+                SUM(cf.FlowAmount) as NetFlows,
+                COUNT(DISTINCT cf.ClientID) as ClientCount,
+                COUNT(*) as TransactionCount
+            FROM {database_name}.CURATED.FACT_CLIENT_FLOWS cf
+            JOIN {database_name}.CURATED.DIM_PORTFOLIO p ON cf.PortfolioID = p.PortfolioID
+            GROUP BY cf.FlowDate, cf.PortfolioID, p.PortfolioName, p.Strategy
+        )
+        SELECT 
+            ROW_NUMBER() OVER (ORDER BY FlowDate, PortfolioID) as FundFlowID,
+            FlowDate,
+            PortfolioID,
+            PortfolioName,
+            Strategy,
+            GrossInflows,
+            GrossOutflows,
+            NetFlows,
+            ClientCount,
+            TransactionCount,
+            'USD' as Currency
+        FROM flow_aggregates
+    """).collect()
+    
+    # Verify creation
+    count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.FACT_FUND_FLOWS").collect()[0]['CNT']
+    # print(f"   ✅ Created FACT_FUND_FLOWS with {count} aggregated flow records")
 
 def build_tax_implications_data(session: Session):
     """Build tax implications and cost basis data for tax-efficient execution."""
