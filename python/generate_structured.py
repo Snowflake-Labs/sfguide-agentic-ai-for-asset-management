@@ -44,16 +44,30 @@ def build_all(session: Session, scenarios: List[str], test_mode: bool = False):
     # print("Structured data generation complete")
 
 def create_database_structure(session: Session):
-    """Create schema structure (database already created by setup.sql)."""
+    """Verify schema structure exists (database and schemas created by setup.sql)."""
     try:
-        # Database is already created by setup.sql with ACCOUNTADMIN
-        # Just ensure schemas exist (SAM_DEMO_ROLE has privileges for this)
-        session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.RAW").collect()
-        session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.CURATED").collect()
-        session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.AI").collect()
-        # print(f" Database structure verified: {config.DATABASE['name']}")
+        # Database and schemas are already created by setup.sql with ACCOUNTADMIN
+        # Just verify they exist - don't try to create (may lack CREATE SCHEMA privilege)
+        schemas_needed = ['RAW', 'CURATED', 'AI']
+        db_name = config.DATABASE['name']
+        
+        # Check if schemas exist
+        existing_schemas = session.sql(f"SHOW SCHEMAS IN DATABASE {db_name}").collect()
+        existing_names = {row['name'] for row in existing_schemas}
+        
+        missing = [s for s in schemas_needed if s not in existing_names]
+        if missing:
+            # Try to create missing schemas (requires CREATE SCHEMA privilege)
+            for schema in missing:
+                try:
+                    session.sql(f"CREATE SCHEMA IF NOT EXISTS {db_name}.{schema}").collect()
+                except Exception as schema_err:
+                    print(f"WARNING: Could not create schema {schema}: {schema_err}")
+                    print(f"   Please run setup.sql as ACCOUNTADMIN first to create schemas.")
+                    raise
+        # print(f" Database structure verified: {db_name}")
     except Exception as e:
-        print(f"ERROR: Failed to create schema structure: {e}")
+        print(f"ERROR: Failed to verify schema structure: {e}")
         raise
 
 def build_foundation_tables(session: Session, test_mode: bool = False):

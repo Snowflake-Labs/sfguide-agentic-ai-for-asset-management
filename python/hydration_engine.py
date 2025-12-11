@@ -443,7 +443,7 @@ def build_global_context(doc_type: str, doc_num: int = 0) -> Dict[str, Any]:
         context.update(generate_tier1_numerics(context, doc_type))
     
     # Add compliance/regulatory context
-    if doc_type in ['compliance_manual', 'form_adv', 'form_crs', 'policy_docs']:
+    if doc_type in ['compliance_manual', 'form_adv', 'form_crs', 'policy_docs', 'risk_framework', 'regulatory_updates']:
         context.update(generate_compliance_context())
     
     return context
@@ -506,6 +506,107 @@ def generate_market_indicators(regime: str) -> Dict[str, Any]:
     indicators['DXY_LEVEL'] = round(random.uniform(100, 108), 1)
     indicators['GOLD_PRICE'] = round(random.uniform(1900, 2100), 0)
     indicators['OIL_PRICE'] = round(random.uniform(70, 95), 1)
+    
+    # Add economic indicators (ISM, CPI)
+    indicators['ISM_ACTUAL'] = round(random.uniform(48, 56), 1)
+    indicators['ISM_CONSENSUS'] = round(random.uniform(48, 55), 1)
+    indicators['ISM_PREVIOUS'] = round(random.uniform(47, 55), 1)
+    indicators['CPI_ACTUAL'] = round(random.uniform(2.8, 4.0), 1)
+    indicators['CPI_CONSENSUS'] = round(random.uniform(2.8, 3.8), 1)
+    indicators['CPI_PREVIOUS'] = round(random.uniform(2.9, 3.8), 1)
+    
+    # Add unemployment claims
+    indicators['CLAIMS_ACTUAL'] = round(random.uniform(200, 280), 0)
+    indicators['CLAIMS_CONSENSUS'] = round(random.uniform(210, 270), 0)
+    indicators['CLAIMS_PREVIOUS'] = round(random.uniform(205, 275), 0)
+    
+    # Add unemployment and GDP
+    indicators['UNEMPLOYMENT_RATE'] = round(random.uniform(3.5, 4.5), 1)
+    indicators['GDP_GROWTH'] = round(random.uniform(1.5, 3.5), 1)
+    
+    # Currency pairs
+    indicators['EUR_USD'] = round(random.uniform(1.05, 1.12), 4)
+    indicators['EUR_USD_DAILY'] = round(random.uniform(-0.5, 0.5), 2)
+    indicators['EUR_USD_MTD'] = round(random.uniform(-2.0, 2.0), 2)
+    indicators['AUD_USD'] = round(random.uniform(0.64, 0.70), 4)
+    indicators['AUD_USD_DAILY'] = round(random.uniform(-0.5, 0.5), 2)
+    indicators['AUD_USD_MTD'] = round(random.uniform(-2.0, 2.0), 2)
+    
+    # Additional commodities
+    indicators['BRENT_CRUDE_USD'] = round(random.uniform(72, 92), 2)
+    indicators['BRENT_DAILY_CHANGE'] = round(random.uniform(-2.0, 2.0), 2)
+    indicators['COPPER_USD'] = round(random.uniform(3.5, 4.5), 2)
+    indicators['COPPER_DAILY_CHANGE'] = round(random.uniform(-2.0, 2.0), 2)
+    indicators['ALUMINUM_USD'] = round(random.uniform(2200, 2600), 0)
+    indicators['ALUMINUM_DAILY_CHANGE'] = round(random.uniform(-1.5, 1.5), 2)
+    
+    # International indices
+    indicators['DAX_LEVEL'] = round(random.uniform(15000, 18000), 0)
+    indicators['DAX_YTD_PCT'] = round(random.uniform(-5, 15), 1)
+    indicators['DAX_DAILY_PCT'] = round(random.uniform(-1.5, 1.5), 2)
+    indicators['NIKKEI_LEVEL'] = round(random.uniform(32000, 40000), 0)
+    indicators['NIKKEI_YTD_PCT'] = round(random.uniform(-5, 20), 1)
+    indicators['NIKKEI_DAILY_PCT'] = round(random.uniform(-1.5, 1.5), 2)
+    indicators['MSCI_WORLD_LEVEL'] = round(random.uniform(2800, 3400), 0)
+    indicators['MSCI_WORLD_YTD_PCT'] = round(random.uniform(-5, 18), 1)
+    indicators['MSCI_WORLD_DAILY_PCT'] = round(random.uniform(-1.2, 1.2), 2)
+    indicators['MSCI_EM_LEVEL'] = round(random.uniform(950, 1150), 0)
+    indicators['MSCI_EM_YTD_PCT'] = round(random.uniform(-8, 15), 1)
+    indicators['MSCI_EM_DAILY_PCT'] = round(random.uniform(-1.5, 1.5), 2)
+    indicators['NASDAQ_DAILY_PCT'] = round(random.uniform(-2.0, 2.0), 2)
+    
+    # Credit spreads
+    indicators['EM_SPREAD_BPS'] = round(random.uniform(300, 450), 0)
+    indicators['EM_SPREAD_DIRECTION'] = random.choice(['tighter', 'wider', 'unchanged'])
+    indicators['HY_SPREAD_BPS'] = round(random.uniform(350, 500), 0)
+    indicators['HY_SPREAD_DIRECTION'] = random.choice(['tighter', 'wider', 'unchanged'])
+    indicators['IG_SPREAD_BPS'] = round(random.uniform(90, 140), 0)
+    indicators['IG_SPREAD_DIRECTION'] = random.choice(['tighter', 'wider', 'unchanged'])
+    indicators['IG_TIGHTENING'] = round(random.uniform(3, 12), 0)
+    
+    # Additional currencies
+    indicators['GBP_USD'] = round(random.uniform(1.22, 1.30), 4)
+    indicators['GBP_USD_DAILY'] = round(random.uniform(-0.5, 0.5), 2)
+    indicators['GBP_USD_MTD'] = round(random.uniform(-2.0, 2.0), 2)
+    indicators['USD_JPY'] = round(random.uniform(140, 155), 2)
+    indicators['USD_JPY_DAILY'] = round(random.uniform(-0.8, 0.8), 2)
+    indicators['USD_JPY_MTD'] = round(random.uniform(-3.0, 3.0), 2)
+    indicators['USD_CHF'] = round(random.uniform(0.86, 0.92), 4)
+    indicators['USD_CHF_DAILY'] = round(random.uniform(-0.4, 0.4), 2)
+    indicators['USD_CHF_MTD'] = round(random.uniform(-1.5, 1.5), 2)
+    indicators['DXY_INDEX'] = round(random.uniform(102, 108), 2)
+    indicators['DXY_DAILY_CHANGE'] = round(random.uniform(-0.5, 0.5), 2)
+    
+    # Additional commodities
+    indicators['GOLD_USD'] = round(random.uniform(1900, 2100), 0)
+    indicators['GOLD_DAILY_CHANGE'] = round(random.uniform(-1.5, 1.5), 2)
+    indicators['SILVER_USD'] = round(random.uniform(22, 28), 2)
+    indicators['SILVER_DAILY_CHANGE'] = round(random.uniform(-2.0, 2.0), 2)
+    indicators['WTI_CRUDE_USD'] = round(random.uniform(68, 88), 2)
+    indicators['WTI_DAILY_CHANGE'] = round(random.uniform(-2.5, 2.5), 2)
+    indicators['NATURAL_GAS_USD'] = round(random.uniform(2.2, 3.5), 2)
+    indicators['NG_DAILY_CHANGE'] = round(random.uniform(-3.0, 3.0), 2)
+    
+    # Yield curve
+    indicators['YIELD_CURVE_SPREAD_BPS'] = round(random.uniform(-50, 80), 0)
+    indicators['YIELD_CURVE_SHAPE'] = random.choice(['inverted', 'flat', 'steepening', 'normal'])
+    
+    # Commentary placeholders
+    indicators['COMMODITY_COMMENTARY'] = random.choice([
+        'Energy prices remain volatile amid supply concerns',
+        'Base metals rally on infrastructure spending optimism',
+        'Precious metals steady as inflation expectations moderate'
+    ])
+    indicators['CURRENCY_COMMENTARY'] = random.choice([
+        'Dollar strength persists on rate differential',
+        'Euro finds support on improved economic data',
+        'Yen weakness continues despite intervention concerns'
+    ])
+    indicators['ECONOMIC_ANALYSIS'] = random.choice([
+        'Growth momentum remains resilient despite headwinds',
+        'Inflation pressures continue to moderate gradually',
+        'Labor market shows signs of normalization'
+    ])
     
     return indicators
 
@@ -911,6 +1012,17 @@ def generate_provider_context(context: Dict[str, Any], doc_type: str) -> Dict[st
             provider_context['RESPONSE_THRESHOLD'] = str(random.randint(40, 70))
             provider_context['DIABETES_MARKET'] = str(random.randint(25, 65))
             provider_context['PATENT_EXPIRY'] = str(random.randint(2028, 2035))
+            
+            # FDA/clinical trial dates
+            provider_context['NEXT_DATA_READOUT'] = f"Q{random.randint(1, 4)} {datetime.now().year + 1}"
+            provider_context['NEXT_APPROVAL_DATE'] = f"Q{random.randint(1, 4)} {datetime.now().year + 1}"
+        
+        # Add quarter placeholder for all sectors
+        current_quarter = ((datetime.now().month - 1) // 3) + 1
+        provider_context['QUARTER'] = f"Q{current_quarter} {datetime.now().year}"
+        
+        # Add portfolio risk contribution (for investment memos)
+        provider_context['PORTFOLIO_RISK_CONTRIBUTION'] = round(random.uniform(2, 12), 1)
         
         # Generic sustainability materials (for all sectors)
         sustainability_materials = ['100% recycled', '80% renewable', '75% sustainable']
@@ -1096,6 +1208,20 @@ def get_numeric_bounds_for_doc_type(doc_type: str, sector: str) -> Dict[str, Dic
                 'FAIR_VALUE_USD': {'min': 75, 'max': 500},
                 'UPSIDE_POTENTIAL_PCT': {'min': 10, 'max': 60},
                 'PE_RATIO': {'min': 15, 'max': 35}
+            },
+            '_default': {
+                'YOY_REVENUE_GROWTH_PCT': {'min': 5, 'max': 22},
+                'EBIT_MARGIN_PCT': {'min': 10, 'max': 30},
+                'TARGET_PRICE_USD': {'min': 60, 'max': 400},
+                'FAIR_VALUE_USD': {'min': 55, 'max': 450},
+                'UPSIDE_POTENTIAL_PCT': {'min': 8, 'max': 50},
+                'PE_RATIO': {'min': 12, 'max': 32},
+                'GROSS_MARGIN_PCT': {'min': 30, 'max': 70},
+                'ROE_PCT': {'min': 10, 'max': 28},
+                'REVENUE_CAGR': {'min': 5, 'max': 20},
+                'SECTOR_CAGR': {'min': 3, 'max': 15},
+                'WACC_PCT': {'min': 8, 'max': 12},
+                'TERMINAL_GROWTH': {'min': 2, 'max': 4}
             }
         },
         'investment_memo': {
@@ -1105,6 +1231,22 @@ def get_numeric_bounds_for_doc_type(doc_type: str, sector: str) -> Dict[str, Dic
                 'TARGET_PRICE_USD': {'min': 80, 'max': 450},
                 'PE_RATIO': {'min': 15, 'max': 35},
                 'POSITION_SIZE_PCT': {'min': 2, 'max': 7}
+            },
+            '_default': {
+                'YOY_REVENUE_GROWTH_PCT': {'min': 4, 'max': 20},
+                'EBIT_MARGIN_PCT': {'min': 8, 'max': 28},
+                'TARGET_PRICE_USD': {'min': 50, 'max': 400},
+                'PE_RATIO': {'min': 10, 'max': 30},
+                'POSITION_SIZE_PCT': {'min': 1.5, 'max': 6},
+                'GROSS_MARGIN_PCT': {'min': 25, 'max': 65},
+                'ROE_PCT': {'min': 8, 'max': 25},
+                'REVENUE_CAGR': {'min': 5, 'max': 18},
+                'SECTOR_CAGR': {'min': 3, 'max': 12},
+                'TARGET_MARGIN': {'min': 15, 'max': 35},
+                'GROWTH_RATE': {'min': 5, 'max': 22},
+                'MARKET_SHARE': {'min': 5, 'max': 40},
+                'WACC_PCT': {'min': 8, 'max': 12},
+                'TERMINAL_GROWTH': {'min': 2, 'max': 4}
             }
         },
         'portfolio_review': {
@@ -1147,6 +1289,8 @@ def get_numeric_bounds_for_doc_type(doc_type: str, sector: str) -> Dict[str, Dic
                 'NET_INCOME': {'min': 2, 'max': 15},
                 'EPS_GROWTH': {'min': 10, 'max': 30},
                 'TAX_RATE': {'min': 18, 'max': 25},
+                'WACC_PCT': {'min': 8, 'max': 12},
+                'TERMINAL_GROWTH': {'min': 2, 'max': 4},
                 'INTL_CONSTANT_GROWTH': {'min': 12, 'max': 30},
                 'INTL_PRIOR_PCT': {'min': 20, 'max': 40},
                 'RD_SPEND': {'min': 2, 'max': 12},
@@ -1320,6 +1464,29 @@ def get_numeric_bounds_for_doc_type(doc_type: str, sector: str) -> Dict[str, Dic
                 'MECHANISM': {'min': 1, 'max': 3},  # Will be text
                 'DIGITAL_MARGIN_PREMIUM': {'min': 5, 'max': 15},
                 'DIGITAL_VS_RETAIL': {'min': 3, 'max': 12},
+                # Geographic revenue breakdown
+                'NA_REVENUE_PCT': {'min': 35, 'max': 55},
+                'EUROPE_REVENUE_PCT': {'min': 20, 'max': 35},
+                'APAC_REVENUE_PCT': {'min': 15, 'max': 30},
+                'OTHER_REVENUE_PCT': {'min': 5, 'max': 15},
+                'GEOGRAPHIC_NA_PCT': {'min': 35, 'max': 55},
+                'GEOGRAPHIC_EU_PCT': {'min': 20, 'max': 35},
+                'GEOGRAPHIC_APAC_PCT': {'min': 15, 'max': 30},
+                # Growth and valuation metrics
+                'REVENUE_CAGR': {'min': 8, 'max': 25},
+                'SECTOR_CAGR': {'min': 5, 'max': 18},
+                'TARGET_MARGIN': {'min': 15, 'max': 35},
+                'GROWTH_RATE': {'min': 8, 'max': 25},
+                'PRICE_TO_BOOK': {'min': 1.5, 'max': 8.0},
+                'PORTFOLIO_RISK_CONTRIBUTION': {'min': 2, 'max': 15},
+                'PORTFOLIO_VOL': {'min': 12, 'max': 25},
+                # Economic indicators
+                'ISM_ACTUAL': {'min': 48, 'max': 58},
+                'ISM_CONSENSUS': {'min': 48, 'max': 56},
+                'ISM_PREVIOUS': {'min': 47, 'max': 57},
+                'CPI_ACTUAL': {'min': 2.5, 'max': 4.5},
+                'CPI_CONSENSUS': {'min': 2.5, 'max': 4.2},
+                'CPI_PREVIOUS': {'min': 2.8, 'max': 4.0},
                 'INVENTORY': {'min': 2, 'max': 15},
                 'INVENTORY_DAYS': {'min': 45, 'max': 90},
                 'SUSTAINABILITY_METRIC': {'min': 15, 'max': 40},
@@ -1445,7 +1612,13 @@ def query_tier2_portfolio_metrics(session: Session, portfolio_id: int) -> Dict[s
         """).collect()
         
         if sectors:
-            metrics['SECTOR_ALLOCATION_TABLE'] = sectors
+            # Store as list for complex processing
+            metrics['_SECTOR_ALLOCATION_LIST'] = sectors
+            # Format sector allocation as text for templates (they expect text, not list)
+            sector_text = "\n".join([f"| {s['SECTOR'][:30]} | {round(s['WEIGHT_PCT'], 1)}% |" for s in sectors[:8]])
+            metrics['SECTOR_ALLOCATION_TABLE'] = f"| Sector | Weight |\n|--------|--------|\n{sector_text}"
+            metrics['SECTOR_ALLOCATION_TEXT'] = sector_text
+            
             # Calculate tech weight (look for technology-related sectors)
             tech_weight = sum([
                 s['WEIGHT_PCT'] for s in sectors 
@@ -1453,12 +1626,74 @@ def query_tier2_portfolio_metrics(session: Session, portfolio_id: int) -> Dict[s
             ])
             metrics['TECH_WEIGHT'] = round(tech_weight, 1)
             metrics['TECH_BENCH_WEIGHT'] = round(random.uniform(25, 35), 1)  # Typical benchmark tech weight
+            
+            # Calculate communication services weight
+            comm_weight = sum([
+                s['WEIGHT_PCT'] for s in sectors 
+                if any(kw in s['SECTOR'].lower() for kw in ['communication', 'media', 'telecom', 'entertainment'])
+            ])
+            metrics['COMM_WEIGHT'] = round(comm_weight, 1)
+            metrics['COMM_BENCH_WEIGHT'] = round(random.uniform(8, 15), 1)  # Typical benchmark comm weight
+            
+            # Best/worst sector performance
+            # Generate realistic sector returns since RETURN_PCT is not in the query
+            if len(sectors) > 0:
+                # Assign simulated returns based on sector characteristics
+                sector_returns = []
+                for s in sectors:
+                    # Snowpark Row uses dict-style access, not .get()
+                    sector_name = (s['SECTOR'] or '').lower()
+                    # Generate sector-appropriate returns
+                    if any(kw in sector_name for kw in ['technology', 'software', 'computer', 'semiconductor']):
+                        ret = random.uniform(5, 25)  # Tech tends to be high beta
+                    elif any(kw in sector_name for kw in ['energy', 'oil', 'gas', 'petroleum']):
+                        ret = random.uniform(-8, 12)  # Energy is volatile
+                    elif any(kw in sector_name for kw in ['utility', 'utilities', 'electric']):
+                        ret = random.uniform(-2, 8)  # Utilities are defensive
+                    elif any(kw in sector_name for kw in ['health', 'pharma', 'biotech', 'medical']):
+                        ret = random.uniform(2, 18)  # Healthcare varies
+                    elif any(kw in sector_name for kw in ['financial', 'bank', 'insurance']):
+                        ret = random.uniform(-3, 15)  # Financials are cyclical
+                    elif any(kw in sector_name for kw in ['consumer', 'retail', 'food']):
+                        ret = random.uniform(0, 12)  # Consumer is moderate
+                    else:
+                        ret = random.uniform(-5, 15)  # Default range
+                    sector_returns.append({'SECTOR': s['SECTOR'] or 'Unknown', 'RETURN_PCT': ret})
+                
+                best_sector = max(sector_returns, key=lambda x: x['RETURN_PCT'])
+                worst_sector = min(sector_returns, key=lambda x: x['RETURN_PCT'])
+                metrics['BEST_SECTOR'] = best_sector['SECTOR'][:20]
+                metrics['BEST_SECTOR_PCT'] = round(best_sector['RETURN_PCT'], 1)
+                metrics['WORST_SECTOR'] = worst_sector['SECTOR'][:20]
+                metrics['WORST_SECTOR_PCT'] = round(worst_sector['RETURN_PCT'], 1)
+            else:
+                metrics['BEST_SECTOR'] = 'Technology'
+                metrics['BEST_SECTOR_PCT'] = round(random.uniform(8, 20), 1)
+                metrics['WORST_SECTOR'] = 'Energy'
+                metrics['WORST_SECTOR_PCT'] = round(random.uniform(-5, 3), 1)
+            
+            # Calculate sector total
+            metrics['SECTOR_TOTAL'] = round(sum(s['WEIGHT_PCT'] for s in sectors[:5]), 1)
         
         # Generate relative performance metrics
         qtd_return = metrics.get('QTD_RETURN_PCT', random.uniform(-5, 10))
         benchmark_return = metrics.get('BENCHMARK_QTD_PCT', random.uniform(-4, 8))
         metrics['RELATIVE_RETURN_DIFF'] = round(qtd_return - benchmark_return, 2)
         metrics['YTD_RELATIVE_PERFORMANCE'] = round(random.uniform(-3, 5), 2)
+        
+        # Geographic breakdown
+        metrics['GEOGRAPHIC_NA_PCT'] = round(random.uniform(40, 55), 1)
+        metrics['GEOGRAPHIC_EU_PCT'] = round(random.uniform(20, 30), 1)
+        metrics['GEOGRAPHIC_APAC_PCT'] = round(random.uniform(15, 25), 1)
+        
+        # Portfolio risk metrics
+        metrics['PORTFOLIO_VOL'] = round(random.uniform(12, 22), 1)
+        
+        # Concentration warning statement (formatted for templates)
+        if metrics.get('CONCENTRATION_WARNING') == 'YES':
+            metrics['CONCENTRATION_WARNING_STATEMENT'] = f"⚠️ Concentration alert: {metrics.get('LARGEST_POSITION_NAME', 'Top position')} exceeds threshold at {metrics.get('LARGEST_POSITION_WEIGHT', 0):.1f}%"
+        else:
+            metrics['CONCENTRATION_WARNING_STATEMENT'] = "✅ All positions within concentration guidelines"
         
         # Market condition
         market_conditions = ['favorable market conditions', 'challenging market environment', 'mixed market signals', 'volatile trading conditions']
@@ -1469,11 +1704,90 @@ def query_tier2_portfolio_metrics(session: Session, portfolio_id: int) -> Dict[s
         # Fallback values
         metrics['POSITION_COUNT'] = random.randint(20, 50)
         metrics['CONCENTRATION_WARNING_TEXT'] = 'All positions within concentration limits'
+        metrics['CONCENTRATION_WARNING_STATEMENT'] = '✅ All positions within concentration guidelines'
         metrics['RELATIVE_RETURN_DIFF'] = round(random.uniform(-2, 3), 2)
         metrics['YTD_RELATIVE_PERFORMANCE'] = round(random.uniform(-3, 5), 2)
         metrics['TECH_WEIGHT'] = round(random.uniform(20, 40), 1)
         metrics['TECH_BENCH_WEIGHT'] = round(random.uniform(25, 35), 1)
         metrics['MARKET_CONDITION'] = 'mixed market conditions'
+        metrics['GEOGRAPHIC_NA_PCT'] = round(random.uniform(40, 55), 1)
+        metrics['GEOGRAPHIC_EU_PCT'] = round(random.uniform(20, 30), 1)
+        metrics['GEOGRAPHIC_APAC_PCT'] = round(random.uniform(15, 25), 1)
+        metrics['PORTFOLIO_VOL'] = round(random.uniform(12, 22), 1)
+        metrics['SECTOR_ALLOCATION_TEXT'] = "| Technology | 25% |\n| Healthcare | 18% |\n| Financials | 15% |"
+        metrics['SECTOR_ALLOCATION_TABLE'] = "| Sector | Weight |\n|--------|--------|\n| Technology | 25% |\n| Healthcare | 18% |\n| Financials | 15% |"
+        metrics['COMM_WEIGHT'] = round(random.uniform(8, 15), 1)
+        metrics['COMM_BENCH_WEIGHT'] = round(random.uniform(8, 15), 1)
+        metrics['BEST_SECTOR'] = 'Technology'
+        metrics['BEST_SECTOR_PCT'] = round(random.uniform(8, 20), 1)
+        metrics['WORST_SECTOR'] = 'Energy'
+        metrics['WORST_SECTOR_PCT'] = round(random.uniform(-5, 3), 1)
+        metrics['SECTOR_TOTAL'] = 100.0
+    
+    # Additional portfolio metrics
+    metrics['PORTFOLIO_WEIGHT'] = round(random.uniform(1.5, 5.0), 2)
+    metrics['PORTFOLIO_CONTRIBUTION'] = round(random.uniform(0.05, 0.25), 2)
+    metrics['RISK_BUDGET_PCT'] = round(random.uniform(2, 8), 1)
+    metrics['TECH_ALLOCATION'] = round(random.uniform(22, 35), 1)
+    metrics['AI_ALLOCATION'] = round(random.uniform(5, 15), 1)
+    metrics['THEMATIC_ALLOCATION'] = round(random.uniform(10, 25), 1)
+    metrics['PORTFOLIO_POSITIONING'] = random.choice([
+        'Maintaining overweight in quality growth',
+        'Neutral positioning with selective opportunities',
+        'Defensive tilt with increased cash allocation'
+    ])
+    metrics['OUTLOOK_POSITIONING'] = random.choice([
+        'Constructive on secular growth themes',
+        'Cautiously optimistic given macro backdrop',
+        'Balanced exposure with tactical hedges'
+    ])
+    metrics['PERFORMANCE_NARRATIVE'] = random.choice([
+        'Strong security selection drove outperformance',
+        'Sector allocation was the primary return driver',
+        'Defensive positioning protected against drawdowns'
+    ])
+    metrics['RELATIVE_PERFORMANCE'] = round(random.uniform(-2, 4), 2)
+    metrics['NET_CASH'] = round(random.uniform(5, 15), 1)
+    metrics['INTL_TARGET'] = round(random.uniform(20, 35), 1)
+    
+    # Allocation metrics
+    metrics['TECH_ALLOCATION'] = round(random.uniform(22, 35), 1)
+    metrics['AI_ALLOCATION'] = round(random.uniform(5, 15), 1)
+    metrics['THEMATIC_ALLOCATION'] = round(random.uniform(10, 25), 1)
+    
+    # ESG metrics
+    metrics['CARBON_NEUTRAL_STATUS'] = random.choice([
+        'carbon neutrality in Scope 1 and 2 emissions',
+        'working toward carbon neutrality',
+        'committed to net-zero by 2030'
+    ])
+    
+    # Risk metrics
+    metrics['PORTFOLIO_RISK_CONTRIBUTION'] = round(random.uniform(2, 12), 1)
+    
+    # SaaS/Financial metrics
+    metrics['MARGIN_EXPANSION'] = round(random.uniform(50, 150), 0)
+    metrics['NET_RETENTION'] = round(random.uniform(110, 130), 0)
+    metrics['ACV_GROWTH'] = round(random.uniform(12, 30), 1)
+    metrics['OCF'] = round(random.uniform(4, 22), 1)
+    
+    # Meeting/date placeholders
+    metrics['IC_DATE'] = (datetime.now() - timedelta(days=random.randint(1, 14))).strftime('%Y-%m-%d')
+    metrics['IC_MEETING_DATE'] = (datetime.now() - timedelta(days=random.randint(1, 7))).strftime('%B %d, %Y')
+    metrics['NEXT_REVIEW_DATE'] = (datetime.now() + timedelta(days=random.randint(30, 90))).strftime('%Y-%m-%d')
+    
+    # Valuation metrics for portfolio-level
+    metrics['VALUATION_HIGH'] = round(random.uniform(180, 280), 0)
+    metrics['VALUATION_LOW'] = round(random.uniform(120, 160), 0)
+    metrics['SALES_VALUE'] = round(random.uniform(50, 200), 0)
+    metrics['TRANSACTION_VALUE'] = round(random.uniform(500, 5000), 0)
+    
+    # Commentary placeholder
+    metrics['EARNINGS_COMMENTARY'] = random.choice([
+        'Earnings exceeded expectations on strong execution',
+        'Results in-line with guidance, outlook raised',
+        'Mixed quarter with improving underlying trends'
+    ])
     
     return metrics
 
@@ -1511,11 +1825,11 @@ def query_tier2_security_metrics(session: Session, security_id: int, doc_type: s
             LIMIT 1
         """).collect()
         
-        if price_data:
+        if price_data and price_data[0]['CURRENT_PRICE'] is not None:
             metrics['CURRENT_PRICE'] = round(float(price_data[0]['CURRENT_PRICE']), 2)
-            metrics['PRICE_OPEN'] = round(float(price_data[0]['PRICE_OPEN']), 2)
-            metrics['PRICE_HIGH'] = round(float(price_data[0]['PRICE_HIGH']), 2)
-            metrics['PRICE_LOW'] = round(float(price_data[0]['PRICE_LOW']), 2)
+            metrics['PRICE_OPEN'] = round(float(price_data[0]['PRICE_OPEN'] or price_data[0]['CURRENT_PRICE']), 2)
+            metrics['PRICE_HIGH'] = round(float(price_data[0]['PRICE_HIGH'] or price_data[0]['CURRENT_PRICE']), 2)
+            metrics['PRICE_LOW'] = round(float(price_data[0]['PRICE_LOW'] or price_data[0]['CURRENT_PRICE']), 2)
             
             # Calculate fair value range based on current price
             current = metrics['CURRENT_PRICE']
@@ -1546,29 +1860,117 @@ def query_tier2_security_metrics(session: Session, security_id: int, doc_type: s
             metrics['POSITION_SIZE_USD'] = round(random.uniform(500000, 5000000), 0)
             metrics['POSITION_COUNT'] = random.randint(1, 5)
         
-        # Query revenue breakdown estimates (simulated from sector patterns)
-        # These would ideally come from FACT_FUNDAMENTALS but we'll generate realistic values
-        sector = metrics.get('SIC_DESCRIPTION', '')
-        if 'software' in sector.lower() or 'technology' in sector.lower() or 'computer' in sector.lower():
-            metrics['CLOUD_REVENUE_PCT'] = round(random.uniform(35, 65), 1)
-            metrics['SOFTWARE_REVENUE_PCT'] = round(random.uniform(20, 40), 1)
+        # Query sector information for revenue breakdown estimates
+        sector_data = session.sql(f"""
+            SELECT i.SIC_DESCRIPTION
+            FROM {config.DATABASE['name']}.CURATED.DIM_SECURITY s
+            JOIN {config.DATABASE['name']}.CURATED.DIM_ISSUER i ON s.IssuerID = i.IssuerID
+            WHERE s.SecurityID = {security_id}
+        """).collect()
+        
+        sector = sector_data[0]['SIC_DESCRIPTION'].lower() if sector_data and sector_data[0]['SIC_DESCRIPTION'] else ''
+        # Generate sector-appropriate revenue metrics (proportional to ensure sum = 100%)
+        if 'software' in sector or 'technology' in sector or 'computer' in sector:
+            # Tech: Cloud-heavy, use proportional allocation
+            cloud_share = random.uniform(0.40, 0.55)    # 40-55% of total
+            software_share = random.uniform(0.25, 0.35) # 25-35% of total
+            services_share = 1 - cloud_share - software_share
+            metrics['CLOUD_REVENUE_PCT'] = round(cloud_share * 100, 1)
+            metrics['SOFTWARE_REVENUE_PCT'] = round(software_share * 100, 1)
             metrics['SERVICES_REVENUE_PCT'] = round(100 - metrics['CLOUD_REVENUE_PCT'] - metrics['SOFTWARE_REVENUE_PCT'], 1)
             metrics['R_AND_D_INTENSITY_PCT'] = round(random.uniform(12, 25), 1)
             metrics['CLOUD_GROWTH'] = round(random.uniform(18, 45), 1)
             metrics['CURRENT_MARGIN'] = round(random.uniform(20, 40), 1)
         else:
-            metrics['CLOUD_REVENUE_PCT'] = round(random.uniform(10, 30), 1)
-            metrics['SOFTWARE_REVENUE_PCT'] = round(random.uniform(15, 35), 1)
-            metrics['SERVICES_REVENUE_PCT'] = round(random.uniform(30, 50), 1)
+            # Non-tech: More balanced, use proportional allocation
+            cloud_share = random.uniform(0.15, 0.30)    # 15-30% of total
+            software_share = random.uniform(0.20, 0.35) # 20-35% of total
+            services_share = 1 - cloud_share - software_share
+            metrics['CLOUD_REVENUE_PCT'] = round(cloud_share * 100, 1)
+            metrics['SOFTWARE_REVENUE_PCT'] = round(software_share * 100, 1)
+            metrics['SERVICES_REVENUE_PCT'] = round(100 - metrics['CLOUD_REVENUE_PCT'] - metrics['SOFTWARE_REVENUE_PCT'], 1)
             metrics['R_AND_D_INTENSITY_PCT'] = round(random.uniform(5, 15), 1)
             metrics['CLOUD_GROWTH'] = round(random.uniform(10, 25), 1)
             metrics['CURRENT_MARGIN'] = round(random.uniform(15, 30), 1)
+        
+        # Geographic revenue breakdown (for all securities)
+        # Generate proportionally and calculate OTHER as remainder to guarantee sum = 100%
+        na_base = random.uniform(40, 55)
+        remaining = 100 - na_base
+        europe_share = random.uniform(0.35, 0.45)  # 35-45% of remaining
+        apac_share = random.uniform(0.25, 0.35)    # 25-35% of remaining
+        
+        metrics['NA_REVENUE_PCT'] = round(na_base, 1)
+        metrics['EUROPE_REVENUE_PCT'] = round(remaining * europe_share, 1)
+        metrics['APAC_REVENUE_PCT'] = round(remaining * apac_share, 1)
+        # Calculate OTHER as remainder to guarantee exact 100% sum
+        metrics['OTHER_REVENUE_PCT'] = round(100 - metrics['NA_REVENUE_PCT'] - metrics['EUROPE_REVENUE_PCT'] - metrics['APAC_REVENUE_PCT'], 1)
+        
+        # Growth and valuation metrics (for investment memos)
+        metrics['REVENUE_CAGR'] = round(random.uniform(8, 22), 1)
+        metrics['SECTOR_CAGR'] = round(random.uniform(5, 15), 1)
+        metrics['TARGET_MARGIN'] = round(random.uniform(18, 35), 1)
+        metrics['GROWTH_RATE'] = round(random.uniform(8, 25), 1)
+        metrics['MARKET_SHARE'] = round(random.uniform(5, 35), 1)
+        metrics['PRICE_TO_BOOK'] = round(random.uniform(1.5, 6.0), 1)
+        metrics['ROE_PCT'] = round(random.uniform(12, 28), 1)
+        
+        # Financials-specific metrics
+        metrics['NIM_EXPANSION_BPS'] = round(random.uniform(5, 25), 0)
+        metrics['RATE_SENSITIVITY_PCT'] = round(random.uniform(2, 8), 1)
+        metrics['DEPOSIT_BETA_PCT'] = round(random.uniform(30, 60), 0)
+        metrics['LOAN_GROWTH_PCT'] = round(random.uniform(3, 12), 1)
+        metrics['EFFICIENCY_RATIO_PCT'] = round(random.uniform(55, 70), 1)
         
         # Calculate upside potential
         if 'CURRENT_PRICE' in metrics and 'FAIR_VALUE_HIGH' in metrics:
             metrics['UPSIDE_PCT'] = round((metrics['FAIR_VALUE_HIGH'] / metrics['CURRENT_PRICE'] - 1) * 100, 1)
         else:
             metrics['UPSIDE_PCT'] = round(random.uniform(10, 35), 1)
+        
+        # Valuation scenario metrics
+        current_price = metrics.get('CURRENT_PRICE', 150)
+        metrics['BULL_CASE_PRICE'] = round(current_price * random.uniform(1.25, 1.45), 2)
+        metrics['BEAR_CASE_PRICE'] = round(current_price * random.uniform(0.70, 0.85), 2)
+        metrics['BEAR_FAIR_VALUE'] = round(current_price * random.uniform(0.75, 0.90), 2)
+        metrics['DOWNSIDE_PCT'] = round((metrics['BEAR_CASE_PRICE'] / current_price - 1) * 100, 1)
+        metrics['ENTRY_PRICE_HIGH'] = round(current_price * random.uniform(0.92, 0.98), 2)
+        metrics['TRIM_PRICE'] = round(current_price * random.uniform(1.15, 1.30), 2)
+        metrics['ADD_PRICE'] = round(current_price * random.uniform(0.85, 0.95), 2)
+        metrics['ADD_UPSIDE'] = round(random.uniform(20, 40), 1)
+        
+        # Valuation multiples
+        metrics['EV_SALES'] = round(random.uniform(3, 12), 1)
+        metrics['BETA'] = round(random.uniform(0.8, 1.4), 2)
+        metrics['PE_VALUE'] = round(random.uniform(15, 35), 1)
+        metrics['WACC'] = round(random.uniform(8, 12), 1)
+        metrics['RFR'] = round(random.uniform(3.5, 5.0), 2)
+        metrics['ERP'] = round(random.uniform(4.5, 6.5), 2)
+        metrics['LT_GROWTH'] = round(random.uniform(2, 4), 1)
+        metrics['TERMINAL_MARGIN'] = round(random.uniform(18, 32), 1)
+        metrics['ROIC'] = round(random.uniform(12, 28), 1)
+        metrics['PAYOUT_RATIO_PCT'] = round(random.uniform(25, 50), 1)
+        metrics['FCF_CAGR'] = round(random.uniform(8, 18), 1)
+        
+        # Customer metrics
+        metrics['CUSTOMER_COUNT'] = round(random.uniform(5000, 50000), 0)
+        metrics['CUSTOMER_GROWTH'] = round(random.uniform(8, 25), 1)
+        metrics['ACV'] = round(random.uniform(50, 250), 0)
+        metrics['CLOUD_ARR'] = round(random.uniform(2, 15), 1)
+        
+        # SaaS/Tech metrics
+        metrics['NET_RETENTION'] = round(random.uniform(110, 130), 0)
+        metrics['NET_RETENTION_PCT'] = metrics['NET_RETENTION']
+        metrics['ACV_GROWTH'] = round(random.uniform(12, 30), 1)
+        metrics['MARGIN_EXPANSION'] = round(random.uniform(50, 150), 0)
+        metrics['MARGIN_EXPANSION_BPS'] = metrics['MARGIN_EXPANSION']
+        metrics['OCF'] = round(random.uniform(4, 22), 1)
+        
+        # Premium/discount metrics
+        metrics['GROWTH_PREMIUM'] = round(random.uniform(15, 35), 0)
+        metrics['MARGIN_PREMIUM'] = round(random.uniform(10, 25), 0)
+        metrics['SOFTWARE_PREMIUM'] = round(random.uniform(20, 40), 0)
+        metrics['PREMIUM_DISCOUNT'] = round(random.uniform(-15, 25), 1)
         
     except Exception as e:
         # Fallback to generated values if queries fail
@@ -1577,13 +1979,36 @@ def query_tier2_security_metrics(session: Session, security_id: int, doc_type: s
         metrics['FAIR_VALUE_HIGH'] = round(metrics['CURRENT_PRICE'] * 1.25, 2)
         metrics['POSITION_SIZE_PCT'] = round(random.uniform(1.5, 5.0), 2)
         metrics['POSITION_SIZE_USD'] = round(random.uniform(500000, 5000000), 0)
-        metrics['CLOUD_REVENUE_PCT'] = round(random.uniform(20, 50), 1)
-        metrics['SOFTWARE_REVENUE_PCT'] = round(random.uniform(20, 40), 1)
-        metrics['SERVICES_REVENUE_PCT'] = round(random.uniform(15, 35), 1)
+        # Revenue breakdown (proportional to ensure sum = 100%)
+        cloud_share = random.uniform(0.25, 0.45)
+        software_share = random.uniform(0.20, 0.35)
+        metrics['CLOUD_REVENUE_PCT'] = round(cloud_share * 100, 1)
+        metrics['SOFTWARE_REVENUE_PCT'] = round(software_share * 100, 1)
+        metrics['SERVICES_REVENUE_PCT'] = round(100 - metrics['CLOUD_REVENUE_PCT'] - metrics['SOFTWARE_REVENUE_PCT'], 1)
         metrics['R_AND_D_INTENSITY_PCT'] = round(random.uniform(8, 20), 1)
         metrics['UPSIDE_PCT'] = round(random.uniform(10, 35), 1)
         metrics['CLOUD_GROWTH'] = round(random.uniform(15, 35), 1)
         metrics['CURRENT_MARGIN'] = round(random.uniform(18, 35), 1)
+        # Geographic revenue (calculate OTHER as remainder to guarantee sum = 100%)
+        na_base = random.uniform(40, 55)
+        remaining = 100 - na_base
+        metrics['NA_REVENUE_PCT'] = round(na_base, 1)
+        metrics['EUROPE_REVENUE_PCT'] = round(remaining * 0.4, 1)
+        metrics['APAC_REVENUE_PCT'] = round(remaining * 0.35, 1)
+        metrics['OTHER_REVENUE_PCT'] = round(100 - metrics['NA_REVENUE_PCT'] - metrics['EUROPE_REVENUE_PCT'] - metrics['APAC_REVENUE_PCT'], 1)
+        # Growth and valuation
+        metrics['REVENUE_CAGR'] = round(random.uniform(8, 22), 1)
+        metrics['SECTOR_CAGR'] = round(random.uniform(5, 15), 1)
+        metrics['TARGET_MARGIN'] = round(random.uniform(18, 35), 1)
+        metrics['GROWTH_RATE'] = round(random.uniform(8, 25), 1)
+        metrics['MARKET_SHARE'] = round(random.uniform(5, 35), 1)
+        metrics['PRICE_TO_BOOK'] = round(random.uniform(1.5, 6.0), 1)
+        metrics['ROE_PCT'] = round(random.uniform(12, 28), 1)
+        # Financials
+        metrics['NIM_EXPANSION_BPS'] = round(random.uniform(5, 25), 0)
+        metrics['RATE_SENSITIVITY_PCT'] = round(random.uniform(2, 8), 1)
+        metrics['DEPOSIT_BETA_PCT'] = round(random.uniform(30, 60), 0)
+        metrics['LOAN_GROWTH_PCT'] = round(random.uniform(3, 12), 1)
     
     return metrics
 
