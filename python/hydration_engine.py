@@ -2039,6 +2039,15 @@ def query_tier2_security_metrics(session: Session, security_id: int, doc_type: s
         metrics['PORTFOLIO_RISK_CONTRIBUTION'] = round(random.uniform(2, 12), 1)
         metrics['CARBON_NEUTRAL_STATUS'] = 'working toward carbon neutrality'
     
+    # Ensure common placeholders are always available for security-level templates
+    metrics.setdefault('PORTFOLIO_WEIGHT', round(random.uniform(1.5, 5.0), 2))
+    metrics.setdefault('RISK_BUDGET_PCT', round(random.uniform(2, 8), 1))
+    metrics.setdefault('SECTOR_TOTAL', round(random.uniform(20, 45), 1))
+    metrics.setdefault('SALES_VALUE', round(random.uniform(50, 200), 0))
+    metrics.setdefault('TRANSACTION_VALUE', round(random.uniform(500, 5000), 0))
+    metrics.setdefault('NEXT_REVIEW_DATE', (datetime.now() + timedelta(days=random.randint(30, 90))).strftime('%Y-%m-%d'))
+    metrics.setdefault('IC_DATE', (datetime.now() - timedelta(days=random.randint(1, 14))).strftime('%Y-%m-%d'))
+
     return metrics
 
 # ============================================================================
