@@ -24,9 +24,214 @@ DATABASE = {
     'schemas': {
         'raw': 'RAW',
         'curated': 'CURATED',
-        'ai': 'AI'
+        'ai': 'AI',
+        'market_data': 'MARKET_DATA'  # External provider-style financial data
     }
 }
+# =============================================================================
+# MARKET_DATA SCHEMA CONFIGURATION (External Provider Data)
+# =============================================================================
+
+# This schema simulates external provider data: financials, estimates, filings.
+MARKET_DATA = {
+    'enabled': True,
+    'tables': {
+        # Company & Security Master
+        'dim_company': 'DIM_COMPANY',
+        'dim_security': 'DIM_SECURITY_PROVIDER',
+        'dim_trading_item': 'DIM_TRADING_ITEM',
+        'ref_exchange': 'REF_EXCHANGE',
+        'ref_industry': 'REF_INDUSTRY',
+        'ref_currency': 'REF_CURRENCY',
+        'ref_country': 'REF_COUNTRY',
+
+        # Financial Statements
+        'fact_financial_period': 'FACT_FINANCIAL_PERIOD',
+        'fact_financial_data': 'FACT_FINANCIAL_DATA',
+        'fact_segment_financials': 'FACT_SEGMENT_FINANCIALS',
+        'fact_debt_structure': 'FACT_DEBT_STRUCTURE',
+        'fact_equity_structure': 'FACT_EQUITY_STRUCTURE',
+        'ref_data_item': 'REF_DATA_ITEM',
+
+        # Consensus & Analyst Data
+        'fact_estimate_consensus': 'FACT_ESTIMATE_CONSENSUS',
+        'fact_estimate_data': 'FACT_ESTIMATE_DATA',
+        'fact_estimate_revision': 'FACT_ESTIMATE_REVISION',
+        'dim_broker': 'DIM_BROKER',
+        'dim_analyst': 'DIM_ANALYST',
+        'fact_analyst_coverage': 'FACT_ANALYST_COVERAGE',
+
+        # Filings (S&P Capital IQ pattern)
+        'ref_filing_type': 'REF_FILING_TYPE',
+        'ref_filing_source': 'REF_FILING_SOURCE',
+        'ref_filing_language': 'REF_FILING_LANGUAGE',
+        'ref_filing_institution_rel_type': 'REF_FILING_INSTITUTION_REL_TYPE',
+        'fact_filing_ref': 'FACT_FILING_REF',
+        'fact_filing_institution_rel': 'FACT_FILING_INSTITUTION_REL',
+        'fact_filing_data': 'FACT_FILING_DATA',
+        'fact_filing_data_non_sec': 'FACT_FILING_DATA_NON_SEC',
+        'fact_filing_data_esg': 'FACT_FILING_DATA_ESG'
+    },
+    'semantic_views': {
+        'fundamentals': 'SAM_FUNDAMENTALS_VIEW',  # Financial statements + estimates
+    },
+    'generation': {
+        'years_of_history': 5,
+        'quarters_per_year': 4,
+        'estimates_forward_years': 2,
+        'brokers_per_company': (3, 8),  # Min/max broker coverage
+        'revision_frequency': 0.3       # 30% of estimates get revised
+    }
+}
+
+# Financial data items for generation (maps to REF_DATA_ITEM)
+FINANCIAL_DATA_ITEMS = {
+    # Income Statement
+    'revenue': {'id': 1001, 'name': 'Total Revenue', 'category': 'income_statement', 'unit': 'USD'},
+    'cost_of_revenue': {'id': 1002, 'name': 'Cost of Revenue', 'category': 'income_statement', 'unit': 'USD'},
+    'gross_profit': {'id': 1003, 'name': 'Gross Profit', 'category': 'income_statement', 'unit': 'USD'},
+    'operating_income': {'id': 1004, 'name': 'Operating Income', 'category': 'income_statement', 'unit': 'USD'},
+    'net_income': {'id': 1005, 'name': 'Net Income', 'category': 'income_statement', 'unit': 'USD'},
+    'eps_basic': {'id': 1006, 'name': 'EPS (Basic)', 'category': 'income_statement', 'unit': 'USD'},
+    'eps_diluted': {'id': 1007, 'name': 'EPS (Diluted)', 'category': 'income_statement', 'unit': 'USD'},
+    'ebitda': {'id': 1008, 'name': 'EBITDA', 'category': 'income_statement', 'unit': 'USD'},
+    'rd_expense': {'id': 1009, 'name': 'R&D Expense', 'category': 'income_statement', 'unit': 'USD'},
+    'sga_expense': {'id': 1010, 'name': 'SG&A Expense', 'category': 'income_statement', 'unit': 'USD'},
+
+    # Balance Sheet
+    'total_assets': {'id': 2001, 'name': 'Total Assets', 'category': 'balance_sheet', 'unit': 'USD'},
+    'total_liabilities': {'id': 2002, 'name': 'Total Liabilities', 'category': 'balance_sheet', 'unit': 'USD'},
+    'total_equity': {'id': 2003, 'name': 'Total Equity', 'category': 'balance_sheet', 'unit': 'USD'},
+    'cash_and_equivalents': {'id': 2004, 'name': 'Cash & Equivalents', 'category': 'balance_sheet', 'unit': 'USD'},
+    'total_debt': {'id': 2005, 'name': 'Total Debt', 'category': 'balance_sheet', 'unit': 'USD'},
+    'current_assets': {'id': 2006, 'name': 'Current Assets', 'category': 'balance_sheet', 'unit': 'USD'},
+    'current_liabilities': {'id': 2007, 'name': 'Current Liabilities', 'category': 'balance_sheet', 'unit': 'USD'},
+    'accounts_receivable': {'id': 2008, 'name': 'Accounts Receivable', 'category': 'balance_sheet', 'unit': 'USD'},
+    'inventory': {'id': 2009, 'name': 'Inventory', 'category': 'balance_sheet', 'unit': 'USD'},
+    'goodwill': {'id': 2010, 'name': 'Goodwill', 'category': 'balance_sheet', 'unit': 'USD'},
+
+    # Cash Flow
+    'operating_cash_flow': {'id': 3001, 'name': 'Operating Cash Flow', 'category': 'cash_flow', 'unit': 'USD'},
+    'capex': {'id': 3002, 'name': 'Capital Expenditure', 'category': 'cash_flow', 'unit': 'USD'},
+    'free_cash_flow': {'id': 3003, 'name': 'Free Cash Flow', 'category': 'cash_flow', 'unit': 'USD'},
+    'dividends_paid': {'id': 3004, 'name': 'Dividends Paid', 'category': 'cash_flow', 'unit': 'USD'},
+    'share_repurchases': {'id': 3005, 'name': 'Share Repurchases', 'category': 'cash_flow', 'unit': 'USD'},
+
+    # Ratios (calculated)
+    'gross_margin': {'id': 4001, 'name': 'Gross Margin', 'category': 'ratios', 'unit': 'PCT'},
+    'operating_margin': {'id': 4002, 'name': 'Operating Margin', 'category': 'ratios', 'unit': 'PCT'},
+    'net_margin': {'id': 4003, 'name': 'Net Margin', 'category': 'ratios', 'unit': 'PCT'},
+    'roe': {'id': 4004, 'name': 'Return on Equity', 'category': 'ratios', 'unit': 'PCT'},
+    'roa': {'id': 4005, 'name': 'Return on Assets', 'category': 'ratios', 'unit': 'PCT'},
+    'debt_to_equity': {'id': 4006, 'name': 'Debt to Equity', 'category': 'ratios', 'unit': 'RATIO'},
+    'current_ratio': {'id': 4007, 'name': 'Current Ratio', 'category': 'ratios', 'unit': 'RATIO'},
+    'quick_ratio': {'id': 4008, 'name': 'Quick Ratio', 'category': 'ratios', 'unit': 'RATIO'}
+}
+
+# Estimate data items for consensus
+ESTIMATE_DATA_ITEMS = {
+    'revenue_est': {'id': 5001, 'name': 'Revenue Estimate', 'category': 'estimates', 'unit': 'USD'},
+    'eps_est': {'id': 5002, 'name': 'EPS Estimate', 'category': 'estimates', 'unit': 'USD'},
+    'ebitda_est': {'id': 5003, 'name': 'EBITDA Estimate', 'category': 'estimates', 'unit': 'USD'},
+    'net_income_est': {'id': 5004, 'name': 'Net Income Estimate', 'category': 'estimates', 'unit': 'USD'},
+    'price_target': {'id': 5005, 'name': 'Price Target', 'category': 'estimates', 'unit': 'USD'},
+    'rating': {'id': 5006, 'name': 'Analyst Rating', 'category': 'estimates', 'unit': 'RATING'}
+}
+
+# Broker names for synthetic data
+BROKER_NAMES = [
+    'Goldman Sachs', 'Morgan Stanley', 'JPMorgan', 'Bank of America', 'Citigroup',
+    'Barclays', 'Deutsche Bank', 'UBS', 'Credit Suisse', 'Wells Fargo',
+    'RBC Capital', 'Jefferies', 'Piper Sandler', 'Baird', 'Stifel',
+    'Raymond James', 'Cowen', 'Needham', 'Wedbush', 'Loop Capital'
+]
+
+# Filing types (S&P Capital IQ pattern)
+FILING_TYPES = [
+    {'id': 1, 'type': '10-K', 'definition': 'Annual report filed with SEC', 'is_annual': True, 'is_quarterly': False},
+    {'id': 2, 'type': '10-Q', 'definition': 'Quarterly report filed with SEC', 'is_annual': False, 'is_quarterly': True},
+    {'id': 3, 'type': '8-K', 'definition': 'Current report for material events', 'is_annual': False, 'is_quarterly': False},
+    {'id': 4, 'type': 'DEF 14A', 'definition': 'Definitive proxy statement', 'is_annual': True, 'is_quarterly': False},
+    {'id': 5, 'type': '20-F', 'definition': 'Annual report for foreign private issuers', 'is_annual': True, 'is_quarterly': False},
+    {'id': 6, 'type': '6-K', 'definition': 'Current report for foreign private issuers', 'is_annual': False, 'is_quarterly': False},
+    {'id': 7, 'type': 'S-1', 'definition': 'Registration statement for IPO', 'is_annual': False, 'is_quarterly': False},
+    {'id': 8, 'type': '424B', 'definition': 'Prospectus supplement', 'is_annual': False, 'is_quarterly': False}
+]
+
+# Filing sources
+FILING_SOURCES = [
+    {'id': 1, 'source': 'SEC_EDGAR', 'description': 'US Securities and Exchange Commission EDGAR system'},
+    {'id': 2, 'source': 'COMPANY_WEBSITE', 'description': 'Company investor relations website'},
+    {'id': 3, 'source': 'ESG_REPORT', 'description': 'Corporate sustainability/ESG report'},
+    {'id': 4, 'source': 'ANNUAL_REPORT', 'description': 'Annual report (non-SEC filing)'},
+    {'id': 5, 'source': 'INVESTOR_PRESENTATION', 'description': 'Investor day or earnings presentation'}
+]
+
+# Filing languages
+FILING_LANGUAGES = [
+    {'id': 1, 'language': 'English', 'code': 'en'},
+    {'id': 2, 'language': 'Spanish', 'code': 'es'},
+    {'id': 3, 'language': 'German', 'code': 'de'},
+    {'id': 4, 'language': 'French', 'code': 'fr'},
+    {'id': 5, 'language': 'Japanese', 'code': 'ja'},
+    {'id': 6, 'language': 'Chinese', 'code': 'zh'}
+]
+
+# Institution relationship types for filings
+FILING_INSTITUTION_REL_TYPES = [
+    {'id': 1, 'type': 'FILER', 'description': 'Primary filing company'},
+    {'id': 2, 'type': 'AUDITOR', 'description': 'External auditor'},
+    {'id': 3, 'type': 'UNDERWRITER', 'description': 'Underwriter for offerings'},
+    {'id': 4, 'type': 'LEGAL_COUNSEL', 'description': 'Legal counsel'},
+    {'id': 5, 'type': 'SUBSIDIARY', 'description': 'Subsidiary mentioned in filing'}
+]
+
+# SEC filing section headings (standardized)
+SEC_FILING_SECTIONS = {
+    '10-K': [
+        {'heading_id': 1, 'heading': 'Item 1', 'standardized': 'Business', 'parent_id': None},
+        {'heading_id': 2, 'heading': 'Item 1A', 'standardized': 'Risk Factors', 'parent_id': None},
+        {'heading_id': 3, 'heading': 'Item 1B', 'standardized': 'Unresolved Staff Comments', 'parent_id': None},
+        {'heading_id': 4, 'heading': 'Item 2', 'standardized': 'Properties', 'parent_id': None},
+        {'heading_id': 5, 'heading': 'Item 3', 'standardized': 'Legal Proceedings', 'parent_id': None},
+        {'heading_id': 6, 'heading': 'Item 4', 'standardized': 'Mine Safety Disclosures', 'parent_id': None},
+        {'heading_id': 7, 'heading': 'Item 5', 'standardized': 'Market for Common Equity', 'parent_id': None},
+        {'heading_id': 8, 'heading': 'Item 6', 'standardized': 'Selected Financial Data', 'parent_id': None},
+        {'heading_id': 9, 'heading': 'Item 7', 'standardized': 'MD&A', 'parent_id': None},
+        {'heading_id': 10, 'heading': 'Item 7A', 'standardized': 'Quantitative and Qualitative Disclosures About Market Risk', 'parent_id': None},
+        {'heading_id': 11, 'heading': 'Item 8', 'standardized': 'Financial Statements and Supplementary Data', 'parent_id': None},
+        {'heading_id': 12, 'heading': 'Item 9', 'standardized': 'Changes in and Disagreements With Accountants', 'parent_id': None},
+        {'heading_id': 13, 'heading': 'Item 9A', 'standardized': 'Controls and Procedures', 'parent_id': None},
+        {'heading_id': 14, 'heading': 'Item 10', 'standardized': 'Directors and Executive Officers', 'parent_id': None},
+        {'heading_id': 15, 'heading': 'Item 11', 'standardized': 'Executive Compensation', 'parent_id': None},
+        {'heading_id': 16, 'heading': 'Item 12', 'standardized': 'Security Ownership', 'parent_id': None},
+        {'heading_id': 17, 'heading': 'Item 13', 'standardized': 'Certain Relationships and Related Transactions', 'parent_id': None},
+        {'heading_id': 18, 'heading': 'Item 14', 'standardized': 'Principal Accountant Fees', 'parent_id': None}
+    ],
+    '10-Q': [
+        {'heading_id': 101, 'heading': 'Part I Item 1', 'standardized': 'Financial Statements', 'parent_id': None},
+        {'heading_id': 102, 'heading': 'Part I Item 2', 'standardized': 'MD&A', 'parent_id': None},
+        {'heading_id': 103, 'heading': 'Part I Item 3', 'standardized': 'Quantitative and Qualitative Disclosures About Market Risk', 'parent_id': None},
+        {'heading_id': 104, 'heading': 'Part I Item 4', 'standardized': 'Controls and Procedures', 'parent_id': None},
+        {'heading_id': 105, 'heading': 'Part II Item 1', 'standardized': 'Legal Proceedings', 'parent_id': None},
+        {'heading_id': 106, 'heading': 'Part II Item 1A', 'standardized': 'Risk Factors', 'parent_id': None},
+        {'heading_id': 107, 'heading': 'Part II Item 2', 'standardized': 'Unregistered Sales of Equity Securities', 'parent_id': None},
+        {'heading_id': 108, 'heading': 'Part II Item 3', 'standardized': 'Defaults Upon Senior Securities', 'parent_id': None},
+        {'heading_id': 109, 'heading': 'Part II Item 4', 'standardized': 'Mine Safety Disclosures', 'parent_id': None},
+        {'heading_id': 110, 'heading': 'Part II Item 5', 'standardized': 'Other Information', 'parent_id': None},
+        {'heading_id': 111, 'heading': 'Part II Item 6', 'standardized': 'Exhibits', 'parent_id': None}
+    ]
+}
+
+# Estimate revision causes (for future expansion)
+ESTIMATE_REVISION_CAUSES = [
+    'Earnings surprise',
+    'Guidance update',
+    'Macro environment change',
+    'Competitive pressure',
+    'Regulatory change'
+]
+
 
 # Helper function for table references
 def get_table_path(schema: str, table: str) -> str:
