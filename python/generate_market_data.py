@@ -742,7 +742,7 @@ def build_filing_data(session: Session, test_mode: bool = False):
             FILING_TYPE_ID,
             1 as FILING_SOURCE_ID,  -- SEC_EDGAR
             1 as FILING_LANGUAGE_ID,  -- English
-            DATEADD(day, 45 + MOD(ABS(HASH(COMPANY_ID * 1000 + FISCAL_YEAR * 10 + FISCAL_QUARTER)), 15), PERIOD_END_DATE),
+            DATEADD(day, 45 + MOD(ABS(HASH(COMPANY_ID * 1000 + FISCAL_YEAR * 10 + FISCAL_QUARTER)), 15), PERIOD_END_DATE) as FILING_DATE,
             CONCAT(LPAD(CIK, 10, '0'), '-', FISCAL_YEAR::VARCHAR, '-', 
                    LPAD((COMPANY_ID * 100 + FISCAL_QUARTER)::VARCHAR, 6, '0')) as ACCESSION_NUMBER,
             CONCAT('https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=', CIK) as DOCUMENT_URL,
