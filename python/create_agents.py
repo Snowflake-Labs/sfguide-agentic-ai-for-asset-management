@@ -9,9 +9,6 @@ from snowflake.snowpark import Session
 from typing import List, Dict
 import config
 
-# Get warehouse name from config (matches setup.sql)
-EXECUTION_WAREHOUSE = config.WAREHOUSES['execution']['name']
-
 def create_all_agents(session: Session, scenarios: List[str] = None):
     """
     Create all Snowflake Intelligence agents for the specified scenarios.
@@ -20,7 +17,7 @@ def create_all_agents(session: Session, scenarios: List[str] = None):
         session: Active Snowpark session
         scenarios: List of scenario names (not used for filtering yet - creates all agents)
     """
-    print("🤖 Creating Snowflake Intelligence agents...")
+    config.log_detail("Creating Snowflake Intelligence agents...")
     
     # Step 1: Verify Snowflake Intelligence exists
     if not verify_snowflake_intelligence(session):
@@ -49,7 +46,7 @@ def create_all_agents(session: Session, scenarios: List[str] = None):
     # Create each agent
     for agent_name, creator_func in agent_creators:
         try:
-            print(f"   Creating agent: {agent_name}...")
+            config.log_detail(f"Creating agent: {agent_name}...")
             creator_func(session)
             
             # Get the full agent name with AM_ prefix from config
@@ -58,22 +55,20 @@ def create_all_agents(session: Session, scenarios: List[str] = None):
             # Register with Snowflake Intelligence
             if register_agent_with_intelligence(session, database_name, ai_schema, full_agent_name):
                 created.append(agent_name)
-                print(f"   ✅ Created and registered agent: {full_agent_name}")
+                config.log_detail(f"Created and registered agent: {full_agent_name}")
             else:
                 created.append(agent_name)
-                print(f"   ⚠️  Agent created but registration failed: {full_agent_name}")
+                config.log_warning(f"  Agent created but registration failed: {full_agent_name}")
                 
         except Exception as e:
             failed.append((agent_name, str(e)))
-            print(f"   ❌ Failed to create agent {agent_name}: {e}")
+            config.log_error(f" Failed to create agent {agent_name}: {e}")
     
     # Summary
-    print(f"\n📊 Agent Creation Summary:")
-    print(f"   Created: {len(created)} agents")
+    config.log_phase_complete(f"Agents: {len(created)} created" + (f", {len(failed)} failed" if failed else ""))
     if failed:
-        print(f"   Failed: {len(failed)} agents")
         for agent_name, error in failed:
-            print(f"      - {agent_name}: {error[:100]}...")
+            config.log_error(f"{agent_name}: {error[:100]}...")
     
     return len(created), len(failed)
 
@@ -88,22 +83,14 @@ def verify_snowflake_intelligence(session: Session) -> bool:
     try:
         result = session.sql("SHOW SNOWFLAKE INTELLIGENCES").collect()
         if len(result) == 0:
-            print("=" * 60)
-            print("ERROR: No Snowflake Intelligence found")
-            print("=" * 60)
-            print()
-            print("Before creating agents, you must first create a Snowflake Intelligence object.")
-            print()
-            print("To create a Snowflake Intelligence, run:")
-            print("  CREATE SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;")
-            print()
-            print("For more information, see:")
-            print("  https://docs.snowflake.com/en/user-guide/snowflake-intelligence")
-            print()
+            config.log_error("No Snowflake Intelligence found")
+            config.log_warning("Before creating agents, you must first create a Snowflake Intelligence object.")
+            config.log_warning("Run: CREATE SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;")
+            config.log_warning("See: https://docs.snowflake.com/en/user-guide/snowflake-intelligence")
             return False
         return True
     except Exception as e:
-        print(f"ERROR: Failed to check for Snowflake Intelligence: {e}")
+        config.log_error(f" Failed to check for Snowflake Intelligence: {e}")
         return False
 
 
@@ -135,7 +122,7 @@ def register_agent_with_intelligence(session: Session, database_name: str, ai_sc
         error_msg = str(e).lower()
         if "was not found" not in error_msg and "does not exist" not in error_msg:
             # Some other error occurred - log it but continue
-            print(f"   ⚠️  Note: Could not drop agent {agent_name} from Intelligence: {e}")
+            config.log_warning(f"  Note: Could not drop agent {agent_name} from Intelligence: {e}")
     
     # Step 2: Add the agent to Intelligence
     try:
@@ -145,7 +132,7 @@ def register_agent_with_intelligence(session: Session, database_name: str, ai_sc
         """).collect()
         return True
     except Exception as e:
-        print(f"   ⚠️  Warning: Failed to register agent {agent_name} with Snowflake Intelligence: {e}")
+        config.log_warning(f"  Warning: Failed to register agent {agent_name} with Snowflake Intelligence: {e}")
         return False
 
 
@@ -346,7 +333,7 @@ Tool Selection Strategy:
    - "profit margins", "revenue growth", "earnings trends", "cash flow analysis" → financial_analyzer
    - "financial ratios", "ROE", "ROA", "current ratio", "quick ratio" → financial_analyzer
    - "company fundamentals", "financial performance", "earnings quality" → financial_analyzer
-   - CRITICAL: For questions about financial metrics of portfolio companies, ALWAYS use financial_analyzer for authentic SEC filing data
+   - CRITICAL: For questions about financial metrics of portfolio companies, ALWAYS use financial_analyzer for SEC filing data
    
 4. For CURRENT HOLDINGS queries, ensure you filter to the latest date:
    - When asking for "top holdings" or "current positions", filter by the most recent holding_date
@@ -354,8 +341,8 @@ Tool Selection Strategy:
    - This prevents duplicate records across historical dates
 	  
 5. Only use search tools for DOCUMENT CONTENT:
-   - "latest research", "analyst opinions", "earnings commentary" → search_broker_research, search_earnings_transcripts, search_press_releases
-   - "what does research say about...", "find reports about..." → search_broker_research, search_earnings_transcripts, search_press_releases
+   - "latest research", "analyst opinions", "earnings commentary" → search_broker_research, search_company_events, search_press_releases
+   - "what does research say about...", "find reports about..." → search_broker_research, search_company_events, search_press_releases
    
 6. For mixed questions requiring IMPLEMENTATION DETAILS:
    - Start with quantitative_analyzer for basic holdings data
@@ -407,12 +394,32 @@ Tool Selection Strategy:
    - Supply chain risk analysis → supply_chain_analyzer
    - Concentration analysis → search_policies FIRST, then quantitative_analyzer
    - Policy/compliance questions → search_policies
-   - Document content questions → search_broker_research, search_earnings_transcripts, search_press_releases, search_macro_events
-   - Risk assessment questions → search_broker_research, search_earnings_transcripts, search_press_releases (with risk-focused filtering)
+   - Document content questions → search_broker_research, search_company_events, search_press_releases, search_macro_events
+   - Risk assessment questions → search_broker_research, search_company_events, search_press_releases (with risk-focused filtering)
    - Mixed questions → quantitative_analyzer → financial_analyzer → supply_chain_analyzer → search tools as needed
    - Questions asking "which positions need attention" or "what actions to consider" → quantitative_analyzer
    - Questions explicitly requesting "implementation plan with trading costs and timelines" → implementation_analyzer
    - Event risk verification → search_macro_events → quantitative_analyzer → supply_chain_analyzer → search_press_releases/search_broker_research for corroboration
+
+10a. For IMPLEMENTATION PLANNING workflows with exact positions, timelines, and dollar amounts:
+   When user requests an implementation plan with specific execution details, follow this workflow:
+   a) CURRENT HOLDINGS: Use quantitative_analyzer to get current positions (market value, weight) for target securities
+   b) LIQUIDITY ANALYSIS: Use implementation_analyzer to query trading costs and liquidity metrics:
+      * Bid-ask spreads, market impact estimates
+      * Average daily volume for each security
+      * Use TICKER dimension to filter by specific securities
+   c) SETTLEMENT TIMING: Use implementation_analyzer for settlement data:
+      * Historical settlement patterns by portfolio
+      * T+ settlement days for execution planning
+   d) CALCULATE IMPLEMENTATION DETAILS:
+      * Dollar amounts to trade = Current Value × (Current Weight - Target Weight)
+      * Trading costs = Notional × (Spread + Market Impact Estimate)
+      * Execution timeline = Based on volume constraints and urgency
+   e) SYNTHESIZE: Combine all data into a comprehensive implementation plan with:
+      * Exact dollar amounts for each trade
+      * Estimated trading costs and market impact
+      * Recommended execution timelines (VWAP, TWAP, or block)
+      * Settlement dates based on T+2 standard cycle
 	  
 11. For EVENT-DRIVEN RISK VERIFICATION (Real-Time Event Impact Analysis):
    When user provides external event alert or asks about event impact, follow this workflow:
@@ -430,7 +437,7 @@ Tool Selection Strategy:
    When user reports a compliance breach (e.g., ESG downgrade, concentration breach):
    a) VERIFY BREACH: Use quantitative_analyzer to check current ESG grade, concentration, and mandate requirements
    b) IDENTIFY REPLACEMENTS: Use quantitative_analyzer to find pre-screened replacement candidates
-   c) ANALYZE REPLACEMENTS: For each candidate, use quantitative_analyzer, financial_analyzer, search_broker_research, search_earnings_transcripts
+   c) ANALYZE REPLACEMENTS: For each candidate, use quantitative_analyzer, financial_analyzer, search_broker_research, search_company_events
    d) GENERATE REPORT: Use search_report_templates to retrieve template guidance, synthesize complete investment committee memo, call generate_investment_committee_pdf
 
 13. If user requests charts/visualizations, ensure quantitative_analyzer, implementation_analyzer, or financial_analyzer generates them"""
@@ -533,24 +540,24 @@ Tool Selection Strategy:
    - Query pattern: "MSFT latest quarterly financial performance" not "Microsoft latest quarterly performance"
    - The financial_analyzer uses TICKER dimension for company filtering
 4. CRITICAL: For ANY query mentioning "performance", "financial results", "earnings", "revenue", or "detailed analysis" of a company:
-   - ALWAYS use financial_analyzer FIRST for authentic SEC filing data (revenue, net income, EPS, balance sheet, cash flow)
+   - ALWAYS use financial_analyzer FIRST for SEC filing data (revenue, net income, EPS, balance sheet, cash flow)
    - Include ticker symbol explicitly in the query to financial_analyzer
    - Then use search tools for qualitative context and management commentary
-   - Synthesize real SEC financial data with qualitative insights for comprehensive analysis
+   - Synthesize SEC financial data with qualitative insights for comprehensive analysis
 5. Classify additional information needs by source:
-   - SEC FINANCIAL DATA: Use financial_analyzer for revenue, profit margins, EPS, assets, liabilities, cash flow from real SEC filings
+   - SEC FINANCIAL DATA: Use financial_analyzer for revenue, profit margins, EPS, assets, liabilities, cash flow from SEC filings
    - ANALYST VIEWS: Use search_broker_research for investment opinions, ratings, recommendations
-   - MANAGEMENT COMMENTARY: Use search_earnings_transcripts for guidance and strategic updates
+   - MANAGEMENT COMMENTARY: Use search_company_events for guidance and strategic updates
    - CORPORATE DEVELOPMENTS: Use search_press_releases for business developments and announcements
 6. For comprehensive company analysis workflow:
    - Start with financial_analyzer to establish SEC filing foundation (28.7M real records) using ticker symbol
-   - Add search_earnings_transcripts for management perspective on the numbers
+   - Add search_company_events for management perspective on the numbers
    - Include search_broker_research for analyst interpretation and recommendations
    - Use search_press_releases for recent strategic developments
 7. For thematic or sector research:
    - Use search tools to identify trends and themes across multiple companies
-   - Use financial_analyzer to validate themes with authentic SEC filing performance data
-8. Always combine authentic SEC financial analysis with qualitative research insights
+   - Use financial_analyzer to validate themes with SEC filing performance data
+8. Always combine SEC financial analysis with qualitative research insights
 9. Leverage comprehensive financial statements: Income Statement, Balance Sheet, Cash Flow data available"""
 
 
@@ -658,7 +665,7 @@ Tool Selection Strategy:
    - THEMATIC POSITIONING: Use quantitative_analyzer for current portfolio exposures to themes
    - MACRO RESEARCH: Use search_broker_research for strategic investment themes and trends
    - CORPORATE STRATEGY: Use search_press_releases for company positioning on themes
-   - MANAGEMENT OUTLOOK: Use search_earnings_transcripts for forward-looking thematic commentary
+   - MANAGEMENT OUTLOOK: Use search_company_events for forward-looking thematic commentary
 3. For thematic analysis workflow:
    - Start with quantitative_analyzer to assess current portfolio positioning
    - Use search tools to validate themes with research and corporate developments
@@ -806,7 +813,7 @@ Tool Selection Strategy:
 
 5. For company ESG communications:
    ✅ Use search_press_releases for: ESG announcements, sustainability reports, controversy responses
-   ✅ Use search_earnings_transcripts for: Management ESG commentary, sustainability initiatives
+   ✅ Use search_company_events for: Management ESG commentary, sustainability initiatives
 
 Complete Workflow Examples:
 
@@ -1082,27 +1089,27 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "quantitative_analyzer"
-        description: "Analyzes portfolio holdings, position weights, sector allocations, and mandate compliance for \\nSAM investment portfolios.\\n\\nData Coverage:\\n- Historical: 12 months of position and transaction history\\n- Current: End-of-day holdings updated daily at 4 PM ET market close\\n- Sources: DIM_SECURITY, DIM_PORTFOLIO, FACT_POSITION_DAILY_ABOR, DIM_ISSUER\\n- Records: 14,000+ real securities (10K equities, 3K bonds, 1K ETFs), 10 portfolios, 27,000+ holdings\\n- Refresh: Daily at 4 PM ET with 2-hour processing lag (data available by 6 PM ET)\\n\\nSemantic Model Contents:\\n- Tables: Holdings, Securities, Portfolios, Issuers with full relationship mapping\\n- Key Metrics: TOTAL_MARKET_VALUE, PORTFOLIO_WEIGHT, HOLDING_COUNT, ISSUER_EXPOSURE, MAX_POSITION_WEIGHT\\n- Time Dimensions: HoldingDate (daily granularity from transaction history)\\n- Common Filters: PORTFOLIONAME, AssetClass, GICS_Sector, CountryOfIncorporation, Ticker\\n\\nWhen to Use:\\n- Questions about portfolio holdings, weights, and composition (\\"What are my top holdings?\\")\\n- Concentration analysis and position-level risk metrics (\\"Show positions above 6.5%\\")\\n- Sector/geographic allocation and benchmark comparisons (\\"Compare my sector allocation to benchmark\\")\\n- Mandate compliance and ESG grade checks (\\"Check ESG compliance for ESG portfolio\\")\\n- Questions like: \\"What are my top 10 holdings?\\", \\"Show technology sector allocation\\", \\"Which positions are concentrated?\\"\\n\\nWhen NOT to Use:\\n- Real-time intraday positions (data is end-of-day only, 2-hour lag from market close)\\n- Individual company financial analysis (use financial_analyzer for SEC filing data: revenue, margins, leverage)\\n- Document content questions (use search_broker_research, search_earnings_transcripts for analyst views)\\n- Implementation costs and execution planning (use implementation_analyzer for trading costs, market impact)\\n- Supply chain risk analysis (use supply_chain_analyzer for upstream/downstream dependencies)\\n\\nQuery Best Practices:\\n1. Be specific about portfolio names:\\n	 ✅ \\"SAM Technology & Infrastructure portfolio\\" or \\"SAM Global Thematic Growth\\"\\n   ❌ \\"tech portfolio\\" (ambiguous - multiple portfolios may contain \\"tech\\")\\n\\n2. Filter to latest date for current holdings:\\n	 ✅ \\"most recent holding date\\" or \\"latest positions\\" or \\"current holdings\\"\\n	❌ Query all dates without filter (returns all historical snapshots, causes duplicates)\\n\\n3. Use semantic metric names:\\n	✅ \\"total market value\\", \\"portfolio weight\\", \\"concentration warnings\\"\\n   ❌ Raw SQL aggregations or column names (semantic model handles calculations)\\n\\n4. Leverage pre-defined metrics:\\n	✅ \\"Show me holdings with concentration warnings\\" (uses model''s concentration logic)\\n	  ❌ \\"Calculate positions over 6.5% weight\\" (reinventing existing metric)"
+        description: "Analyzes portfolio holdings, position weights, sector allocations, and mandate compliance for \\nSAM investment portfolios.\\n\\nData Coverage:\\n- Historical: 12 months of position and transaction history\\n- Current: End-of-day holdings updated daily at 4 PM ET market close\\n- Sources: DIM_SECURITY, DIM_PORTFOLIO, FACT_POSITION_DAILY_ABOR, DIM_ISSUER\\n- Records: 14,000+ real securities (10K equities, 3K bonds, 1K ETFs), 10 portfolios, 27,000+ holdings\\n- Refresh: Daily at 4 PM ET with 2-hour processing lag (data available by 6 PM ET)\\n\\nSemantic Model Contents:\\n- Tables: Holdings, Securities, Portfolios, Issuers with full relationship mapping\\n- Key Metrics: TOTAL_MARKET_VALUE, PORTFOLIO_WEIGHT, HOLDING_COUNT, ISSUER_EXPOSURE, MAX_POSITION_WEIGHT\\n- Time Dimensions: HoldingDate (daily granularity from transaction history)\\n- Common Filters: PORTFOLIONAME, AssetClass, GICS_Sector, CountryOfIncorporation, Ticker\\n\\nWhen to Use:\\n- Questions about portfolio holdings, weights, and composition (\\"What are my top holdings?\\")\\n- Concentration analysis and position-level risk metrics (\\"Show positions above 6.5%\\")\\n- Sector/geographic allocation and benchmark comparisons (\\"Compare my sector allocation to benchmark\\")\\n- Mandate compliance and ESG grade checks (\\"Check ESG compliance for ESG portfolio\\")\\n- Questions like: \\"What are my top 10 holdings?\\", \\"Show technology sector allocation\\", \\"Which positions are concentrated?\\"\\n\\nWhen NOT to Use:\\n- Real-time intraday positions (data is end-of-day only, 2-hour lag from market close)\\n- Individual company financial analysis (use financial_analyzer for SEC filing data: revenue, margins, leverage)\\n- Document content questions (use search_broker_research, search_company_events for analyst views)\\n- Implementation costs and execution planning (use implementation_analyzer for trading costs, market impact)\\n- Supply chain risk analysis (use supply_chain_analyzer for upstream/downstream dependencies)\\n\\nQuery Best Practices:\\n1. Be specific about portfolio names:\\n	 ✅ \\"SAM Technology & Infrastructure portfolio\\" or \\"SAM Global Thematic Growth\\"\\n   ❌ \\"tech portfolio\\" (ambiguous - multiple portfolios may contain \\"tech\\")\\n\\n2. Filter to latest date for current holdings:\\n	 ✅ \\"most recent holding date\\" or \\"latest positions\\" or \\"current holdings\\"\\n	❌ Query all dates without filter (returns all historical snapshots, causes duplicates)\\n\\n3. Use semantic metric names:\\n	✅ \\"total market value\\", \\"portfolio weight\\", \\"concentration warnings\\"\\n   ❌ Raw SQL aggregations or column names (semantic model handles calculations)\\n\\n4. Leverage pre-defined metrics:\\n	✅ \\"Show me holdings with concentration warnings\\" (uses model''s concentration logic)\\n	  ❌ \\"Calculate positions over 6.5% weight\\" (reinventing existing metric)"
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "financial_analyzer"
-        description: "Analyzes company financial health using authentic SEC filing data including revenue, profitability, \\nleverage ratios, and cash flow metrics.\\n\\nData Coverage:\\n- Historical: 5 years of SEC filing data (10-K, 10-Q)\\n- Records: 28.7M real SEC filing records across Income Statement, Balance Sheet, Cash Flow\\n- Sources: SEC EDGAR filings for all US public companies\\n- Refresh: Quarterly with SEC filing releases\\n\\nWhen to Use:\\n- Company financial health analysis (\\"Analyze Microsoft''s debt-to-equity ratio\\")\\n- Fundamental metrics (\\"Show profit margins and revenue growth for Apple\\")\\n- Balance sheet analysis (\\"What is leverage ratio for my technology holdings?\\")\\n- Questions about: revenue, net income, EPS, margins, assets, liabilities, cash flow\\n\\nWhen NOT to Use:\\n- Portfolio-level metrics (use quantitative_analyzer)\\n- Analyst opinions and ratings (use search_broker_research)\\n- Management commentary (use search_earnings_transcripts)"
+        description: "Analyzes company financial health using SEC filing data including revenue, profitability, \\nleverage ratios, and cash flow metrics.\\n\\nData Coverage:\\n- Historical: 5 years of SEC filing data (10-K, 10-Q)\\n- Records: 28.7M SEC filing records across Income Statement, Balance Sheet, Cash Flow\\n- Sources: SEC EDGAR filings for all US public companies\\n- Refresh: Quarterly with SEC filing releases\\n\\nWhen to Use:\\n- Company financial health analysis (\\"Analyze Microsoft''s debt-to-equity ratio\\")\\n- Fundamental metrics (\\"Show profit margins and revenue growth for Apple\\")\\n- Balance sheet analysis (\\"What is leverage ratio for my technology holdings?\\")\\n- Questions about: revenue, net income, EPS, margins, assets, liabilities, cash flow\\n\\nWhen NOT to Use:\\n- Portfolio-level metrics (use quantitative_analyzer)\\n- Analyst opinions and ratings (use search_broker_research)\\n- Management commentary (use search_company_events)"
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "implementation_analyzer"
-        description: "Analyzes implementation planning metrics including trading costs, market impact, liquidity, and \\nexecution timing for portfolio transactions.\\n\\nData Coverage:\\n- Historical: Transaction cost analysis from past 12 months\\n- Current: Daily liquidity metrics and market impact estimates\\n- Sources: Transaction history, market microstructure data, trading calendars\\n- Refresh: Daily updates for liquidity metrics, intraday for trading costs\\n\\nWhen to Use:\\n- Implementation planning with specific costs and timelines (\\"Create implementation plan with trading costs\\")\\n- Market impact analysis (\\"What is market impact of selling 2% position?\\")\\n- Execution strategy questions (\\"How should I execute this trade over 3 days?\\")\\n- Questions requiring dollar amounts, timelines, settlement dates\\n\\nWhen NOT to Use:\\n- Simple portfolio holdings questions (use quantitative_analyzer)\\n- General concentration warnings without execution plans (use quantitative_analyzer)\\n- Company financial analysis (use financial_analyzer)"
+        description: "Analyzes implementation planning including trading costs, market impact, liquidity, settlement dates, \\nand execution timing for portfolio transactions.\\n\\nData Coverage:\\n- Holdings: Current positions with market values and weights for all portfolios\\n- Trading Costs: Bid-ask spreads (bps), market impact per $1M, average daily volume\\n- Liquidity: Cash positions, 30-day cash flow forecasts, portfolio liquidity scores\\n- Risk Limits: Tracking error limits, concentration limits, current utilization\\n- Tax: Unrealized gains/losses, cost basis, tax loss harvest opportunities\\n- Settlement: Historical trade settlements with T+2 dates, settlement status, failure tracking\\n- Trading Calendar: Blackout periods, options expirations, expected volatility\\n\\nMetrics Available:\\n- TOTAL_MARKET_VALUE: Position value in USD (for calculating dollar amounts)\\n- PORTFOLIO_WEIGHT_PCT: Current position weight as percentage\\n- AVG_BID_ASK_SPREAD: Trading spread in basis points\\n- AVG_MARKET_IMPACT: Market impact per $1M traded\\n- AVG_DAILY_VOLUME: Typical daily trading volume in $M\\n- TOTAL_CASH_POSITION: Available cash for settlement\\n- AVG_SETTLEMENT_DAYS: Standard settlement cycle (T+2)\\n- TOTAL_UNREALIZED_GAINS: Tax implications of trades\\n\\nWhen to Use:\\n- Implementation planning with specific costs and timelines (\\"Create implementation plan for reducing CMC from 19.8% to 6%\\")\\n- Market impact analysis (\\"What is market impact of selling $12M of Apple?\\")\\n- Settlement planning (\\"When will proceeds be available after selling?\\")\\n- Multi-day execution strategies (\\"How should I execute over 3 trading days?\\")\\n- Tax-aware trading (\\"Can I offset gains with tax loss harvesting?\\")\\n\\nWhen NOT to Use:\\n- General portfolio overview without execution plan (use quantitative_analyzer)\\n- Company fundamental analysis (use financial_analyzer)\\n- Research and analyst opinions (use search_broker_research)"
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "supply_chain_analyzer"
-        description: "Analyzes supply chain dependencies and indirect portfolio exposures through upstream/downstream \\nrelationships.\\n\\nData Coverage:\\n- Relationships: Multi-hop supplier/customer dependencies\\n- Metrics: CostShare (upstream), RevenueShare (downstream), Criticality tiers\\n- Decay Factors: 50% per hop, max depth 2\\n\\nWhen to Use:\\n- Supply chain risk analysis (\\"Show supplier dependencies for my semiconductor holdings\\")\\n- Indirect exposure calculation (\\"What is my indirect exposure to Taiwan through supply chains?\\")\\n- Event-driven risk (\\"How does earthquake in Taiwan affect my portfolio through supply chains?\\")\\n\\nWhen NOT to Use:\\n- Direct portfolio holdings (use quantitative_analyzer)\\n- Company-specific financials (use financial_analyzer)"
+        description: "Analyzes supply chain dependencies and indirect portfolio exposures through upstream/downstream \\nrelationships.\\n\\nData Coverage:\\n- Relationships: Multi-hop supplier/customer dependencies with start dates\\n- Metrics: CostShare (upstream), RevenueShare (downstream), Criticality tiers\\n- Time: RelationshipStartDate for filtering current relationships\\n- Decay Metrics: Pre-calculated first-order and second-order (50% decay) exposures\\n\\nAvailable Dimensions:\\n- CompanyName, CompanyCountry, CompanyIndustry (US portfolio companies)\\n- CounterpartyName, CounterpartyCountry, CounterpartyIndustry (suppliers/customers)\\n- RelationshipType (Supplier or Customer), CriticalityTier (Low/Medium/High/Critical)\\n- PortfolioName, HoldingDate, RelationshipStartDate\\n\\nAvailable Metrics:\\n- UPSTREAM_EXPOSURE (raw cost share), DOWNSTREAM_EXPOSURE (raw revenue share)\\n- FIRST_ORDER_UPSTREAM/DOWNSTREAM (direct exposure, no decay)\\n- SECOND_ORDER_UPSTREAM/DOWNSTREAM (indirect exposure with 50% decay applied)\\n- DIRECT_EXPOSURE, PORTFOLIO_WEIGHT_PCT (portfolio position metrics)\\n- RELATIONSHIP_COUNT, DISTINCT_COMPANIES, DISTINCT_SUPPLIERS\\n\\nWhen to Use:\\n- Supply chain risk analysis (\\"Show supplier dependencies for my semiconductor holdings\\")\\n- Indirect exposure calculation (\\"What is my indirect exposure to Taiwan through supply chains?\\")\\n- Event-driven risk (\\"How does earthquake in Taiwan affect my portfolio through supply chains?\\")\\n- Decay-adjusted analysis (\\"Show second-order exposure with decay factors\\")\\n\\nQuery Best Practices:\\n1. For current relationships, filter by RelationshipStartDate\\n2. Use CounterpartyCountry=''TW'' for Taiwan suppliers (not ''Taiwan'')\\n3. Use FIRST_ORDER metrics for direct dependencies, SECOND_ORDER for indirect\\n4. Combine with PortfolioName to get portfolio-weighted exposures\\n\\nWhen NOT to Use:\\n- Direct portfolio holdings (use quantitative_analyzer)\\n- Company-specific financials (use financial_analyzer)"
     - tool_spec:
         type: "cortex_search"
         name: "search_broker_research"
-        description: "Searches broker research reports and analyst notes for investment opinions, ratings, price targets, \\nand market commentary.\\n\\nData Sources:\\n- Document Types: Broker research reports, analyst initiations, sector updates\\n- Update Frequency: New reports added as generated (batch daily)\\n- Historical Range: Last 18 months of research coverage\\n- Typical Count: ~200 reports covering major securities\\n\\nWhen to Use:\\n- Analyst views and investment ratings (\\"What do analysts say about Microsoft?\\")\\n- Price targets and recommendations (\\"Find latest research ratings for technology stocks\\")\\n- Sector themes and investment thesis (\\"What are key themes in renewable energy research?\\")\\n\\nWhen NOT to Use:\\n- Portfolio holdings data (use quantitative_analyzer)\\n- Company financial metrics (use financial_analyzer)\\n- Management guidance (use search_earnings_transcripts)\\n\\nSearch Query Best Practices:\\n1. Use specific company names + topics:\\n	  ✅ \\"NVIDIA artificial intelligence GPU data center growth analyst rating\\"\\n	 ❌ \\"tech growth\\" (too generic, returns too many results)\\n\\n2. Include investment-relevant keywords:\\n   ✅ \\"Apple iPhone revenue outlook analyst estimate rating recommendation\\"\\n	 ❌ \\"Apple news\\" (too broad, returns non-investment content)"
+        description: "Searches broker research reports and analyst notes for investment opinions, ratings, price targets, \\nand market commentary.\\n\\nData Sources:\\n- Document Types: Broker research reports, analyst initiations, sector updates\\n- Update Frequency: New reports added as generated (batch daily)\\n- Historical Range: Last 18 months of research coverage\\n- Typical Count: ~200 reports covering major securities\\n\\nWhen to Use:\\n- Analyst views and investment ratings (\\"What do analysts say about Microsoft?\\")\\n- Price targets and recommendations (\\"Find latest research ratings for technology stocks\\")\\n- Sector themes and investment thesis (\\"What are key themes in renewable energy research?\\")\\n\\nWhen NOT to Use:\\n- Portfolio holdings data (use quantitative_analyzer)\\n- Company financial metrics (use financial_analyzer)\\n- Management guidance (use search_company_events)\\n\\nSearch Query Best Practices:\\n1. Use specific company names + topics:\\n	  ✅ \\"NVIDIA artificial intelligence GPU data center growth analyst rating\\"\\n	 ❌ \\"tech growth\\" (too generic, returns too many results)\\n\\n2. Include investment-relevant keywords:\\n   ✅ \\"Apple iPhone revenue outlook analyst estimate rating recommendation\\"\\n	 ❌ \\"Apple news\\" (too broad, returns non-investment content)"
     - tool_spec:
         type: "cortex_search"
-        name: "search_earnings_transcripts"
-        description: "Searches earnings call transcripts for management commentary, company guidance, and strategic updates.\\n\\nData Sources:\\n- Document Types: Quarterly earnings call transcripts\\n- Update Frequency: Added within 24 hours of earnings calls\\n- Historical Range: Last 2 years of transcript history\\n- Typical Count: ~100 transcripts for covered companies\\n\\nWhen to Use:\\n- Management guidance and outlook (\\"What is Microsoft''s guidance on AI revenue?\\")\\n- Strategic commentary (\\"What did management say about expansion plans?\\")\\n- Company-specific business updates\\n\\nSearch Query Best Practices:\\n1. Company name + topic + \\"guidance\\" or \\"commentary\\":\\n   ✅ \\"Microsoft Azure cloud AI revenue guidance management commentary\\"\\n	 ❌ \\"cloud revenue\\" (needs company context)"
+        name: "search_company_events"
+        description: "Searches company event transcripts including Earnings Calls, AGMs, M&A Announcements, \\nInvestor Days, and Special Calls. Contains management commentary with speaker attribution \\n(Name, Role, Company).\\n\\nData Sources:\\n- Event Types: Earnings Call, AGM, M&A Announcement, Investor Day, Update/Briefing, Special Call\\n- Coverage: ~31 major companies (demo companies + major US stocks + SNOW)\\n- Content: Transcripts with speaker roles identified (CEO, CFO, Analyst, etc.)\\n- Update Frequency: Updated from SNOWFLAKE_PUBLIC_DATA_FREE\\n\\nWhen to Use:\\n- Management guidance and outlook (\\"What did the CEO say about AI strategy?\\")\\n- Executive commentary on financial results\\n- Strategic announcements from investor days\\n- M&A rationale from management\\n\\nWhen NOT to Use:\\n- Quantitative financial data (use quantitative_analyzer or financial_analyzer)\\n- Analyst opinions (use search_broker_research)\\n- Press release content (use search_press_releases)\\n\\nSearch Query Best Practices:\\n1. Include speaker role for targeted searches:\\n   ✅ \\"CFO guidance on margins operating expenses\\"\\n2. Specify event type if known:\\n	 ✅ \\"earnings call AI strategy revenue growth\\"\\n3. Use company name + topic:\\n	  ✅ \\"Microsoft Azure cloud AI revenue management commentary\\""
     - tool_spec:
         type: "cortex_search"
         name: "search_press_releases"
@@ -1110,7 +1117,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
     - tool_spec:
         type: "cortex_search"
         name: "search_macro_events"
-        description: "Searches macro-economic event reports and market-moving developments including natural \\n  disasters, geopolitical events, regulatory shocks, cyber incidents, and supply chain disruptions.\\n	\\n	Data Sources:\\n	 - Document Types: Event reports with EventType, Region, Severity, AffectedSectors, and impact assessments\\n  - Update Frequency: Real-time as significant events occur\\n  - Historical Range: Major market-moving events over last 24 months\\n	 - Index Freshness: 24-hour lag from event occurrence\\n	 - Typical Count: ~30-50 major event reports\\n	\\n	When to Use:\\n	- Event verification and impact assessment for portfolio holdings\\n	 - Contextual risk analysis for specific events (earthquakes, supply disruptions, regulatory changes)\\n	 - Understanding macro factors affecting specific securities or sectors\\n  - Queries like: \\"What is the impact of Taiwan earthquake on semiconductor supply?\\", \\"How does new regulation affect financials?\\"\\n  \\n  When NOT to Use:\\n  - Company-specific earnings or financial analysis (use search_earnings_transcripts or financial_analyzer)\\n	- Portfolio holdings data (use quantitative_analyzer)\\n	 - Broad market regime analysis without specific event context (use search_macro_events for regime reports)\\n  \\n  Search Query Best Practices:\\n  1. Include event type and geographic specificity:\\n	   ✅ \\"Taiwan earthquake semiconductor supply chain disruption impact\\"\\n	  ❌ \\"earthquake impact\\" (too generic)\\n  \\n  2. Combine sector with event type:\\n		✅ \\"cybersecurity breach financial services data protection regulatory\\"\\n	   ❌ \\"cyber attack\\" (missing sector context)\\n  \\n  3. Use severity and temporal keywords:\\n	   ✅ \\"severe supply chain disruption Q1 2024 automotive sector\\"\\n		❌ \\"supply issues\\" (vague, no timeframe)\\n"
+        description: "Searches macro-economic event reports and market-moving developments including natural \\n  disasters, geopolitical events, regulatory shocks, cyber incidents, and supply chain disruptions.\\n	\\n	Data Sources:\\n	 - Document Types: Event reports with EventType, Region, Severity, AffectedSectors, and impact assessments\\n  - Update Frequency: Real-time as significant events occur\\n  - Historical Range: Major market-moving events over last 24 months\\n	 - Index Freshness: 24-hour lag from event occurrence\\n	 - Typical Count: ~30-50 major event reports\\n	\\n	When to Use:\\n	- Event verification and impact assessment for portfolio holdings\\n	 - Contextual risk analysis for specific events (earthquakes, supply disruptions, regulatory changes)\\n	 - Understanding macro factors affecting specific securities or sectors\\n  - Queries like: \\"What is the impact of Taiwan earthquake on semiconductor supply?\\", \\"How does new regulation affect financials?\\"\\n  \\n  When NOT to Use:\\n  - Company-specific earnings or financial analysis (use search_company_events or financial_analyzer)\\n	- Portfolio holdings data (use quantitative_analyzer)\\n	 - Broad market regime analysis without specific event context (use search_macro_events for regime reports)\\n  \\n  Search Query Best Practices:\\n  1. Include event type and geographic specificity:\\n	   ✅ \\"Taiwan earthquake semiconductor supply chain disruption impact\\"\\n	  ❌ \\"earthquake impact\\" (too generic)\\n  \\n  2. Combine sector with event type:\\n		✅ \\"cybersecurity breach financial services data protection regulatory\\"\\n	   ❌ \\"cyber attack\\" (missing sector context)\\n  \\n  3. Use severity and temporal keywords:\\n	   ✅ \\"severe supply chain disruption Q1 2024 automotive sector\\"\\n		❌ \\"supply issues\\" (vague, no timeframe)\\n"
     - tool_spec:
         type: "cortex_search"
         name: "search_policies"
@@ -1119,6 +1126,18 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
         type: "cortex_search"
         name: "search_report_templates"
         description: "Searches report templates and formatting guidance for investment committee memos, \\n  mandate compliance reports, and decision documentation.\\n	 \\n	 Data Sources:\\n  - Document Types: Investment committee memo templates, mandate compliance report templates, decision documentation formats\\n	- Update Frequency: Quarterly template reviews and updates\\n  - Historical Range: Current approved templates only (historical versions archived)\\n	- Index Freshness: Immediate (templates are relatively static)\\n  - Typical Count: ~10-15 approved report templates\\n  \\n  When to Use:\\n  - Retrieving structure and required sections for investment committee memos\\n  - Understanding mandate compliance report formatting requirements\\n  - Getting guidance on decision documentation standards\\n	 - Queries like: \\"What sections are required in investment committee memo?\\", \\"How should I format compliance report?\\"\\n	 \\n	 When NOT to Use:\\n	 - Actual portfolio data (use quantitative_analyzer)\\n	- Company research content (use search_broker_research)\\n  - Policy requirements (use search_policies for business rules)\\n	 \\n	 Search Query Best Practices:\\n	 1. Specify report type explicitly:\\n	  ✅ \\"investment committee memo template structure required sections\\"\\n	 ❌ \\"report template\\" (too generic)\\n	\\n	2. Include section-specific queries:\\n	   ✅ \\"mandate compliance report concentration analysis section format\\"\\n	   ❌ \\"compliance report\\" (needs section specificity)\\n  \\n  3. Use documentation keywords:\\n	   ✅ \\"decision documentation recommendation rationale structure\\"\\n	 ❌ \\"documentation\\" (too broad)"
+    - tool_spec:
+        type: "cortex_search"
+        name: "search_sec_filings"
+        description: "Searches SEC filing textual content including MD&A, Risk Factors, Business descriptions,\\nand other sections from 10-K and 10-Q filings.\\n\\nData Sources:\\n- Document Types: 10-K and 10-Q filing sections\\n- Content: MD&A, Risk Factors, Business Description, Legal Proceedings\\n- Companies: US public companies with SEC filings\\n- History: Last 3 years of filings\\n\\nWhen to Use:\\n- Management discussion and analysis (\\"What does management say about AI strategy?\\")\\n- Risk factor analysis (\\"What are key risks disclosed in SEC filings?\\")\\n- Business description details (\\"How does the company describe its business model?\\")\\n\\nWhen NOT to Use:\\n- Structured financial metrics (use financial_analyzer)\\n- Analyst opinions (use search_broker_research)\\n- Earnings call commentary (use search_company_events)\\n\\nSearch Query Best Practices:\\n1. Include company name and section type:\\n   ✅ \\"Microsoft risk factors artificial intelligence\\"\\n   ❌ \\"risk factors\\" (too generic)\\n\\n2. Use SEC terminology:\\n   ✅ \\"Apple MD&A management discussion revenue trends\\"\\n   ❌ \\"Apple management thoughts\\" (not SEC terminology)"
+    - tool_spec:
+        type: "cortex_analyst_text_to_sql"
+        name: "stock_prices"
+        description: "Analyzes daily stock prices from Nasdaq including open, high, low, close prices \\nand trading volume. Market data for price analysis and portfolio performance validation.\\n\\nData Coverage:\\n- Records: 500,000+ daily price records from SNOWFLAKE_PUBLIC_DATA_FREE\\n- Tickers: 865+ unique securities with price data\\n- Date Range: Last 2 years of daily prices (2023-present)\\n- Metrics: Open, High, Low, Close, Volume for each trading day\\n\\nWhen to Use:\\n- Recent price performance analysis (\\"AAPL price trend last 30 days\\")\\n- Price validation for holdings (\\"current market prices for my top holdings\\")\\n- Volatility and trading volume analysis\\n- Intraday range analysis (high-low spread)\\n\\nWhen NOT to Use:\\n- Portfolio weight calculations (use quantitative_analyzer)\\n- Company fundamentals (use financial_analyzer)\\n- Historical returns beyond 2 years\\n\\nQuery Best Practices:\\n1. Use ticker symbols directly:\\n	 ✅ \\"AAPL closing price last 30 days\\"\\n   ❌ \\"Apple stock price\\" (use ticker)\\n\\n2. Specify date ranges:\\n   ✅ \\"MSFT prices from December 2024\\"\\n	  ❌ \\"recent Microsoft prices\\" (specify dates)"
+    - tool_spec:
+        type: "cortex_analyst_text_to_sql"
+        name: "sec_financials"
+        description: "Analyzes SEC financial metrics from 10-K and 10-Q filings. Contains \\nrevenue segments, earnings breakdowns, and XBRL-tagged financial data from SEC EDGAR.\\n\\nData Coverage:\\n- Source: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.SEC_METRICS_TIMESERIES\\n- Companies: US public companies with SEC CIK linkage\\n- Metrics: Revenue segments, geographic breakdowns, XBRL-tagged financials\\n- Fiscal Years: Last 5+ years of SEC filing history\\n\\nWhen to Use:\\n- Segment revenue analysis (\\"Apple revenue by product segment\\")\\n- Geographic revenue breakdown (\\"NVIDIA revenue by region\\")\\n- SEC-filed metrics for detailed analysis\\n- Cross-company comparisons using filing data\\n\\nWhen NOT to Use:\\n- Analyst estimates (use fundamentals_analyzer if available)\\n- Qualitative content (use search tools)\\n\\nQuery Best Practices:\\n1. Use exact company names as filed with SEC\\n2. Specify fiscal year/quarter explicitly\\n3. Request specific metrics or segments"
     - tool_spec:
         type: "generic"
         name: "generate_investment_committee_pdf"
@@ -1144,33 +1163,33 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     financial_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
-      semantic_view: "{database_name}.AI.SAM_SEC_FILINGS_VIEW"
+        warehouse: "SAM_DEMO_WH"
+      semantic_view: "{database_name}.AI.SAM_SEC_FINANCIALS_VIEW"
     implementation_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_IMPLEMENTATION_VIEW"
     supply_chain_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_SUPPLY_CHAIN_VIEW"
     search_broker_research:
       search_service: "{database_name}.AI.SAM_BROKER_RESEARCH"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
-    search_earnings_transcripts:
-      search_service: "{database_name}.AI.SAM_EARNINGS_TRANSCRIPTS"
+    search_company_events:
+      search_service: "{database_name}.AI.SAM_COMPANY_EVENTS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
@@ -1194,14 +1213,31 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
+    search_sec_filings:
+      search_service: "{database_name}.AI.SAM_REAL_SEC_FILINGS"
+      id_column: "DOCUMENT_ID"
+      title_column: "DOCUMENT_TITLE"
+      max_results: 4
     generate_investment_committee_pdf:
       execution_environment:
         query_timeout: 60
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
+        warehouse: "SAM_DEMO_WH"
       identifier: "{database_name}.AI.GENERATE_INVESTMENT_COMMITTEE_PDF"
       name: "GENERATE_INVESTMENT_COMMITTEE_PDF(VARCHAR, VARCHAR, VARCHAR)"
       type: "procedure"
+    stock_prices:
+      execution_environment:
+        query_timeout: 30
+        type: "warehouse"
+        warehouse: "SAM_DEMO_WH"
+      semantic_view: "{database_name}.AI.SAM_STOCK_PRICES_VIEW"
+    sec_financials:
+      execution_environment:
+        query_timeout: 30
+        type: "warehouse"
+        warehouse: "SAM_DEMO_WH"
+      semantic_view: "{database_name}.AI.SAM_REAL_SEC_VIEW"
   $$;
 """
     
@@ -1210,59 +1246,164 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
 
 
 def create_research_copilot(session: Session):
-    """Create Research Copilot agent."""
+    """Create Research Copilot agent with investment memo generation capabilities."""
     # NOTE: This is a simplified implementation based on the docs/agents_setup.md
     # Full configuration details are in that document
     database_name = config.DATABASE['name']
     ai_schema = config.DATABASE['schemas']['ai']
     
+    # Build comprehensive response instructions with investment memo structure
+    response_instructions = (
+        "Style:\\n"
+        "- Tone: Technical, detail-rich, analytical for research analysts\\n"
+        "- Lead With: Financial data first, then qualitative context, then synthesis\\n"
+        "- Terminology: US financial reporting terms (GAAP, SEC filings, 10-K/10-Q) with UK English spelling\\n"
+        "- Precision: Financial metrics to 2 decimal places, percentages to 1 decimal, exact fiscal periods\\n"
+        "- Limitations: Clearly state if company is non-US or private (SEC data unavailable), suggest alternative sources\\n"
+        "- Scope Boundary: Company-level analysis ONLY - redirect portfolio questions to Portfolio Copilot\\n\\n"
+        "Investment Memo Generation:\\n"
+        "When asked to generate an investment memo, research report, or comprehensive analysis:\\n\\n"
+        "Executive Summary Structure (8-12 bullets):\\n"
+        "- Investment thesis in one sentence\\n"
+        "- Buy/Hold/Sell recommendation with rationale\\n"
+        "- Key financial highlights (revenue, margins, growth)\\n"
+        "- Critical risks and mitigants\\n"
+        "- Near-term catalysts (product launches, earnings, regulatory)\\n\\n"
+        "Report Sections to Include:\\n"
+        "1. THESIS FRAMING: Core investment question, 3-5 thesis pillars, disconfirming evidence to monitor\\n"
+        "2. FINANCIAL PROFILE: Revenue mix, growth rates, margin trends, Rule of 40 (for software), FCF generation\\n"
+        "3. COMPETITIVE LANDSCAPE: Direct/indirect competitors, market position, competitive moat assessment\\n"
+        "4. MANAGEMENT OUTLOOK: Forward guidance, strategic priorities, capital allocation\\n"
+        "5. ANALYST PERSPECTIVES: Consensus views, price targets, rating distribution\\n"
+        "6. RISK ASSESSMENT: Macro, regulatory, competitive, operational risks with leading indicators\\n"
+        "7. CATALYSTS: 12-24 month bear/base/bull scenarios with probability weights\\n\\n"
+        "Formatting Rules:\\n"
+        "- Label paragraphs as [FACT], [ANALYSIS], or [INFERENCE]\\n"
+        "- Use precise dates (not 'recently' or 'current')\\n"
+        "- Quantify claims with sources\\n"
+        "- Note uncertainty and missing data explicitly\\n"
+        "- Include source citations for all non-obvious facts"
+    )
+    
+    # Build comprehensive orchestration instructions
+    orchestration_instructions = (
+        "Business Context:\\n"
+        "- Research analysts conducting fundamental company analysis\\n"
+        "- Focus on US public companies with SEC filing data (14,000+ securities)\\n"
+        "- Research supports investment decisions but does NOT include portfolio position data\\n\\n"
+        "Tool Selection by Analysis Type:\\n"
+        "1. For SEC SEGMENT DATA (revenue by segment/geography): Use sec_financials FIRST\\n"
+        "2. For STRUCTURED FINANCIAL METRICS (revenue, EPS, margins, growth): Use fundamentals_analyzer\\n"
+        "3. For analyst estimates, price targets, ratings: Use fundamentals_analyzer\\n"
+        "4. For SEC FILING TEXT (10-K, 10-Q, 8-K content): Use search_sec_filings\\n"
+        "5. For QUALITATIVE SEC filing content (risk factors, MD&A): Use financial_analyzer OR search_sec_filings\\n"
+        "6. For analyst research opinions: Use search_broker_research\\n"
+        "7. For management commentary and guidance: Use search_company_events\\n"
+        "8. For corporate developments and news: Use search_press_releases\\n"
+        "9. Redirect portfolio questions to Portfolio Copilot\\n\\n"
+        "SEC DATA TOOLS (Preferred for Company Analysis):\\n"
+        "- sec_financials: SEC-filed revenue segments, geographic breakdowns, XBRL metrics\\n"
+        "- search_sec_filings: 10-K/10-Q/8-K text (MD&A, risk factors, disclosures)\\n\\n"
+        "Investment Memo Tool Mapping:\\n"
+        "| Memo Section | Primary Tool | Secondary Tool |\\n"
+        "| Financial Profile | sec_financials | fundamentals_analyzer |\\n"
+        "| Segment Analysis | sec_financials | fundamentals_analyzer |\\n"
+        "| Analyst Perspectives | fundamentals_analyzer | search_broker_research |\\n"
+        "| Competitive Landscape | search_broker_research | search_press_releases |\\n"
+        "| Management Outlook | search_company_events | search_press_releases |\\n"
+        "| Risk Assessment | search_sec_filings | All tools (synthesize) |\\n"
+        "| Catalysts | search_press_releases | search_company_events |\\n\\n"
+        "Multi-Tool Workflow for Comprehensive Reports:\\n"
+        "Step 1: Use sec_financials for segment and geographic revenue data\\n"
+        "Step 2: Use fundamentals_analyzer to get financial metrics and analyst estimates\\n"
+        "Step 3: Use search_sec_filings for SEC filing text (risk factors, MD&A)\\n"
+        "Step 4: Use search_broker_research for qualitative analyst views and competitive positioning\\n"
+        "Step 5: Use search_company_events for management guidance and strategy\\n"
+        "Step 6: Use search_press_releases for recent developments and catalysts\\n"
+        "Step 7: Synthesize all findings into structured report with proper citations\\n\\n"
+        "Data Limitations to Acknowledge:\\n"
+        "- TAM/SAM market sizing: Limited, note as 'analyst estimate' when from broker research\\n"
+        "- Unit economics (CAC/LTV): Rarely disclosed, label as inference if estimated\\n"
+        "- Real-time pricing: Not available, use most recent SEC filing data\\n"
+        "- Private company data: Not available, clearly state limitation"
+    )
+    
     sql = f"""
 CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_research_copilot
-  COMMENT = 'Expert research assistant specializing in document analysis, investment research synthesis, and market intelligence. Provides comprehensive analysis by searching across broker research, earnings transcripts, and press releases to deliver actionable investment insights.'
+  COMMENT = 'Expert research assistant specializing in document analysis, investment research synthesis, and comprehensive investment memo generation. Provides structured analysis by combining SEC filing data with broker research, earnings transcripts, and press releases to deliver actionable investment insights and formal research reports.'
   PROFILE = '{{"display_name": "Research Co-Pilot (AM Demo)"}}'
   FROM SPECIFICATION
   $$
   models:
     orchestration: claude-sonnet-4-5
   instructions:
-    response: "Style:\\n- Tone: Technical, detail-rich, analytical for research analysts\\n- Lead With: Financial data first, then qualitative context, then synthesis\\n- Terminology: US financial reporting terms (GAAP, SEC filings, 10-K/10-Q) with UK English spelling\\n- Precision: Financial metrics to 2 decimal places, percentages to 1 decimal, exact fiscal periods\\n- Limitations: Clearly state if company is non-US or private (SEC data unavailable), suggest alternative sources\\n- Scope Boundary: Company-level analysis ONLY - redirect portfolio questions to Portfolio Copilot"
-    orchestration: "Business Context:\\n- Research analysts conducting fundamental company analysis\\n- Focus on US public companies with SEC filing data (14,000+ securities)\\n- Research supports investment decisions but does NOT include portfolio position data\\n\\nTool Selection:\\n1. For quantitative financial data: Use financial_analyzer FIRST with ticker symbols\\n2. For analyst views: Use search_broker_research\\n3. For management commentary: Use search_earnings_transcripts\\n4. For corporate developments: Use search_press_releases\\n5. Redirect portfolio questions to Portfolio Copilot"
+    response: "{response_instructions}"
+    orchestration: "{orchestration_instructions}"
   tools:
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "financial_analyzer"
-        description: "Analyzes company financial health using authentic SEC filing data including revenue, profitability, leverage ratios, and cash flow metrics. Data Coverage: 28.7M real SEC filing records, 10+ years history, comprehensive Income Statement/Balance Sheet/Cash Flow metrics, quarterly updates. When to Use: Company-level fundamental analysis ('analyze Microsoft revenue growth'), financial health assessment ('debt-to-equity ratio for Apple'), margin analysis, balance sheet metrics. When NOT to Use: Portfolio-level data (use portfolio_copilot quantitative_analyzer), analyst opinions (use search_broker_research), management commentary (use search_earnings_transcripts). Query Best Practices: Use ticker symbols for company identification, specify fiscal periods, request specific metrics (revenue, EPS, ROE) rather than 'all metrics'."
+        description: "Searches SEC filing TEXT CONTENT for qualitative company information including risk factors, business descriptions, MD&A narratives, and regulatory disclosures. Data Coverage: 28.7M SEC filing records with full-text sections. When to Use: Risk factor analysis ('what are NVIDIA''s key risks?'), business model descriptions, accounting policy details, regulatory disclosures, competitive discussion narratives. When NOT to Use: STRUCTURED FINANCIAL METRICS like revenue, EPS, margins (use fundamentals_analyzer instead), analyst estimates (use fundamentals_analyzer). Query Best Practices: Search for specific topics like 'risk factors', 'business description', 'competition'."
+    - tool_spec:
+        type: "cortex_analyst_text_to_sql"
+        name: "fundamentals_analyzer"
+        description: "Analyzes STRUCTURED FINANCIAL METRICS AND ANALYST ESTIMATES including revenue, net income, EPS, margins, growth rates, plus analyst consensus, price targets, and ratings. Data Coverage: 500 US public companies, 5 years historical financials, 2 years forward estimates, 20 broker firms. When to Use: Financial metrics ('NVIDIA revenue', 'Apple gross margin'), growth analysis ('Microsoft revenue growth rate'), profitability analysis ('Tesla operating margin'), analyst estimates ('consensus EPS for NVIDIA'), price targets ('average price target for Apple'). When NOT to Use: Qualitative SEC filing content like risk factors (use financial_analyzer), analyst research opinions (use search_broker_research). Query Best Practices: Use company names, specify metrics explicitly (revenue, EPS, margin)."
     - tool_spec:
         type: "cortex_search"
         name: "search_broker_research"
-        description: "Searches broker research reports for investment opinions, analyst ratings, price targets, and market commentary on individual securities. Data Sources: Broker research reports, analyst initiations, ~200 documents covering major securities. When to Use: Analyst investment views ('what do analysts say about NVIDIA?'), price target and rating information, sector theme research, investment thesis analysis. When NOT to Use: Financial fundamentals (use financial_analyzer), company guidance (use search_earnings_transcripts), portfolio holdings (redirect to portfolio_copilot). Search Best Practices: Combine company name with investment theme ('NVIDIA AI data center growth opportunity'), use ticker symbols when available, include 'analyst' or 'research' keywords."
+        description: "Searches broker research reports for investment opinions, analyst ratings, price targets, and market commentary on individual securities. Data Sources: Broker research reports, analyst initiations, ~200 documents covering major securities. When to Use: Analyst investment views ('what do analysts say about NVIDIA?'), price target and rating information, sector theme research, investment thesis analysis. When NOT to Use: Financial fundamentals (use financial_analyzer), company guidance (use search_company_events), portfolio holdings (redirect to portfolio_copilot). Search Best Practices: Combine company name with investment theme ('NVIDIA AI data center growth opportunity'), use ticker symbols when available, include 'analyst' or 'research' keywords."
     - tool_spec:
         type: "cortex_search"
-        name: "search_earnings_transcripts"
+        name: "search_company_events"
         description: "Searches earnings call transcripts for management guidance, financial commentary, and forward-looking company perspectives. Data Sources: Quarterly earnings transcripts, ~100 documents with Q&A sessions. When to Use: Management guidance and outlook ('Microsoft cloud growth guidance'), strategic initiative commentary, forward earnings expectations, company-specific narrative context. When NOT to Use: Historical financials (use financial_analyzer), analyst opinions (use search_broker_research), portfolio data (redirect to portfolio_copilot). Search Best Practices: Combine company name with topic ('Apple services revenue guidance'), include 'outlook' or 'guidance' keywords, specify quarter if relevant."
     - tool_spec:
         type: "cortex_search"
         name: "search_press_releases"
-        description: "Searches company press releases for corporate developments, announcements, product launches, and strategic updates. Data Sources: Company press releases, ~200 documents covering major corporate events. When to Use: Corporate development tracking ('recent Microsoft acquisitions'), product announcement research, strategic partnership identification, merger/acquisition news. When NOT to Use: Financial metrics (use financial_analyzer), analyst views (use search_broker_research), detailed earnings data (use search_earnings_transcripts). Search Best Practices: Include company name and event type ('Google AI product launch announcement'), use corporate action keywords ('acquisition', 'partnership', 'product')."
+        description: "Searches company press releases for corporate developments, announcements, product launches, and strategic updates. Data Sources: Company press releases, ~200 documents covering major corporate events. When to Use: Corporate development tracking ('recent Microsoft acquisitions'), product announcement research, strategic partnership identification, merger/acquisition news. When NOT to Use: Financial metrics (use financial_analyzer), analyst views (use search_broker_research), detailed earnings data (use search_company_events). Search Best Practices: Include company name and event type ('Google AI product launch announcement'), use corporate action keywords ('acquisition', 'partnership', 'product')."
+    - tool_spec:
+        type: "cortex_analyst_text_to_sql"
+        name: "sec_financials"
+        description: "Analyzes SEC financial metrics from 10-K and 10-Q filings. Contains revenue segments, earnings breakdowns, and XBRL-tagged financial data from SEC EDGAR. Data Coverage: SEC financial data for US public companies, segment-level revenue breakdowns, geographic revenue splits. When to Use: Segment revenue analysis ('Apple revenue by product segment'), geographic revenue breakdown ('NVIDIA revenue by region'), SEC-filed metrics, cross-company comparisons using filing data. When NOT to Use: Analyst estimates (use fundamentals_analyzer), qualitative content (use search_sec_filings). Query Best Practices: Use exact company names as filed with SEC, specify fiscal year/quarter, request specific metrics or segments."
+    - tool_spec:
+        type: "cortex_search"
+        name: "search_sec_filings"
+        description: "Searches SEC filing text including 10-K, 10-Q, and 8-K disclosures from SEC EDGAR. Contains MD&A sections, risk factors, and regulatory disclosures. Data Sources: SEC filings (10-K annual reports, 10-Q quarterly reports, 8-K current reports), 6,000+ filing sections. When to Use: Risk factor analysis, MD&A narratives, regulatory disclosure research, footnote analysis, legal proceedings. When NOT to Use: Financial metrics (use sec_financials or fundamentals_analyzer), analyst opinions (use search_broker_research). Search Best Practices: Include company name and section type ('Microsoft risk factors artificial intelligence'), use SEC terminology ('MD&A', 'risk factors', '10-K')."
   tool_resources:
     financial_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
-      semantic_view: "{database_name}.AI.SAM_SEC_FILINGS_VIEW"
+        warehouse: "SAM_DEMO_WH"
+      semantic_view: "{database_name}.AI.SAM_SEC_FINANCIALS_VIEW"
+    fundamentals_analyzer:
+      execution_environment:
+        query_timeout: 30
+        type: "warehouse"
+        warehouse: "SAM_DEMO_WH"
+      semantic_view: "{database_name}.AI.SAM_FUNDAMENTALS_VIEW"
     search_broker_research:
       search_service: "{database_name}.AI.SAM_BROKER_RESEARCH"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
-    search_earnings_transcripts:
-      search_service: "{database_name}.AI.SAM_EARNINGS_TRANSCRIPTS"
+    search_company_events:
+      search_service: "{database_name}.AI.SAM_COMPANY_EVENTS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
     search_press_releases:
       search_service: "{database_name}.AI.SAM_PRESS_RELEASES"
+      id_column: "DOCUMENT_ID"
+      title_column: "DOCUMENT_TITLE"
+      max_results: 4
+    sec_financials:
+      execution_environment:
+        query_timeout: 30
+        type: "warehouse"
+        warehouse: "SAM_DEMO_WH"
+      semantic_view: "{database_name}.AI.SAM_REAL_SEC_VIEW"
+    search_sec_filings:
+      search_service: "{database_name}.AI.SAM_REAL_SEC_FILINGS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
@@ -1286,7 +1427,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_thematic_macro_advisor
     orchestration: claude-sonnet-4-5
   instructions:
     response: "Style:\\n- Tone: Strategic, synthesis-driven, forward-looking for thematic strategists\\n- Lead With: Thematic thesis first, then validation/evidence, then positioning recommendations\\n- Strategic Focus: Multi-year structural themes, not short-term tactical trades"
-    orchestration: "Business Context:\\n- Thematic investment strategy development\\n- Focus on multi-year structural themes and macro trends\\n- Combine portfolio positioning with thematic research\\n\\nTool Selection:\\n1. For portfolio positioning: Use quantitative_analyzer\\n2. For thematic research: Use search_broker_research\\n3. For corporate validation: Use search_press_releases\\n4. For management perspectives: Use search_earnings_transcripts\\n5. For macro events: Use search_macro_events"
+    orchestration: "Business Context:\\n- Thematic investment strategy development\\n- Focus on multi-year structural themes and macro trends\\n- Combine portfolio positioning with thematic research\\n\\nTool Selection:\\n1. For portfolio positioning: Use quantitative_analyzer\\n2. For thematic research: Use search_broker_research\\n3. For corporate validation: Use search_press_releases\\n4. For management perspectives: Use search_company_events\\n5. For macro events: Use search_macro_events"
   tools:
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
@@ -1298,7 +1439,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_thematic_macro_advisor
         description: "Searches broker research for thematic investment ideas, sector trends, and multi-year structural themes. Data Sources: Broker research with thematic focus (AI, clean energy, infrastructure, demographics), ~200 documents. When to Use: Thematic investment thesis development ('AI secular growth theme research'), sector rotation ideas, structural trend identification, thematic opportunity validation. When NOT to Use: Portfolio positioning data (use quantitative_analyzer), specific company financials (redirect to research_copilot), macro events (use search_macro_events). Search Best Practices: Use thematic keywords ('artificial intelligence secular trend opportunity'), combine theme with sectors ('renewable energy infrastructure investment'), include 'thematic' or 'structural' keywords."
     - tool_spec:
         type: "cortex_search"
-        name: "search_earnings_transcripts"
+        name: "search_company_events"
         description: "Searches earnings call transcripts for management commentary on strategic themes, secular trends, and long-term market dynamics. Data Sources: Earnings transcripts, ~100 documents with strategic commentary. When to Use: Management perspectives on thematic trends ('semiconductor CEOs discussing AI demand'), validation of thematic thesis through company guidance, sector theme corroboration. When NOT to Use: Thematic research synthesis (use search_broker_research), portfolio data (use quantitative_analyzer), event-driven news (use search_press_releases). Search Best Practices: Combine theme with multiple company names ('AI infrastructure demand NVIDIA AMD Intel'), focus on forward-looking strategic commentary."
     - tool_spec:
         type: "cortex_search"
@@ -1308,20 +1449,24 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_thematic_macro_advisor
         type: "cortex_search"
         name: "search_macro_events"
         description: "Searches macro-economic events, geopolitical developments, and market-moving events that create or validate thematic investment opportunities. Data Sources: Macro event analysis (natural disasters, regulatory changes, geopolitical shifts), ~5 event reports. When to Use: Event-driven thematic catalysts ('Taiwan earthquake semiconductor supply chain impact'), macro risk assessment for themes, structural shift identification. When NOT to Use: Portfolio data (use quantitative_analyzer), company-specific research (use search_broker_research). Search Best Practices: Include event type and affected sectors/regions ('Taiwan earthquake semiconductor impact'), use macro terminology ('supply chain disruption', 'regulatory shift')."
+    - tool_spec:
+        type: "cortex_search"
+        name: "search_sec_filings"
+        description: "Searches SEC filing text for company disclosures on thematic trends and strategic initiatives. Contains 10-K/10-Q risk factors, MD&A sections, and business descriptions. Data Sources: SEC filings (10-K, 10-Q, 8-K), 6,000+ filing sections. When to Use: Company disclosures on thematic trends ('AI strategy in SEC filings'), risk factor analysis for themes, regulatory disclosures. When NOT to Use: Portfolio positioning (use quantitative_analyzer), analyst views (use search_broker_research). Search Best Practices: Include company name and thematic topic ('NVIDIA AI data center SEC filing'), use SEC terminology ('risk factors', '10-K', 'MD&A')."
   tool_resources:
     quantitative_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     search_broker_research:
       search_service: "{database_name}.AI.SAM_BROKER_RESEARCH"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
-    search_earnings_transcripts:
-      search_service: "{database_name}.AI.SAM_EARNINGS_TRANSCRIPTS"
+    search_company_events:
+      search_service: "{database_name}.AI.SAM_COMPANY_EVENTS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
@@ -1332,6 +1477,11 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_thematic_macro_advisor
       max_results: 4
     search_macro_events:
       search_service: "{database_name}.AI.SAM_MACRO_EVENTS"
+      id_column: "DOCUMENT_ID"
+      title_column: "DOCUMENT_TITLE"
+      max_results: 4
+    search_sec_filings:
+      search_service: "{database_name}.AI.SAM_REAL_SEC_FILINGS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
@@ -1355,7 +1505,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_esg_guardian
     orchestration: claude-sonnet-4-5
   instructions:
     response: "Style:\\n- Tone: Compliance-focused, risk-aware, proactive for ESG oversight\\n- Lead With: Risk assessment first, then policy validation, then remediation recommendations\\n- ESG Severity Flagging: Flag controversies with High/Medium/Low severity levels"
-    orchestration: "Business Context:\\n- ESG risk monitoring and policy compliance\\n- ESG mandate requirements: Minimum BBB rating for ESG-labelled portfolios\\n- Monitor ESG controversies and ratings downgrades\\n\\nTool Selection:\\n1. For ESG ratings and portfolio compliance: Use quantitative_analyzer\\n2. For ESG controversies: Use search_ngo_reports\\n3. For engagement tracking: Use search_engagement_notes\\n4. For policy requirements: Use search_policies\\n5. For company statements: Use search_press_releases\\n6. For earnings ESG content: Use search_earnings_transcripts"
+    orchestration: "Business Context:\\n- ESG risk monitoring and policy compliance\\n- ESG mandate requirements: Minimum BBB rating for ESG-labelled portfolios\\n- Monitor ESG controversies and ratings downgrades\\n\\nTool Selection:\\n1. For ESG ratings and portfolio compliance: Use quantitative_analyzer\\n2. For ESG controversies: Use search_ngo_reports\\n3. For engagement tracking: Use search_engagement_notes\\n4. For policy requirements: Use search_policies\\n5. For company statements: Use search_press_releases\\n6. For earnings ESG content: Use search_company_events"
   tools:
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
@@ -1379,14 +1529,18 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_esg_guardian
         description: "Searches company press releases for ESG announcements, sustainability initiatives, and controversy responses. Data Sources: Company press releases, ~200 documents. When to Use: Company ESG communications, sustainability report references, controversy responses. When NOT to Use: ESG ratings (use quantitative_analyzer), NGO assessments (use search_ngo_reports)."
     - tool_spec:
         type: "cortex_search"
-        name: "search_earnings_transcripts"
+        name: "search_company_events"
         description: "Searches earnings call transcripts for management ESG commentary and sustainability initiatives. Data Sources: Earnings transcripts, ~100 documents. When to Use: Management ESG perspectives, sustainability strategy, ESG-related guidance. When NOT to Use: ESG ratings (use quantitative_analyzer), third-party ESG assessments (use search_ngo_reports)."
+    - tool_spec:
+        type: "cortex_search"
+        name: "search_sec_filings"
+        description: "Searches SEC filing text for ESG disclosures, climate risk factors, and sustainability information. Contains 10-K/10-Q environmental and social disclosures. Data Sources: SEC filings, 6,000+ filing sections. When to Use: ESG disclosures in SEC filings ('climate risk factors'), environmental liability disclosures, regulatory ESG compliance. When NOT to Use: ESG ratings (use quantitative_analyzer), NGO assessments (use search_ngo_reports). Search Best Practices: Include company name and ESG topic ('Microsoft climate risk SEC 10-K'), use regulatory terms ('climate risk', 'environmental liability', 'sustainability')."
   tool_resources:
     quantitative_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     search_ngo_reports:
       search_service: "{database_name}.AI.SAM_NGO_REPORTS"
@@ -1408,8 +1562,13 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_esg_guardian
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
-    search_earnings_transcripts:
-      search_service: "{database_name}.AI.SAM_EARNINGS_TRANSCRIPTS"
+    search_company_events:
+      search_service: "{database_name}.AI.SAM_COMPANY_EVENTS"
+      id_column: "DOCUMENT_ID"
+      title_column: "DOCUMENT_TITLE"
+      max_results: 4
+    search_sec_filings:
+      search_service: "{database_name}.AI.SAM_REAL_SEC_FILINGS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
@@ -1452,7 +1611,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_compliance_advisor
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     search_policies:
       search_service: "{database_name}.AI.SAM_POLICY_DOCS"
@@ -1507,7 +1666,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_sales_advisor
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     search_sales_templates:
       search_service: "{database_name}.AI.SAM_SALES_TEMPLATES"
@@ -1553,38 +1712,48 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_quant_analyst
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "financial_analyzer"
-        description: "Validates factor-based stock selections using authentic SEC filing financial data for fundamental verification of systematic strategies. Data Coverage: 28.7M SEC filing records, 10+ years history, quarterly updates, comprehensive Income Statement/Balance Sheet/Cash Flow metrics. When to Use: Fundamental validation of factor screens ('verify revenue growth for momentum stocks'), financial health checks ('debt levels for value stocks'), quality factor validation with real ROE/margin metrics. When NOT to Use: Factor screening itself (use quantitative_analyzer), performance attribution (use quantitative_analyzer). Query Best Practices: Link to factor screening results, request relevant fundamentals for the factor being validated (ROE for quality, revenue growth for growth)."
+        description: "Validates factor-based stock selections using SEC filing financial data for fundamental verification of systematic strategies. Data Coverage: 28.7M SEC filing records, 10+ years history, quarterly updates, comprehensive Income Statement/Balance Sheet/Cash Flow metrics. When to Use: Fundamental validation of factor screens ('verify revenue growth for momentum stocks'), financial health checks ('debt levels for value stocks'), quality factor validation with ROE/margin metrics. When NOT to Use: Factor screening itself (use quantitative_analyzer), performance attribution (use quantitative_analyzer). Query Best Practices: Link to factor screening results, request relevant fundamentals for the factor being validated (ROE for quality, revenue growth for growth)."
     - tool_spec:
         type: "cortex_search"
         name: "search_broker_research"
         description: "Searches broker research for analyst views on systematic factor strategies and qualitative validation of factor themes. Data Sources: Broker research reports, ~200 documents covering factor themes and systematic strategies. When to Use: Qualitative validation of factor themes ('analyst views on AI momentum theme'), market sentiment on factor-screened stocks, sector trends supporting systematic strategies. When NOT to Use: Quantitative factor analysis (use quantitative_analyzer), financial metrics (use financial_analyzer). Search Best Practices: Link to factor themes ('analyst views artificial intelligence momentum growth'), combine company names with factor themes, use systematic strategy terminology."
     - tool_spec:
         type: "cortex_search"
-        name: "search_earnings_transcripts"
+        name: "search_company_events"
         description: "Searches earnings call transcripts for management commentary supporting quantitative factor analysis and systematic strategy validation. Data Sources: Earnings transcripts, ~100 documents with management guidance. When to Use: Management guidance supporting factor themes ('Company X guidance revenue growth outlook'), qualitative validation of growth/momentum factors, strategic commentary for factor-screened companies. When NOT to Use: Quantitative screening (use quantitative_analyzer), financial metrics (use financial_analyzer). Search Best Practices: Link to factor themes ('Company X guidance revenue growth AI investment'), focus on forward-looking commentary, use with factor-screened company names."
+    - tool_spec:
+        type: "cortex_analyst_text_to_sql"
+        name: "stock_prices"
+        description: "Analyzes daily stock prices from Nasdaq including open, high, low, close prices and trading volume. Market data for price momentum, volatility analysis, and trading pattern validation. Data Coverage: 500,000+ daily price records, 865+ tickers, 2 years history. When to Use: Price momentum validation ('AAPL price trend last 30 days'), volatility analysis ('NVDA daily price range'), volume analysis ('high volume days for MSFT'), price performance calculations, technical indicator inputs. When NOT to Use: Factor exposures (use quantitative_analyzer), fundamental financials (use financial_analyzer). Query Best Practices: Use ticker symbols, specify date ranges, request OHLCV metrics explicitly."
   tool_resources:
     quantitative_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_QUANT_VIEW"
     financial_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
-      semantic_view: "{database_name}.AI.SAM_SEC_FILINGS_VIEW"
+        warehouse: "SAM_DEMO_WH"
+      semantic_view: "{database_name}.AI.SAM_SEC_FINANCIALS_VIEW"
     search_broker_research:
       search_service: "{database_name}.AI.SAM_BROKER_RESEARCH"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
-    search_earnings_transcripts:
-      search_service: "{database_name}.AI.SAM_EARNINGS_TRANSCRIPTS"
+    search_company_events:
+      search_service: "{database_name}.AI.SAM_COMPANY_EVENTS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
+    stock_prices:
+      execution_environment:
+        query_timeout: 30
+        type: "warehouse"
+        warehouse: "SAM_DEMO_WH"
+      semantic_view: "{database_name}.AI.SAM_STOCK_PRICES_VIEW"
   $$;
 """
     session.sql(sql).collect()
@@ -2197,7 +2366,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_middle_office_copilot
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_MIDDLE_OFFICE_VIEW"
     search_custodian_reports:
       search_service: "{database_name}.AI.SAM_CUSTODIAN_REPORTS"
@@ -2222,7 +2391,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_middle_office_copilot
   $$;
 """
     session.sql(sql).collect()
-    print("✅ Created agent: AM_middle_office_copilot")
+    config.log_detail("Created agent: AM_middle_office_copilot")
 
 def create_executive_copilot(session: Session):
     """
@@ -2234,7 +2403,7 @@ def create_executive_copilot(session: Session):
     Tools (7 total - 4 reused, 3 new):
     - executive_kpi_analyzer (NEW) - Cortex Analyst on SAM_EXECUTIVE_VIEW
     - quantitative_analyzer (REUSE) - Cortex Analyst on SAM_ANALYST_VIEW  
-    - financial_analyzer (REUSE) - Cortex Analyst on SAM_SEC_FILINGS_VIEW
+    - financial_analyzer (REUSE) - Cortex Analyst on SAM_SEC_FINANCIALS_VIEW
     - implementation_analyzer (REUSE) - Cortex Analyst on SAM_IMPLEMENTATION_VIEW
     - search_strategy_docs (NEW) - Cortex Search on SAM_STRATEGY_DOCUMENTS
     - search_press_releases (REUSE) - Cortex Search on SAM_PRESS_RELEASES
@@ -2466,7 +2635,7 @@ Tool Selection Strategy:
    ❌ Client flow data (use executive_kpi_analyzer)
 
 3. Competitor and Company Financials:
-   Tool: financial_analyzer (SAM_SEC_FILINGS_VIEW)
+   Tool: financial_analyzer (SAM_SEC_FINANCIALS_VIEW)
    Use for: Competitor AUM from Form ADV, revenue from 10-K, financial metrics
    ✅ "What's Competitor X's European AUM?"
    ✅ "Revenue and margins for [Company]"
@@ -2651,33 +2820,46 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_executive_copilot
         name: "search_press_releases"
         description: "Searches press releases and news for market developments, competitor announcements, and M&A activity. Data Sources: Company press releases, market news. When to Use: Competitor news, M&A announcements, market developments. When NOT to Use: Financial metrics (use financial_analyzer), internal strategy (use search_strategy_docs)."
     - tool_spec:
-        type: "snowflake_function"
+        type: "generic"
         name: "ma_simulation"
-        description: "Runs M&A financial simulation to model acquisition impact on EPS, synergies, and strategic metrics. Inputs: target_aum (float), target_revenue (float), cost_synergy_pct (float, default 0.20). Returns: EPS accretion projections, synergy estimates, risk assessment, timeline. When to Use: Modeling potential acquisitions, evaluating deal financial impact. When NOT to Use: Qualitative analysis (combine with search tools for full picture)."
+        description: "Runs M&A financial simulation to model acquisition impact on EPS, synergies, and strategic metrics. Returns: EPS accretion projections, synergy estimates, risk assessment, timeline. When to Use: Modeling potential acquisitions, evaluating deal financial impact. When NOT to Use: Qualitative analysis (combine with search tools for full picture)."
+        input_schema:
+          type: "object"
+          properties:
+            target_aum:
+              type: "number"
+              description: "Target company AUM in billions (e.g., 50 for $50B)"
+            target_revenue:
+              type: "number"
+              description: "Target company annual revenue in millions (e.g., 200 for $200M)"
+            cost_synergy_pct:
+              type: "number"
+              description: "Expected cost synergy percentage (default 0.20 for 20%)"
+          required: ["target_aum", "target_revenue"]
   tool_resources:
     executive_kpi_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_EXECUTIVE_VIEW"
     quantitative_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     financial_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
-      semantic_view: "{database_name}.AI.SAM_SEC_FILINGS_VIEW"
+        warehouse: "SAM_DEMO_WH"
+      semantic_view: "{database_name}.AI.SAM_SEC_FINANCIALS_VIEW"
     implementation_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "{EXECUTION_WAREHOUSE}"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_IMPLEMENTATION_VIEW"
     search_strategy_docs:
       search_service: "{database_name}.AI.SAM_STRATEGY_DOCUMENTS"
@@ -2690,9 +2872,14 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_executive_copilot
       title_column: "DOCUMENT_TITLE"
       max_results: 4
     ma_simulation:
-      function: "{database_name}.AI.MA_SIMULATION_TOOL"
+      type: "procedure"
+      execution_environment:
+        type: "warehouse"
+        warehouse: "SAM_DEMO_WH"
+        query_timeout: 60
+      identifier: "{database_name}.AI.MA_SIMULATION_TOOL"
   $$;
 """
     session.sql(sql).collect()
-    print("✅ Created agent: AM_executive_copilot")
+    config.log_detail("Created agent: AM_executive_copilot")
 

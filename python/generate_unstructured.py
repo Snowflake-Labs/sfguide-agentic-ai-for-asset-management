@@ -24,41 +24,50 @@ def build_all(session: Session, document_types: List[str], test_mode: bool = Fal
     
     Args:
         session: Active Snowpark session
-        document_types: List of document types to generate (or ['all'] for all types)
+        document_types: List of document types to generate (use ['all'] for all types)
         test_mode: If True, use reduced document counts for faster development
     """
-    # print("Building unstructured data...")
     
-    # Handle 'all' keyword - expand to all document types
+    # Expand 'all' to all document types
     if 'all' in document_types:
         document_types = list(config.DOCUMENT_TYPES.keys())
-        print(f"   Expanding 'all' to {len(document_types)} document types")
+        config.log_detail(f"  Expanding 'all' to {len(document_types)} document types")
     
     # Ensure database context is set
     try:
         session.sql(f"USE DATABASE {config.DATABASE['name']}").collect()
         session.sql(f"USE SCHEMA RAW").collect()
     except Exception as e:
-        print(f"WARNING: Could not set database context: {e}")
+        config.log_warning(f" Could not set database context: {e}")
     
     # Generate documents using template hydration
     for doc_type in document_types:
+        # Skip real data sources - handled by separate modules (e.g., generate_real_transcripts.py)
+        doc_config = config.DOCUMENT_TYPES.get(doc_type, {})
+        if doc_config.get('source') == 'real':
+            config.log_success(f" Skipping {doc_type} (real data source - handled separately)")
+            continue
+        
         try:
             count = hydration_engine.hydrate_documents(session, doc_type, test_mode=test_mode)
         except Exception as e:
-            print(f"ERROR: Failed to hydrate {doc_type}: {e}")
+            config.log_error(f" Failed to hydrate {doc_type}: {e}")
             # Continue with other document types
             continue
     
     # Create corpus tables for Cortex Search
     create_corpus_tables(session, document_types)
     
-    # print("Unstructured data generation complete")
 
 def create_corpus_tables(session: Session, document_types: List[str]):
     """Create normalized corpus tables for Cortex Search indexing."""
     
     for doc_type in document_types:
+        # Skip real data sources - corpus created by separate modules
+        doc_config = config.DOCUMENT_TYPES.get(doc_type, {})
+        if doc_config.get('source') == 'real':
+            continue
+        
         raw_table = f"{config.DATABASE['name']}.RAW.{config.DOCUMENT_TYPES[doc_type]['table_name']}"
         corpus_table = f"{config.DATABASE['name']}.CURATED.{config.DOCUMENT_TYPES[doc_type]['corpus_name']}"
         

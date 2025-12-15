@@ -13,19 +13,17 @@ import config
 def create_search_services(session: Session, scenarios: List[str]):
     """Create Cortex Search services for required document types."""
     
-    # Handle 'all' keyword - expand to ALL document types (not just scenario-linked ones)
+    # Expand 'all' to all scenario names
     if 'all' in scenarios:
-        # Include ALL document types defined in config, not just scenario-linked ones
-        required_doc_types = set(config.DOCUMENT_TYPES.keys())
-        print(f"   Expanding 'all' to {len(required_doc_types)} document types for search services")
-    else:
-        # Determine required document types from specific scenarios
-        required_doc_types = set()
-        for scenario in scenarios:
-            if scenario in config.SCENARIO_DATA_REQUIREMENTS:
-                required_doc_types.update(config.SCENARIO_DATA_REQUIREMENTS[scenario])
+        scenarios = list(config.SCENARIO_DATA_REQUIREMENTS.keys())
+        config.log_detail(f"  Expanding 'all' to {len(scenarios)} scenarios")
     
-    # print(f"   📑 Document types: {', '.join(required_doc_types)}")
+    # Determine required document types from scenarios
+    required_doc_types = set()
+    for scenario in scenarios:
+        if scenario in config.SCENARIO_DATA_REQUIREMENTS:
+            required_doc_types.update(config.SCENARIO_DATA_REQUIREMENTS[scenario])
+    
     
     # Group document types by search service (some services combine multiple corpus tables)
     service_to_corpus_tables = {}
@@ -44,6 +42,30 @@ def create_search_services(session: Session, scenarios: List[str]):
             # Use dedicated Cortex Search warehouse from structured config
             search_warehouse = config.WAREHOUSES['cortex_search']['name']
             target_lag = config.WAREHOUSES['cortex_search']['target_lag']
+            
+            # Special handling for SAM_COMPANY_EVENTS which has EVENT_TYPE attribute
+            if service_name == 'SAM_COMPANY_EVENTS':
+                # Company event transcripts have additional EVENT_TYPE column for filtering
+                session.sql(f"""
+                    CREATE OR REPLACE CORTEX SEARCH SERVICE {config.DATABASE['name']}.AI.{service_name}
+                        ON DOCUMENT_TEXT
+                        ATTRIBUTES DOCUMENT_TITLE, SecurityID, IssuerID, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE, EVENT_TYPE
+                        WAREHOUSE = {search_warehouse}
+                        TARGET_LAG = '{target_lag}'
+                        AS 
+                        SELECT 
+                            DOCUMENT_ID,
+                            DOCUMENT_TITLE,
+                            DOCUMENT_TEXT,
+                            SecurityID,
+                            IssuerID,
+                            DOCUMENT_TYPE,
+                            PUBLISH_DATE,
+                            LANGUAGE,
+                            EVENT_TYPE
+                        FROM {corpus_tables[0]}
+                """).collect()
+                continue
             
             # Build UNION ALL query if multiple corpus tables
             if len(corpus_tables) == 1:
@@ -84,12 +106,64 @@ def create_search_services(session: Session, scenarios: List[str]):
                     {from_clause}
             """).collect()
             
-            # print(f"   ✅ Created search service: {service_name} from {len(corpus_tables)} corpus table(s)")
             
         except Exception as e:
-            print(f"ERROR: CRITICAL FAILURE: Failed to create search service {service_name}: {e}")
-            # print(f"   This search service is required for document types using {service_name}")
+            config.log_error(f"CRITICAL: Failed to create search service {service_name}: {e}")
             raise Exception(f"Failed to create required search service {service_name}: {e}")
+    
+    # Create real SEC filing search service if real data is enabled and available
+    if config.REAL_DATA_SOURCES.get('enabled', False):
+        try:
+            create_real_sec_search_service(session)
+        except Exception as e:
+            config.log_warning(f" Could not create real SEC filing search service: {e}")
+
+
+def create_real_sec_search_service(session: Session):
+    """
+    Create Cortex Search service for real SEC filing text from SNOWFLAKE_PUBLIC_DATA_FREE.
+    
+    This provides search over authentic 10-K, 10-Q, and 8-K filing content including
+    MD&A sections, risk factors, and other key disclosures.
+    """
+    database_name = config.DATABASE['name']
+    market_data_schema = config.DATABASE['schemas']['market_data']
+    search_warehouse = config.WAREHOUSES['cortex_search']['name']
+    target_lag = config.WAREHOUSES['cortex_search']['target_lag']
+    
+    # Check if real data table exists
+    try:
+        session.sql(f"SELECT 1 FROM {database_name}.{market_data_schema}.FACT_SEC_FILING_TEXT LIMIT 1").collect()
+    except Exception:
+        config.log_warning("  FACT_SEC_FILING_TEXT not found - skipping SAM_REAL_SEC_FILINGS search service")
+        return
+    
+    config.log_detail("Creating SAM_REAL_SEC_FILINGS search service for real SEC filing text...")
+    
+    session.sql(f"""
+        CREATE OR REPLACE CORTEX SEARCH SERVICE {database_name}.AI.SAM_REAL_SEC_FILINGS
+            ON FILING_TEXT
+            ATTRIBUTES VARIABLE_NAME, CIK, ADSH, PERIOD_END_DATE
+            WAREHOUSE = {search_warehouse}
+            TARGET_LAG = '{target_lag}'
+            AS 
+            SELECT 
+                FILING_TEXT_ID as DOCUMENT_ID,
+                SEC_DOCUMENT_ID as DOCUMENT_TITLE,
+                FILING_TEXT,
+                VARIABLE_NAME,
+                CIK,
+                ADSH,
+                PERIOD_END_DATE,
+                COMPANY_ID,
+                ISSUERID
+            FROM {database_name}.{market_data_schema}.FACT_SEC_FILING_TEXT
+            WHERE FILING_TEXT IS NOT NULL 
+              AND TEXT_LENGTH > 500
+    """).collect()
+    
+    config.log_detail(" Created search service: SAM_REAL_SEC_FILINGS (REAL SEC filing text)")
+
 
 # =============================================================================
 # CUSTOM TOOLS (PDF Generation)

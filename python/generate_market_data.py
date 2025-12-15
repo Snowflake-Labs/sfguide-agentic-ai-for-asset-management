@@ -27,34 +27,752 @@ def build_all(session: Session, test_mode: bool = False):
     """Build all MARKET_DATA schema tables."""
     
     if not config.MARKET_DATA.get('enabled', True):
-        print("⏭️  MARKET_DATA schema disabled in config, skipping...")
+        config.log_warning("MARKET_DATA schema disabled in config, skipping...")
         return
     
-    print("\n" + "=" * 60)
-    print("Building MARKET_DATA Schema (External Provider Data)")
-    print("=" * 60)
+    config.log_phase("Market Data (External Provider)")
     
     database_name = config.DATABASE['name']
     schema_name = config.DATABASE['schemas']['market_data']
     
     # Create schema if not exists
     session.sql(f"CREATE SCHEMA IF NOT EXISTS {database_name}.{schema_name}").collect()
-    print(f"✅ Schema: {database_name}.{schema_name}")
     
     # Build tables in dependency order
+    config.log_step("Reference tables")
     build_reference_tables(session, test_mode)
-    build_company_master(session, test_mode)
-    build_financial_periods(session, test_mode)
-    build_financial_data(session, test_mode)
-    build_broker_analyst_data(session, test_mode)
-    build_estimate_data(session, test_mode)
     
-    # Build filing tables (S&P Capital IQ pattern)
+    config.log_step("Company master")
+    build_company_master(session, test_mode)
+    
+    config.log_step("Financial periods")
+    build_financial_periods(session, test_mode)
+    
+    # Check if real data integration is enabled
+    use_real_data = config.REAL_DATA_SOURCES.get('enabled', False)
+    
+    # Always build synthetic financial data first (required for downstream dependencies)
+    config.log_step("Financial data (synthetic)")
+    build_financial_data(session, test_mode)
+    
+    config.log_step("Filing reference tables")
     build_filing_reference_tables(session, test_mode)
+    
+    config.log_step("Filing data")
     build_filing_data(session, test_mode)
     
-    print("\n✅ MARKET_DATA schema build complete")
+    # If real data is enabled, also build supplementary real data tables
+    if use_real_data:
+        config.log_step("Real SEC financial data")
+        try:
+            build_real_financial_data(session, test_mode)
+        except Exception as e:
+            config.log_warning(f"Error building real financial data: {e}")
+        
+        config.log_step("Real stock prices")
+        try:
+            build_real_stock_prices(session, test_mode)
+        except Exception as e:
+            config.log_warning(f"Error building real stock prices: {e}")
+        
+        config.log_step("Real SEC filing text")
+        try:
+            build_real_sec_filing_text(session, test_mode)
+        except Exception as e:
+            config.log_warning(f"Error building real filing text: {e}")
+        
+        config.log_step("Real SEC financials (comprehensive)")
+        try:
+            build_real_sec_financials(session, test_mode)
+        except Exception as e:
+            config.log_warning(f"Error building real SEC financials: {e}")
+    
+    config.log_step("Broker analyst data")
+    build_broker_analyst_data(session, test_mode)
+    
+    config.log_step("Estimate data")
+    build_estimate_data(session, test_mode)
+    
+    config.log_phase_complete("Market data complete")
 
+
+# =============================================================================
+# REAL DATA INTEGRATION FUNCTIONS
+# =============================================================================
+
+def verify_real_data_access(session: Session) -> bool:
+    """
+    Verify access to the configured real data share.
+    
+    Uses REAL_DATA_SOURCES['access_probe_table_key'] to determine which table
+    to probe. This allows the demo to work with different public data shares.
+    """
+    try:
+        real_db = config.REAL_DATA_SOURCES['database']
+        real_schema = config.REAL_DATA_SOURCES['schema']
+        
+        # Get probe table from config (key into REAL_DATA_SOURCES['tables'])
+        probe_key = config.REAL_DATA_SOURCES.get('access_probe_table_key', 'sec_metrics')
+        probe_table_entry = config.REAL_DATA_SOURCES.get('tables', {}).get(probe_key, {})
+        probe_table = probe_table_entry.get('table', 'SEC_METRICS_TIMESERIES')
+        
+        # Test access to the configured probe table
+        result = session.sql(f"""
+            SELECT 1 FROM {real_db}.{real_schema}.{probe_table} LIMIT 1
+        """).collect()
+        return True
+    except Exception as e:
+        config.log_warning(f"  Cannot access {real_db}.{real_schema} (probe table: {probe_table}): {e}")
+        return False
+
+
+def build_real_financial_data(session: Session, test_mode: bool = False) -> bool:
+    """
+    Build FACT_FINANCIAL_DATA_SEC from real SEC_METRICS_TIMESERIES data.
+    
+    This replaces synthetic financial data with real SEC filing data for companies
+    that have CIK linkage in our DIM_ISSUER.
+    """
+    if not verify_real_data_access(session):
+        return False
+    
+    database_name = config.DATABASE['name']
+    schema_name = config.DATABASE['schemas']['market_data']
+    curated_schema = config.DATABASE['schemas']['curated']
+    real_db = config.REAL_DATA_SOURCES['database']
+    real_schema = config.REAL_DATA_SOURCES['schema']
+    sec_metrics_table = config.REAL_DATA_SOURCES['tables']['sec_metrics']['table']
+    
+    config.log_detail("Building FACT_FINANCIAL_DATA_SEC from real SEC data...")
+    
+    # Limit records in test mode
+    limit_clause = "LIMIT 100000" if test_mode else ""
+    
+    try:
+        # Create table with real SEC metrics linked to our companies via CIK
+        session.sql(f"""
+            CREATE OR REPLACE TABLE {database_name}.{schema_name}.FACT_FINANCIAL_DATA_SEC AS
+            WITH our_companies AS (
+                -- Get companies from DIM_COMPANY that have CIK
+                SELECT 
+                    dc.COMPANY_ID,
+                    dc.COMPANY_NAME,
+                    dc.CIK,
+                    di.IssuerID
+                FROM {database_name}.{schema_name}.DIM_COMPANY dc
+                LEFT JOIN {database_name}.{curated_schema}.DIM_ISSUER di ON dc.CIK = di.CIK
+                WHERE dc.CIK IS NOT NULL
+            ),
+            sec_data AS (
+                SELECT 
+                    smt.ADSH,
+                    smt.CIK,
+                    smt.COMPANY_NAME as SEC_COMPANY_NAME,
+                    smt.VARIABLE_NAME,
+                    smt.TAG,
+                    smt.TAG_VERSION,
+                    smt.PERIOD_START_DATE,
+                    smt.PERIOD_END_DATE,
+                    smt.FISCAL_PERIOD,
+                    smt.FISCAL_YEAR,
+                    smt.VALUE,
+                    smt.UNIT,
+                    smt.MEASURE,
+                    smt.BUSINESS_SEGMENT,
+                    smt.BUSINESS_SUBSEGMENT,
+                    smt.GEO_NAME,
+                    smt.CUSTOMER,
+                    smt.FREQUENCY
+                FROM {real_db}.{real_schema}.{sec_metrics_table} smt
+                WHERE smt.CIK IS NOT NULL
+                  AND smt.VALUE IS NOT NULL
+                  AND smt.FISCAL_YEAR >= YEAR(CURRENT_DATE()) - 5
+            )
+            SELECT 
+                ROW_NUMBER() OVER (ORDER BY oc.COMPANY_ID, sd.FISCAL_YEAR, sd.FISCAL_PERIOD, sd.VARIABLE_NAME) as FINANCIAL_DATA_ID,
+                oc.COMPANY_ID,
+                oc.IssuerID,
+                sd.ADSH,
+                sd.CIK,
+                sd.SEC_COMPANY_NAME,
+                sd.VARIABLE_NAME,
+                sd.TAG,
+                sd.TAG_VERSION,
+                sd.PERIOD_START_DATE,
+                sd.PERIOD_END_DATE,
+                sd.FISCAL_PERIOD,
+                sd.FISCAL_YEAR,
+                sd.VALUE,
+                sd.UNIT,
+                sd.MEASURE,
+                sd.BUSINESS_SEGMENT,
+                sd.BUSINESS_SUBSEGMENT,
+                sd.GEO_NAME,
+                sd.CUSTOMER,
+                sd.FREQUENCY,
+                '{sec_metrics_table}' as DATA_SOURCE,
+                CURRENT_TIMESTAMP() as LOADED_AT
+            FROM our_companies oc
+            INNER JOIN sec_data sd ON oc.CIK = sd.CIK
+            {limit_clause}
+        """).collect()
+        
+        count = session.sql(f"""
+            SELECT COUNT(*) as cnt FROM {database_name}.{schema_name}.FACT_FINANCIAL_DATA_SEC
+        """).collect()[0]['CNT']
+        
+        company_count = session.sql(f"""
+            SELECT COUNT(DISTINCT COMPANY_ID) as cnt FROM {database_name}.{schema_name}.FACT_FINANCIAL_DATA_SEC
+        """).collect()[0]['CNT']
+        
+        config.log_detail(f" FACT_FINANCIAL_DATA_SEC: {count:,} records for {company_count} companies (REAL DATA)")
+        return count > 0
+        
+    except Exception as e:
+        config.log_error(f" Error building FACT_FINANCIAL_DATA_SEC: {e}")
+        return False
+
+
+def build_real_stock_prices(session: Session, test_mode: bool = False) -> bool:
+    """
+    Build FACT_STOCK_PRICES from real STOCK_PRICE_TIMESERIES data.
+    
+    This provides real daily stock prices for securities that match our DIM_SECURITY.
+    """
+    if not verify_real_data_access(session):
+        return False
+    
+    database_name = config.DATABASE['name']
+    schema_name = config.DATABASE['schemas']['market_data']
+    curated_schema = config.DATABASE['schemas']['curated']
+    real_db = config.REAL_DATA_SOURCES['database']
+    real_schema = config.REAL_DATA_SOURCES['schema']
+    stock_prices_table = config.REAL_DATA_SOURCES['tables']['stock_prices']['table']
+    
+    config.log_detail("Building FACT_STOCK_PRICES from real Nasdaq data...")
+    
+    # Limit records in test mode
+    limit_clause = "LIMIT 500000" if test_mode else ""
+    
+    try:
+        # Create table with real stock prices linked to our securities via ticker
+        session.sql(f"""
+            CREATE OR REPLACE TABLE {database_name}.{schema_name}.FACT_STOCK_PRICES AS
+            WITH our_securities AS (
+                -- Get securities from DIM_SECURITY with tickers
+                SELECT DISTINCT
+                    ds.SecurityID,
+                    ds.Ticker,
+                    ds.Description,
+                    ds.IssuerID
+                FROM {database_name}.{curated_schema}.DIM_SECURITY ds
+                WHERE ds.Ticker IS NOT NULL
+                  AND ds.AssetClass = 'Equity'
+            ),
+            price_data AS (
+                SELECT 
+                    spt.TICKER,
+                    spt.ASSET_CLASS,
+                    spt.PRIMARY_EXCHANGE_CODE,
+                    spt.PRIMARY_EXCHANGE_NAME,
+                    spt.DATE as PRICE_DATE,
+                    spt.VARIABLE,
+                    spt.VALUE
+                FROM {real_db}.{real_schema}.{stock_prices_table} spt
+                WHERE spt.DATE >= DATEADD(year, -2, CURRENT_DATE())
+            ),
+            pivoted_prices AS (
+                -- Pivot the long format to wide format
+                -- Variable names: pre-market_open, post-market_close, all-day_high, all-day_low, nasdaq_volume
+                SELECT 
+                    TICKER,
+                    ASSET_CLASS,
+                    PRIMARY_EXCHANGE_CODE,
+                    PRIMARY_EXCHANGE_NAME,
+                    PRICE_DATE,
+                    MAX(CASE WHEN VARIABLE = 'pre-market_open' THEN VALUE END) as PRICE_OPEN,
+                    MAX(CASE WHEN VARIABLE = 'post-market_close' THEN VALUE END) as PRICE_CLOSE,
+                    MAX(CASE WHEN VARIABLE = 'all-day_high' THEN VALUE END) as PRICE_HIGH,
+                    MAX(CASE WHEN VARIABLE = 'all-day_low' THEN VALUE END) as PRICE_LOW,
+                    MAX(CASE WHEN VARIABLE = 'nasdaq_volume' THEN VALUE END) as VOLUME
+                FROM price_data
+                GROUP BY TICKER, ASSET_CLASS, PRIMARY_EXCHANGE_CODE, PRIMARY_EXCHANGE_NAME, PRICE_DATE
+            )
+            SELECT 
+                ROW_NUMBER() OVER (ORDER BY os.SecurityID, pp.PRICE_DATE) as PRICE_ID,
+                os.SecurityID,
+                os.IssuerID,
+                pp.TICKER,
+                pp.PRICE_DATE,
+                pp.PRICE_OPEN,
+                pp.PRICE_HIGH,
+                pp.PRICE_LOW,
+                pp.PRICE_CLOSE,
+                pp.VOLUME::BIGINT as VOLUME,
+                pp.ASSET_CLASS,
+                pp.PRIMARY_EXCHANGE_CODE,
+                pp.PRIMARY_EXCHANGE_NAME,
+                '{stock_prices_table}' as DATA_SOURCE,
+                CURRENT_TIMESTAMP() as LOADED_AT
+            FROM our_securities os
+            INNER JOIN pivoted_prices pp ON os.Ticker = pp.TICKER
+            WHERE pp.PRICE_CLOSE IS NOT NULL
+            {limit_clause}
+        """).collect()
+        
+        count = session.sql(f"""
+            SELECT COUNT(*) as cnt FROM {database_name}.{schema_name}.FACT_STOCK_PRICES
+        """).collect()[0]['CNT']
+        
+        security_count = session.sql(f"""
+            SELECT COUNT(DISTINCT SecurityID) as cnt FROM {database_name}.{schema_name}.FACT_STOCK_PRICES
+        """).collect()[0]['CNT']
+        
+        config.log_detail(f" FACT_STOCK_PRICES: {count:,} records for {security_count} securities (REAL DATA)")
+        return count > 0
+        
+    except Exception as e:
+        config.log_error(f" Error building FACT_STOCK_PRICES: {e}")
+        return False
+
+
+def build_real_sec_filing_text(session: Session, test_mode: bool = False) -> bool:
+    """
+    Build FACT_SEC_FILING_TEXT from real SEC_REPORT_TEXT_ATTRIBUTES data.
+    
+    This provides real SEC filing text content (MD&A, Risk Factors, etc.) for companies
+    that have CIK linkage in our DIM_ISSUER.
+    """
+    if not verify_real_data_access(session):
+        return False
+    
+    database_name = config.DATABASE['name']
+    schema_name = config.DATABASE['schemas']['market_data']
+    curated_schema = config.DATABASE['schemas']['curated']
+    real_db = config.REAL_DATA_SOURCES['database']
+    real_schema = config.REAL_DATA_SOURCES['schema']
+    sec_filing_text_table = config.REAL_DATA_SOURCES['tables']['sec_filing_text']['table']
+    
+    config.log_detail("Building FACT_SEC_FILING_TEXT from real SEC filing data...")
+    
+    # Limit records in test mode
+    limit_clause = "LIMIT 50000" if test_mode else ""
+    
+    try:
+        # Create table with real SEC filing text linked to our companies via CIK
+        session.sql(f"""
+            CREATE OR REPLACE TABLE {database_name}.{schema_name}.FACT_SEC_FILING_TEXT AS
+            WITH our_companies AS (
+                -- Get companies from DIM_COMPANY that have CIK
+                SELECT 
+                    dc.COMPANY_ID,
+                    dc.COMPANY_NAME,
+                    dc.CIK,
+                    di.IssuerID
+                FROM {database_name}.{schema_name}.DIM_COMPANY dc
+                LEFT JOIN {database_name}.{curated_schema}.DIM_ISSUER di ON dc.CIK = di.CIK
+                WHERE dc.CIK IS NOT NULL
+            ),
+            filing_text AS (
+                SELECT 
+                    srta.SEC_DOCUMENT_ID,
+                    srta.CIK,
+                    srta.ADSH,
+                    srta.VARIABLE,
+                    srta.VARIABLE_NAME,
+                    srta.PERIOD_END_DATE,
+                    srta.VALUE as FILING_TEXT,
+                    LENGTH(srta.VALUE) as TEXT_LENGTH
+                FROM {real_db}.{real_schema}.{sec_filing_text_table} srta
+                WHERE srta.CIK IS NOT NULL
+                  AND srta.VALUE IS NOT NULL
+                  AND LENGTH(srta.VALUE) > 100  -- Only meaningful text
+                  AND srta.PERIOD_END_DATE >= DATEADD(year, -3, CURRENT_DATE())
+            )
+            SELECT 
+                ROW_NUMBER() OVER (ORDER BY oc.COMPANY_ID, ft.PERIOD_END_DATE, ft.VARIABLE) as FILING_TEXT_ID,
+                oc.COMPANY_ID,
+                oc.IssuerID,
+                ft.SEC_DOCUMENT_ID,
+                ft.ADSH,
+                ft.CIK,
+                ft.VARIABLE,
+                ft.VARIABLE_NAME,
+                ft.PERIOD_END_DATE,
+                ft.FILING_TEXT,
+                ft.TEXT_LENGTH,
+                '{sec_filing_text_table}' as DATA_SOURCE,
+                CURRENT_TIMESTAMP() as LOADED_AT
+            FROM our_companies oc
+            INNER JOIN filing_text ft ON oc.CIK = ft.CIK
+            {limit_clause}
+        """).collect()
+        
+        count = session.sql(f"""
+            SELECT COUNT(*) as cnt FROM {database_name}.{schema_name}.FACT_SEC_FILING_TEXT
+        """).collect()[0]['CNT']
+        
+        company_count = session.sql(f"""
+            SELECT COUNT(DISTINCT COMPANY_ID) as cnt FROM {database_name}.{schema_name}.FACT_SEC_FILING_TEXT
+        """).collect()[0]['CNT']
+        
+        config.log_detail(f" FACT_SEC_FILING_TEXT: {count:,} records for {company_count} companies (REAL DATA)")
+        return count > 0
+        
+    except Exception as e:
+        config.log_error(f" Error building FACT_SEC_FILING_TEXT: {e}")
+        return False
+
+
+def build_real_segment_financials(session: Session, test_mode: bool = False) -> bool:
+    """
+    Build FACT_SEGMENT_FINANCIALS_SEC from real SEC segment data.
+    
+    This provides detailed segment-level financial data from SEC filings.
+    """
+    if not verify_real_data_access(session):
+        return False
+    
+    database_name = config.DATABASE['name']
+    schema_name = config.DATABASE['schemas']['market_data']
+    curated_schema = config.DATABASE['schemas']['curated']
+    real_db = config.REAL_DATA_SOURCES['database']
+    real_schema = config.REAL_DATA_SOURCES['schema']
+    sec_metrics_table = config.REAL_DATA_SOURCES['tables']['sec_metrics']['table']
+    
+    config.log_detail("Building FACT_SEGMENT_FINANCIALS_SEC from real SEC segment data...")
+    
+    # Limit records in test mode
+    limit_clause = "LIMIT 100000" if test_mode else ""
+    
+    try:
+        # Create table with real segment-level financial data
+        session.sql(f"""
+            CREATE OR REPLACE TABLE {database_name}.{schema_name}.FACT_SEGMENT_FINANCIALS_SEC AS
+            WITH our_companies AS (
+                SELECT 
+                    dc.COMPANY_ID,
+                    dc.COMPANY_NAME,
+                    dc.CIK,
+                    di.IssuerID
+                FROM {database_name}.{schema_name}.DIM_COMPANY dc
+                LEFT JOIN {database_name}.{curated_schema}.DIM_ISSUER di ON dc.CIK = di.CIK
+                WHERE dc.CIK IS NOT NULL
+            ),
+            segment_data AS (
+                SELECT 
+                    smt.ADSH,
+                    smt.CIK,
+                    smt.COMPANY_NAME as SEC_COMPANY_NAME,
+                    smt.VARIABLE_NAME,
+                    smt.PERIOD_END_DATE,
+                    smt.FISCAL_PERIOD,
+                    smt.FISCAL_YEAR,
+                    smt.VALUE,
+                    smt.UNIT,
+                    smt.BUSINESS_SEGMENT,
+                    smt.BUSINESS_SUBSEGMENT,
+                    smt.GEO_NAME,
+                    smt.GEO_ID
+                FROM {real_db}.{real_schema}.{sec_metrics_table} smt
+                WHERE smt.CIK IS NOT NULL
+                  AND smt.VALUE IS NOT NULL
+                  AND smt.FISCAL_YEAR >= YEAR(CURRENT_DATE()) - 5
+                  AND (smt.BUSINESS_SEGMENT IS NOT NULL OR smt.GEO_NAME IS NOT NULL)
+            )
+            SELECT 
+                ROW_NUMBER() OVER (ORDER BY oc.COMPANY_ID, sd.FISCAL_YEAR, sd.FISCAL_PERIOD, sd.BUSINESS_SEGMENT) as SEGMENT_DATA_ID,
+                oc.COMPANY_ID,
+                oc.IssuerID,
+                sd.ADSH,
+                sd.CIK,
+                sd.SEC_COMPANY_NAME,
+                sd.VARIABLE_NAME,
+                sd.PERIOD_END_DATE,
+                sd.FISCAL_PERIOD,
+                sd.FISCAL_YEAR,
+                sd.VALUE,
+                sd.UNIT,
+                sd.BUSINESS_SEGMENT,
+                sd.BUSINESS_SUBSEGMENT,
+                sd.GEO_NAME,
+                sd.GEO_ID,
+                '{sec_metrics_table}' as DATA_SOURCE,
+                CURRENT_TIMESTAMP() as LOADED_AT
+            FROM our_companies oc
+            INNER JOIN segment_data sd ON oc.CIK = sd.CIK
+            {limit_clause}
+        """).collect()
+        
+        count = session.sql(f"""
+            SELECT COUNT(*) as cnt FROM {database_name}.{schema_name}.FACT_SEGMENT_FINANCIALS_SEC
+        """).collect()[0]['CNT']
+        
+        config.log_detail(f" FACT_SEGMENT_FINANCIALS_SEC: {count:,} segment records (REAL DATA)")
+        return count > 0
+        
+    except Exception as e:
+        config.log_error(f" Error building FACT_SEGMENT_FINANCIALS_SEC: {e}")
+        return False
+
+
+def build_real_sec_financials(session: Session, test_mode: bool = False) -> bool:
+    """
+    Build FACT_SEC_FINANCIALS from real SEC_CORPORATE_REPORT_ATTRIBUTES data.
+    
+    This provides comprehensive financial statement data (Income Statement, Balance Sheet,
+    Cash Flow) with standardized metrics pivoted from XBRL tags.
+    
+    Source: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.SEC_CORPORATE_REPORT_ATTRIBUTES
+    - 569M records across 17,258 companies
+    - Full financial statements with XBRL tags
+    """
+    if not verify_real_data_access(session):
+        return False
+    
+    database_name = config.DATABASE['name']
+    schema_name = config.DATABASE['schemas']['market_data']
+    curated_schema = config.DATABASE['schemas']['curated']
+    real_db = config.REAL_DATA_SOURCES['database']
+    real_schema = config.REAL_DATA_SOURCES['schema']
+    sec_financials_table = config.REAL_DATA_SOURCES['tables']['sec_corporate_financials']['table']
+    
+    config.log_detail("Building FACT_SEC_FINANCIALS from real SEC XBRL data...")
+    
+    # Limit records in test mode
+    limit_clause = "LIMIT 500000" if test_mode else ""
+    
+    try:
+        # Create table with real comprehensive financial data
+        # Pivot key XBRL tags into standardized columns
+        session.sql(f"""
+            CREATE OR REPLACE TABLE {database_name}.{schema_name}.FACT_SEC_FINANCIALS AS
+            WITH our_companies AS (
+                -- Get companies from DIM_COMPANY that have CIK
+                SELECT 
+                    dc.COMPANY_ID,
+                    dc.COMPANY_NAME,
+                    dc.CIK,
+                    di.IssuerID
+                FROM {database_name}.{schema_name}.DIM_COMPANY dc
+                LEFT JOIN {database_name}.{curated_schema}.DIM_ISSUER di ON dc.CIK = di.CIK
+                WHERE dc.CIK IS NOT NULL
+            ),
+            -- Filter to relevant tags and recent data
+            -- Note: Many companies have STATEMENT=None, so we filter by TAG names instead
+            sec_data AS (
+                SELECT 
+                    scra.CIK,
+                    scra.ADSH,
+                    scra.STATEMENT,
+                    scra.TAG,
+                    scra.MEASURE_DESCRIPTION,
+                    scra.PERIOD_END_DATE,
+                    scra.PERIOD_START_DATE,
+                    scra.COVERED_QTRS,
+                    TRY_CAST(scra.VALUE AS FLOAT) as VALUE_NUM,
+                    scra.UNIT
+                FROM {real_db}.{real_schema}.{sec_financials_table} scra
+                WHERE scra.CIK IS NOT NULL
+                  AND scra.PERIOD_END_DATE >= DATEADD(year, -5, CURRENT_DATE())
+                  AND scra.VALUE IS NOT NULL
+                  AND TRY_CAST(scra.VALUE AS FLOAT) IS NOT NULL
+                  -- Filter to key financial tags we're interested in
+                  AND scra.TAG IN (
+                      -- Income Statement tags
+                      'Revenues', 'RevenueFromContractWithCustomerExcludingAssessedTax', 'Revenue', 'SalesRevenueNet',
+                      'NetIncomeLoss', 'ProfitLoss',
+                      'GrossProfit',
+                      'OperatingIncomeLoss', 'OperatingIncome',
+                      'EarningsPerShareBasic', 'EarningsPerShareDiluted',
+                      'ResearchAndDevelopmentExpense',
+                      'InterestExpense',
+                      'IncomeTaxExpenseBenefit',
+                      -- Balance Sheet tags
+                      'Assets',
+                      'Liabilities',
+                      'StockholdersEquity', 'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest', 'Equity',
+                      'CashAndCashEquivalentsAtCarryingValue',
+                      'LongTermDebt', 'LongTermDebtNoncurrent',
+                      'Goodwill',
+                      'PropertyPlantAndEquipmentNet', 'PropertyPlantAndEquipment',
+                      'AssetsCurrent',
+                      'LiabilitiesCurrent',
+                      'RetainedEarningsAccumulatedDeficit',
+                      -- Cash Flow tags
+                      'NetCashProvidedByUsedInOperatingActivities',
+                      'NetCashProvidedByUsedInInvestingActivities',
+                      'NetCashProvidedByUsedInFinancingActivities',
+                      'PaymentsToAcquirePropertyPlantAndEquipment',
+                      'DepreciationDepletionAndAmortization', 'DepreciationAndAmortization',
+                      'ShareBasedCompensation'
+                  )
+            ),
+            -- Aggregate by company/period/statement to get one row per filing period
+            pivoted_data AS (
+                SELECT 
+                    sd.CIK,
+                    sd.ADSH,
+                    sd.PERIOD_END_DATE,
+                    sd.PERIOD_START_DATE,
+                    sd.COVERED_QTRS,
+                    -- Derive fiscal period from covered quarters
+                    CASE 
+                        WHEN sd.COVERED_QTRS = 4 THEN 'FY'
+                        WHEN sd.COVERED_QTRS = 1 THEN 'Q' || QUARTER(sd.PERIOD_END_DATE)
+                        ELSE 'Q' || sd.COVERED_QTRS
+                    END as FISCAL_PERIOD,
+                    YEAR(sd.PERIOD_END_DATE) as FISCAL_YEAR,
+                    -- Currency - use most common UNIT for this filing (normalized to uppercase)
+                    MODE(UPPER(sd.UNIT)) as CURRENCY,
+                    
+                    -- Income Statement metrics (TAG-based, works with STATEMENT=None)
+                    MAX(CASE WHEN sd.TAG IN ('Revenues', 'RevenueFromContractWithCustomerExcludingAssessedTax', 'Revenue', 'SalesRevenueNet') 
+                             THEN sd.VALUE_NUM END) as REVENUE,
+                    MAX(CASE WHEN sd.TAG IN ('NetIncomeLoss', 'ProfitLoss') 
+                             THEN sd.VALUE_NUM END) as NET_INCOME,
+                    MAX(CASE WHEN sd.TAG = 'GrossProfit' 
+                             THEN sd.VALUE_NUM END) as GROSS_PROFIT,
+                    MAX(CASE WHEN sd.TAG IN ('OperatingIncomeLoss', 'OperatingIncome') 
+                             THEN sd.VALUE_NUM END) as OPERATING_INCOME,
+                    MAX(CASE WHEN sd.TAG = 'EarningsPerShareBasic' 
+                             THEN sd.VALUE_NUM END) as EPS_BASIC,
+                    MAX(CASE WHEN sd.TAG = 'EarningsPerShareDiluted' 
+                             THEN sd.VALUE_NUM END) as EPS_DILUTED,
+                    MAX(CASE WHEN sd.TAG = 'ResearchAndDevelopmentExpense' 
+                             THEN sd.VALUE_NUM END) as RD_EXPENSE,
+                    MAX(CASE WHEN sd.TAG = 'InterestExpense' 
+                             THEN sd.VALUE_NUM END) as INTEREST_EXPENSE,
+                    MAX(CASE WHEN sd.TAG = 'IncomeTaxExpenseBenefit' 
+                             THEN sd.VALUE_NUM END) as INCOME_TAX_EXPENSE,
+                    
+                    -- Balance Sheet metrics
+                    MAX(CASE WHEN sd.TAG = 'Assets' 
+                             THEN sd.VALUE_NUM END) as TOTAL_ASSETS,
+                    MAX(CASE WHEN sd.TAG = 'Liabilities' 
+                             THEN sd.VALUE_NUM END) as TOTAL_LIABILITIES,
+                    MAX(CASE WHEN sd.TAG IN ('StockholdersEquity', 'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest', 'Equity') 
+                             THEN sd.VALUE_NUM END) as TOTAL_EQUITY,
+                    MAX(CASE WHEN sd.TAG = 'CashAndCashEquivalentsAtCarryingValue' 
+                             THEN sd.VALUE_NUM END) as CASH_AND_EQUIVALENTS,
+                    MAX(CASE WHEN sd.TAG IN ('LongTermDebt', 'LongTermDebtNoncurrent') 
+                             THEN sd.VALUE_NUM END) as LONG_TERM_DEBT,
+                    MAX(CASE WHEN sd.TAG = 'Goodwill' 
+                             THEN sd.VALUE_NUM END) as GOODWILL,
+                    MAX(CASE WHEN sd.TAG IN ('PropertyPlantAndEquipmentNet', 'PropertyPlantAndEquipment') 
+                             THEN sd.VALUE_NUM END) as PP_AND_E,
+                    MAX(CASE WHEN sd.TAG = 'AssetsCurrent' 
+                             THEN sd.VALUE_NUM END) as CURRENT_ASSETS,
+                    MAX(CASE WHEN sd.TAG = 'LiabilitiesCurrent' 
+                             THEN sd.VALUE_NUM END) as CURRENT_LIABILITIES,
+                    MAX(CASE WHEN sd.TAG = 'RetainedEarningsAccumulatedDeficit' 
+                             THEN sd.VALUE_NUM END) as RETAINED_EARNINGS,
+                    
+                    -- Cash Flow metrics
+                    MAX(CASE WHEN sd.TAG = 'NetCashProvidedByUsedInOperatingActivities' 
+                             THEN sd.VALUE_NUM END) as OPERATING_CASH_FLOW,
+                    MAX(CASE WHEN sd.TAG = 'NetCashProvidedByUsedInInvestingActivities' 
+                             THEN sd.VALUE_NUM END) as INVESTING_CASH_FLOW,
+                    MAX(CASE WHEN sd.TAG = 'NetCashProvidedByUsedInFinancingActivities' 
+                             THEN sd.VALUE_NUM END) as FINANCING_CASH_FLOW,
+                    MAX(CASE WHEN sd.TAG = 'PaymentsToAcquirePropertyPlantAndEquipment' 
+                             THEN sd.VALUE_NUM END) as CAPEX,
+                    MAX(CASE WHEN sd.TAG IN ('DepreciationDepletionAndAmortization', 'DepreciationAndAmortization') 
+                             THEN sd.VALUE_NUM END) as DEPRECIATION_AMORTIZATION,
+                    MAX(CASE WHEN sd.TAG = 'ShareBasedCompensation' 
+                             THEN sd.VALUE_NUM END) as STOCK_BASED_COMP
+                    
+                FROM sec_data sd
+                GROUP BY sd.CIK, sd.ADSH, sd.PERIOD_END_DATE, sd.PERIOD_START_DATE, sd.COVERED_QTRS
+            )
+            SELECT 
+                ROW_NUMBER() OVER (ORDER BY oc.COMPANY_ID, pd.FISCAL_YEAR DESC, pd.FISCAL_PERIOD) as FINANCIAL_ID,
+                oc.COMPANY_ID,
+                oc.IssuerID,
+                oc.COMPANY_NAME,
+                pd.CIK,
+                pd.ADSH,
+                pd.PERIOD_END_DATE,
+                pd.PERIOD_START_DATE,
+                pd.FISCAL_PERIOD,
+                pd.FISCAL_YEAR,
+                pd.COVERED_QTRS,
+                pd.CURRENCY,
+                
+                -- Income Statement
+                pd.REVENUE,
+                pd.NET_INCOME,
+                pd.GROSS_PROFIT,
+                pd.OPERATING_INCOME,
+                pd.EPS_BASIC,
+                pd.EPS_DILUTED,
+                pd.RD_EXPENSE,
+                pd.INTEREST_EXPENSE,
+                pd.INCOME_TAX_EXPENSE,
+                
+                -- Balance Sheet
+                pd.TOTAL_ASSETS,
+                pd.TOTAL_LIABILITIES,
+                pd.TOTAL_EQUITY,
+                pd.CASH_AND_EQUIVALENTS,
+                pd.LONG_TERM_DEBT,
+                pd.GOODWILL,
+                pd.PP_AND_E,
+                pd.CURRENT_ASSETS,
+                pd.CURRENT_LIABILITIES,
+                pd.RETAINED_EARNINGS,
+                
+                -- Cash Flow
+                pd.OPERATING_CASH_FLOW,
+                pd.INVESTING_CASH_FLOW,
+                pd.FINANCING_CASH_FLOW,
+                pd.CAPEX,
+                pd.DEPRECIATION_AMORTIZATION,
+                pd.STOCK_BASED_COMP,
+                
+                -- Calculated metrics
+                COALESCE(pd.OPERATING_CASH_FLOW, 0) - ABS(COALESCE(pd.CAPEX, 0)) as FREE_CASH_FLOW,
+                CASE WHEN pd.REVENUE > 0 THEN pd.GROSS_PROFIT / pd.REVENUE * 100 END as GROSS_MARGIN_PCT,
+                CASE WHEN pd.REVENUE > 0 THEN pd.OPERATING_INCOME / pd.REVENUE * 100 END as OPERATING_MARGIN_PCT,
+                CASE WHEN pd.REVENUE > 0 THEN pd.NET_INCOME / pd.REVENUE * 100 END as NET_MARGIN_PCT,
+                CASE WHEN pd.TOTAL_EQUITY > 0 THEN pd.NET_INCOME / pd.TOTAL_EQUITY * 100 END as ROE_PCT,
+                CASE WHEN pd.TOTAL_ASSETS > 0 THEN pd.NET_INCOME / pd.TOTAL_ASSETS * 100 END as ROA_PCT,
+                CASE WHEN pd.TOTAL_EQUITY > 0 THEN pd.LONG_TERM_DEBT / pd.TOTAL_EQUITY END as DEBT_TO_EQUITY,
+                CASE WHEN pd.CURRENT_LIABILITIES > 0 THEN pd.CURRENT_ASSETS / pd.CURRENT_LIABILITIES END as CURRENT_RATIO,
+                
+                -- Metadata
+                '{sec_financials_table}' as DATA_SOURCE,
+                CURRENT_TIMESTAMP() as LOADED_AT
+            FROM our_companies oc
+            INNER JOIN pivoted_data pd ON oc.CIK = pd.CIK
+            WHERE pd.REVENUE IS NOT NULL OR pd.TOTAL_ASSETS IS NOT NULL OR pd.OPERATING_CASH_FLOW IS NOT NULL
+            {limit_clause}
+        """).collect()
+        
+        count = session.sql(f"""
+            SELECT COUNT(*) as cnt FROM {database_name}.{schema_name}.FACT_SEC_FINANCIALS
+        """).collect()[0]['CNT']
+        
+        company_count = session.sql(f"""
+            SELECT COUNT(DISTINCT COMPANY_ID) as cnt FROM {database_name}.{schema_name}.FACT_SEC_FINANCIALS
+        """).collect()[0]['CNT']
+        
+        period_count = session.sql(f"""
+            SELECT COUNT(DISTINCT CONCAT(CIK, '-', FISCAL_YEAR, '-', FISCAL_PERIOD)) as cnt 
+            FROM {database_name}.{schema_name}.FACT_SEC_FINANCIALS
+        """).collect()[0]['CNT']
+        
+        config.log_detail(f" FACT_SEC_FINANCIALS: {count:,} records for {company_count} companies, {period_count} fiscal periods (REAL DATA)")
+        return count > 0
+        
+    except Exception as e:
+        config.log_error(f" Error building FACT_SEC_FINANCIALS: {e}")
+        return False
+
+
+# =============================================================================
+# SYNTHETIC DATA GENERATION FUNCTIONS
+# =============================================================================
 
 def build_reference_tables(session: Session, test_mode: bool = False):
     """Build reference/lookup tables."""
@@ -63,7 +781,7 @@ def build_reference_tables(session: Session, test_mode: bool = False):
     schema_name = config.DATABASE['schemas']['market_data']
     
     # REF_DATA_ITEM - Financial data item definitions
-    print("  Building REF_DATA_ITEM...")
+    config.log_detail("Building REF_DATA_ITEM...")
     
     data_items = []
     for key, item in config.FINANCIAL_DATA_ITEMS.items():
@@ -86,10 +804,10 @@ def build_reference_tables(session: Session, test_mode: bool = False):
     
     df = session.create_dataframe(data_items)
     df.write.mode("overwrite").save_as_table(f"{database_name}.{schema_name}.REF_DATA_ITEM")
-    print(f"    ✅ REF_DATA_ITEM: {len(data_items)} items")
+    config.log_detail(f" REF_DATA_ITEM: {len(data_items)} items")
     
     # REF_EXCHANGE - Exchange reference
-    print("  Building REF_EXCHANGE...")
+    config.log_detail("Building REF_EXCHANGE...")
     exchanges = [
         {'EXCHANGE_ID': 1, 'EXCHANGE_CODE': 'NYSE', 'EXCHANGE_NAME': 'New York Stock Exchange', 'COUNTRY': 'US'},
         {'EXCHANGE_ID': 2, 'EXCHANGE_CODE': 'NASDAQ', 'EXCHANGE_NAME': 'NASDAQ Stock Market', 'COUNTRY': 'US'},
@@ -102,10 +820,10 @@ def build_reference_tables(session: Session, test_mode: bool = False):
     ]
     df = session.create_dataframe(exchanges)
     df.write.mode("overwrite").save_as_table(f"{database_name}.{schema_name}.REF_EXCHANGE")
-    print(f"    ✅ REF_EXCHANGE: {len(exchanges)} exchanges")
+    config.log_detail(f" REF_EXCHANGE: {len(exchanges)} exchanges")
     
     # REF_CURRENCY
-    print("  Building REF_CURRENCY...")
+    config.log_detail("Building REF_CURRENCY...")
     currencies = [
         {'CURRENCY_ID': 1, 'CURRENCY_CODE': 'USD', 'CURRENCY_NAME': 'US Dollar'},
         {'CURRENCY_ID': 2, 'CURRENCY_CODE': 'EUR', 'CURRENCY_NAME': 'Euro'},
@@ -118,7 +836,7 @@ def build_reference_tables(session: Session, test_mode: bool = False):
     ]
     df = session.create_dataframe(currencies)
     df.write.mode("overwrite").save_as_table(f"{database_name}.{schema_name}.REF_CURRENCY")
-    print(f"    ✅ REF_CURRENCY: {len(currencies)} currencies")
+    config.log_detail(f" REF_CURRENCY: {len(currencies)} currencies")
 
 
 def build_company_master(session: Session, test_mode: bool = False):
@@ -128,7 +846,7 @@ def build_company_master(session: Session, test_mode: bool = False):
     curated_schema = config.DATABASE['schemas']['curated']
     market_data_schema = config.DATABASE['schemas']['market_data']
     
-    print("  Building DIM_COMPANY from DIM_ISSUER...")
+    config.log_detail("Building DIM_COMPANY from DIM_ISSUER...")
     
     # Get company limit based on test mode
     company_limit = 100 if test_mode else 500
@@ -180,10 +898,10 @@ def build_company_master(session: Session, test_mode: bool = False):
     """).collect()
     
     count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.{market_data_schema}.DIM_COMPANY").collect()[0]['CNT']
-    print(f"    ✅ DIM_COMPANY: {count} companies")
+    config.log_detail(f" DIM_COMPANY: {count} companies")
     
     # DIM_BROKER - Broker firms
-    print("  Building DIM_BROKER...")
+    config.log_detail("Building DIM_BROKER...")
     brokers = []
     for i, broker_name in enumerate(config.BROKER_NAMES, 1):
         brokers.append({
@@ -195,7 +913,7 @@ def build_company_master(session: Session, test_mode: bool = False):
     
     df = session.create_dataframe(brokers)
     df.write.mode("overwrite").save_as_table(f"{database_name}.{market_data_schema}.DIM_BROKER")
-    print(f"    ✅ DIM_BROKER: {len(brokers)} brokers")
+    config.log_detail(f" DIM_BROKER: {len(brokers)} brokers")
 
 
 def build_financial_periods(session: Session, test_mode: bool = False):
@@ -204,7 +922,7 @@ def build_financial_periods(session: Session, test_mode: bool = False):
     database_name = config.DATABASE['name']
     market_data_schema = config.DATABASE['schemas']['market_data']
     
-    print("  Building FACT_FINANCIAL_PERIOD...")
+    config.log_detail("Building FACT_FINANCIAL_PERIOD...")
     
     years_of_history = config.MARKET_DATA['generation']['years_of_history']
     if test_mode:
@@ -256,7 +974,7 @@ def build_financial_periods(session: Session, test_mode: bool = False):
     """).collect()
     
     count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.{market_data_schema}.FACT_FINANCIAL_PERIOD").collect()[0]['CNT']
-    print(f"    ✅ FACT_FINANCIAL_PERIOD: {count} periods")
+    config.log_detail(f" FACT_FINANCIAL_PERIOD: {count} periods")
 
 
 def build_financial_data(session: Session, test_mode: bool = False):
@@ -265,7 +983,7 @@ def build_financial_data(session: Session, test_mode: bool = False):
     database_name = config.DATABASE['name']
     market_data_schema = config.DATABASE['schemas']['market_data']
     
-    print("  Building FACT_FINANCIAL_DATA...")
+    config.log_detail("Building FACT_FINANCIAL_DATA...")
     
     # Generate financial data for each company/period combination
     # Using SQL for efficient generation with realistic patterns
@@ -390,10 +1108,49 @@ def build_financial_data(session: Session, test_mode: bool = False):
             'USD',
             CURRENT_TIMESTAMP()
         FROM calculated_financials
+        
+        UNION ALL
+        
+        -- TAM (Total Addressable Market) - Investment Memo Metric
+        SELECT 
+            ROW_NUMBER() OVER (ORDER BY PERIOD_ID, COMPANY_ID) + 6000000,
+            PERIOD_ID,
+            COMPANY_ID,
+            1011 as DATA_ITEM_ID,  -- TAM
+            ROUND(REVENUE * (15 + MOD(ABS(HASH(COMPANY_ID * 1003)), 20)), 0),  -- TAM is 15-35x revenue
+            'USD',
+            CURRENT_TIMESTAMP()
+        FROM calculated_financials
+        
+        UNION ALL
+        
+        -- Customer Count - Investment Memo Metric
+        SELECT 
+            ROW_NUMBER() OVER (ORDER BY PERIOD_ID, COMPANY_ID) + 7000000,
+            PERIOD_ID,
+            COMPANY_ID,
+            1012 as DATA_ITEM_ID,  -- CUSTOMER_COUNT
+            ROUND(POWER(10, 2 + MOD(ABS(HASH(COMPANY_ID * 1004)), 4)) * (1 + FISCAL_QUARTER * 0.02), 0),  -- 100 to 100K customers with growth
+            NULL,  -- No currency for count
+            CURRENT_TIMESTAMP()
+        FROM calculated_financials
+        
+        UNION ALL
+        
+        -- NRR (Net Revenue Retention %) - Investment Memo Metric
+        SELECT 
+            ROW_NUMBER() OVER (ORDER BY PERIOD_ID, COMPANY_ID) + 8000000,
+            PERIOD_ID,
+            COMPANY_ID,
+            4009 as DATA_ITEM_ID,  -- NRR
+            100 + MOD(ABS(HASH(PERIOD_ID * 1005 + COMPANY_ID)), 35),  -- NRR 100-135%
+            'PCT',
+            CURRENT_TIMESTAMP()
+        FROM calculated_financials
     """).collect()
     
     count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.{market_data_schema}.FACT_FINANCIAL_DATA").collect()[0]['CNT']
-    print(f"    ✅ FACT_FINANCIAL_DATA: {count} data points")
+    config.log_detail(f" FACT_FINANCIAL_DATA: {count} data points")
 
 
 def build_broker_analyst_data(session: Session, test_mode: bool = False):
@@ -402,7 +1159,7 @@ def build_broker_analyst_data(session: Session, test_mode: bool = False):
     database_name = config.DATABASE['name']
     market_data_schema = config.DATABASE['schemas']['market_data']
     
-    print("  Building DIM_ANALYST and FACT_ANALYST_COVERAGE...")
+    config.log_detail("Building DIM_ANALYST and FACT_ANALYST_COVERAGE...")
     
     # Generate analysts (multiple per broker)
     session.sql(f"""
@@ -453,7 +1210,7 @@ def build_broker_analyst_data(session: Session, test_mode: bool = False):
     """).collect()
     
     analyst_count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.{market_data_schema}.DIM_ANALYST").collect()[0]['CNT']
-    print(f"    ✅ DIM_ANALYST: {analyst_count} analysts")
+    config.log_detail(f" DIM_ANALYST: {analyst_count} analysts")
     
     # Generate analyst coverage (which analysts cover which companies)
     min_brokers, max_brokers = config.MARKET_DATA['generation']['brokers_per_company']
@@ -485,7 +1242,7 @@ def build_broker_analyst_data(session: Session, test_mode: bool = False):
     """).collect()
     
     coverage_count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.{market_data_schema}.FACT_ANALYST_COVERAGE").collect()[0]['CNT']
-    print(f"    ✅ FACT_ANALYST_COVERAGE: {coverage_count} coverage records")
+    config.log_detail(f" FACT_ANALYST_COVERAGE: {coverage_count} coverage records")
 
 
 def build_estimate_data(session: Session, test_mode: bool = False):
@@ -494,7 +1251,7 @@ def build_estimate_data(session: Session, test_mode: bool = False):
     database_name = config.DATABASE['name']
     market_data_schema = config.DATABASE['schemas']['market_data']
     
-    print("  Building FACT_ESTIMATE_CONSENSUS...")
+    config.log_detail("Building FACT_ESTIMATE_CONSENSUS...")
     
     forward_years = config.MARKET_DATA['generation']['estimates_forward_years']
     if test_mode:
@@ -521,7 +1278,7 @@ def build_estimate_data(session: Session, test_mode: bool = False):
                 ROW_NUMBER() OVER (PARTITION BY fd.COMPANY_ID, fd.DATA_ITEM_ID ORDER BY fp.FISCAL_YEAR DESC, fp.FISCAL_QUARTER DESC) as RN
             FROM {database_name}.{market_data_schema}.FACT_FINANCIAL_DATA fd
             JOIN {database_name}.{market_data_schema}.FACT_FINANCIAL_PERIOD fp ON fd.PERIOD_ID = fp.PERIOD_ID
-            WHERE fd.DATA_ITEM_ID IN (1001, 1005, 1008)  -- Revenue, Net Income, EBITDA
+            WHERE fd.DATA_ITEM_ID IN (1001, 1005, 1008, 1011, 1012, 4009)  -- Revenue, Net Income, EBITDA, TAM, Customer Count, NRR
         ),
         base_estimates AS (
             SELECT 
@@ -556,10 +1313,10 @@ def build_estimate_data(session: Session, test_mode: bool = False):
     """).collect()
     
     consensus_count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.{market_data_schema}.FACT_ESTIMATE_CONSENSUS").collect()[0]['CNT']
-    print(f"    ✅ FACT_ESTIMATE_CONSENSUS: {consensus_count} consensus records")
+    config.log_detail(f" FACT_ESTIMATE_CONSENSUS: {consensus_count} consensus records")
     
     # Generate price targets and ratings
-    print("  Building FACT_ESTIMATE_DATA (price targets & ratings)...")
+    config.log_detail("Building FACT_ESTIMATE_DATA (price targets & ratings)...")
     
     session.sql(f"""
         CREATE OR REPLACE TABLE {database_name}.{market_data_schema}.FACT_ESTIMATE_DATA AS
@@ -611,7 +1368,7 @@ def build_estimate_data(session: Session, test_mode: bool = False):
     """).collect()
     
     estimate_count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.{market_data_schema}.FACT_ESTIMATE_DATA").collect()[0]['CNT']
-    print(f"    ✅ FACT_ESTIMATE_DATA: {estimate_count} estimate records")
+    config.log_detail(f" FACT_ESTIMATE_DATA: {estimate_count} estimate records")
 
 
 def build_filing_reference_tables(session: Session, test_mode: bool = False):
@@ -620,10 +1377,10 @@ def build_filing_reference_tables(session: Session, test_mode: bool = False):
     database_name = config.DATABASE['name']
     schema_name = config.DATABASE['schemas']['market_data']
     
-    print("  Building Filing Reference Tables...")
+    config.log_detail("Building Filing Reference Tables...")
     
     # REF_FILING_TYPE - Filing type definitions
-    print("    Building REF_FILING_TYPE...")
+    config.log_detail("Building REF_FILING_TYPE...")
     filing_types = []
     for ft in config.FILING_TYPES:
         filing_types.append({
@@ -636,10 +1393,10 @@ def build_filing_reference_tables(session: Session, test_mode: bool = False):
     
     df = session.create_dataframe(filing_types)
     df.write.mode("overwrite").save_as_table(f"{database_name}.{schema_name}.REF_FILING_TYPE")
-    print(f"      ✅ REF_FILING_TYPE: {len(filing_types)} types")
+    config.log_detail(f" REF_FILING_TYPE: {len(filing_types)} types")
     
     # REF_FILING_SOURCE - Filing source definitions
-    print("    Building REF_FILING_SOURCE...")
+    config.log_detail("Building REF_FILING_SOURCE...")
     filing_sources = []
     for fs in config.FILING_SOURCES:
         filing_sources.append({
@@ -650,10 +1407,10 @@ def build_filing_reference_tables(session: Session, test_mode: bool = False):
     
     df = session.create_dataframe(filing_sources)
     df.write.mode("overwrite").save_as_table(f"{database_name}.{schema_name}.REF_FILING_SOURCE")
-    print(f"      ✅ REF_FILING_SOURCE: {len(filing_sources)} sources")
+    config.log_detail(f" REF_FILING_SOURCE: {len(filing_sources)} sources")
     
     # REF_FILING_LANGUAGE - Language definitions
-    print("    Building REF_FILING_LANGUAGE...")
+    config.log_detail("Building REF_FILING_LANGUAGE...")
     filing_languages = []
     for fl in config.FILING_LANGUAGES:
         filing_languages.append({
@@ -664,10 +1421,10 @@ def build_filing_reference_tables(session: Session, test_mode: bool = False):
     
     df = session.create_dataframe(filing_languages)
     df.write.mode("overwrite").save_as_table(f"{database_name}.{schema_name}.REF_FILING_LANGUAGE")
-    print(f"      ✅ REF_FILING_LANGUAGE: {len(filing_languages)} languages")
+    config.log_detail(f" REF_FILING_LANGUAGE: {len(filing_languages)} languages")
     
     # REF_FILING_INSTITUTION_REL_TYPE - Institution relationship types
-    print("    Building REF_FILING_INSTITUTION_REL_TYPE...")
+    config.log_detail("Building REF_FILING_INSTITUTION_REL_TYPE...")
     rel_types = []
     for rt in config.FILING_INSTITUTION_REL_TYPES:
         rel_types.append({
@@ -678,7 +1435,7 @@ def build_filing_reference_tables(session: Session, test_mode: bool = False):
     
     df = session.create_dataframe(rel_types)
     df.write.mode("overwrite").save_as_table(f"{database_name}.{schema_name}.REF_FILING_INSTITUTION_REL_TYPE")
-    print(f"      ✅ REF_FILING_INSTITUTION_REL_TYPE: {len(rel_types)} types")
+    config.log_detail(f" REF_FILING_INSTITUTION_REL_TYPE: {len(rel_types)} types")
 
 
 def build_filing_data(session: Session, test_mode: bool = False):
@@ -692,10 +1449,10 @@ def build_filing_data(session: Session, test_mode: bool = False):
     if test_mode:
         years_of_history = 2
     
-    print("  Building Filing Data Tables...")
+    config.log_detail("Building Filing Data Tables...")
     
     # FACT_FILING_REF - Master filing reference (one row per filing)
-    print("    Building FACT_FILING_REF...")
+    config.log_detail("Building FACT_FILING_REF...")
     
     session.sql(f"""
         CREATE OR REPLACE TABLE {database_name}.{schema_name}.FACT_FILING_REF AS
@@ -754,10 +1511,10 @@ def build_filing_data(session: Session, test_mode: bool = False):
     """).collect()
     
     filing_ref_count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.{schema_name}.FACT_FILING_REF").collect()[0]['CNT']
-    print(f"      ✅ FACT_FILING_REF: {filing_ref_count} filings")
+    config.log_detail(f" FACT_FILING_REF: {filing_ref_count} filings")
     
     # FACT_FILING_INSTITUTION_REL - Company-to-filing relationships
-    print("    Building FACT_FILING_INSTITUTION_REL...")
+    config.log_detail("Building FACT_FILING_INSTITUTION_REL...")
     
     session.sql(f"""
         CREATE OR REPLACE TABLE {database_name}.{schema_name}.FACT_FILING_INSTITUTION_REL AS
@@ -769,10 +1526,10 @@ def build_filing_data(session: Session, test_mode: bool = False):
     """).collect()
     
     rel_count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.{schema_name}.FACT_FILING_INSTITUTION_REL").collect()[0]['CNT']
-    print(f"      ✅ FACT_FILING_INSTITUTION_REL: {rel_count} relationships")
+    config.log_detail(f" FACT_FILING_INSTITUTION_REL: {rel_count} relationships")
     
     # FACT_FILING_DATA - Textual filing content (SEC filings with parsed sections)
-    print("    Building FACT_FILING_DATA...")
+    config.log_detail("Building FACT_FILING_DATA...")
     
     # Build section content for 10-K and 10-Q filings
     session.sql(f"""
@@ -898,10 +1655,10 @@ def build_filing_data(session: Session, test_mode: bool = False):
     """).collect()
     
     filing_data_count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.{schema_name}.FACT_FILING_DATA").collect()[0]['CNT']
-    print(f"      ✅ FACT_FILING_DATA: {filing_data_count} sections")
+    config.log_detail(f" FACT_FILING_DATA: {filing_data_count} sections")
     
     # Create empty tables for non-SEC and ESG filings (for future expansion)
-    print("    Building FACT_FILING_DATA_NON_SEC (placeholder)...")
+    config.log_detail("Building FACT_FILING_DATA_NON_SEC (placeholder)...")
     session.sql(f"""
         CREATE OR REPLACE TABLE {database_name}.{schema_name}.FACT_FILING_DATA_NON_SEC (
             FILE_VERSION_ID INTEGER,
@@ -913,9 +1670,9 @@ def build_filing_data(session: Session, test_mode: bool = False):
             PRIMARY KEY (FILE_VERSION_ID, HEADING_ID)
         )
     """).collect()
-    print(f"      ✅ FACT_FILING_DATA_NON_SEC: 0 sections (placeholder)")
+    config.log_detail(f" FACT_FILING_DATA_NON_SEC: 0 sections (placeholder)")
     
-    print("    Building FACT_FILING_DATA_ESG (placeholder)...")
+    config.log_detail("Building FACT_FILING_DATA_ESG (placeholder)...")
     session.sql(f"""
         CREATE OR REPLACE TABLE {database_name}.{schema_name}.FACT_FILING_DATA_ESG (
             FILE_VERSION_ID INTEGER,
@@ -927,7 +1684,7 @@ def build_filing_data(session: Session, test_mode: bool = False):
             PRIMARY KEY (FILE_VERSION_ID, HEADING_ID)
         )
     """).collect()
-    print(f"      ✅ FACT_FILING_DATA_ESG: 0 sections (placeholder)")
+    config.log_detail(f" FACT_FILING_DATA_ESG: 0 sections (placeholder)")
 
 
 if __name__ == "__main__":

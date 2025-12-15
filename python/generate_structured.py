@@ -23,10 +23,14 @@ def build_all(session: Session, scenarios: List[str], test_mode: bool = False):
     
     Args:
         session: Active Snowpark session
-        scenarios: List of scenario names to build data for
+        scenarios: List of scenario names to build data for (use ['all'] for all scenarios)
         test_mode: If True, use 10% data volumes for faster testing
     """
-    # print("Building structured data...")
+    
+    # Expand 'all' to all scenario names
+    if 'all' in scenarios:
+        scenarios = list(config.SCENARIO_DATA_REQUIREMENTS.keys())
+        config.log_detail(f"  Expanding 'all' to {len(scenarios)} scenarios")
     
     # Step 1: Create database and schemas
     create_database_structure(session)
@@ -41,14 +45,13 @@ def build_all(session: Session, scenarios: List[str], test_mode: bool = False):
     # Step 4: Validate data quality
     validate_data_quality(session)
     
-    # print("Structured data generation complete")
 
 def create_database_structure(session: Session):
     """Verify schema structure exists (database and schemas created by setup.sql)."""
     try:
         # Database and schemas are already created by setup.sql with ACCOUNTADMIN
-        # Just verify they exist - don't try to create (may lack CREATE SCHEMA privilege)
-        schemas_needed = ['RAW', 'CURATED', 'AI']
+        # Just verify they exist - don't try to create (may lack CREATE DATABASE privilege)
+        schemas_needed = ['RAW', 'CURATED', 'AI', 'MARKET_DATA']
         db_name = config.DATABASE['name']
         
         # Check if schemas exist
@@ -65,10 +68,21 @@ def create_database_structure(session: Session):
                     print(f"WARNING: Could not create schema {schema}: {schema_err}")
                     print(f"   Please run setup.sql as ACCOUNTADMIN first to create schemas.")
                     raise
-        # print(f" Database structure verified: {db_name}")
+        config.log_detail(f"  Database structure verified: {db_name}")
     except Exception as e:
-        print(f"ERROR: Failed to verify schema structure: {e}")
+        config.log_error(f" Failed to verify database structure: {e}")
         raise
+
+def check_market_data_table_exists(session: Session, table_name: str) -> bool:
+    """Check if a table exists in the MARKET_DATA schema with data."""
+    try:
+        result = session.sql(f"""
+            SELECT COUNT(*) as cnt 
+            FROM {config.DATABASE['name']}.MARKET_DATA.{table_name}
+        """).collect()
+        return result[0]['CNT'] > 0
+    except:
+        return False
 
 def build_foundation_tables(session: Session, test_mode: bool = False):
     """Build all foundation tables in dependency order."""
@@ -79,7 +93,7 @@ def build_foundation_tables(session: Session, test_mode: bool = False):
         from extract_real_assets import create_real_assets_view
         create_real_assets_view(session)
     except Exception as e:
-        print(f"ERROR: Real assets view creation failed: {e}")
+        config.log_error(f" Real assets view creation failed: {e}")
         raise  # Don't continue without the view
     
     # Build all foundation tables (suppress detailed output)
@@ -90,9 +104,23 @@ def build_foundation_tables(session: Session, test_mode: bool = False):
     build_dim_supply_chain_relationships(session, test_mode)
     build_fact_transaction(session, test_mode)
     build_fact_position_daily_abor(session)
-    build_fact_marketdata_timeseries(session, test_mode)
-    build_sec_filings_and_fundamentals(session)
-    build_fundamentals_and_estimates(session)
+    
+    # Check if MARKET_DATA.FACT_STOCK_PRICES exists (real data) - if so, skip synthetic market data
+    use_real_market_data = check_market_data_table_exists(session, 'FACT_STOCK_PRICES')
+    if use_real_market_data:
+        config.log_detail("  Skipping CURATED.FACT_MARKETDATA_TIMESERIES (using MARKET_DATA.FACT_STOCK_PRICES)")
+    else:
+        build_fact_marketdata_timeseries(session, test_mode)
+    
+    # Check if MARKET_DATA.FACT_FINANCIAL_DATA exists (real data) - if so, skip synthetic fundamentals
+    use_real_financials = check_market_data_table_exists(session, 'FACT_FINANCIAL_DATA')
+    if use_real_financials:
+        config.log_detail("  Skipping CURATED.FACT_FUNDAMENTALS/FACT_ESTIMATES (using MARKET_DATA.FACT_FINANCIAL_DATA)")
+    else:
+        # Note: SEC filings now generated in MARKET_DATA schema via generate_market_data.py
+        # build_sec_filings_and_fundamentals(session) - DEPRECATED: Use MARKET_DATA.FACT_FILING_REF instead
+        build_fundamentals_and_estimates(session)
+    
     build_esg_scores(session)
     build_factor_exposures(session)
     build_benchmark_holdings(session)
@@ -126,14 +154,13 @@ def build_foundation_tables(session: Session, test_mode: bool = False):
 def build_dim_issuer(session: Session, test_mode: bool = False):
     """Build issuer dimension from COMPANY_INDEX with proper deduplication."""
     
-    # print(" Building issuer dimension from SEC Filings COMPANY_INDEX")
     
     # Verify SEC Filings access (view depends on it)
     try:
         from extract_real_assets import verify_sec_filings_access
         verify_sec_filings_access(session)
     except Exception as e:
-        print(f"ERROR: Error: {e}")
+        config.log_error(f" Error: {e}")
         raise
     
     # Build issuer dimension using COMPANY_INDEX as the authoritative source
@@ -151,8 +178,8 @@ def build_dim_issuer(session: Session, test_mode: bool = False):
                 MAX(CASE WHEN cc.RELATIONSHIP_TYPE = 'business_address_country' THEN cc.VALUE END) as COUNTRY_OF_DOMICILE,
                 -- Get industry from SIC description (prefer this over NULL values)
                 MAX(CASE WHEN cc.RELATIONSHIP_TYPE = 'sic_description' THEN cc.VALUE END) as INDUSTRY_SECTOR
-            FROM {config.SECURITIES['sec_filings_database']}.{config.SECURITIES['sec_filings_schema']}.COMPANY_INDEX ci
-            LEFT JOIN {config.SECURITIES['sec_filings_database']}.{config.SECURITIES['sec_filings_schema']}.COMPANY_CHARACTERISTICS cc
+            FROM {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.COMPANY_INDEX ci
+            LEFT JOIN {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.COMPANY_CHARACTERISTICS cc
                 ON ci.COMPANY_ID = cc.COMPANY_ID
             WHERE ci.COMPANY_NAME IS NOT NULL
                 AND ci.COMPANY_NAME != 'Unknown'
@@ -180,7 +207,6 @@ def build_dim_issuer(session: Session, test_mode: bool = False):
     
     # Get count for reporting
     issuer_count = session.sql(f"SELECT COUNT(*) as cnt FROM {config.DATABASE['name']}.CURATED.DIM_ISSUER").collect()[0]['CNT']
-    # print(f" Created {issuer_count:,} distinct issuers from COMPANY_INDEX")
     
     # Report on data quality
     quality_stats = session.sql(f"""
@@ -204,14 +230,13 @@ def build_dim_security(session: Session, test_mode: bool = False):
     # Use test mode counts if specified (for reporting only)
     securities_count = config.get_securities_count(test_mode)
     
-    # print(" Building securities from real asset data")
     
     # Verify V_REAL_ASSETS view exists (should have been created during foundation build)
     try:
         from extract_real_assets import verify_real_assets_view_exists
         verify_real_assets_view_exists(session)
     except Exception as e:
-        print(f"ERROR: Error: {e}")
+        config.log_error(f" Error: {e}")
         raise
     
     # Build security dimension using multi-strategy issuer linkage
@@ -290,7 +315,7 @@ def build_dim_security(session: Session, test_mode: bool = False):
             SELECT DISTINCT
                 ci.COMPANY_ID,
                 ci.CIK
-            FROM {config.SECURITIES['sec_filings_database']}.{config.SECURITIES['sec_filings_schema']}.COMPANY_INDEX ci
+            FROM {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.COMPANY_INDEX ci
             WHERE ci.CIK IS NOT NULL
         ),
         issuer_matches_via_name AS (
@@ -302,7 +327,7 @@ def build_dim_security(session: Session, test_mode: bool = False):
             FROM filtered_securities fs
             LEFT JOIN issuer_matches_via_cik cik_match
                 ON fs.TOP_LEVEL_OPENFIGI_ID = cik_match.TOP_LEVEL_OPENFIGI_ID
-            INNER JOIN {config.SECURITIES['sec_filings_database']}.{config.SECURITIES['sec_filings_schema']}.COMPANY_SECURITY_RELATIONSHIPS csr
+            INNER JOIN {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.COMPANY_SECURITY_RELATIONSHIPS csr
                 ON fs.SECURITY_NAME = csr.SECURITY_NAME
             INNER JOIN company_cik_mapping ccm
                 ON csr.COMPANY_ID = ccm.COMPANY_ID
@@ -443,11 +468,9 @@ def build_dim_security(session: Session, test_mode: bool = False):
     """).collect()
     
     total_securities = sum(row['CNT'] for row in count_by_class)
-    # print(f" Created {total_securities:,} securities from real asset data")
     
     for row in count_by_class:
         pass
-        # print(f"    {row['ASSETCLASS']}: {row['CNT']:,} securities")
     
     # Validate issuer linkage quality with detailed breakdown
     linkage_stats = session.sql(f"""
@@ -474,7 +497,6 @@ def build_dim_security(session: Session, test_mode: bool = False):
     
     if linkage_stats['UNMATCHED'] > 0:
         pct_unmatched = 100.0 * linkage_stats['UNMATCHED'] / total_securities
-        # print(f"   ℹ️  {pct_unmatched:.1f}% securities without issuer match (edge cases only)")
     
     # Report on bond parsing success
     bond_stats = session.sql(f"""
@@ -490,10 +512,6 @@ def build_dim_security(session: Session, test_mode: bool = False):
     
     if bond_stats and bond_stats[0]['TOTAL_BONDS'] > 0:
         pass
-        # print(f"    Bond parsing results:")
-        # print(f"      • Bonds with parsed coupon rate: {bond_stats[0]['BONDS_WITH_PARSED_RATE']:,} of {bond_stats[0]['TOTAL_BONDS']:,}")
-        # print(f"      • Bonds with parsed maturity: {bond_stats[0]['BONDS_WITH_PARSED_MATURITY']:,} of {bond_stats[0]['TOTAL_BONDS']:,}")
-        # print(f"      • Maturity range: {bond_stats[0]['EARLIEST_MATURITY']} to {bond_stats[0]['LATEST_MATURITY']}")
 
 
 def build_dim_portfolio(session: Session):
@@ -516,7 +534,6 @@ def build_dim_portfolio(session: Session):
     portfolios_df = session.create_dataframe(portfolio_data)
     portfolios_df.write.mode("overwrite").save_as_table(f"{config.DATABASE['name']}.CURATED.DIM_PORTFOLIO")
     
-    # print(f" Created {len(portfolio_data)} portfolios from unified config")
 
 def build_dim_benchmark(session: Session):
     """Build benchmark dimension."""
@@ -532,7 +549,6 @@ def build_dim_benchmark(session: Session):
     benchmarks_df = session.create_dataframe(benchmark_data)
     benchmarks_df.write.mode("overwrite").save_as_table(f"{config.DATABASE['name']}.CURATED.DIM_BENCHMARK")
     
-    # print(f" Created {len(benchmark_data)} benchmarks")
 
 def build_dim_supply_chain_relationships(session: Session, test_mode: bool = False):
     """
@@ -548,7 +564,6 @@ def build_dim_supply_chain_relationships(session: Session, test_mode: bool = Fal
     database_name = config.DATABASE['name']
     random.seed(config.RNG_SEED)
     
-    # print("🔗 Building supply chain relationships...")
     
     # Step 1: Create the table structure (without foreign key constraints for simplicity)
     # Foreign key constraints removed to avoid data type mismatches with ROW_NUMBER-generated IssuerIDs
@@ -594,10 +609,9 @@ def build_dim_supply_chain_relationships(session: Session, test_mode: bool = Fal
             if result:
                 issuer_map[ticker] = result[0]['ISSUERID']
             else:
-                print(f"WARNING: Could not find issuer for {ticker}")
+                config.log_warning(f" Could not find issuer for {ticker}")
         except Exception as e:
             pass
-            # print(f"     Error looking up {ticker}: {e}")
     
     # Step 3: Create demo relationships from config
     relationships = []
@@ -605,8 +619,6 @@ def build_dim_supply_chain_relationships(session: Session, test_mode: bool = Fal
     
     if not issuer_map:
         pass
-        # print(f"     No demo companies found in DIM_ISSUER")
-        # print(f"   Available tickers in database:")
         available_tickers = session.sql(f"""
             SELECT DISTINCT s.Ticker 
             FROM {database_name}.CURATED.DIM_SECURITY s
@@ -615,7 +627,6 @@ def build_dim_supply_chain_relationships(session: Session, test_mode: bool = Fal
         """).collect()
         for row in available_tickers:
             pass
-            # print(f"      - {row['TICKER']}")
     
     for company_ticker, counterparty_ticker, rel_type, share, criticality in config.SUPPLY_CHAIN_DEMO_RELATIONSHIPS:
         if company_ticker in issuer_map and counterparty_ticker in issuer_map:
@@ -700,11 +711,8 @@ def build_dim_supply_chain_relationships(session: Session, test_mode: bool = Fal
         relationships_df.write.mode("overwrite").save_as_table(
             f"{database_name}.CURATED.DIM_SUPPLY_CHAIN_RELATIONSHIPS"
         )
-        # print(f" Created {len(relationships)} supply chain relationships")
-        # print(f"   - {len([r for r in relationships if 'Demo' in r.get('Notes', '')])} demo relationships")
-        # print(f"   - {len([r for r in relationships if 'Industry' in r.get('Notes', '')])} industry relationships")
     else:
-        print("WARNING:  No supply chain relationships created")
+        config.log_warning("  No supply chain relationships created")
 
 def build_fact_transaction(session: Session, test_mode: bool = False):
     """Generate synthetic transaction history."""
@@ -715,13 +723,11 @@ def build_fact_transaction(session: Session, test_mode: bool = False):
         column_names = [col['name'] for col in columns]
         if 'FIGI' not in column_names:
             raise Exception(f"DIM_SECURITY table missing FIGI column. Available columns: {column_names}")
-        # print(" Verified DIM_SECURITY table has FIGI column")
     except Exception as e:
-        print(f"ERROR: Table structure verification failed: {e}")
+        config.log_error(f" Table structure verification failed: {e}")
         raise
     
     # Generate transactions for the last 12 months that build up to current positions
-    # print("💱 Generating synthetic transaction history...")
     
     # Get SQL mapping for demo portfolios (eliminates hardcoded company references)
     demo_sql_mapping = config.build_demo_portfolios_sql_mapping()
@@ -915,12 +921,10 @@ def build_fact_transaction(session: Session, test_mode: bool = False):
         WHERE (HASH(sh.SecurityID, ptd.trade_date) % 100) < 20  -- 20% of portfolio-security-day combinations create transactions
     """).collect()
     
-    # print(" Created transaction history")
 
 def build_fact_position_daily_abor(session: Session):
     """Build ABOR positions from transaction log."""
     
-    # print("📋 Building ABOR positions from transactions...")
     
     session.sql(f"""
         -- Build ABOR (Accounting Book of Record) positions from transaction history
@@ -984,12 +988,10 @@ def build_fact_position_daily_abor(session: Session):
         JOIN portfolio_totals pt ON ps.HoldingDate = pt.HoldingDate AND ps.PortfolioID = pt.PortfolioID
     """).collect()
     
-    # print(" Created ABOR positions")
 
 def build_fact_marketdata_timeseries(session: Session, test_mode: bool = False):
     """Build synthetic market data for all securities."""
     
-    # print("📝 Generating synthetic market data for portfolio securities only")
     build_marketdata_synthetic(session)
 
 def build_marketdata_synthetic(session: Session):
@@ -1071,7 +1073,6 @@ def build_marketdata_synthetic(session: Session):
         FROM securities_dates
     """).collect()
     
-    # print(" Created synthetic market data")
 
 # Placeholder functions for remaining tables (to be implemented)
 def build_fundamentals_and_estimates(session: Session):
@@ -1161,13 +1162,11 @@ def build_fundamentals_and_estimates(session: Session):
         FROM estimate_base
     """).collect()
     
-    # print(" Created fundamentals and estimates with realistic relationships")
 
 def build_sec_filings_and_fundamentals(session: Session):
     """Build SEC filings table and synthetic fundamentals as fallback."""
     
     # First, create the FACT_SEC_FILINGS table structure
-    # print("🏗️  Creating FACT_SEC_FILINGS table structure...")
     session.sql(f"""
         CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.FACT_SEC_FILINGS (
             FilingID BIGINT IDENTITY(1,1) PRIMARY KEY,
@@ -1197,11 +1196,9 @@ def build_sec_filings_and_fundamentals(session: Session):
     # Try to load real SEC filing data, fallback to synthetic fundamentals if not available
     try:
         pass
-        # print("📄 Attempting to load real SEC filing data...")
         
         # Test SEC_FILINGS database access
-        test_result = session.sql(f"SELECT COUNT(*) as cnt FROM {config.SECURITIES['sec_filings_database']}.{config.SECURITIES['sec_filings_schema']}.SEC_REPORT_ATTRIBUTES LIMIT 1").collect()
-        # print(" SEC_FILINGS database accessible")
+        test_result = session.sql(f"SELECT COUNT(*) as cnt FROM {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.SEC_REPORT_ATTRIBUTES LIMIT 1").collect()
         
         # Load SEC filing data using our enhanced view approach
         session.sql(f"""
@@ -1230,8 +1227,8 @@ def build_sec_filings_and_fundamentals(session: Session):
             JOIN {config.DATABASE['name']}.CURATED.DIM_SECURITY s 
                 ON s.IssuerID = i.IssuerID 
                 AND s.Ticker = i.PrimaryTicker
-            JOIN {config.SECURITIES['sec_filings_database']}.{config.SECURITIES['sec_filings_schema']}.SEC_REPORT_ATTRIBUTES sra ON i.CIK = sra.CIK
-            JOIN {config.SECURITIES['sec_filings_database']}.{config.SECURITIES['sec_filings_schema']}.SEC_REPORT_INDEX sri ON sra.ADSH = sri.ADSH AND sra.CIK = sri.CIK
+            JOIN {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.SEC_REPORT_ATTRIBUTES sra ON i.CIK = sra.CIK
+            JOIN {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.SEC_REPORT_INDEX sri ON sra.ADSH = sri.ADSH AND sra.CIK = sri.CIK
             WHERE s.AssetClass = 'Equity'
                 AND sri.FISCAL_YEAR >= YEAR(CURRENT_DATE) - {config.YEARS_OF_HISTORY}
                 AND sri.FORM_TYPE IN ('10-K', '10-Q')
@@ -1257,16 +1254,13 @@ def build_sec_filings_and_fundamentals(session: Session):
         
         # Get count of loaded records
         sec_count = session.sql(f"SELECT COUNT(*) as cnt FROM {config.DATABASE['name']}.CURATED.FACT_SEC_FILINGS").collect()[0]['CNT']
-        # print(f" Loaded {sec_count:,} SEC filing records from real data")
         
     except Exception as e:
-        print(f"WARNING:  SEC filing data not available: {e}")
-        # print(" Falling back to synthetic fundamentals generation...")
+        config.log_warning(f"  SEC filing data not available: {e}")
         
         # Call the existing fundamentals function as fallback
         build_fundamentals_and_estimates(session)
     
-    # print(" SEC filings and fundamentals data ready")
 
 def build_esg_scores(session: Session):
     """Build ESG scores with SecurityID linkage using efficient SQL generation."""
@@ -1348,7 +1342,6 @@ def build_esg_scores(session: Session):
                'MSCI' FROM base_scores
     """).collect()
     
-    # print(" Created ESG scores with sector and regional differentiation")
 
 def build_factor_exposures(session: Session):
     """Build factor exposures with SecurityID linkage using efficient SQL generation."""
@@ -1433,7 +1426,6 @@ def build_factor_exposures(session: Session):
         SELECT SecurityID, EXPOSURE_DATE, 'Volatility', VOLATILITY_FACTOR, 0.35 FROM base_exposures
     """).collect()
     
-    # print(" Created factor exposures with sector-specific characteristics")
 
 def build_benchmark_holdings(session: Session):
     """Build benchmark holdings with SecurityID linkage using efficient SQL generation."""
@@ -1514,7 +1506,6 @@ def build_benchmark_holdings(session: Session):
         WHERE WEIGHT >= 0.0001  -- Minimum 0.01% weight
     """).collect()
     
-    # print(" Created benchmark holdings with realistic index compositions")
 
 def build_transaction_cost_data(session: Session):
     """Build transaction cost and market microstructure data for realistic execution planning."""
@@ -1572,7 +1563,6 @@ def build_transaction_cost_data(session: Session):
         CROSS JOIN business_dates bd
     """).collect()
     
-    # print(" Created transaction cost and market microstructure data")
 
 def build_liquidity_data(session: Session):
     """Build liquidity and cash flow data for portfolio implementation planning."""
@@ -1609,7 +1599,6 @@ def build_liquidity_data(session: Session):
         CROSS JOIN monthly_dates md
     """).collect()
     
-    # print(" Created portfolio liquidity and cash flow data")
 
 def build_risk_budget_data(session: Session):
     """Build risk budget and limits data for professional risk management."""
@@ -1648,7 +1637,6 @@ def build_risk_budget_data(session: Session):
         FROM portfolios p
     """).collect()
     
-    # print(" Created risk budget and limits data")
 
 def build_trading_calendar_data(session: Session):
     """Build trading calendar with blackout periods and market events."""
@@ -1695,7 +1683,6 @@ def build_trading_calendar_data(session: Session):
         WHERE fd.EVENT_DATE IS NOT NULL
     """).collect()
     
-    # print(" Created trading calendar with blackout periods and events")
 
 def build_client_mandate_data(session: Session):
     """Build client mandate and approval requirements data."""
@@ -1740,7 +1727,6 @@ def build_client_mandate_data(session: Session):
         FROM portfolios p
     """).collect()
     
-    # print(" Created client mandate and approval requirements data")
 
 def build_dim_client(session: Session, test_mode: bool = False):
     """
@@ -1824,7 +1810,6 @@ def build_dim_client(session: Session, test_mode: bool = False):
     
     # Verify creation
     count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.DIM_CLIENT").collect()[0]['CNT']
-    # print(f"   ✅ Created DIM_CLIENT with {count} institutional clients")
 
 def build_fact_client_flows(session: Session, test_mode: bool = False):
     """
@@ -1925,7 +1910,6 @@ def build_fact_client_flows(session: Session, test_mode: bool = False):
     
     # Verify creation
     count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.FACT_CLIENT_FLOWS").collect()[0]['CNT']
-    # print(f"   ✅ Created FACT_CLIENT_FLOWS with {count} flow records")
 
 def build_fact_fund_flows(session: Session):
     """
@@ -1971,7 +1955,6 @@ def build_fact_fund_flows(session: Session):
     
     # Verify creation
     count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.FACT_FUND_FLOWS").collect()[0]['CNT']
-    # print(f"   ✅ Created FACT_FUND_FLOWS with {count} aggregated flow records")
 
 def build_tax_implications_data(session: Session):
     """Build tax implications and cost basis data for tax-efficient execution."""
@@ -2015,7 +1998,6 @@ def build_tax_implications_data(session: Session):
         FROM portfolio_holdings ph
     """).collect()
     
-    # print(" Created tax implications and cost basis data")
 
 # =============================================================================
 # MANDATE COMPLIANCE DATA (Scenario 3.2)
@@ -2050,7 +2032,6 @@ def build_fact_compliance_alerts(session: Session):
         )
     """).collect()
     
-    # print(" Created FACT_COMPLIANCE_ALERTS table")
 
 def build_fact_pre_screened_replacements(session: Session):
     """
@@ -2082,7 +2063,6 @@ def build_fact_pre_screened_replacements(session: Session):
         )
     """).collect()
     
-    # print(" Created FACT_PRE_SCREENED_REPLACEMENTS table")
 
 # Note: Report templates are now generated via unstructured data hydration engine
 # following @unstructured-data-generation.mdc patterns. The template files are in
@@ -2106,7 +2086,7 @@ def generate_demo_compliance_alert(session: Session):
     """).collect()
     
     if not portfolio_id_result:
-        print(f"WARNING:  Portfolio '{portfolio_name}' not found - skipping demo alert")
+        config.log_warning(f"  Portfolio '{portfolio_name}' not found - skipping demo alert")
         return
     
     portfolio_id = portfolio_id_result[0]['PORTFOLIOID']
@@ -2121,7 +2101,7 @@ def generate_demo_compliance_alert(session: Session):
     """).collect()
     
     if not security_id_result:
-        print(f"WARNING:  Security {non_compliant['ticker']} not found - skipping demo alert")
+        config.log_warning(f"  Security {non_compliant['ticker']} not found - skipping demo alert")
         return
     
     security_id = security_id_result[0]['SECURITYID']
@@ -2150,13 +2130,15 @@ def generate_demo_compliance_alert(session: Session):
         )
     """).collect()
     
-    # print(f" Generated demo compliance alert: {non_compliant['ticker']} ESG downgrade from {non_compliant['original_esg_grade']} to {non_compliant['downgraded_esg_grade']}")
 
 def generate_demo_pre_screened_replacements(session: Session):
     """
     Generate pre-screened replacement candidates for the demo scenario.
     Uses configuration from config.SCENARIO_3_2_MANDATE_COMPLIANCE.
+    
+    Uses batched lookups and writes for efficiency (no per-row SELECTs or INSERTs).
     """
+    import snowflake_io_utils
     database_name = config.DATABASE['name']
     scenario_config = config.SCENARIO_3_2_MANDATE_COMPLIANCE
     
@@ -2169,54 +2151,62 @@ def generate_demo_pre_screened_replacements(session: Session):
     """).collect()
     
     if not portfolio_id_result:
-        print(f"WARNING:  Portfolio '{portfolio_name}' not found - skipping pre-screened replacements")
+        config.log_warning(f"  Portfolio '{portfolio_name}' not found - skipping pre-screened replacements")
         return
     
     portfolio_id = portfolio_id_result[0]['PORTFOLIOID']
     
-    # Insert each pre-screened replacement
+    # Batch fetch all SecurityIDs for configured replacements in ONE query
+    # (no per-iteration SELECT per performance-io.mdc)
+    replacements = scenario_config['pre_screened_replacements']
+    tickers = [r['ticker'] for r in replacements]
+    figis = [r['openfigi_id'] for r in replacements]
+    
+    security_map = snowflake_io_utils.batch_lookup_security_ids(
+        session, database_name, tickers=tickers, figis=figis
+    )
+    
+    # Build all replacement rows locally
     from datetime import datetime
     screen_date = datetime.now().date()
+    screening_criteria = (
+        f"AI Growth Score >= {scenario_config['mandate_requirements']['ai_growth_threshold']}, "
+        f"ESG Grade >= {scenario_config['mandate_requirements']['min_esg_grade']}, "
+        f"Market Cap >= ${scenario_config['mandate_requirements']['min_market_cap_b']}B, "
+        f"Liquidity Score >= {scenario_config['mandate_requirements']['min_liquidity_score']}"
+    )
     
-    for replacement in scenario_config['pre_screened_replacements']:
-        # Get the security ID
-        security_id_result = session.sql(f"""
-            SELECT SecurityID 
-            FROM {database_name}.CURATED.DIM_SECURITY 
-            WHERE FIGI = '{replacement['openfigi_id']}'
-            OR Ticker = '{replacement['ticker']}'
-            LIMIT 1
-        """).collect()
+    rows = []
+    for replacement in replacements:
+        # Look up SecurityID from batched result (by ticker or FIGI)
+        security_id = security_map.get(replacement['ticker']) or security_map.get(replacement['openfigi_id'])
         
-        if not security_id_result:
-            print(f"WARNING:  Security {replacement['ticker']} not found - skipping")
+        if not security_id:
+            config.log_warning(f"  Security {replacement['ticker']} not found - skipping")
             continue
         
-        security_id = security_id_result[0]['SECURITYID']
+        rows.append({
+            'PortfolioID': portfolio_id,
+            'SecurityID': security_id,
+            'ScreenDate': screen_date,
+            'IsEligible': True,
+            'ReplacementRank': replacement['rank'],
+            'ESG_Grade': replacement['esg_grade'],
+            'AI_Growth_Score': replacement['ai_growth_score'],
+            'MarketCap_B_USD': replacement['market_cap_b'],
+            'LiquidityScore': replacement['liquidity_score'],
+            'EligibilityReason': replacement['rationale'],
+            'ScreeningCriteria': screening_criteria,
+        })
+    
+    # Write all rows in a single batch (no row-by-row INSERT per performance-io.mdc)
+    if rows:
+        snowflake_io_utils.write_pandas_overwrite(
+            session,
+            f"{database_name}.CURATED.FACT_PRE_SCREENED_REPLACEMENTS",
+            rows
+        )
         
-        # Insert the pre-screened replacement
-        session.sql(f"""
-            INSERT INTO {database_name}.CURATED.FACT_PRE_SCREENED_REPLACEMENTS (
-                PortfolioID, SecurityID, ScreenDate, IsEligible, ReplacementRank,
-                ESG_Grade, AI_Growth_Score, MarketCap_B_USD, LiquidityScore,
-                EligibilityReason, ScreeningCriteria
-            )
-            VALUES (
-                {portfolio_id},
-                {security_id},
-                '{screen_date}',
-                TRUE,
-                {replacement['rank']},
-                '{replacement['esg_grade']}',
-                {replacement['ai_growth_score']},
-                {replacement['market_cap_b']},
-                {replacement['liquidity_score']},
-                '{replacement['rationale']}',
-                'AI Growth Score >= {scenario_config['mandate_requirements']['ai_growth_threshold']}, ESG Grade >= {scenario_config['mandate_requirements']['min_esg_grade']}, Market Cap >= ${scenario_config['mandate_requirements']['min_market_cap_b']}B, Liquidity Score >= {scenario_config['mandate_requirements']['min_liquidity_score']}'
-            )
-        """).collect()
-        
-        # print(f" Added pre-screened replacement: {replacement['ticker']} (Rank {replacement['rank']}, AI Score: {replacement['ai_growth_score']})")
 
 # Report template functions removed - now handled by unstructured data hydration engine
 # Templates are in content_library/global/report_templates/ following @unstructured-data-generation.mdc patterns
@@ -2226,89 +2216,75 @@ def generate_demo_pre_screened_replacements(session: Session):
 # =============================================================================
 
 def build_dim_counterparty(session: Session):
-    """Build counterparty dimension with settlement characteristics."""
+    """Build counterparty dimension with settlement characteristics.
+    
+    Uses batched write_pandas for efficiency (no row-by-row inserts).
+    Explicit CounterpartyID 1..20 preserves downstream assumptions in FACT_TRADE_SETTLEMENT.
+    """
+    import snowflake_io_utils
     database_name = config.DATABASE['name']
     random.seed(config.RNG_SEED)
     
     # Define realistic counterparties with settlement profiles
+    # Build as list of dicts with explicit IDs (1..N) for downstream consistency
     counterparties = [
-        ('Goldman Sachs', 'Broker', 0.02, 1.8, 'A'),
-        ('Morgan Stanley', 'Broker', 0.015, 1.9, 'A'),
-        ('JP Morgan', 'Broker', 0.01, 1.7, 'AA'),
-        ('Barclays', 'Broker', 0.025, 2.1, 'A'),
-        ('Credit Suisse', 'Broker', 0.03, 2.3, 'BBB'),
-        ('Deutsche Bank', 'Broker', 0.028, 2.2, 'BBB'),
-        ('BNP Paribas', 'Broker', 0.018, 1.9, 'A'),
-        ('UBS', 'Broker', 0.012, 1.8, 'AA'),
-        ('Citi', 'Broker', 0.015, 1.9, 'A'),
-        ('Bank of America', 'Broker', 0.013, 1.8, 'A'),
-        ('BNY Mellon', 'Custodian', 0.005, 1.5, 'AA'),
-        ('State Street', 'Custodian', 0.005, 1.5, 'AA'),
-        ('JPM Custody', 'Custodian', 0.004, 1.5, 'AA'),
-        ('Northern Trust', 'Custodian', 0.006, 1.6, 'AA'),
-        ('HSBC Custody', 'Custodian', 0.007, 1.7, 'A'),
-        ('Prime Broker A', 'Prime', 0.02, 1.9, 'A'),
-        ('Prime Broker B', 'Prime', 0.022, 2.0, 'A'),
-        ('Clearing Firm A', 'Broker', 0.015, 1.8, 'A'),
-        ('Clearing Firm B', 'Broker', 0.017, 1.9, 'A'),
-        ('Market Maker A', 'Broker', 0.02, 2.0, 'BBB')
+        {'CounterpartyID': 1, 'CounterpartyName': 'Goldman Sachs', 'CounterpartyType': 'Broker', 'HistoricalFailRate': 0.02, 'AverageSettlementTime': 1.8, 'RiskRating': 'A'},
+        {'CounterpartyID': 2, 'CounterpartyName': 'Morgan Stanley', 'CounterpartyType': 'Broker', 'HistoricalFailRate': 0.015, 'AverageSettlementTime': 1.9, 'RiskRating': 'A'},
+        {'CounterpartyID': 3, 'CounterpartyName': 'JP Morgan', 'CounterpartyType': 'Broker', 'HistoricalFailRate': 0.01, 'AverageSettlementTime': 1.7, 'RiskRating': 'AA'},
+        {'CounterpartyID': 4, 'CounterpartyName': 'Barclays', 'CounterpartyType': 'Broker', 'HistoricalFailRate': 0.025, 'AverageSettlementTime': 2.1, 'RiskRating': 'A'},
+        {'CounterpartyID': 5, 'CounterpartyName': 'Credit Suisse', 'CounterpartyType': 'Broker', 'HistoricalFailRate': 0.03, 'AverageSettlementTime': 2.3, 'RiskRating': 'BBB'},
+        {'CounterpartyID': 6, 'CounterpartyName': 'Deutsche Bank', 'CounterpartyType': 'Broker', 'HistoricalFailRate': 0.028, 'AverageSettlementTime': 2.2, 'RiskRating': 'BBB'},
+        {'CounterpartyID': 7, 'CounterpartyName': 'BNP Paribas', 'CounterpartyType': 'Broker', 'HistoricalFailRate': 0.018, 'AverageSettlementTime': 1.9, 'RiskRating': 'A'},
+        {'CounterpartyID': 8, 'CounterpartyName': 'UBS', 'CounterpartyType': 'Broker', 'HistoricalFailRate': 0.012, 'AverageSettlementTime': 1.8, 'RiskRating': 'AA'},
+        {'CounterpartyID': 9, 'CounterpartyName': 'Citi', 'CounterpartyType': 'Broker', 'HistoricalFailRate': 0.015, 'AverageSettlementTime': 1.9, 'RiskRating': 'A'},
+        {'CounterpartyID': 10, 'CounterpartyName': 'Bank of America', 'CounterpartyType': 'Broker', 'HistoricalFailRate': 0.013, 'AverageSettlementTime': 1.8, 'RiskRating': 'A'},
+        {'CounterpartyID': 11, 'CounterpartyName': 'BNY Mellon', 'CounterpartyType': 'Custodian', 'HistoricalFailRate': 0.005, 'AverageSettlementTime': 1.5, 'RiskRating': 'AA'},
+        {'CounterpartyID': 12, 'CounterpartyName': 'State Street', 'CounterpartyType': 'Custodian', 'HistoricalFailRate': 0.005, 'AverageSettlementTime': 1.5, 'RiskRating': 'AA'},
+        {'CounterpartyID': 13, 'CounterpartyName': 'JPM Custody', 'CounterpartyType': 'Custodian', 'HistoricalFailRate': 0.004, 'AverageSettlementTime': 1.5, 'RiskRating': 'AA'},
+        {'CounterpartyID': 14, 'CounterpartyName': 'Northern Trust', 'CounterpartyType': 'Custodian', 'HistoricalFailRate': 0.006, 'AverageSettlementTime': 1.6, 'RiskRating': 'AA'},
+        {'CounterpartyID': 15, 'CounterpartyName': 'HSBC Custody', 'CounterpartyType': 'Custodian', 'HistoricalFailRate': 0.007, 'AverageSettlementTime': 1.7, 'RiskRating': 'A'},
+        {'CounterpartyID': 16, 'CounterpartyName': 'Prime Broker A', 'CounterpartyType': 'Prime', 'HistoricalFailRate': 0.02, 'AverageSettlementTime': 1.9, 'RiskRating': 'A'},
+        {'CounterpartyID': 17, 'CounterpartyName': 'Prime Broker B', 'CounterpartyType': 'Prime', 'HistoricalFailRate': 0.022, 'AverageSettlementTime': 2.0, 'RiskRating': 'A'},
+        {'CounterpartyID': 18, 'CounterpartyName': 'Clearing Firm A', 'CounterpartyType': 'Broker', 'HistoricalFailRate': 0.015, 'AverageSettlementTime': 1.8, 'RiskRating': 'A'},
+        {'CounterpartyID': 19, 'CounterpartyName': 'Clearing Firm B', 'CounterpartyType': 'Broker', 'HistoricalFailRate': 0.017, 'AverageSettlementTime': 1.9, 'RiskRating': 'A'},
+        {'CounterpartyID': 20, 'CounterpartyName': 'Market Maker A', 'CounterpartyType': 'Broker', 'HistoricalFailRate': 0.02, 'AverageSettlementTime': 2.0, 'RiskRating': 'BBB'},
     ]
     
-    # Create table
-    session.sql(f"""
-        CREATE OR REPLACE TABLE {database_name}.CURATED.DIM_COUNTERPARTY (
-            CounterpartyID BIGINT IDENTITY(1,1) PRIMARY KEY,
-            CounterpartyName VARCHAR(255) NOT NULL,
-            CounterpartyType VARCHAR(50),
-            HistoricalFailRate DECIMAL(5,4),
-            AverageSettlementTime DECIMAL(5,2),
-            RiskRating VARCHAR(10)
-        )
-    """).collect()
-    
-    # Insert counterparties
-    for name, ctype, fail_rate, avg_time, rating in counterparties:
-        session.sql(f"""
-            INSERT INTO {database_name}.CURATED.DIM_COUNTERPARTY 
-            (CounterpartyName, CounterpartyType, HistoricalFailRate, AverageSettlementTime, RiskRating)
-            VALUES ('{name}', '{ctype}', {fail_rate}, {avg_time}, '{rating}')
-        """).collect()
+    # Use batched write_pandas (no row-by-row inserts per performance-io.mdc)
+    snowflake_io_utils.write_pandas_overwrite(
+        session,
+        f"{database_name}.CURATED.DIM_COUNTERPARTY",
+        counterparties
+    )
 
 
 def build_dim_custodian(session: Session):
-    """Build custodian dimension."""
+    """Build custodian dimension.
+    
+    Uses batched write_pandas for efficiency (no row-by-row inserts).
+    Explicit CustodianID 1..8 preserves downstream assumptions in FACT_TRADE_SETTLEMENT.
+    """
+    import snowflake_io_utils
     database_name = config.DATABASE['name']
     
-    # Define major custodians
+    # Define major custodians as list of dicts with explicit IDs (1..N)
     custodians = [
-        ('BNY Mellon', 'Global Custodian', 'Americas, EMEA, APAC', 'Premium'),
-        ('State Street', 'Global Custodian', 'Americas, EMEA, APAC', 'Premium'),
-        ('JPMorgan Custody', 'Global Custodian', 'Americas, EMEA, APAC', 'Premium'),
-        ('Northern Trust', 'Regional Custodian', 'Americas, EMEA', 'Standard'),
-        ('HSBC Custody', 'Global Custodian', 'EMEA, APAC', 'Standard'),
-        ('Citi Custody', 'Global Custodian', 'Americas, EMEA, APAC', 'Premium'),
-        ('Deutsche Bank Custody', 'Regional Custodian', 'EMEA', 'Standard'),
-        ('BNP Paribas Securities Services', 'Regional Custodian', 'EMEA', 'Standard')
+        {'CustodianID': 1, 'CustodianName': 'BNY Mellon', 'CustodianType': 'Global Custodian', 'CoverageRegions': 'Americas, EMEA, APAC', 'ServiceLevel': 'Premium'},
+        {'CustodianID': 2, 'CustodianName': 'State Street', 'CustodianType': 'Global Custodian', 'CoverageRegions': 'Americas, EMEA, APAC', 'ServiceLevel': 'Premium'},
+        {'CustodianID': 3, 'CustodianName': 'JPMorgan Custody', 'CustodianType': 'Global Custodian', 'CoverageRegions': 'Americas, EMEA, APAC', 'ServiceLevel': 'Premium'},
+        {'CustodianID': 4, 'CustodianName': 'Northern Trust', 'CustodianType': 'Regional Custodian', 'CoverageRegions': 'Americas, EMEA', 'ServiceLevel': 'Standard'},
+        {'CustodianID': 5, 'CustodianName': 'HSBC Custody', 'CustodianType': 'Global Custodian', 'CoverageRegions': 'EMEA, APAC', 'ServiceLevel': 'Standard'},
+        {'CustodianID': 6, 'CustodianName': 'Citi Custody', 'CustodianType': 'Global Custodian', 'CoverageRegions': 'Americas, EMEA, APAC', 'ServiceLevel': 'Premium'},
+        {'CustodianID': 7, 'CustodianName': 'Deutsche Bank Custody', 'CustodianType': 'Regional Custodian', 'CoverageRegions': 'EMEA', 'ServiceLevel': 'Standard'},
+        {'CustodianID': 8, 'CustodianName': 'BNP Paribas Securities Services', 'CustodianType': 'Regional Custodian', 'CoverageRegions': 'EMEA', 'ServiceLevel': 'Standard'},
     ]
     
-    # Create table
-    session.sql(f"""
-        CREATE OR REPLACE TABLE {database_name}.CURATED.DIM_CUSTODIAN (
-            CustodianID BIGINT IDENTITY(1,1) PRIMARY KEY,
-            CustodianName VARCHAR(255) NOT NULL,
-            CustodianType VARCHAR(100),
-            CoverageRegions VARCHAR(255),
-            ServiceLevel VARCHAR(50)
-        )
-    """).collect()
-    
-    # Insert custodians
-    for name, ctype, regions, service in custodians:
-        session.sql(f"""
-            INSERT INTO {database_name}.CURATED.DIM_CUSTODIAN 
-            (CustodianName, CustodianType, CoverageRegions, ServiceLevel)
-            VALUES ('{name}', '{ctype}', '{regions}', '{service}')
-        """).collect()
+    # Use batched write_pandas (no row-by-row inserts per performance-io.mdc)
+    snowflake_io_utils.write_pandas_overwrite(
+        session,
+        f"{database_name}.CURATED.DIM_CUSTODIAN",
+        custodians
+    )
 
 
 def build_fact_trade_settlement(session: Session, test_mode: bool = False):
@@ -2759,7 +2735,6 @@ def build_scenario_data(session: Session, scenario: str):
     
     if scenario == 'mandate_compliance' or scenario == 'portfolio_copilot':
         pass
-        # print(f" Building Scenario 3.2: Mandate Compliance data...")
         
         # Create tables
         build_fact_compliance_alerts(session)
@@ -2773,16 +2748,12 @@ def build_scenario_data(session: Session, scenario: str):
         # They will be processed through generate_unstructured.py following the
         # template-based generation pattern defined in @unstructured-data-generation.mdc
         
-        # print(" Scenario 3.2: Mandate Compliance data complete")
-        # print("   Note: Report templates will be generated via unstructured data pipeline")
     else:
         pass
-        # print(f"⏭️  Scenario data for {scenario} - not implemented yet")
 
 def validate_data_quality(session: Session):
     """Validate data quality of the new model."""
     
-    # print("🔍 Running data quality checks...")
     
     # Check portfolio weights sum to 100%
     weight_check = session.sql(f"""
@@ -2797,10 +2768,9 @@ def validate_data_quality(session: Session):
     """).collect()
     
     if weight_check:
-        print(f"WARNING:  Portfolio weight deviations found: {len(weight_check)} portfolios")
+        config.log_warning(f"  Portfolio weight deviations found: {len(weight_check)} portfolios")
     else:
         pass
-        # print(" Portfolio weights sum to 100%")
     
     # Check security identifier integrity (simplified - check direct columns)
     security_check = session.sql(f"""
@@ -2817,12 +2787,9 @@ def validate_data_quality(session: Session):
         with_ticker = result['SECURITIES_WITH_TICKER']
         with_figi = result['SECURITIES_WITH_FIGI']
         
-        # print(f" Security identifier validation: {total} securities total")
-        # print(f" Identifier coverage: {with_ticker} with TICKER ({with_ticker/total*100:.1f}%), {with_figi} with FIGI ({with_figi/total*100:.1f}%)")
         
         if with_ticker < total:
-            print(f"WARNING:  {total - with_ticker} securities missing TICKER")
+            config.log_warning(f"  {total - with_ticker} securities missing TICKER")
         if with_figi < total:
-            print(f"WARNING:  {total - with_figi} securities missing FIGI")
+            config.log_warning(f"  {total - with_figi} securities missing FIGI")
     
-    # print(" Data quality validation complete")

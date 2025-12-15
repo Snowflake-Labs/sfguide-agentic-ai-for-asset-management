@@ -34,7 +34,7 @@ sfguide-agentic-ai-for-asset-management/
 └── LEGAL.md
 ```
 
-## 8 Cortex Agents
+## 9 Cortex Agents
 
 | Agent | Key Capabilities |
 |-------|-----------------|
@@ -46,6 +46,7 @@ sfguide-agentic-ai-for-asset-management/
 | **ESG Guardian** | ESG monitoring, controversy detection, remediation planning |
 | **Compliance Advisor** | Mandate monitoring, breach detection, regulatory tracking |
 | **Middle Office Advisor** | Settlement monitoring, reconciliation, NAV validation |
+| **Executive Command Center** | Firm-wide KPIs, client analytics, competitor intelligence, M&A simulation |
 
 ## Prerequisites
 
@@ -61,8 +62,7 @@ Before running the setup script, accept the terms for the Snowflake Public Data 
 2. Click **"Get"**
 3. Enter your **email** and click **Submit**
 4. **Accept the terms and conditions**
-5. For database name, enter: `SNOWFLAKE_PUBLIC_DATA_FREE`
-6. Click **"Get"** to complete
+5. Click **"Get"** to complete
 
 > ⚠️ This is required only once. The setup script will fail without accepting these terms.
 
@@ -81,7 +81,7 @@ This single script automatically:
 6. Creates 3,463 documents from 69 templates (24 RAW tables)
 7. Creates 22 Cortex Search services
 8. Creates 7 Cortex Analyst semantic views
-9. Creates 8 Snowflake Intelligence agents
+9. Creates 9 Snowflake Intelligence agents
 
 
 ### Step 3: Access Snowflake Intelligence

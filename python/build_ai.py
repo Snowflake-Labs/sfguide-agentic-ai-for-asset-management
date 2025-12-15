@@ -20,76 +20,67 @@ def build_all(session: Session, scenarios: List[str], build_semantic: bool = Tru
     
     Args:
         session: Active Snowpark session
-        scenarios: List of scenario names
+        scenarios: List of scenario names (use ['all'] for all scenarios)
         build_semantic: Whether to build semantic views
         build_search: Whether to build search services
         build_agents: Whether to create Snowflake Intelligence agents
     """
-    # print(" Starting AI components build...")
-    # print(f"   Scenarios: {', '.join(scenarios)}")
+    
+    # Expand 'all' to all scenario names
+    if 'all' in scenarios:
+        scenarios = list(config.SCENARIO_DATA_REQUIREMENTS.keys())
+        config.log_detail(f"  Expanding 'all' to {len(scenarios)} scenarios")
     
     if build_semantic:
-        # print("🧠 Building semantic views...")
         try:
             create_semantic_views(session, scenarios)
         except Exception as e:
-            print(f"ERROR: CRITICAL FAILURE: Semantic view creation failed: {e}")
-            # print("🛑 STOPPING BUILD - Cannot continue without semantic views")
+            config.log_error(f"CRITICAL: Semantic view creation failed: {e}")
             raise
     
     if build_search:
-        # print(" Building Cortex Search services...")
         try:
             create_search_services(session, scenarios)
         except Exception as e:
-            print(f"ERROR: CRITICAL FAILURE: Search service creation failed: {e}")
-            # print("🛑 STOPPING BUILD - Cannot continue without required search services")
+            config.log_error(f"CRITICAL: Search service creation failed: {e}")
             raise
     
     # Create custom tools (PDF generation, M&A simulation)
-    # print("📄 Creating custom tools...")
     try:
         create_pdf_report_stage(session)
         create_simple_pdf_tool(session)
     except Exception as e:
-        print(f"ERROR: Warning: PDF tool creation failed: {e}")
-        # print("   Continuing build - custom tools are optional for basic functionality")
+        config.log_warning(f" PDF tool creation failed: {e}")
     
     # Create M&A simulation tool for executive scenario
     if 'executive_copilot' in scenarios:
         try:
             create_ma_simulation_tool(session)
         except Exception as e:
-            print(f"ERROR: Warning: M&A simulation tool creation failed: {e}")
+            config.log_warning(f" M&A simulation tool creation failed: {e}")
     
     # Create Snowflake Intelligence agents
     if build_agents:
-        # print("🤖 Creating Snowflake Intelligence agents...")
         try:
             import create_agents
             created, failed = create_agents.create_all_agents(session, scenarios)
             if failed > 0:
-                print(f"   ⚠️  WARNING: {failed} agents failed to create")
+                config.log_warning(f" {failed} agents failed to create")
         except Exception as e:
-            print(f"ERROR: Warning: Agent creation failed: {e}")
-            # print("   Continuing build - agents can be created manually if needed")
+            config.log_warning(f" Agent creation failed: {e}")
     
     # Validate components
-    # print(" Validating AI components...")
     try:
         validate_components(session, build_semantic, build_search)
     except Exception as e:
-        print(f"ERROR: CRITICAL FAILURE: AI component validation failed: {e}")
-        # print("🛑 STOPPING BUILD - AI components not working properly")
+        config.log_error(f"CRITICAL: AI component validation failed: {e}")
         raise
     
-    # print(" AI components build complete")
 
 def create_pdf_report_stage(session: Session):
     """Create internal stage for PDF report files."""
     session.sql(f"""
         CREATE STAGE IF NOT EXISTS {config.DATABASE['name']}.AI.PDF_REPORTS
-        DIRECTORY = (ENABLE = TRUE)
         ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')
     """).collect()
 
@@ -214,7 +205,7 @@ $$;
     try:
         session.sql(pdf_generator_sql).collect()
     except Exception as e:
-        print(f"ERROR: PDF generator creation failed: {e}")
+        config.log_error(f" PDF generator creation failed: {e}")
 
 def create_ma_simulation_tool(session: Session):
     """
@@ -349,9 +340,8 @@ $$;
     """
     try:
         session.sql(ma_simulation_sql).collect()
-        # print("   ✅ Created M&A simulation tool: MA_SIMULATION_TOOL")
     except Exception as e:
-        print(f"ERROR: M&A simulation tool creation failed: {e}")
+        config.log_error(f" M&A simulation tool creation failed: {e}")
 
 def validate_components(session: Session, semantic_built: bool, search_built: bool):
     """Validate that AI components are working correctly."""
@@ -370,13 +360,12 @@ def validate_components(session: Session, semantic_built: bool, search_built: bo
             """).collect()
             
             if len(result) == 0:
-                print("ERROR: SAM_ANALYST_VIEW validation failed - no results returned")
+                config.log_error(" SAM_ANALYST_VIEW validation failed - no results returned")
                 validation_passed = False
             # else:
-                # print("   ✅ SAM_ANALYST_VIEW validated")
                 
         except Exception as e:
-            print(f"ERROR: SAM_ANALYST_VIEW validation failed: {e}")
+            config.log_error(f" SAM_ANALYST_VIEW validation failed: {e}")
             validation_passed = False
     
     if search_built:
@@ -387,10 +376,9 @@ def validate_components(session: Session, semantic_built: bool, search_built: bo
             """).collect()
             
             if len(services) == 0:
-                print("ERROR: No Cortex Search services found")
+                config.log_error(" No Cortex Search services found")
                 validation_passed = False
             else:
-                # print(f"   ✅ Found {len(services)} Cortex Search service(s)")
                 
                 # Test first service
                 service_name = services[0]['name']
@@ -401,16 +389,14 @@ def validate_components(session: Session, semantic_built: bool, search_built: bo
                             '{{"query": "test", "limit": 1}}'
                         )
                     """).collect()
-                    # print(f"   ✅ Search service {service_name} validated")
                 except Exception as e:
-                    print(f"ERROR: Search service {service_name} validation failed: {e}")
+                    config.log_error(f" Search service {service_name} validation failed: {e}")
                     validation_passed = False
                     
         except Exception as e:
-            print(f"ERROR: Search service validation failed: {e}")
+            config.log_error(f" Search service validation failed: {e}")
             validation_passed = False
     
     if not validation_passed:
         raise Exception("AI component validation failed")
     
-    # print("   ✅ AI components validated successfully")

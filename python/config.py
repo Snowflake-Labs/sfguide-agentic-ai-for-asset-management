@@ -4,13 +4,74 @@ All configuration constants for the SAM AI demo using CAPS naming convention.
 """
 
 import os
+import sys
+
+# =============================================================================
+# LOGGING & OUTPUT CONTROL
+# =============================================================================
+
+# Verbosity levels: 0=minimal (phases only), 1=normal (steps), 2=verbose (all details)
+VERBOSITY = 0  # Default to minimal output
+
+# Progress indicators for minimal output
+_current_phase = None
+_step_count = 0
+
+def set_verbosity(level: int):
+    """Set output verbosity level: 0=minimal, 1=normal, 2=verbose"""
+    global VERBOSITY
+    VERBOSITY = level
+
+def log_phase(phase_name: str):
+    """Log a major phase (always shown). E.g., 'Structured Data', 'AI Components'"""
+    global _current_phase, _step_count
+    _current_phase = phase_name
+    _step_count = 0
+    print(f"\n{'='*60}")
+    print(f"  {phase_name}")
+    print(f"{'='*60}")
+
+def log_step(step_name: str):
+    """Log a step within a phase (shown at verbosity >= 1)"""
+    global _step_count
+    _step_count += 1
+    if VERBOSITY >= 1:
+        print(f"  [{_step_count}] {step_name}")
+    else:
+        # Minimal mode: show progress dot
+        print(".", end="", flush=True)
+
+def log_detail(message: str):
+    """Log detailed info (shown at verbosity >= 2)"""
+    if VERBOSITY >= 2:
+        print(f"      {message}")
+
+def log_success(message: str):
+    """Log success message (shown at verbosity >= 1)"""
+    if VERBOSITY >= 1:
+        print(f"    ✅ {message}")
+
+def log_warning(message: str):
+    """Log warning message (always shown)"""
+    print(f"    ⚠️  {message}")
+
+def log_error(message: str):
+    """Log error message (always shown)"""
+    print(f"    ❌ {message}")
+
+def log_phase_complete(summary: str = None):
+    """Mark phase complete with optional summary"""
+    if VERBOSITY == 0 and _step_count > 0:
+        print()  # New line after progress dots
+    if summary:
+        print(f"  ✅ {summary}")
 
 # =============================================================================
 # CORE SETTINGS
 # =============================================================================
 
 # Connection and execution
-DEFAULT_CONNECTION_NAME = 'default'
+DEFAULT_CONNECTION_NAME = 'sfseeurope-mstellwall-aws-us-west3'
 RNG_SEED = 42
 YEARS_OF_HISTORY = 5
 TEST_MODE_MULTIPLIER = 0.1
@@ -25,26 +86,28 @@ DATABASE = {
         'raw': 'RAW',
         'curated': 'CURATED',
         'ai': 'AI',
-        'market_data': 'MARKET_DATA'  # External provider-style financial data
+        'market_data': 'MARKET_DATA'  # External provider data (financial statements, estimates, filings)
     }
 }
+
 # =============================================================================
 # MARKET_DATA SCHEMA CONFIGURATION (External Provider Data)
 # =============================================================================
 
-# This schema simulates external provider data: financials, estimates, filings.
+# This schema simulates data as received from a market data provider
+# All tables follow provider-agnostic naming conventions
 MARKET_DATA = {
     'enabled': True,
     'tables': {
         # Company & Security Master
         'dim_company': 'DIM_COMPANY',
-        'dim_security': 'DIM_SECURITY_PROVIDER',
+        'dim_security': 'DIM_SECURITY_PROVIDER',  # Provider's security master
         'dim_trading_item': 'DIM_TRADING_ITEM',
         'ref_exchange': 'REF_EXCHANGE',
         'ref_industry': 'REF_INDUSTRY',
         'ref_currency': 'REF_CURRENCY',
         'ref_country': 'REF_COUNTRY',
-
+        
         # Financial Statements
         'fact_financial_period': 'FACT_FINANCIAL_PERIOD',
         'fact_financial_data': 'FACT_FINANCIAL_DATA',
@@ -52,7 +115,7 @@ MARKET_DATA = {
         'fact_debt_structure': 'FACT_DEBT_STRUCTURE',
         'fact_equity_structure': 'FACT_EQUITY_STRUCTURE',
         'ref_data_item': 'REF_DATA_ITEM',
-
+        
         # Consensus & Analyst Data
         'fact_estimate_consensus': 'FACT_ESTIMATE_CONSENSUS',
         'fact_estimate_data': 'FACT_ESTIMATE_DATA',
@@ -60,7 +123,7 @@ MARKET_DATA = {
         'dim_broker': 'DIM_BROKER',
         'dim_analyst': 'DIM_ANALYST',
         'fact_analyst_coverage': 'FACT_ANALYST_COVERAGE',
-
+        
         # Filings (S&P Capital IQ pattern)
         'ref_filing_type': 'REF_FILING_TYPE',
         'ref_filing_source': 'REF_FILING_SOURCE',
@@ -75,12 +138,13 @@ MARKET_DATA = {
     'semantic_views': {
         'fundamentals': 'SAM_FUNDAMENTALS_VIEW',  # Financial statements + estimates
     },
+    # Data generation settings
     'generation': {
         'years_of_history': 5,
         'quarters_per_year': 4,
         'estimates_forward_years': 2,
         'brokers_per_company': (3, 8),  # Min/max broker coverage
-        'revision_frequency': 0.3       # 30% of estimates get revised
+        'revision_frequency': 0.3  # 30% of estimates get revised
     }
 }
 
@@ -97,7 +161,7 @@ FINANCIAL_DATA_ITEMS = {
     'ebitda': {'id': 1008, 'name': 'EBITDA', 'category': 'income_statement', 'unit': 'USD'},
     'rd_expense': {'id': 1009, 'name': 'R&D Expense', 'category': 'income_statement', 'unit': 'USD'},
     'sga_expense': {'id': 1010, 'name': 'SG&A Expense', 'category': 'income_statement', 'unit': 'USD'},
-
+    
     # Balance Sheet
     'total_assets': {'id': 2001, 'name': 'Total Assets', 'category': 'balance_sheet', 'unit': 'USD'},
     'total_liabilities': {'id': 2002, 'name': 'Total Liabilities', 'category': 'balance_sheet', 'unit': 'USD'},
@@ -109,14 +173,14 @@ FINANCIAL_DATA_ITEMS = {
     'accounts_receivable': {'id': 2008, 'name': 'Accounts Receivable', 'category': 'balance_sheet', 'unit': 'USD'},
     'inventory': {'id': 2009, 'name': 'Inventory', 'category': 'balance_sheet', 'unit': 'USD'},
     'goodwill': {'id': 2010, 'name': 'Goodwill', 'category': 'balance_sheet', 'unit': 'USD'},
-
+    
     # Cash Flow
     'operating_cash_flow': {'id': 3001, 'name': 'Operating Cash Flow', 'category': 'cash_flow', 'unit': 'USD'},
     'capex': {'id': 3002, 'name': 'Capital Expenditure', 'category': 'cash_flow', 'unit': 'USD'},
     'free_cash_flow': {'id': 3003, 'name': 'Free Cash Flow', 'category': 'cash_flow', 'unit': 'USD'},
     'dividends_paid': {'id': 3004, 'name': 'Dividends Paid', 'category': 'cash_flow', 'unit': 'USD'},
     'share_repurchases': {'id': 3005, 'name': 'Share Repurchases', 'category': 'cash_flow', 'unit': 'USD'},
-
+    
     # Ratios (calculated)
     'gross_margin': {'id': 4001, 'name': 'Gross Margin', 'category': 'ratios', 'unit': 'PCT'},
     'operating_margin': {'id': 4002, 'name': 'Operating Margin', 'category': 'ratios', 'unit': 'PCT'},
@@ -125,7 +189,12 @@ FINANCIAL_DATA_ITEMS = {
     'roa': {'id': 4005, 'name': 'Return on Assets', 'category': 'ratios', 'unit': 'PCT'},
     'debt_to_equity': {'id': 4006, 'name': 'Debt to Equity', 'category': 'ratios', 'unit': 'RATIO'},
     'current_ratio': {'id': 4007, 'name': 'Current Ratio', 'category': 'ratios', 'unit': 'RATIO'},
-    'quick_ratio': {'id': 4008, 'name': 'Quick Ratio', 'category': 'ratios', 'unit': 'RATIO'}
+    'quick_ratio': {'id': 4008, 'name': 'Quick Ratio', 'category': 'ratios', 'unit': 'RATIO'},
+    
+    # Rigorous Investment Memo Metrics
+    'tam': {'id': 1011, 'name': 'Total Addressable Market', 'category': 'income_statement', 'unit': 'USD'},
+    'customer_count': {'id': 1012, 'name': 'Total Customers', 'category': 'income_statement', 'unit': 'COUNT'},
+    'nrr': {'id': 4009, 'name': 'Net Revenue Retention', 'category': 'ratios', 'unit': 'PCT'}
 }
 
 # Estimate data items for consensus
@@ -135,7 +204,12 @@ ESTIMATE_DATA_ITEMS = {
     'ebitda_est': {'id': 5003, 'name': 'EBITDA Estimate', 'category': 'estimates', 'unit': 'USD'},
     'net_income_est': {'id': 5004, 'name': 'Net Income Estimate', 'category': 'estimates', 'unit': 'USD'},
     'price_target': {'id': 5005, 'name': 'Price Target', 'category': 'estimates', 'unit': 'USD'},
-    'rating': {'id': 5006, 'name': 'Analyst Rating', 'category': 'estimates', 'unit': 'RATING'}
+    'rating': {'id': 5006, 'name': 'Analyst Rating', 'category': 'estimates', 'unit': 'RATING'},
+    
+    # Rigorous Investment Memo Estimates
+    'tam_est': {'id': 5007, 'name': 'TAM Estimate', 'category': 'estimates', 'unit': 'USD'},
+    'nrr_est': {'id': 5008, 'name': 'NRR Estimate', 'category': 'estimates', 'unit': 'PCT'},
+    'customer_count_est': {'id': 5009, 'name': 'Customer Count Estimate', 'category': 'estimates', 'unit': 'COUNT'}
 }
 
 # Broker names for synthetic data
@@ -206,7 +280,8 @@ SEC_FILING_SECTIONS = {
         {'heading_id': 15, 'heading': 'Item 11', 'standardized': 'Executive Compensation', 'parent_id': None},
         {'heading_id': 16, 'heading': 'Item 12', 'standardized': 'Security Ownership', 'parent_id': None},
         {'heading_id': 17, 'heading': 'Item 13', 'standardized': 'Certain Relationships and Related Transactions', 'parent_id': None},
-        {'heading_id': 18, 'heading': 'Item 14', 'standardized': 'Principal Accountant Fees', 'parent_id': None}
+        {'heading_id': 18, 'heading': 'Item 14', 'standardized': 'Principal Accountant Fees', 'parent_id': None},
+        {'heading_id': 19, 'heading': 'Item 15', 'standardized': 'Exhibits and Financial Statement Schedules', 'parent_id': None}
     ],
     '10-Q': [
         {'heading_id': 101, 'heading': 'Part I Item 1', 'standardized': 'Financial Statements', 'parent_id': None},
@@ -216,31 +291,49 @@ SEC_FILING_SECTIONS = {
         {'heading_id': 105, 'heading': 'Part II Item 1', 'standardized': 'Legal Proceedings', 'parent_id': None},
         {'heading_id': 106, 'heading': 'Part II Item 1A', 'standardized': 'Risk Factors', 'parent_id': None},
         {'heading_id': 107, 'heading': 'Part II Item 2', 'standardized': 'Unregistered Sales of Equity Securities', 'parent_id': None},
-        {'heading_id': 108, 'heading': 'Part II Item 3', 'standardized': 'Defaults Upon Senior Securities', 'parent_id': None},
-        {'heading_id': 109, 'heading': 'Part II Item 4', 'standardized': 'Mine Safety Disclosures', 'parent_id': None},
-        {'heading_id': 110, 'heading': 'Part II Item 5', 'standardized': 'Other Information', 'parent_id': None},
-        {'heading_id': 111, 'heading': 'Part II Item 6', 'standardized': 'Exhibits', 'parent_id': None}
+        {'heading_id': 108, 'heading': 'Part II Item 6', 'standardized': 'Exhibits', 'parent_id': None}
     ]
 }
 
-# Estimate revision causes (for future expansion)
-ESTIMATE_REVISION_CAUSES = [
-    'Earnings surprise',
-    'Guidance update',
-    'Macro environment change',
-    'Competitive pressure',
-    'Regulatory change'
-]
+# =============================================================================
+# HELPER FUNCTIONS FOR DATABASE PATHS
+# =============================================================================
 
+def get_database_name() -> str:
+    """Get the demo database name."""
+    return DATABASE['name']
 
-# Helper function for table references
+def get_schema_path(schema_key: str) -> str:
+    """Get fully qualified schema path: DATABASE.SCHEMA
+    
+    Args:
+        schema_key: Key from DATABASE['schemas'] dict (e.g., 'curated', 'market_data', 'ai')
+    
+    Returns:
+        Fully qualified schema path (e.g., 'SAM_DEMO.CURATED')
+    """
+    return f"{DATABASE['name']}.{DATABASE['schemas'][schema_key]}"
+
+def get_full_table_path(schema_key: str, table_name: str) -> str:
+    """Get fully qualified table path: DATABASE.SCHEMA.TABLE
+    
+    Args:
+        schema_key: Key from DATABASE['schemas'] dict (e.g., 'curated', 'market_data', 'ai')
+        table_name: Name of the table
+    
+    Returns:
+        Fully qualified table path (e.g., 'SAM_DEMO.CURATED.DIM_SECURITY')
+    """
+    return f"{DATABASE['name']}.{DATABASE['schemas'][schema_key]}.{table_name}"
+
+# Alias for backwards compatibility
 def get_table_path(schema: str, table: str) -> str:
-    """Get fully qualified table path."""
-    return f"{DATABASE['name']}.{DATABASE['schemas'][schema]}.{table}"
+    """Get fully qualified table path. (Alias for get_full_table_path)"""
+    return get_full_table_path(schema, table)
 
 WAREHOUSES = {
     'execution': {
-        'name': 'SAM_DEMO_WH',  
+        'name': 'SAM_DEMO_WH',
         'size': 'MEDIUM',
         'comment': 'Warehouse for SAM demo data generation and execution'
     },
@@ -275,9 +368,144 @@ SECURITIES = {
         'bonds': 3000,
         'etfs': 1000
     },
-    'real_assets_view': 'V_REAL_ASSETS',
-    'sec_filings_database': 'SNOWFLAKE_PUBLIC_DATA_FREE',
-    'sec_filings_schema': 'PUBLIC_DATA_FREE'
+    'real_assets_view': 'V_REAL_ASSETS'
+    # Note: External data source config moved to REAL_DATA_SOURCES below
+}
+
+# =============================================================================
+# REAL DATA SOURCES CONFIGURATION
+# =============================================================================
+
+# Public data sources for replacing synthetic data
+# All external data comes from SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE
+REAL_DATA_SOURCES = {
+    'database': 'SNOWFLAKE_PUBLIC_DATA_FREE',
+    'schema': 'PUBLIC_DATA_FREE',
+    'enabled': True,  # Toggle to use real vs synthetic data
+    'tables': {
+        # =============================================================================
+        # OPENFIGI SECURITY DATA (for V_REAL_ASSETS view)
+        # =============================================================================
+        'openfigi_security_index': {
+            'table': 'OPENFIGI_SECURITY_INDEX',
+            'description': 'Security master data with tickers, FIGI identifiers, and exchange info',
+            'key_columns': ['TOP_LEVEL_OPENFIGI_ID', 'PRIMARY_TICKER', 'SECURITY_NAME', 'ASSET_CATEGORY'],
+            'coverage': 'Global securities with OpenFIGI identifiers',
+            'replaces': None,  # Source for V_REAL_ASSETS view
+            'used_by': ['extract_real_assets.py', 'V_REAL_ASSETS']
+        },
+        'company_security_relationships': {
+            'table': 'COMPANY_SECURITY_RELATIONSHIPS',
+            'description': 'Links companies to their securities',
+            'key_columns': ['COMPANY_ID', 'SECURITY_ID', 'SECURITY_ID_TYPE'],
+            'coverage': 'Company-security mappings',
+            'replaces': None,
+            'used_by': ['extract_real_assets.py', 'V_REAL_ASSETS']
+        },
+        'company_characteristics': {
+            'table': 'COMPANY_CHARACTERISTICS',
+            'description': 'Company attributes including country, SIC codes, addresses',
+            'key_columns': ['COMPANY_ID', 'RELATIONSHIP_TYPE', 'VALUE'],
+            'coverage': 'Company metadata and characteristics',
+            'replaces': None,
+            'used_by': ['extract_real_assets.py', 'generate_structured.py']
+        },
+        # =============================================================================
+        # COMPANY INDEX (shared by multiple modules)
+        # =============================================================================
+        'company_index': {
+            'table': 'COMPANY_INDEX',
+            'description': 'Company master data with CIK, EIN, LEI identifiers',
+            'key_columns': ['COMPANY_ID', 'COMPANY_NAME', 'CIK', 'EIN', 'LEI'],
+            'coverage': 'US public companies',
+            'replaces': 'DIM_COMPANY',
+            'used_by': ['extract_real_assets.py', 'generate_structured.py']
+        },
+        # =============================================================================
+        # STOCK PRICE DATA
+        # =============================================================================
+        'stock_prices': {
+            'table': 'STOCK_PRICE_TIMESERIES',
+            'description': 'Daily open/close prices, high/low prices, and trading volumes for US securities traded on Nasdaq',
+            'key_columns': ['TICKER', 'DATE', 'VARIABLE', 'VALUE'],
+            'coverage': 'US equities on Nasdaq',
+            'replaces': 'FACT_MARKETDATA_TIMESERIES',
+            'used_by': ['generate_market_data.py']
+        },
+        # =============================================================================
+        # SEC FILING DATA
+        # =============================================================================
+        'sec_metrics': {
+            'table': 'SEC_METRICS_TIMESERIES',
+            'description': 'Quarterly and annual parsed revenue segments from 10-Qs and 10-Ks',
+            'key_columns': ['CIK', 'COMPANY_NAME', 'VARIABLE_NAME', 'PERIOD_END_DATE', 'VALUE', 'UNIT', 'BUSINESS_SEGMENT'],
+            'coverage': 'US public companies with SEC filings',
+            'replaces': 'FACT_FINANCIAL_DATA',
+            'used_by': ['generate_market_data.py']
+        },
+        'sec_filing_text': {
+            'table': 'SEC_REPORT_TEXT_ATTRIBUTES',
+            'description': 'Full text of company filings (10-Ks, 10-Qs, 8-Ks) submitted to the SEC',
+            'key_columns': ['SEC_DOCUMENT_ID', 'CIK', 'ADSH', 'VARIABLE', 'VARIABLE_NAME', 'PERIOD_END_DATE', 'VALUE'],
+            'coverage': 'SEC filings text content',
+            'replaces': 'FACT_FILING_DATA',
+            'used_by': ['generate_market_data.py']
+        },
+        'sec_corporate_financials': {
+            'table': 'SEC_CORPORATE_REPORT_ATTRIBUTES',
+            'description': 'Full SEC financial statements (Income Statement, Balance Sheet, Cash Flow) with XBRL tags',
+            'key_columns': ['CIK', 'ADSH', 'TAG', 'STATEMENT', 'PERIOD_END_DATE', 'VALUE', 'MEASURE_DESCRIPTION'],
+            'coverage': '569M records across 17,258 companies - complete financial statements',
+            'replaces': 'FACT_FINANCIAL_DATA (supplements with real data)',
+            'used_by': ['generate_market_data.py']
+        },
+        'sec_report_attributes': {
+            'table': 'SEC_REPORT_ATTRIBUTES',
+            'description': 'SEC report metadata including form type, filing dates',
+            'key_columns': ['ADSH', 'CIK', 'FORM_TYPE', 'FILED_DATE'],
+            'coverage': 'SEC filing metadata',
+            'replaces': None,
+            'used_by': ['generate_structured.py']
+        },
+        'sec_report_index': {
+            'table': 'SEC_REPORT_INDEX',
+            'description': 'Index of SEC reports with filing URLs',
+            'key_columns': ['ADSH', 'CIK'],
+            'coverage': 'SEC filing index',
+            'replaces': None,
+            'used_by': ['generate_structured.py']
+        },
+        'sec_fiscal_calendars': {
+            'table': 'SEC_FISCAL_CALENDARS',
+            'description': 'Fiscal calendar data for SEC filers',
+            'key_columns': ['CIK', 'FISCAL_YEAR', 'FISCAL_PERIOD', 'PERIOD_END_DATE'],
+            'coverage': 'Fiscal period information',
+            'replaces': None,
+            'used_by': ['hydration_engine.py']
+        },
+        # =============================================================================
+        # INSTITUTIONAL HOLDINGS
+        # =============================================================================
+        'sec_13f': {
+            'table': 'SEC_13F_ATTRIBUTES',
+            'description': 'Institutional investment manager holdings from 13F filings',
+            'key_columns': ['CIK', 'ADSH', 'CUSIP', 'SHARES', 'VALUE'],
+            'coverage': 'Institutional holdings data',
+            'replaces': None,
+            'used_by': []  # Future use
+        },
+        # =============================================================================
+        # COMPANY EVENT TRANSCRIPTS (Earnings Calls, AGMs, Investor Days, etc.)
+        # =============================================================================
+        'company_event_transcripts': {
+            'table': 'COMPANY_EVENT_TRANSCRIPT_ATTRIBUTES',
+            'description': 'Transcripts of hosted company events (Earnings Calls, AGMs, M&A, Investor Days) in JSON format',
+            'key_columns': ['COMPANY_ID', 'CIK', 'PRIMARY_TICKER', 'EVENT_TYPE', 'EVENT_TIMESTAMP', 'TRANSCRIPT'],
+            'coverage': '9000+ public companies with varying history',
+            'replaces': 'CURATED.EARNINGS_TRANSCRIPTS_CORPUS (synthetic)',
+            'used_by': ['generate_real_transcripts.py']
+        }
+    }
 }
 
 # Helper function for test mode counts
@@ -713,12 +941,12 @@ SCENARIO_AGENTS = {
 }
 
 SCENARIO_DATA_REQUIREMENTS = {
-    'portfolio_copilot': ['broker_research', 'earnings_transcripts', 'press_releases', 'macro_events', 'report_templates'],
-    'research_copilot': ['broker_research', 'earnings_transcripts'],
-    'thematic_macro_advisor': ['broker_research', 'press_releases'],
+    'portfolio_copilot': ['broker_research', 'company_event_transcripts', 'press_releases', 'macro_events', 'report_templates'],
+    'research_copilot': ['broker_research', 'company_event_transcripts'],
+    'thematic_macro_advisor': ['broker_research', 'press_releases', 'company_event_transcripts'],
     'esg_guardian': ['ngo_reports', 'engagement_notes', 'policy_docs'],
     'sales_advisor': ['sales_templates', 'philosophy_docs', 'policy_docs'],
-    'quant_analyst': ['broker_research', 'earnings_transcripts'],
+    'quant_analyst': ['broker_research', 'company_event_transcripts'],
     'compliance_advisor': ['policy_docs', 'engagement_notes', 'form_adv', 'form_crs', 'regulatory_updates'],
     'middle_office_copilot': ['custodian_reports', 'reconciliation_notes', 'ssi_documents', 'ops_procedures'],
     'mandate_compliance': ['report_templates'],  # Alias for portfolio_copilot mandate compliance mode
@@ -928,7 +1156,23 @@ DOCUMENT_TYPES = {
         'masters_per_sector': 10,
         'coverage_count': 8,
         'transcripts_per_demo_company': 8,
-        'transcripts_per_additional_company': 6
+        'transcripts_per_additional_company': 6,
+        'deprecated': True,  # Replaced by company_event_transcripts (real data)
+        'replaced_by': 'company_event_transcripts'
+    },
+    'company_event_transcripts': {
+        'table_name': 'COMPANY_EVENT_TRANSCRIPTS_RAW',
+        'corpus_name': 'COMPANY_EVENT_TRANSCRIPTS_CORPUS',
+        'search_service': 'SAM_COMPANY_EVENTS',
+        'word_count_range': (500, 2000),  # Per chunk after splitting
+        'applies_to': 'securities',
+        'linkage_level': 'security',
+        'source': 'real',  # Indicates real data from SNOWFLAKE_PUBLIC_DATA_FREE
+        'coverage_count': 31,  # Demo companies + major stocks + SNOW
+        'event_types': ['Earnings Call', 'Update / Briefing', 'M&A Announcement', 
+                        'Annual General Meeting', 'Investor / Analyst Day', 'Special Call'],
+        'chunk_size_tokens': 512,
+        'speaker_mapping_table': 'COMP_EVENT_SPEAKER_MAPPING'
     },
     'press_releases': {
         'table_name': 'PRESS_RELEASES_RAW',

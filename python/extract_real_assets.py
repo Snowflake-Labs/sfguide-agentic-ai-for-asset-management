@@ -43,22 +43,20 @@ def verify_sec_filings_access(session: Session) -> bool:
         databases = session.sql("SHOW DATABASES").collect()
         db_names = [row['name'] for row in databases]
         
-        if config.SECURITIES['sec_filings_database'] not in db_names:
-            raise Exception(f"SEC Filings database '{config.SECURITIES['sec_filings_database']}' not found. "
+        if config.REAL_DATA_SOURCES['database'] not in db_names:
+            raise Exception(f"Public data database '{config.REAL_DATA_SOURCES['database']}' not found. "
                           f"Please ensure you have access to the SEC Filings dataset.")
         
         # Check if schema exists
-        schemas = session.sql(f"SHOW SCHEMAS IN {config.SECURITIES['sec_filings_database']}").collect()
+        schemas = session.sql(f"SHOW SCHEMAS IN {config.REAL_DATA_SOURCES['database']}").collect()
         schema_names = [row['name'] for row in schemas]
         
-        if config.SECURITIES['sec_filings_schema'] not in schema_names:
-            raise Exception(f"Schema '{config.SECURITIES['sec_filings_schema']}' not found in {config.SECURITIES['sec_filings_database']}. "
+        if config.REAL_DATA_SOURCES['schema'] not in schema_names:
+            raise Exception(f"Schema '{config.REAL_DATA_SOURCES['schema']}' not found in {config.REAL_DATA_SOURCES['database']}. "
                           f"Please verify your SEC Filings dataset access.")
         
         # Verify we can access a key table
-        session.sql(f"SELECT 1 FROM {config.SECURITIES['sec_filings_database']}.{config.SECURITIES['sec_filings_schema']}.COMPANY_INDEX LIMIT 1").collect()
-        
-        # print(f"✅ Verified access to {config.SECURITIES['sec_filings_database']}.{config.SECURITIES['sec_filings_schema']}")
+        session.sql(f"SELECT 1 FROM {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.COMPANY_INDEX LIMIT 1").collect()
         return True
         
     except Exception as e:
@@ -104,14 +102,14 @@ def create_real_assets_view(session: Session) -> bool:
             -- Use SIC Description as a proxy for industry, as GICS is not in this base dataset
             MAX(CASE WHEN char.RELATIONSHIP_TYPE = 'sic_description' THEN char.VALUE END) AS INDUSTRY_SECTOR
         FROM
-            {config.SECURITIES['sec_filings_database']}.{config.SECURITIES['sec_filings_schema']}.OPENFIGI_SECURITY_INDEX AS osi
+            {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.OPENFIGI_SECURITY_INDEX AS osi
         LEFT JOIN
-            {config.SECURITIES['sec_filings_database']}.{config.SECURITIES['sec_filings_schema']}.COMPANY_SECURITY_RELATIONSHIPS AS rship 
+            {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.COMPANY_SECURITY_RELATIONSHIPS AS rship 
                 ON osi.TOP_LEVEL_OPENFIGI_ID = rship.SECURITY_ID AND osi.TOP_LEVEL_OPENFIGI_ID_TYPE = rship.security_id_type
         LEFT JOIN
-            {config.SECURITIES['sec_filings_database']}.{config.SECURITIES['sec_filings_schema']}.COMPANY_INDEX AS ci ON rship.COMPANY_ID = ci.COMPANY_ID
+            {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.COMPANY_INDEX AS ci ON rship.COMPANY_ID = ci.COMPANY_ID
         LEFT JOIN
-            {config.SECURITIES['sec_filings_database']}.{config.SECURITIES['sec_filings_schema']}.COMPANY_CHARACTERISTICS AS char ON rship.COMPANY_ID = char.COMPANY_ID
+            {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.COMPANY_CHARACTERISTICS AS char ON rship.COMPANY_ID = char.COMPANY_ID
         WHERE
             NOT (ARRAY_CONTAINS('CEDEAR'::variant, osi.SECURITY_TYPE) 
                 OR ARRAY_CONTAINS('PRIV PLACEMENT'::variant, osi.SECURITY_TYPE)
