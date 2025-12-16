@@ -95,13 +95,39 @@ GRANT USAGE ON WAREHOUSE SAM_DEMO_WH TO ROLE SAM_DEMO_ROLE;
 GRANT IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE_PUBLIC_DATA_FREE TO ROLE SAM_DEMO_ROLE;
 
 -- ============================================================================
--- SECTION 5: Git Integration & Notebook Setup
+-- SECTION 5: Snowflake Intelligence Setup (Required for Agents)
+-- ============================================================================
+
+-- Create Snowflake Intelligence object if it doesn't exist
+CREATE SNOWFLAKE INTELLIGENCE IF NOT EXISTS SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;
+
+-- Grant permissions to create Snowflake Intelligence objects
+GRANT CREATE SNOWFLAKE INTELLIGENCE ON ACCOUNT TO ROLE SAM_DEMO_ROLE;
+
+-- Grant usage and modify permissions on Snowflake Intelligence
+GRANT USAGE ON SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT TO ROLE SAM_DEMO_ROLE;
+GRANT MODIFY ON SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT TO ROLE SAM_DEMO_ROLE;
+
+-- Grant public access to Snowflake Intelligence (for agent invocation)
+GRANT USAGE ON SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT TO ROLE PUBLIC;
+
+-- Grant permissions to create agents in AI schema
+GRANT CREATE AGENT ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
+
+-- Grant permissions to create Cortex Search services in AI schema
+GRANT CREATE CORTEX SEARCH SERVICE ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
+
+-- Grant permissions to create semantic views in AI schema
+GRANT CREATE SEMANTIC VIEW ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
+
+-- ============================================================================
+-- SECTION 6: Git Integration & Notebook Setup
 -- ============================================================================
 
 CREATE OR REPLACE SECRET SAM_DEMO.PUBLIC.GITHUB_SECRET
   TYPE = PASSWORD
-  USERNAME = '<YOUR_GITHUB_USERNAME>'
-  PASSWORD = '<YOUR_GITHUB_PAT>'
+  USERNAME = 'user_name'
+  PASSWORD = 'pat_token'
   COMMENT = 'GitHub PAT for accessing private SAM demo repository';
 
 -- Grant secret usage to role
@@ -120,7 +146,7 @@ CREATE OR REPLACE GIT REPOSITORY SAM_DEMO.PUBLIC.sam_demo_repo
   API_INTEGRATION = GITHUB_INTEGRATION_SAM_DEMO
   GIT_CREDENTIALS = SAM_DEMO.PUBLIC.GITHUB_SECRET
   ORIGIN = 'https://github.com/Snowflake-Labs/sfguide-agentic-ai-for-asset-management.git'
-  COMMENT = 'Git repository for SAM demo setup files (private repo)';
+  COMMENT = 'Git repository for SAM demo setup files';
 
 -- Fetch latest code from Git
 ALTER GIT REPOSITORY SAM_DEMO.PUBLIC.sam_demo_repo FETCH;
@@ -135,7 +161,7 @@ CREATE OR REPLACE NOTEBOOK SAM_DEMO.PUBLIC.SAM_Demo_Complete_Setup
 -- Note: Notebook ownership is automatically assigned to the creating role
 
 -- ============================================================================
--- SECTION 6: Execute Complete Setup
+-- SECTION 7: Execute Complete Setup
 -- ============================================================================
 
 -- Switch to SAM_DEMO_ROLE for notebook execution

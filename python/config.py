@@ -6,6 +6,48 @@ All configuration constants for the SAM AI demo using CAPS naming convention.
 import os
 import sys
 
+# #############################################################################
+#
+#                       USER-EDITABLE SETTINGS
+#
+#  The settings below are the most commonly changed by users. Modify these
+#  first when customizing the demo for your environment.
+#
+# #############################################################################
+
+# =============================================================================
+# CONNECTION & CORE BUILD SETTINGS
+# =============================================================================
+
+# Snowflake connection name (from ~/.snowflake/connections.toml)
+DEFAULT_CONNECTION_NAME = 'default'
+
+# Seed for reproducible random generation (change to get different deterministic output)
+RNG_SEED = 42
+
+# Historical data range (years of position/transaction history to generate)
+YEARS_OF_HISTORY = 5
+
+# Test mode multiplier - scales down data volumes for faster dev builds (e.g. 0.1 = 10%)
+TEST_MODE_MULTIPLIER = 0.1
+
+# =============================================================================
+# AI MODEL CONFIGURATION
+# =============================================================================
+
+# Model used for speaker identification in transcript processing (AI_COMPLETE)
+# Options: 'claude-haiku-4-5', 'claude-sonnet-4', 'llama3.1-8b', etc.
+AI_SPEAKER_IDENTIFICATION_MODEL = 'claude-haiku-4-5'
+
+# #############################################################################
+#
+#                       END OF USER-EDITABLE SETTINGS
+#
+#  Settings below are advanced / internal. Only modify if you know what you
+#  are doing.
+#
+# #############################################################################
+
 # =============================================================================
 # LOGGING & OUTPUT CONTROL
 # =============================================================================
@@ -16,6 +58,7 @@ VERBOSITY = 0  # Default to minimal output
 # Progress indicators for minimal output
 _current_phase = None
 _step_count = 0
+_last_step_name = None
 
 def set_verbosity(level: int):
     """Set output verbosity level: 0=minimal, 1=normal, 2=verbose"""
@@ -24,22 +67,24 @@ def set_verbosity(level: int):
 
 def log_phase(phase_name: str):
     """Log a major phase (always shown). E.g., 'Structured Data', 'AI Components'"""
-    global _current_phase, _step_count
+    global _current_phase, _step_count, _last_step_name
     _current_phase = phase_name
     _step_count = 0
+    _last_step_name = None
     print(f"\n{'='*60}")
     print(f"  {phase_name}")
     print(f"{'='*60}")
 
 def log_step(step_name: str):
-    """Log a step within a phase (shown at verbosity >= 1)"""
-    global _step_count
+    """Log a step within a phase - shows step name in minimal mode"""
+    global _step_count, _last_step_name
     _step_count += 1
+    _last_step_name = step_name
     if VERBOSITY >= 1:
         print(f"  [{_step_count}] {step_name}")
     else:
-        # Minimal mode: show progress dot
-        print(".", end="", flush=True)
+        # Minimal mode: show step name with progress indicator
+        print(f"  → {step_name}...", flush=True)
 
 def log_detail(message: str):
     """Log detailed info (shown at verbosity >= 2)"""
@@ -58,6 +103,11 @@ def log_warning(message: str):
 def log_error(message: str):
     """Log error message (always shown)"""
     print(f"    ❌ {message}")
+
+def log_phase_complete(summary: str = None):
+    """Mark phase complete with optional summary"""
+    if summary:
+        print(f"  ✅ {summary}")
 
 def log_phase_complete(summary: str = None):
     """Mark phase complete with optional summary"""

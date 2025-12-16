@@ -116,7 +116,7 @@ def build_speaker_mapping(session: Session, target_tickers: List[str], test_mode
     FROM {source_db}.{source_schema}.{source_table} AS t,
     LATERAL FLATTEN(
         input => SNOWFLAKE.CORTEX.AI_COMPLETE(
-            'claude-haiku-4-5',
+            '{config.AI_SPEAKER_IDENTIFICATION_MODEL}',
             CONCAT(
                 'Identify all speakers in this company event transcript. ',
                 'For each speaker, determine their name, role (e.g., CEO, CFO, Analyst, Operator, Moderator), ',
@@ -413,4 +413,3 @@ def get_transcript_stats(session: Session, target_tickers: List[str]) -> dict:
         config.log_warning(f"Failed to get transcript stats: {e}")
     
     return {'total_transcripts': 0, 'companies_with_transcripts': 0, 'event_types': 0}
-
