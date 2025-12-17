@@ -1536,29 +1536,9 @@ ESG_CONTROVERSY_KEYWORDS = {
 }
 
 # Fictional provider names
-FICTIONAL_BROKER_NAMES = [
-    'Ashfield Partners', 'Northgate Analytics', 'Blackstone Ridge Research',
-    'Fairmont Capital Insights', 'Kingswell Securities Research',
-    'Brookline Advisory Group', 'Harrow Street Markets', 'Marlowe & Co. Research',
-    'Crescent Point Analytics', 'Sterling Wharf Intelligence', 'Granite Peak Advisory',
-    'Alder & Finch Investments', 'Bluehaven Capital Research', 'Regent Square Analytics',
-    'Whitestone Equity Research'
-]
-
-FICTIONAL_NGO_NAMES = {
-    'environmental': [
-        'Global Sustainability Watch', 'Environmental Justice Initiative',
-        'Climate Action Network', 'Green Future Alliance'
-    ],
-    'social': [
-        'Human Rights Monitor', 'Labour Rights Observatory',
-        'Ethical Investment Coalition', 'Fair Workplace Institute'
-    ],
-    'governance': [
-        'Corporate Accountability Forum', 'Transparency Advocacy Group',
-        'Corporate Responsibility Institute', 'Ethical Governance Council'
-    ]
-}
+# REMOVED: FICTIONAL_BROKER_NAMES and FICTIONAL_NGO_NAMES
+# These are now loaded from content_library/_rules/fictional_providers.yaml
+# Use rules_loader.get_fictional_brokers() and rules_loader.get_fictional_ngos() instead
 
 # Numeric tier by document type
 NUMERIC_TIER_BY_DOC_TYPE = {

@@ -1,109 +1,300 @@
 # Numeric Bounds Specification - SAM Demo Pre-Generated Content
-# Complete sector-specific bounds for all Tier 1 numeric placeholders
+# All placeholders are explicitly defined per document type - no fallback required
 
-# Security-Level Documents - Broker Research
+# ============================================================================
+# SECURITY-LEVEL DOCUMENTS
+# ============================================================================
+
 security:
+  # --------------------------------------------------------------------------
+  # BROKER RESEARCH - Placeholders from content_library/security/broker_research/
+  # --------------------------------------------------------------------------
   broker_research:
+    # Sector-specific overrides
     Information Technology:
       YOY_REVENUE_GROWTH_PCT: {min: 8, max: 25}
       EBIT_MARGIN_PCT: {min: 12, max: 28}
+      EBIT_MARGIN_PCT_UPPER: {min: 20, max: 35}
       PRICE_TARGET_USD: {min: 80, max: 450}
       PE_RATIO: {min: 15, max: 35}
       REVENUE_BILLIONS: {min: 5, max: 200}
       GROSS_MARGIN_PCT: {min: 50, max: 70}
-      
+      ROE_PCT: {min: 12, max: 25}
+      UPSIDE_POTENTIAL: {min: 10, max: 45}
+
     Health Care:
       YOY_REVENUE_GROWTH_PCT: {min: 5, max: 18}
       EBIT_MARGIN_PCT: {min: 15, max: 35}
+      EBIT_MARGIN_PCT_UPPER: {min: 25, max: 42}
       PRICE_TARGET_USD: {min: 60, max: 350}
       PE_RATIO: {min: 18, max: 40}
       REVENUE_BILLIONS: {min: 2, max: 150}
       GROSS_MARGIN_PCT: {min: 60, max: 80}
-      
+      ROE_PCT: {min: 10, max: 22}
+      UPSIDE_POTENTIAL: {min: 8, max: 40}
+
     Financials:
       YOY_REVENUE_GROWTH_PCT: {min: 3, max: 15}
       EBIT_MARGIN_PCT: {min: 20, max: 40}
+      EBIT_MARGIN_PCT_UPPER: {min: 30, max: 48}
       PRICE_TARGET_USD: {min: 50, max: 300}
       PE_RATIO: {min: 8, max: 18}
       REVENUE_BILLIONS: {min: 10, max: 250}
+      GROSS_MARGIN_PCT: {min: 40, max: 60}
       ROE_PCT: {min: 10, max: 25}
-      
+      UPSIDE_POTENTIAL: {min: 8, max: 35}
+
     Consumer Discretionary:
       YOY_REVENUE_GROWTH_PCT: {min: 4, max: 20}
       EBIT_MARGIN_PCT: {min: 8, max: 18}
+      EBIT_MARGIN_PCT_UPPER: {min: 15, max: 28}
       PRICE_TARGET_USD: {min: 40, max: 400}
       PE_RATIO: {min: 12, max: 30}
       REVENUE_BILLIONS: {min: 3, max: 100}
       GROSS_MARGIN_PCT: {min: 35, max: 55}
-      
+      ROE_PCT: {min: 10, max: 22}
+      UPSIDE_POTENTIAL: {min: 10, max: 40}
+
     Consumer Staples:
       YOY_REVENUE_GROWTH_PCT: {min: 2, max: 10}
       EBIT_MARGIN_PCT: {min: 10, max: 20}
+      EBIT_MARGIN_PCT_UPPER: {min: 18, max: 28}
       PRICE_TARGET_USD: {min: 45, max: 250}
       PE_RATIO: {min: 15, max: 25}
       REVENUE_BILLIONS: {min: 10, max: 180}
       GROSS_MARGIN_PCT: {min: 30, max: 50}
-      
+      ROE_PCT: {min: 12, max: 20}
+      UPSIDE_POTENTIAL: {min: 8, max: 30}
+
     Industrials:
       YOY_REVENUE_GROWTH_PCT: {min: 3, max: 15}
       EBIT_MARGIN_PCT: {min: 8, max: 18}
+      EBIT_MARGIN_PCT_UPPER: {min: 16, max: 26}
       PRICE_TARGET_USD: {min: 50, max: 280}
       PE_RATIO: {min: 12, max: 25}
       REVENUE_BILLIONS: {min: 4, max: 120}
       GROSS_MARGIN_PCT: {min: 25, max: 45}
-      
+      ROE_PCT: {min: 12, max: 22}
+      UPSIDE_POTENTIAL: {min: 8, max: 35}
+
     Energy:
       YOY_REVENUE_GROWTH_PCT: {min: -5, max: 20}
       EBIT_MARGIN_PCT: {min: 5, max: 25}
+      EBIT_MARGIN_PCT_UPPER: {min: 15, max: 35}
       PRICE_TARGET_USD: {min: 30, max: 200}
       PE_RATIO: {min: 8, max: 20}
       REVENUE_BILLIONS: {min: 10, max: 300}
       GROSS_MARGIN_PCT: {min: 15, max: 35}
-      
+      ROE_PCT: {min: 8, max: 20}
+      UPSIDE_POTENTIAL: {min: 10, max: 40}
+
     Materials:
       YOY_REVENUE_GROWTH_PCT: {min: 2, max: 18}
       EBIT_MARGIN_PCT: {min: 8, max: 22}
+      EBIT_MARGIN_PCT_UPPER: {min: 16, max: 30}
       PRICE_TARGET_USD: {min: 35, max: 220}
       PE_RATIO: {min: 10, max: 22}
       REVENUE_BILLIONS: {min: 5, max: 100}
       GROSS_MARGIN_PCT: {min: 20, max: 40}
-    
+      ROE_PCT: {min: 10, max: 20}
+      UPSIDE_POTENTIAL: {min: 8, max: 35}
+
     Communication Services:
       YOY_REVENUE_GROWTH_PCT: {min: 5, max: 22}
       EBIT_MARGIN_PCT: {min: 10, max: 30}
+      EBIT_MARGIN_PCT_UPPER: {min: 20, max: 38}
       PRICE_TARGET_USD: {min: 45, max: 350}
       PE_RATIO: {min: 12, max: 28}
       REVENUE_BILLIONS: {min: 8, max: 180}
       GROSS_MARGIN_PCT: {min: 40, max: 65}
-    
+      ROE_PCT: {min: 10, max: 22}
+      UPSIDE_POTENTIAL: {min: 10, max: 40}
+
     Utilities:
       YOY_REVENUE_GROWTH_PCT: {min: 1, max: 8}
       EBIT_MARGIN_PCT: {min: 12, max: 25}
+      EBIT_MARGIN_PCT_UPPER: {min: 20, max: 32}
       PRICE_TARGET_USD: {min: 40, max: 180}
       PE_RATIO: {min: 14, max: 22}
       REVENUE_BILLIONS: {min: 8, max: 80}
       GROSS_MARGIN_PCT: {min: 25, max: 45}
-    
+      ROE_PCT: {min: 8, max: 15}
+      UPSIDE_POTENTIAL: {min: 6, max: 25}
+
     Real Estate:
       YOY_REVENUE_GROWTH_PCT: {min: 2, max: 12}
       EBIT_MARGIN_PCT: {min: 15, max: 35}
+      EBIT_MARGIN_PCT_UPPER: {min: 25, max: 45}
       PRICE_TARGET_USD: {min: 35, max: 200}
       PE_RATIO: {min: 12, max: 30}
       REVENUE_BILLIONS: {min: 2, max: 50}
       GROSS_MARGIN_PCT: {min: 30, max: 60}
+      ROE_PCT: {min: 6, max: 15}
+      UPSIDE_POTENTIAL: {min: 8, max: 35}
 
-  # Internal Research (similar bounds but can have wider ranges)
+    # Default bounds for broker_research (used when sector not specified)
+    default:
+      YOY_REVENUE_GROWTH_PCT: {min: 3, max: 20}
+      EBIT_MARGIN_PCT: {min: 10, max: 30}
+      EBIT_MARGIN_PCT_UPPER: {min: 18, max: 38}
+      PRICE_TARGET_USD: {min: 50, max: 350}
+      PE_RATIO: {min: 12, max: 28}
+      REVENUE_BILLIONS: {min: 5, max: 150}
+      GROSS_MARGIN_PCT: {min: 30, max: 65}
+      ROE_PCT: {min: 10, max: 22}
+      UPSIDE_POTENTIAL: {min: 10, max: 40}
+
+  # --------------------------------------------------------------------------
+  # INTERNAL RESEARCH - Placeholders from content_library/security/internal_research/
+  # --------------------------------------------------------------------------
   internal_research:
-    Information Technology:
-      YOY_REVENUE_GROWTH_PCT: {min: 8, max: 25}
-      EBIT_MARGIN_PCT: {min: 12, max: 28}
-      TARGET_PRICE_USD: {min: 80, max: 450}
-      FAIR_VALUE_USD: {min: 75, max: 500}
-      UPSIDE_POTENTIAL_PCT: {min: -20, max: 60}
-      DOWNSIDE_RISK_PCT: {min: -40, max: 20}
+    default:
+      # Price targets and valuation
+      ADD_PRICE: {min: 45, max: 400}
+      ADD_UPSIDE: {min: 15, max: 50}
+      BEAR_CASE_PRICE: {min: 40, max: 400}
+      BULL_CASE_PRICE: {min: 80, max: 600}
+      CURRENT_PRICE: {min: 50, max: 500}
+      FAIR_VALUE_HIGH: {min: 80, max: 550}
+      FAIR_VALUE_LOW: {min: 40, max: 350}
+      FAIR_VALUE_USD: {min: 55, max: 450}
+      TARGET_PRICE_USD: {min: 50, max: 400}
+      TRIM_PRICE: {min: 70, max: 550}
+      
+      # Margins and growth
+      CURRENT_MARGIN: {min: 15, max: 45}
+      EBIT_MARGIN_PCT: {min: 10, max: 30}
+      MARGIN_EXPANSION: {min: 50, max: 150}
+      TARGET_MARGIN: {min: 18, max: 40}
+      YOY_REVENUE_GROWTH_PCT: {min: 5, max: 25}
+      REVENUE_CAGR: {min: 5, max: 20}
+      YEAR1_GROWTH: {min: 8, max: 25}
+      YEAR2_GROWTH: {min: 8, max: 22}
+      YEAR3_GROWTH: {min: 6, max: 18}
+      
+      # Valuation metrics
+      EV_SALES: {min: 2, max: 15}
+      PE_RATIO: {min: 12, max: 35}
+      PRICE_TO_BOOK: {min: 1.5, max: 8.0}
+      ROE_PCT: {min: 10, max: 25}
+      TERMINAL_GROWTH: {min: 2, max: 4}
+      UPSIDE_POTENTIAL_PCT: {min: 8, max: 50}
+      WACC_PCT: {min: 8, max: 12}
+      
+      # Position sizing
+      POSITION_SIZE_PCT: {min: 1.5, max: 6}
+      
+      # Geographic breakdown
+      APAC_REVENUE_PCT: {min: 15, max: 30}
+      EUROPE_REVENUE_PCT: {min: 20, max: 35}
+      NA_REVENUE_PCT: {min: 35, max: 55}
+      OTHER_REVENUE_PCT: {min: 5, max: 15}
+      INTL_TARGET: {min: 35, max: 55}
+      
+      # Segment revenue percentages
+      CLOUD_REVENUE_PCT: {min: 30, max: 60}
+      R_AND_D_INTENSITY_PCT: {min: 8, max: 25}
+      SERVICES_REVENUE_PCT: {min: 15, max: 40}
+      SOFTWARE_REVENUE_PCT: {min: 20, max: 50}
+      
+      # Allocation metrics
+      AI_ALLOCATION: {min: 5, max: 25}
+      TECH_ALLOCATION: {min: 15, max: 45}
+      THEMATIC_ALLOCATION: {min: 10, max: 35}
 
-  # Earnings Transcripts
+  # --------------------------------------------------------------------------
+  # INVESTMENT MEMO - Placeholders from content_library/security/investment_memo/
+  # --------------------------------------------------------------------------
+  investment_memo:
+    default:
+      # Revenue and growth metrics
+      ACV: {min: 50, max: 500}
+      ACV_GROWTH: {min: 12, max: 30}
+      CLOUD_ARR: {min: 100, max: 2000}
+      CLOUD_GROWTH: {min: 15, max: 45}
+      CURRENT_MARGIN: {min: 15, max: 45}
+      CUSTOMER_COUNT: {min: 1000, max: 100000}
+      CUSTOMER_GROWTH: {min: 5, max: 30}
+      EBIT_MARGIN_PCT: {min: 10, max: 35}
+      FCF_CAGR: {min: 8, max: 20}
+      FCF_MARGIN: {min: 15, max: 35}
+      GROWTH_RATE: {min: 5, max: 22}
+      LT_GROWTH: {min: 3, max: 10}
+      MARGIN_EXPANSION: {min: 50, max: 150}
+      MARKET_SHARE: {min: 15, max: 45}
+      NET_RETENTION: {min: 110, max: 135}
+      OCF: {min: 4, max: 22}
+      REVENUE_CAGR: {min: 5, max: 20}
+      SECTOR_CAGR: {min: 3, max: 15}
+      SECTOR_TOTAL: {min: 50, max: 500}
+      TARGET_MARGIN: {min: 18, max: 40}
+      YOY_REVENUE_GROWTH_PCT: {min: 5, max: 25}
+      
+      # Valuation metrics
+      BEAR_FAIR_VALUE: {min: 45, max: 380}
+      BETA: {min: 0.7, max: 1.5}
+      ENTRY_PRICE_HIGH: {min: 55, max: 450}
+      ERP: {min: 4, max: 8}
+      FAIR_VALUE_USD: {min: 55, max: 450}
+      GROWTH_PREMIUM: {min: 0, max: 20}
+      MARGIN_PREMIUM: {min: 2, max: 15}
+      NET_CASH: {min: 5, max: 100}
+      PE_RATIO: {min: 12, max: 35}
+      PE_VALUE: {min: 10, max: 35}
+      PREMIUM_DISCOUNT: {min: -15, max: 25}
+      PRICE_TO_BOOK: {min: 1.5, max: 8.0}
+      RFR: {min: 3, max: 5}
+      ROIC: {min: 10, max: 30}
+      ROE_PCT: {min: 10, max: 25}
+      SALES_VALUE: {min: 10, max: 500}
+      SOFTWARE_PREMIUM: {min: 2, max: 15}
+      TARGET_PRICE_USD: {min: 50, max: 400}
+      TERMINAL_GROWTH: {min: 2, max: 4}
+      TERMINAL_MARGIN: {min: 18, max: 40}
+      TRANSACTION_VALUE: {min: 100, max: 10000}
+      UPSIDE_PCT: {min: 10, max: 50}
+      DOWNSIDE_PCT: {min: -30, max: -5}
+      VALUATION_HIGH: {min: 80, max: 550}
+      VALUATION_LOW: {min: 40, max: 350}
+      WACC: {min: 7, max: 12}
+      WACC_PCT: {min: 8, max: 12}
+      
+      # Portfolio metrics
+      PORTFOLIO_CONTRIBUTION: {min: 5, max: 25}
+      PORTFOLIO_RISK_CONTRIBUTION: {min: 2, max: 15}
+      PORTFOLIO_WEIGHT: {min: 1, max: 10}
+      POSITION_SIZE_PCT: {min: 1.5, max: 6}
+      POSITION_SIZE_USD: {min: 5, max: 100}
+      RISK_BUDGET_PCT: {min: 80, max: 120}
+      
+      # Year projections
+      Y1_EPS: {min: 2, max: 12}
+      Y1_FCF: {min: 3, max: 20}
+      Y1_GROWTH: {min: 8, max: 25}
+      Y1_MARGIN: {min: 18, max: 35}
+      Y2_EPS: {min: 2.5, max: 14}
+      Y2_FCF: {min: 4, max: 22}
+      Y2_GROWTH: {min: 8, max: 22}
+      Y2_MARGIN: {min: 20, max: 38}
+      Y3_EPS: {min: 3, max: 16}
+      Y3_FCF: {min: 5, max: 25}
+      Y3_GROWTH: {min: 6, max: 18}
+      Y3_MARGIN: {min: 22, max: 40}
+      
+      # Financial services specific
+      CET1_RATIO_PCT: {min: 10, max: 15}
+      DEPOSIT_BETA_PCT: {min: 30, max: 60}
+      EFFICIENCY_RATIO_PCT: {min: 50, max: 70}
+      LOAN_GROWTH_PCT: {min: 3, max: 15}
+      NIM_EXPANSION_BPS: {min: 5, max: 25}
+      PAYOUT_RATIO_PCT: {min: 30, max: 60}
+      RATE_SENSITIVITY_PCT: {min: 5, max: 15}
+
+  # --------------------------------------------------------------------------
+  # EARNINGS TRANSCRIPTS - Placeholders from content_library/security/earnings_transcripts/
+  # --------------------------------------------------------------------------
   earnings_transcripts:
+    # Sector-specific for common metrics
     Information Technology:
       QUARTERLY_REVENUE_BILLIONS: {min: 10, max: 60}
       QUARTERLY_EPS: {min: 1.0, max: 5.0}
@@ -112,97 +303,453 @@ security:
       OPERATING_MARGIN_PCT: {min: 20, max: 40}
       GUIDANCE_REVENUE_LOW: {min: 10, max: 58}
       GUIDANCE_REVENUE_HIGH: {min: 12, max: 65}
-      
+
     Health Care:
       QUARTERLY_REVENUE_BILLIONS: {min: 5, max: 40}
       QUARTERLY_EPS: {min: 0.8, max: 4.0}
       YOY_GROWTH_PCT: {min: 5, max: 18}
       GROSS_MARGIN_PCT: {min: 60, max: 80}
       OPERATING_MARGIN_PCT: {min: 18, max: 38}
-      
+      GUIDANCE_REVENUE_LOW: {min: 6, max: 38}
+      GUIDANCE_REVENUE_HIGH: {min: 8, max: 42}
+
     Financials:
       QUARTERLY_REVENUE_BILLIONS: {min: 8, max: 50}
       QUARTERLY_EPS: {min: 1.2, max: 6.0}
       YOY_GROWTH_PCT: {min: 3, max: 15}
-      ROE_PCT: {min: 10, max: 25}
-      NET_INTEREST_MARGIN_PCT: {min: 2.5, max: 4.5}
+      GROSS_MARGIN_PCT: {min: 45, max: 65}
+      OPERATING_MARGIN_PCT: {min: 25, max: 45}
+      GUIDANCE_REVENUE_LOW: {min: 10, max: 48}
+      GUIDANCE_REVENUE_HIGH: {min: 12, max: 52}
 
-  # Press Releases
+    Consumer Discretionary:
+      QUARTERLY_REVENUE_BILLIONS: {min: 5, max: 80}
+      QUARTERLY_EPS: {min: 0.5, max: 4.0}
+      YOY_GROWTH_PCT: {min: 4, max: 20}
+      GROSS_MARGIN_PCT: {min: 35, max: 55}
+      OPERATING_MARGIN_PCT: {min: 8, max: 18}
+      GUIDANCE_REVENUE_LOW: {min: 6, max: 78}
+      GUIDANCE_REVENUE_HIGH: {min: 8, max: 85}
+
+    Consumer Staples:
+      QUARTERLY_REVENUE_BILLIONS: {min: 8, max: 50}
+      QUARTERLY_EPS: {min: 0.8, max: 3.0}
+      YOY_GROWTH_PCT: {min: 2, max: 10}
+      GROSS_MARGIN_PCT: {min: 30, max: 50}
+      OPERATING_MARGIN_PCT: {min: 10, max: 20}
+      GUIDANCE_REVENUE_LOW: {min: 10, max: 48}
+      GUIDANCE_REVENUE_HIGH: {min: 12, max: 52}
+
+    # Default with ALL earnings transcript placeholders
+    default:
+      # Core quarterly metrics
+      QUARTERLY_REVENUE_BILLIONS: {min: 5, max: 60}
+      QUARTERLY_EPS: {min: 0.8, max: 5.0}
+      YOY_GROWTH_PCT: {min: 5, max: 20}
+      GROSS_MARGIN_PCT: {min: 35, max: 70}
+      GROSS_MARGIN: {min: 35, max: 70}
+      GROSS_PROFIT: {min: 3, max: 35}
+      OPERATING_MARGIN_PCT: {min: 15, max: 35}
+      EPS_GROWTH: {min: 8, max: 30}
+      
+      # P&L items
+      OPERATING_INCOME: {min: 2, max: 18}
+      NET_INCOME: {min: 1.5, max: 15}
+      OPEX: {min: 3, max: 20}
+      OPEX_GROWTH: {min: 5, max: 18}
+      RD_SPEND: {min: 1, max: 12}
+      RD_PCT: {min: 10, max: 22}
+      RD_BILLIONS: {min: 1, max: 15}
+      RD_ANNUAL: {min: 3, max: 12}
+      RD_GROWTH: {min: 8, max: 20}
+      SALES_SPEND: {min: 1, max: 15}
+      SALES_PCT: {min: 12, max: 30}
+      SGA_SPEND: {min: 1, max: 15}
+      SGA_PCT: {min: 18, max: 40}
+      TAX_RATE: {min: 18, max: 26}
+      GA: {min: 0.5, max: 10}
+      MARKETING: {min: 0.5, max: 15}
+      MARKETING_PCT: {min: 6, max: 20}
+      
+      # Cash flow
+      CASH_BALANCE: {min: 5, max: 80}
+      CASH: {min: 10, max: 90}
+      OPERATING_CASH_FLOW: {min: 3, max: 20}
+      FREE_CASH_FLOW: {min: 2, max: 18}
+      OCF: {min: 3, max: 22}
+      FCF: {min: 2, max: 20}
+      FCF_MARGIN: {min: 15, max: 35}
+      FCF_CONVERSION: {min: 70, max: 95}
+      DEBT: {min: 5, max: 50}
+      
+      # Capital allocation
+      BUYBACK_AMOUNT: {min: 0.5, max: 8}
+      BUYBACK: {min: 0.5, max: 10}
+      BUYBACKS: {min: 500, max: 3000}
+      DIVIDEND_AMOUNT: {min: 50, max: 500}
+      DIVIDEND: {min: 100, max: 800}
+      DIVIDENDS: {min: 100, max: 600}
+      DIVIDEND_INCREASE: {min: 5, max: 18}
+      DIV_INCREASE: {min: 5, max: 15}
+      CAPITAL_RETURN: {min: 1, max: 12}
+      TOTAL_RETURN: {min: 0.5, max: 8}
+      
+      # Segment revenue
+      CLOUD_REVENUE: {min: 5, max: 45}
+      SOFTWARE_REVENUE: {min: 2, max: 25}
+      SERVICES_REVENUE: {min: 1, max: 15}
+      SUBSCRIPTION_REVENUE: {min: 3, max: 50}
+      US_REVENUE: {min: 4, max: 35}
+      INTL_REVENUE: {min: 3, max: 25}
+      RETAIL_REVENUE: {min: 5, max: 60}
+      DTC_REVENUE: {min: 1, max: 30}
+      WHOLESALE_REVENUE: {min: 2, max: 40}
+      CARDIO_REVENUE: {min: 0.5, max: 10}
+      ONCOLOGY_REVENUE: {min: 1, max: 15}
+      IMMUNO_REVENUE: {min: 0.3, max: 8}
+      
+      # Growth metrics
+      CLOUD_GROWTH: {min: 15, max: 45}
+      SOFTWARE_GROWTH: {min: 10, max: 28}
+      SERVICES_GROWTH: {min: 5, max: 20}
+      DIGITAL_GROWTH: {min: 12, max: 40}
+      INTL_GROWTH: {min: 12, max: 35}
+      INTERNATIONAL_GROWTH: {min: 10, max: 30}
+      SUBSCRIPTION_GROWTH: {min: 12, max: 35}
+      ENTERPRISE_GROWTH: {min: 10, max: 28}
+      SMB_GROWTH: {min: 15, max: 35}
+      SEQUENTIAL_GROWTH: {min: 2, max: 12}
+      US_GROWTH: {min: 8, max: 25}
+      APAC_GROWTH: {min: 15, max: 40}
+      INTL_CONSTANT_GROWTH: {min: 10, max: 30}
+      CARDIO_GROWTH: {min: 5, max: 25}
+      ONCOLOGY_GROWTH: {min: 8, max: 30}
+      IMMUNO_GROWTH: {min: 12, max: 40}
+      RETAIL_GROWTH: {min: 2, max: 18}
+      DTC_GROWTH: {min: 18, max: 50}
+      WHOLESALE_GROWTH: {min: 1, max: 15}
+      ACV_GROWTH: {min: 10, max: 30}
+      
+      # Percentages and ratios
+      CLOUD_PERCENTAGE: {min: 30, max: 65}
+      CLOUD_MARGIN: {min: 50, max: 75}
+      SUBSCRIPTION_PCT: {min: 60, max: 88}
+      DIGITAL_PCT: {min: 18, max: 45}
+      INTL_PCT: {min: 22, max: 48}
+      INTL_PRIOR_PCT: {min: 18, max: 42}
+      US_PCT: {min: 38, max: 62}
+      EUROPE_PCT: {min: 18, max: 35}
+      ROW_PCT: {min: 8, max: 25}
+      NET_RETENTION: {min: 108, max: 135}
+      NET_RETENTION_PCT: {min: 108, max: 138}
+      ENTERPRISE_PCT: {min: 50, max: 78}
+      AI_ADOPTION_PCT: {min: 40, max: 78}
+      INSTOCK_PCT: {min: 90, max: 98}
+      MARKET_SHARE: {min: 12, max: 48}
+      
+      # Guidance
+      GUIDANCE_REVENUE_LOW: {min: 8, max: 55}
+      GUIDANCE_REVENUE_HIGH: {min: 10, max: 62}
+      GUIDANCE_GROWTH_LOW: {min: 6, max: 20}
+      GUIDANCE_GROWTH_HIGH: {min: 8, max: 25}
+      GUIDANCE_OPMARGIN: {min: 22, max: 40}
+      GUIDANCE_LOW: {min: 4, max: 40}
+      GUIDANCE_HIGH: {min: 5, max: 48}
+      Q_NEXT_LOW: {min: 10, max: 58}
+      Q_NEXT_HIGH: {min: 12, max: 65}
+      Q_NEXT_GROWTH_LOW: {min: 8, max: 22}
+      Q_NEXT_GROWTH_HIGH: {min: 10, max: 28}
+      Q_NEXT_MARGIN: {min: 22, max: 40}
+      FY_LOW: {min: 6, max: 18}
+      FY_HIGH: {min: 8, max: 22}
+      FY_GROWTH_LOW: {min: 10, max: 22}
+      FY_GROWTH_HIGH: {min: 12, max: 28}
+      FY_MARGIN: {min: 25, max: 40}
+      FULL_YEAR_GROWTH_LOW: {min: 10, max: 22}
+      FULL_YEAR_GROWTH_HIGH: {min: 12, max: 28}
+      FULL_YEAR_MARGIN: {min: 25, max: 40}
+      EPS_LOW: {min: 0.6, max: 3.8}
+      EPS_HIGH: {min: 0.8, max: 4.5}
+      GUIDANCE_GROWTH: {min: 6, max: 22}
+      
+      # Margin metrics
+      MARGIN_EXPANSION: {min: 40, max: 180}
+      MARGIN_EXPANSION_BPS: {min: 40, max: 180}
+      DIGITAL_MARGIN_PREMIUM: {min: 3, max: 15}
+      DIGITAL_VS_RETAIL: {min: 2, max: 12}
+      SUSTAINABLE_PREMIUM: {min: 6, max: 18}
+      SUSTAINABILITY_METRIC: {min: 12, max: 42}
+      
+      # Healthcare specific
+      DIABETES_MARKET: {min: 20, max: 68}
+      WEIGHT_BENEFIT: {min: 2, max: 9}
+      A1C_REDUCTION: {min: 0.6, max: 2.0}
+      PLACEBO_A1C: {min: 0.08, max: 0.45}
+      PEAK_SHARE: {min: 12, max: 38}
+      TARGET_PATIENTS: {min: 0.5, max: 12}
+      PATENT_EXPIRY: {min: 2027, max: 2036}
+      EROSION_PCT: {min: 35, max: 72}
+      RESPONSE_THRESHOLD: {min: 35, max: 72}
+      
+      # Consumer specific
+      NEW_PRODUCTS: {min: 3, max: 28}
+      BRAND_AWARENESS: {min: 1, max: 10}
+      SENTIMENT_IMPROVEMENT: {min: 2, max: 14}
+      INVENTORY: {min: 1, max: 18}
+      INVENTORY_DAYS: {min: 40, max: 95}
+
+  # --------------------------------------------------------------------------
+  # PRESS RELEASES - Placeholders from content_library/security/press_releases/
+  # --------------------------------------------------------------------------
   press_releases:
-    general:
-      STOCK_MOVE_PCT: {min: -8, max: 10}
+    default:
+      # Financial metrics
+      CLOUD_GROWTH_PCT: {min: 15, max: 45}
       DEAL_VALUE_MILLIONS: {min: 50, max: 5000}
-      REVENUE_GUIDANCE_CHANGE_PCT: {min: -5, max: 8}
-      PARTNERSHIP_VALUE_MILLIONS: {min: 100, max: 3000}
+      GUIDANCE_GROWTH: {min: 6, max: 22}
+      GUIDANCE_HIGH: {min: 5, max: 48}
+      GUIDANCE_LOW: {min: 4, max: 40}
+      MARKET_SIZE: {min: 10, max: 500}
+      OPERATING_CASH_FLOW: {min: 2, max: 20}
+      QUARTERLY_EPS: {min: 0.5, max: 5.0}
+      QUARTERLY_REVENUE_BILLIONS: {min: 3, max: 60}
+      YOY_GROWTH_PCT: {min: 3, max: 25}
+      
+      # Clinical trial metrics
+      EFFICACY_METRIC: {min: 40, max: 90}
+      TRIAL_PATIENTS: {min: 100, max: 5000}
 
-# Portfolio-Level Documents
+# ============================================================================
+# PORTFOLIO-LEVEL DOCUMENTS
+# ============================================================================
+
 portfolio:
+  # --------------------------------------------------------------------------
+  # PORTFOLIO REVIEW - Placeholders from content_library/portfolio/portfolio_review/
+  # --------------------------------------------------------------------------
   portfolio_review:
-    returns:
+    default:
+      # Returns
       QTD_RETURN_PCT: {min: -8, max: 12}
-      YTD_RETURN_PCT: {min: -15, max: 20}
-      ONE_YEAR_RETURN_PCT: {min: -20, max: 30}
-      THREE_YEAR_RETURN_PCT: {min: -10, max: 25}
-      FIVE_YEAR_RETURN_PCT: {min: -5, max: 20}
-      
-    benchmark_comparison:
+      YTD_RETURN_PCT: {min: -15, max: 22}
       BENCHMARK_QTD_PCT: {min: -7, max: 10}
-      BENCHMARK_YTD_PCT: {min: -12, max: 18}
-      BENCHMARK_1Y_PCT: {min: -18, max: 28}
-      TRACKING_ERROR_PCT: {min: 2, max: 8}
-      INFORMATION_RATIO: {min: -0.5, max: 1.5}
+      BENCHMARK_YTD_PCT: {min: -12, max: 20}
+      RELATIVE_RETURN_DIFF: {min: -5, max: 8}
       
-    concentration:
-      TOP10_WEIGHT_PCT: {min: 35, max: 65}
-      LARGEST_POSITION_PCT: {min: 4, max: 9}
-      SECTOR_CONCENTRATION_PCT: {min: 15, max: 45}
+      # Risk metrics
+      PORTFOLIO_VOL: {min: 10, max: 28}
+      TRACKING_ERROR_PCT: {min: 1.5, max: 8}
+      
+      # Concentration
+      TOP10_WEIGHT_PCT: {min: 30, max: 68}
+      LARGEST_POSITION_WEIGHT: {min: 3, max: 10}
+      POSITION_COUNT: {min: 20, max: 120}
+      
+      # Sector weights
+      TECH_WEIGHT: {min: 12, max: 48}
+      TECH_BENCH_WEIGHT: {min: 18, max: 38}
+      COMM_WEIGHT: {min: 4, max: 22}
+      COMM_BENCH_WEIGHT: {min: 6, max: 18}
+      
+      # Geographic allocation
+      GEOGRAPHIC_NA_PCT: {min: 32, max: 58}
+      GEOGRAPHIC_EU_PCT: {min: 18, max: 38}
+      GEOGRAPHIC_APAC_PCT: {min: 12, max: 32}
 
-# Global Documents - Market Data
+  # --------------------------------------------------------------------------
+  # CUSTODIAN REPORTS - Placeholders from content_library/portfolio/custodian_reports/
+  # --------------------------------------------------------------------------
+  custodian_reports:
+    default:
+      # Balances
+      CLOSING_BALANCE_1: {min: 100000, max: 50000000}
+      CLOSING_BALANCE_2: {min: 50000, max: 25000000}
+      OPENING_BALANCE_1: {min: 100000, max: 50000000}
+      OPENING_BALANCE_2: {min: 50000, max: 25000000}
+      
+      # Counterparty values
+      CP1_VALUE: {min: 50, max: 500}
+      CP1_TRANSACTIONS: {min: 10, max: 100}
+      CP2_VALUE: {min: 40, max: 400}
+      CP2_TRANSACTIONS: {min: 8, max: 80}
+      CP3_VALUE: {min: 30, max: 300}
+      CP3_TRANSACTIONS: {min: 6, max: 60}
+      CP4_VALUE: {min: 20, max: 200}
+      CP4_TRANSACTIONS: {min: 4, max: 40}
+      CP5_VALUE: {min: 10, max: 150}
+      CP5_TRANSACTIONS: {min: 2, max: 30}
+      
+      # Settlement metrics
+      T_PLUS_2_COUNT: {min: 5, max: 50}
+      T_PLUS_2_PERCENTAGE: {min: 85, max: 99}
+      T_PLUS_3_COUNT: {min: 1, max: 20}
+      T_PLUS_3_PERCENTAGE: {min: 1, max: 15}
+
+# ============================================================================
+# ISSUER-LEVEL DOCUMENTS
+# ============================================================================
+
+issuer:
+  # --------------------------------------------------------------------------
+  # NGO REPORTS - Placeholders from content_library/issuer/ngo_reports/
+  # --------------------------------------------------------------------------
+  ngo_reports:
+    default:
+      # Board metrics
+      AVERAGE_TENURE: {min: 3, max: 12}
+      BOARD_SIZE: {min: 7, max: 16}
+      FEMALE_DIRECTORS: {min: 2, max: 7}
+      INDEPENDENCE_PCT: {min: 55, max: 92}
+      INDEPENDENT_COUNT: {min: 4, max: 13}
+      NEW_DIRECTORS: {min: 0, max: 4}
+      
+      # ESG metrics
+      EMISSIONS_INCREASE: {min: 2, max: 25}
+      GENDER_DIVERSITY_PCT: {min: 18, max: 48}
+      SECTOR_MEDIAN: {min: 40, max: 70}
+
+  # --------------------------------------------------------------------------
+  # ENGAGEMENT NOTES - Placeholders from content_library/issuer/engagement_notes/
+  # --------------------------------------------------------------------------
+  engagement_notes:
+    default:
+      # ESG metrics
+      DIVERSITY_METRIC: {min: 18, max: 48}
+      EMISSIONS_REDUCTION: {min: 5, max: 35}
+      ENGAGEMENT_INCREASE: {min: 3, max: 20}
+      RENEWABLE_PCT: {min: 25, max: 85}
+      RENEWABLE_TARGET: {min: 50, max: 100}
+      SUPPLIER_COVERAGE: {min: 60, max: 95}
+      SUPPLIER_ISSUES: {min: 2, max: 15}
+
+# ============================================================================
+# GLOBAL DOCUMENTS - MARKET DATA
+# ============================================================================
+
 global:
   market_data:
-    equity_indices:
-      SP500_LEVEL: {min: 4000, max: 5500}
-      SP500_DAILY_PCT: {min: -2.5, max: 2.5}
-      SP500_YTD_PCT: {min: -15, max: 25}
-      FTSE100_LEVEL: {min: 7000, max: 8500}
-      FTSE100_DAILY_PCT: {min: -2.0, max: 2.0}
-      FTSE100_YTD_PCT: {min: -12, max: 22}
-      DAX_LEVEL: {min: 14000, max: 19000}
-      DAX_DAILY_PCT: {min: -2.2, max: 2.2}
-      DAX_YTD_PCT: {min: -18, max: 28}
-      NIKKEI_LEVEL: {min: 25000, max: 40000}
-      NIKKEI_DAILY_PCT: {min: -2.5, max: 2.5}
-      NIKKEI_YTD_PCT: {min: -15, max: 30}
+    default:
+      # Equity Indices
+      SP500_LEVEL: {min: 4000, max: 5600}
+      SP500_DAILY_PCT: {min: -2.8, max: 2.8}
+      SP500_YTD_PCT: {min: -18, max: 28}
+      SP500_SUPPORT: {min: 3800, max: 5200}
+      SP500_RESISTANCE: {min: 4200, max: 5800}
+      NASDAQ_DAILY_PCT: {min: -3.2, max: 3.2}
+      FTSE100_LEVEL: {min: 6800, max: 8600}
+      FTSE100_DAILY_PCT: {min: -2.2, max: 2.2}
+      FTSE100_YTD_PCT: {min: -14, max: 24}
+      DAX_LEVEL: {min: 13500, max: 19500}
+      DAX_DAILY_PCT: {min: -2.5, max: 2.5}
+      DAX_YTD_PCT: {min: -20, max: 30}
+      NIKKEI_LEVEL: {min: 24000, max: 42000}
+      NIKKEI_DAILY_PCT: {min: -2.8, max: 2.8}
+      NIKKEI_YTD_PCT: {min: -18, max: 32}
+      MSCI_WORLD_LEVEL: {min: 2700, max: 3900}
+      MSCI_WORLD_DAILY_PCT: {min: -2.2, max: 2.2}
+      MSCI_WORLD_YTD_PCT: {min: -14, max: 24}
+      MSCI_EM_LEVEL: {min: 850, max: 1350}
+      MSCI_EM_DAILY_PCT: {min: -2.8, max: 2.8}
+      MSCI_EM_YTD_PCT: {min: -20, max: 28}
       
-    fixed_income:
-      US_10Y_YIELD_PCT: {min: 3.5, max: 5.5}
-      US_2Y_YIELD_PCT: {min: 3.8, max: 5.8}
-      US_30Y_YIELD_PCT: {min: 3.8, max: 5.2}
-      UK_10Y_YIELD_PCT: {min: 3.8, max: 5.2}
-      DE_10Y_YIELD_PCT: {min: 1.8, max: 3.5}
-      YIELD_CURVE_SPREAD_BPS: {min: -50, max: 150}
-      IG_SPREAD_BPS: {min: 80, max: 180}
-      HY_SPREAD_BPS: {min: 300, max: 600}
-      EM_SPREAD_BPS: {min: 250, max: 500}
+      # Sector performance
+      BEST_SECTOR_PCT: {min: 3, max: 28}
+      WORST_SECTOR_PCT: {min: -18, max: 3}
       
-    commodities:
-      WTI_CRUDE_USD: {min: 60, max: 95}
-      BRENT_CRUDE_USD: {min: 65, max: 100}
-      NATURAL_GAS_USD: {min: 2.0, max: 6.0}
-      GOLD_USD: {min: 1800, max: 2400}
-      SILVER_USD: {min: 20, max: 30}
-      COPPER_USD: {min: 3.5, max: 5.0}
-      ALUMINUM_USD: {min: 2000, max: 3000}
+      # Volatility and sentiment
+      VIX_LEVEL: {min: 10, max: 40}
+      VIX_CHANGE: {min: -18, max: 30}
+      PUT_CALL_RATIO: {min: 0.55, max: 1.5}
+      FEAR_GREED: {min: 15, max: 85}
       
-    currencies:
-      EUR_USD: {min: 1.05, max: 1.15}
-      GBP_USD: {min: 1.20, max: 1.35}
-      USD_JPY: {min: 140, max: 160}
-      USD_CHF: {min: 0.85, max: 0.95}
-      AUD_USD: {min: 0.62, max: 0.72}
-      DXY_INDEX: {min: 98, max: 108}
+      # Fixed Income - Yields
+      US_10Y_YIELD_PCT: {min: 3.2, max: 5.8}
+      US_10Y_DAILY_CHG: {min: -15, max: 15}
+      US_10Y_MTD_CHG: {min: -50, max: 50}
+      US_2Y_YIELD_PCT: {min: 3.5, max: 6.0}
+      US_2Y_DAILY_CHG: {min: -18, max: 18}
+      US_2Y_MTD_CHG: {min: -55, max: 55}
+      US_30Y_YIELD_PCT: {min: 3.5, max: 5.5}
+      US_30Y_DAILY_CHG: {min: -12, max: 12}
+      US_30Y_MTD_CHG: {min: -45, max: 45}
+      UK_10Y_YIELD_PCT: {min: 3.5, max: 5.5}
+      UK_10Y_DAILY_CHG: {min: -15, max: 15}
+      UK_10Y_MTD_CHG: {min: -50, max: 50}
+      DE_10Y_YIELD_PCT: {min: 1.5, max: 3.8}
+      DE_10Y_DAILY_CHG: {min: -12, max: 12}
+      DE_10Y_MTD_CHG: {min: -40, max: 40}
+      YIELD_CURVE_SPREAD_BPS: {min: -60, max: 160}
+      
+      # Fixed Income - Spreads
+      IG_SPREAD_BPS: {min: 75, max: 200}
+      IG_TIGHTENING: {min: 2, max: 20}
+      HY_SPREAD_BPS: {min: 280, max: 650}
+      EM_SPREAD_BPS: {min: 230, max: 550}
+      
+      # Commodities
+      WTI_CRUDE_USD: {min: 55, max: 100}
+      WTI_DAILY_CHANGE: {min: -4, max: 4}
+      BRENT_CRUDE_USD: {min: 60, max: 105}
+      BRENT_DAILY_CHANGE: {min: -4, max: 4}
+      NATURAL_GAS_USD: {min: 1.8, max: 6.5}
+      NG_DAILY_CHANGE: {min: -6, max: 6}
+      GOLD_USD: {min: 1750, max: 2500}
+      GOLD_DAILY_CHANGE: {min: -2, max: 2}
+      SILVER_USD: {min: 18, max: 32}
+      SILVER_DAILY_CHANGE: {min: -3, max: 3}
+      COPPER_USD: {min: 3.2, max: 5.2}
+      COPPER_DAILY_CHANGE: {min: -3, max: 3}
+      ALUMINUM_USD: {min: 1900, max: 3200}
+      ALUMINUM_DAILY_CHANGE: {min: -2.5, max: 2.5}
+      
+      # Currencies
+      EUR_USD: {min: 1.03, max: 1.18}
+      EUR_USD_DAILY: {min: -1.2, max: 1.2}
+      EUR_USD_MTD: {min: -3.5, max: 3.5}
+      GBP_USD: {min: 1.18, max: 1.38}
+      GBP_USD_DAILY: {min: -1.2, max: 1.2}
+      GBP_USD_MTD: {min: -3.5, max: 3.5}
+      USD_JPY: {min: 135, max: 165}
+      USD_JPY_DAILY: {min: -1.0, max: 1.0}
+      USD_JPY_MTD: {min: -3.0, max: 3.0}
+      USD_CHF: {min: 0.82, max: 0.98}
+      USD_CHF_DAILY: {min: -0.8, max: 0.8}
+      USD_CHF_MTD: {min: -2.5, max: 2.5}
+      AUD_USD: {min: 0.60, max: 0.75}
+      AUD_USD_DAILY: {min: -1.4, max: 1.4}
+      AUD_USD_MTD: {min: -4.5, max: 4.5}
+      DXY_INDEX: {min: 96, max: 112}
+      DXY_DAILY_CHANGE: {min: -1.0, max: 1.0}
+      
+      # Economic Indicators
+      ISM_ACTUAL: {min: 46, max: 60}
+      ISM_CONSENSUS: {min: 46, max: 58}
+      ISM_PREVIOUS: {min: 45, max: 59}
+      CPI_ACTUAL: {min: 2.2, max: 5.0}
+      CPI_CONSENSUS: {min: 2.2, max: 4.8}
+      CPI_PREVIOUS: {min: 2.5, max: 4.5}
+      CLAIMS_ACTUAL: {min: 180, max: 280}
+      CLAIMS_CONSENSUS: {min: 180, max: 270}
+      CLAIMS_PREVIOUS: {min: 175, max: 275}
+      IND_1_ACTUAL: {min: -2, max: 5}
+      IND_1_CONSENSUS: {min: -2, max: 4}
+      IND_1_PREVIOUS: {min: -3, max: 5}
+      IND_2_ACTUAL: {min: 45, max: 65}
+      IND_2_CONSENSUS: {min: 45, max: 63}
+      IND_2_PREVIOUS: {min: 44, max: 64}
 
-# Tier 2 Derived Metrics (SQL Query Patterns)
+  # --------------------------------------------------------------------------
+  # RISK FRAMEWORK - Placeholders from content_library/global/risk_framework/
+  # --------------------------------------------------------------------------
+  risk_framework:
+    default:
+      FIRM_CAPITAL: {min: 50, max: 500}
+      INSURANCE_COVERAGE: {min: 10, max: 100}
+
+# ============================================================================
+# SQL QUERY PATTERNS FOR TIER 2 DERIVED METRICS
+# ============================================================================
+
 tier2_derivations:
   portfolio_review:
     top_10_holdings:
@@ -218,7 +765,7 @@ tier2_derivations:
         AND p.HoldingDate = (SELECT MAX(HoldingDate) FROM SAM_DEMO.CURATED.FACT_POSITION_DAILY_ABOR)
         ORDER BY p.MarketValue_Base DESC
         LIMIT 10
-      
+
     concentration_warning:
       query: |
         SELECT 
@@ -232,7 +779,7 @@ tier2_derivations:
         GROUP BY s.Description
         ORDER BY MAX(p.PortfolioWeight) DESC
         LIMIT 1
-      
+
     sector_allocation:
       query: |
         SELECT 
@@ -246,7 +793,10 @@ tier2_derivations:
         GROUP BY i.GICS_Sector
         ORDER BY SECTOR_WEIGHT_PCT DESC
 
-# Rating Distribution (for broker research)
+# ============================================================================
+# DISTRIBUTIONS (for ratings, severity levels, etc.)
+# ============================================================================
+
 distributions:
   rating:
     Strong Buy: 0.10
@@ -254,12 +804,12 @@ distributions:
     Hold: 0.45
     Sell: 0.15
     Strong Sell: 0.05
-  
+
   severity_level:
     High: 0.20
     Medium: 0.40
     Low: 0.40
-  
+
   meeting_type:
     Management Meeting: 0.50
     Shareholder Call: 0.30

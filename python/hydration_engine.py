@@ -22,6 +22,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timedelta
 from snowflake.snowpark import Session
 import config
+import rules_loader
 
 # ============================================================================
 # MODULE: Content Loader
@@ -846,9 +847,10 @@ def generate_provider_context(context: Dict[str, Any], doc_type: str) -> Dict[st
     entity_id = context.get('SECURITY_ID') or context.get('ISSUER_ID') or context.get('PORTFOLIO_ID') or 0
     
     if doc_type in ['broker_research', 'internal_research', 'investment_memo']:
-        # Select fictional broker
-        broker_index = hash(f"{entity_id}:broker:{config.RNG_SEED}") % len(config.FICTIONAL_BROKER_NAMES)
-        provider_context['BROKER_NAME'] = config.FICTIONAL_BROKER_NAMES[broker_index]
+        # Select fictional broker from rules_loader
+        fictional_brokers = rules_loader.get_fictional_brokers()
+        broker_index = hash(f"{entity_id}:broker:{config.RNG_SEED}") % len(fictional_brokers)
+        provider_context['BROKER_NAME'] = fictional_brokers[broker_index]
         
         # Generate analyst name
         analyst_id = (hash(f"{entity_id}:analyst:{config.RNG_SEED}") % 100) + 1
@@ -869,8 +871,8 @@ def generate_provider_context(context: Dict[str, Any], doc_type: str) -> Dict[st
         # Determine ESG category (from template or random)
         category = context.get('_category', random.choice(['environmental', 'social', 'governance']))
         
-        # Select NGO from appropriate category
-        category_ngos = config.FICTIONAL_NGO_NAMES.get(category, config.FICTIONAL_NGO_NAMES['environmental'])
+        # Select NGO from appropriate category using rules_loader
+        category_ngos = rules_loader.get_fictional_ngos(category)
         ngo_index = hash(f"{entity_id}:ngo:{category}:{config.RNG_SEED}") % len(category_ngos)
         provider_context['NGO_NAME'] = category_ngos[ngo_index]
         
@@ -1035,37 +1037,20 @@ def select_from_distribution(distribution_name: str) -> str:
     """
     Select value from configured distribution.
     
+    Loads distributions from content_library/_rules/numeric_bounds.yaml
+    
     Args:
         distribution_name: Name of distribution (rating, severity_level, meeting_type)
     
     Returns:
         Selected value
     """
-    # Load distributions from numeric_bounds.yaml (simplified for now)
-    distributions = {
-        'rating': {
-            'Strong Buy': 0.10,
-            'Buy': 0.25,
-            'Hold': 0.45,
-            'Sell': 0.15,
-            'Strong Sell': 0.05
-        },
-        'severity_level': {
-            'High': 0.20,
-            'Medium': 0.40,
-            'Low': 0.40
-        },
-        'meeting_type': {
-            'Management Meeting': 0.50,
-            'Shareholder Call': 0.30,
-            'Site Visit': 0.20
-        }
-    }
+    # Load distribution from YAML rules
+    dist = rules_loader.get_distribution(distribution_name)
     
-    if distribution_name not in distributions:
+    if not dist:
         raise ValueError(f"Unknown distribution: {distribution_name}")
     
-    dist = distributions[distribution_name]
     values = list(dist.keys())
     weights = list(dist.values())
     
@@ -1079,6 +1064,8 @@ def generate_tier1_numerics(context: Dict[str, Any], doc_type: str) -> Dict[str,
     """
     Generate Tier 1 numeric placeholders by sampling within sector-specific bounds.
     
+    Loads bounds from content_library/_rules/numeric_bounds.yaml
+    
     Args:
         context: Existing context with sector info
         doc_type: Document type
@@ -1090,8 +1077,8 @@ def generate_tier1_numerics(context: Dict[str, Any], doc_type: str) -> Dict[str,
     entity_id = context.get('SECURITY_ID') or context.get('PORTFOLIO_ID') or 0
     sector = context.get('SIC_DESCRIPTION', 'Information Technology')
     
-    # Load numeric bounds from config (simplified - would load from YAML file in production)
-    bounds = get_numeric_bounds_for_doc_type(doc_type, sector)
+    # Load numeric bounds from YAML rules (includes fallback bounds)
+    bounds = rules_loader.get_numeric_bounds(doc_type, sector)
     
     # Sample each numeric placeholder deterministically
     for placeholder, bound_spec in bounds.items():
@@ -1130,7 +1117,10 @@ def get_numeric_bounds_for_doc_type(doc_type: str, sector: str) -> Dict[str, Dic
     """
     Get numeric bounds for document type and sector.
     
-    This is a simplified version - production would load from numeric_bounds.yaml
+    DEPRECATED: This function is kept for backwards compatibility.
+    Use rules_loader.get_numeric_bounds() directly instead.
+    
+    Loads bounds from content_library/_rules/numeric_bounds.yaml
     
     Args:
         doc_type: Document type
@@ -1139,414 +1129,39 @@ def get_numeric_bounds_for_doc_type(doc_type: str, sector: str) -> Dict[str, Dic
     Returns:
         Dict mapping placeholder names to {min, max} bounds
     """
-    # Simplified bounds (production would load from YAML)
-    bounds_map = {
-        'broker_research': {
-            'Information Technology': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 8, 'max': 25},
-                'EBIT_MARGIN_PCT': {'min': 12, 'max': 28},
-                'PRICE_TARGET_USD': {'min': 80, 'max': 450},
-                'PE_RATIO': {'min': 15, 'max': 35},
-                'GROSS_MARGIN_PCT': {'min': 50, 'max': 70}
-            },
-            'Health Care': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 5, 'max': 18},
-                'EBIT_MARGIN_PCT': {'min': 15, 'max': 35},
-                'PRICE_TARGET_USD': {'min': 60, 'max': 350},
-                'PE_RATIO': {'min': 18, 'max': 40},
-                'GROSS_MARGIN_PCT': {'min': 60, 'max': 80}
-            },
-            'Financials': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 3, 'max': 15},
-                'EBIT_MARGIN_PCT': {'min': 20, 'max': 40},
-                'PRICE_TARGET_USD': {'min': 50, 'max': 300},
-                'PE_RATIO': {'min': 8, 'max': 18},
-                'ROE_PCT': {'min': 10, 'max': 25}
-            },
-            'Consumer Discretionary': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 4, 'max': 20},
-                'EBIT_MARGIN_PCT': {'min': 8, 'max': 18},
-                'PRICE_TARGET_USD': {'min': 40, 'max': 400},
-                'PE_RATIO': {'min': 12, 'max': 30}
-            },
-            'Communication Services': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 5, 'max': 22},
-                'EBIT_MARGIN_PCT': {'min': 10, 'max': 30},
-                'PRICE_TARGET_USD': {'min': 45, 'max': 350},
-                'PE_RATIO': {'min': 12, 'max': 28},
-                'REVENUE_BILLIONS': {'min': 10, 'max': 200}
-            },
-            # Default bounds for sectors not explicitly listed
-            '_default': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 3, 'max': 20},
-                'EBIT_MARGIN_PCT': {'min': 10, 'max': 30},
-                'PRICE_TARGET_USD': {'min': 50, 'max': 350},
-                'PE_RATIO': {'min': 12, 'max': 28},
-                'REVENUE_BILLIONS': {'min': 5, 'max': 150},
-                'GROSS_MARGIN_PCT': {'min': 30, 'max': 60},
-                'EBIT_MARGIN_PCT_UPPER': {'min': 15, 'max': 35},
-                'UPSIDE_POTENTIAL': {'min': 15, 'max': 45},
-                'ROE_PCT': {'min': 10, 'max': 25},
-                # Add all sector-specific placeholders to default so they work regardless of sector
-                'MARKET_SHARE': {'min': 15, 'max': 45},
-                'CARDIO_GROWTH': {'min': 8, 'max': 25},
-                'SEQUENTIAL_GROWTH': {'min': 2, 'max': 12},
-                'ONCOLOGY_REVENUE': {'min': 2, 'max': 15},
-                'ONCOLOGY_GROWTH': {'min': 10, 'max': 30},
-                'DIGITAL_GROWTH': {'min': 15, 'max': 40},
-                'DIGITAL_PCT': {'min': 20, 'max': 45},
-                'NEW_PRODUCTS': {'min': 5, 'max': 25},
-                'PRODUCT_CATEGORY': {'min': 1, 'max': 5},
-                'BRAND_AWARENESS': {'min': 2, 'max': 8}
-            }
-        },
-        'internal_research': {
-            'Information Technology': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 8, 'max': 25},
-                'EBIT_MARGIN_PCT': {'min': 12, 'max': 28},
-                'TARGET_PRICE_USD': {'min': 80, 'max': 450},
-                'FAIR_VALUE_USD': {'min': 75, 'max': 500},
-                'UPSIDE_POTENTIAL_PCT': {'min': 10, 'max': 60},
-                'PE_RATIO': {'min': 15, 'max': 35}
-            },
-            '_default': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 5, 'max': 22},
-                'EBIT_MARGIN_PCT': {'min': 10, 'max': 30},
-                'TARGET_PRICE_USD': {'min': 60, 'max': 400},
-                'FAIR_VALUE_USD': {'min': 55, 'max': 450},
-                'UPSIDE_POTENTIAL_PCT': {'min': 8, 'max': 50},
-                'PE_RATIO': {'min': 12, 'max': 32},
-                'GROSS_MARGIN_PCT': {'min': 30, 'max': 70},
-                'ROE_PCT': {'min': 10, 'max': 28},
-                'REVENUE_CAGR': {'min': 5, 'max': 20},
-                'SECTOR_CAGR': {'min': 3, 'max': 15},
-                'WACC_PCT': {'min': 8, 'max': 12},
-                'TERMINAL_GROWTH': {'min': 2, 'max': 4}
-            }
-        },
-        'investment_memo': {
-            'Information Technology': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 8, 'max': 25},
-                'EBIT_MARGIN_PCT': {'min': 12, 'max': 28},
-                'TARGET_PRICE_USD': {'min': 80, 'max': 450},
-                'PE_RATIO': {'min': 15, 'max': 35},
-                'POSITION_SIZE_PCT': {'min': 2, 'max': 7}
-            },
-            '_default': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 4, 'max': 20},
-                'EBIT_MARGIN_PCT': {'min': 8, 'max': 28},
-                'TARGET_PRICE_USD': {'min': 50, 'max': 400},
-                'PE_RATIO': {'min': 10, 'max': 30},
-                'POSITION_SIZE_PCT': {'min': 1.5, 'max': 6},
-                'GROSS_MARGIN_PCT': {'min': 25, 'max': 65},
-                'ROE_PCT': {'min': 8, 'max': 25},
-                'REVENUE_CAGR': {'min': 5, 'max': 18},
-                'SECTOR_CAGR': {'min': 3, 'max': 12},
-                'TARGET_MARGIN': {'min': 15, 'max': 35},
-                'GROWTH_RATE': {'min': 5, 'max': 22},
-                'MARKET_SHARE': {'min': 5, 'max': 40},
-                'WACC_PCT': {'min': 8, 'max': 12},
-                'TERMINAL_GROWTH': {'min': 2, 'max': 4}
-            }
-        },
-        'portfolio_review': {
-            'returns': {
-                'QTD_RETURN_PCT': {'min': -8, 'max': 12},
-                'YTD_RETURN_PCT': {'min': -15, 'max': 20},
-                'BENCHMARK_QTD_PCT': {'min': -7, 'max': 10},
-                'BENCHMARK_YTD_PCT': {'min': -12, 'max': 18},
-                'TRACKING_ERROR_PCT': {'min': 2, 'max': 8}
-            }
-        },
-        'earnings_transcripts': {
-            'Information Technology': {
-                'QUARTERLY_REVENUE_BILLIONS': {'min': 10, 'max': 60},
-                'QUARTERLY_EPS': {'min': 1.0, 'max': 5.0},
-                'YOY_GROWTH_PCT': {'min': 8, 'max': 25},
-                'OPERATING_MARGIN_PCT': {'min': 20, 'max': 40},
-                'CLOUD_GROWTH': {'min': 20, 'max': 45},
-                'INTERNATIONAL_GROWTH': {'min': 15, 'max': 35},
-                'SOFTWARE_GROWTH': {'min': 12, 'max': 28},
-                'SERVICES_GROWTH': {'min': 8, 'max': 20},
-                'NET_RETENTION': {'min': 110, 'max': 130},
-                'INTL_GROWTH': {'min': 15, 'max': 35},
-                'SUBSCRIPTION_REVENUE': {'min': 5, 'max': 50},
-                'CLOUD_REVENUE': {'min': 8, 'max': 45},
-                'CLOUD_PERCENTAGE': {'min': 35, 'max': 60},
-                'CLOUD_MARGIN': {'min': 55, 'max': 75},
-                'SOFTWARE_REVENUE': {'min': 3, 'max': 25},
-                'SERVICES_REVENUE': {'min': 2, 'max': 15},
-                'SUBSCRIPTION_GROWTH': {'min': 15, 'max': 35},
-                'SUBSCRIPTION_PCT': {'min': 65, 'max': 85},
-                'US_REVENUE': {'min': 6, 'max': 35},
-                'US_GROWTH': {'min': 10, 'max': 25},
-                'INTL_REVENUE': {'min': 4, 'max': 25},
-                'INTL_PCT': {'min': 25, 'max': 45},
-                'GROSS_PROFIT': {'min': 5, 'max': 35},
-                'GROSS_MARGIN_PCT': {'min': 55, 'max': 75},
-                'OPEX': {'min': 3, 'max': 20},
-                'OPEX_GROWTH': {'min': 8, 'max': 20},
-                'NET_INCOME': {'min': 2, 'max': 15},
-                'EPS_GROWTH': {'min': 10, 'max': 30},
-                'TAX_RATE': {'min': 18, 'max': 25},
-                'WACC_PCT': {'min': 8, 'max': 12},
-                'TERMINAL_GROWTH': {'min': 2, 'max': 4},
-                'INTL_CONSTANT_GROWTH': {'min': 12, 'max': 30},
-                'INTL_PRIOR_PCT': {'min': 20, 'max': 40},
-                'RD_SPEND': {'min': 2, 'max': 12},
-                'RD_PCT': {'min': 12, 'max': 22},
-                'SALES_SPEND': {'min': 2, 'max': 15},
-                'SALES_PCT': {'min': 15, 'max': 30},
-                'OPERATING_INCOME': {'min': 3, 'max': 18},
-                'CASH_BALANCE': {'min': 10, 'max': 80},
-                'OPERATING_CASH_FLOW': {'min': 4, 'max': 20},
-                'FREE_CASH_FLOW': {'min': 3, 'max': 18},
-                'BUYBACK_AMOUNT': {'min': 1, 'max': 8},
-                'DIVIDEND_AMOUNT': {'min': 50, 'max': 500},
-                'GUIDANCE_REVENUE_LOW': {'min': 10, 'max': 55},
-                'GUIDANCE_REVENUE_HIGH': {'min': 12, 'max': 60},
-                'GUIDANCE_GROWTH_LOW': {'min': 8, 'max': 20},
-                'GUIDANCE_GROWTH_HIGH': {'min': 10, 'max': 25},
-                'GUIDANCE_OPMARGIN': {'min': 25, 'max': 38},
-                'FULL_YEAR_GROWTH_LOW': {'min': 12, 'max': 22},
-                'FULL_YEAR_GROWTH_HIGH': {'min': 15, 'max': 28},
-                'FULL_YEAR_MARGIN': {'min': 28, 'max': 38},
-                'Q_NEXT_LOW': {'min': 12, 'max': 58},
-                'Q_NEXT_HIGH': {'min': 14, 'max': 62},
-                'Q_NEXT_GROWTH_LOW': {'min': 10, 'max': 22},
-                'Q_NEXT_GROWTH_HIGH': {'min': 12, 'max': 28},
-                'Q_NEXT_MARGIN': {'min': 25, 'max': 38},
-                'FY_GROWTH_LOW': {'min': 12, 'max': 22},
-                'FY_GROWTH_HIGH': {'min': 15, 'max': 28},
-                'FY_MARGIN': {'min': 28, 'max': 38},
-                'MARGIN_EXPANSION': {'min': 50, 'max': 150},
-                'MARGIN_EXPANSION_BPS': {'min': 50, 'max': 150},
-                'OCF': {'min': 4, 'max': 22},
-                'FCF': {'min': 3, 'max': 20},
-                'FCF_MARGIN': {'min': 20, 'max': 35},
-                'CASH': {'min': 15, 'max': 90},
-                'CAPITAL_RETURN': {'min': 2, 'max': 12},
-                'BUYBACK': {'min': 1, 'max': 10},
-                'DIVIDEND': {'min': 100, 'max': 800},
-                'ACV_GROWTH': {'min': 12, 'max': 30},
-                'DIV_INCREASE': {'min': 8, 'max': 15},
-                'NET_RETENTION_PCT': {'min': 110, 'max': 135},
-                'AI_ADOPTION_PCT': {'min': 45, 'max': 75},
-                'RD_GROWTH': {'min': 10, 'max': 25},
-                'ENTERPRISE_PCT': {'min': 55, 'max': 75},
-                'ENTERPRISE_GROWTH': {'min': 12, 'max': 28},
-                'SMB_GROWTH': {'min': 18, 'max': 35},
-                'AI_REVENUE_CONTRIBUTION': {'min': 5, 'max': 20},
-                'APAC_GROWTH': {'min': 18, 'max': 40},
-                'FCF_CONVERSION': {'min': 75, 'max': 92},
-                'DIVIDEND_INCREASE': {'min': 8, 'max': 18},
-                'RD_BILLIONS': {'min': 2, 'max': 15}
-            },
-            'Health Care': {
-                'QUARTERLY_REVENUE_BILLIONS': {'min': 5, 'max': 40},
-                'QUARTERLY_EPS': {'min': 0.8, 'max': 4.0},
-                'YOY_GROWTH_PCT': {'min': 5, 'max': 18},
-                'OPERATING_MARGIN_PCT': {'min': 18, 'max': 38},
-                'MARKET_SHARE': {'min': 15, 'max': 45},
-                'CARDIO_GROWTH': {'min': 8, 'max': 25},
-                'SEQUENTIAL_GROWTH': {'min': 2, 'max': 12},
-                'ONCOLOGY_REVENUE': {'min': 2, 'max': 15},
-                'ONCOLOGY_GROWTH': {'min': 10, 'max': 30},
-                'CARDIO_REVENUE': {'min': 1, 'max': 10},
-                'IMMUNO_REVENUE': {'min': 0.5, 'max': 8},
-                'IMMUNO_GROWTH': {'min': 15, 'max': 40},
-                'US_PCT': {'min': 40, 'max': 60},
-                'EUROPE_PCT': {'min': 20, 'max': 35},
-                'ROW_PCT': {'min': 10, 'max': 25},
-                'GROSS_PROFIT': {'min': 3, 'max': 28},
-                'GROSS_MARGIN': {'min': 60, 'max': 80},
-                'SGA_SPEND': {'min': 2, 'max': 15},
-                'SGA_PCT': {'min': 20, 'max': 40},
-                'DEBT': {'min': 5, 'max': 35},
-                'GUIDANCE_LOW': {'min': 5, 'max': 38},
-                'GUIDANCE_HIGH': {'min': 6, 'max': 42},
-                'EPS_LOW': {'min': 0.8, 'max': 3.8},
-                'EPS_HIGH': {'min': 1.0, 'max': 4.2},
-                'FY_LOW': {'min': 8, 'max': 16},
-                'FY_HIGH': {'min': 10, 'max': 20}
-            },
-            'Consumer Discretionary': {
-                'QUARTERLY_REVENUE_BILLIONS': {'min': 3, 'max': 100},
-                'QUARTERLY_EPS': {'min': 0.5, 'max': 3.0},
-                'YOY_GROWTH_PCT': {'min': 4, 'max': 20},
-                'OPERATING_MARGIN_PCT': {'min': 8, 'max': 18},
-                'DIGITAL_GROWTH': {'min': 15, 'max': 40},
-                'DIGITAL_PCT': {'min': 20, 'max': 45},
-                'NEW_PRODUCTS': {'min': 5, 'max': 25},
-                'INTL_GROWTH': {'min': 10, 'max': 30},
-                'INTL_PCT': {'min': 20, 'max': 40},
-                'INTL_PRIOR_PCT': {'min': 18, 'max': 38},
-                'BRAND_AWARENESS': {'min': 2, 'max': 8},
-                'SENTIMENT_IMPROVEMENT': {'min': 3, 'max': 12},
-                'INSTOCK_PCT': {'min': 92, 'max': 98},
-                'PRODUCT_CATEGORY': {'min': 1, 'max': 5},
-                'RETAIL_REVENUE': {'min': 5, 'max': 60},
-                'RETAIL_GROWTH': {'min': 3, 'max': 18},
-                'DTC_REVENUE': {'min': 2, 'max': 30},
-                'DTC_GROWTH': {'min': 20, 'max': 50},
-                'WHOLESALE_REVENUE': {'min': 3, 'max': 40},
-                'WHOLESALE_GROWTH': {'min': 2, 'max': 15},
-                'GROSS_PROFIT': {'min': 3, 'max': 50},
-                'GROSS_MARGIN': {'min': 35, 'max': 55},
-                'MARKETING': {'min': 1, 'max': 15},
-                'MARKETING_PCT': {'min': 8, 'max': 20},
-                'GA': {'min': 1, 'max': 10},
-                'GROSS_MARGIN': {'min': 35, 'max': 55},
-                'DIVIDENDS': {'min': 100, 'max': 600},
-                'BUYBACKS': {'min': 500, 'max': 3000},
-                'INVENTORY': {'min': 2, 'max': 15},
-                'INVENTORY_DAYS': {'min': 45, 'max': 90}
-            },
-            # Fallback bounds that include ALL placeholders used in any template
-            '_fallback': {
-                # Include all possible placeholders with reasonable defaults
-                'MARKET_SHARE': {'min': 15, 'max': 45},
-                'CARDIO_GROWTH': {'min': 8, 'max': 25},
-                'CARDIO_REVENUE': {'min': 1, 'max': 10},
-                'SEQUENTIAL_GROWTH': {'min': 2, 'max': 12},
-                'ONCOLOGY_REVENUE': {'min': 2, 'max': 15},
-                'ONCOLOGY_GROWTH': {'min': 10, 'max': 30},
-                'IMMUNO_REVENUE': {'min': 0.5, 'max': 8},
-                'IMMUNO_GROWTH': {'min': 15, 'max': 40},
-                'DIGITAL_GROWTH': {'min': 15, 'max': 40},
-                'DIGITAL_PCT': {'min': 20, 'max': 45},
-                'NEW_PRODUCTS': {'min': 5, 'max': 25},
-                'PRODUCT_CATEGORY': {'min': 1, 'max': 5},
-                'BRAND_AWARENESS': {'min': 2, 'max': 8},
-                'SENTIMENT_IMPROVEMENT': {'min': 3, 'max': 12},
-                'INSTOCK_PCT': {'min': 92, 'max': 98},
-                'RETAIL_REVENUE': {'min': 5, 'max': 60},
-                'RETAIL_GROWTH': {'min': 3, 'max': 18},
-                'DTC_REVENUE': {'min': 2, 'max': 30},
-                'DTC_GROWTH': {'min': 20, 'max': 50},
-                'WHOLESALE_REVENUE': {'min': 3, 'max': 40},
-                'WHOLESALE_GROWTH': {'min': 2, 'max': 15},
-                'US_PCT': {'min': 40, 'max': 60},
-                'EUROPE_PCT': {'min': 20, 'max': 35},
-                'ROW_PCT': {'min': 10, 'max': 25},
-                'GROSS_MARGIN': {'min': 35, 'max': 70},
-                'SGA_SPEND': {'min': 2, 'max': 15},
-                'SGA_PCT': {'min': 20, 'max': 40},
-                'DEBT': {'min': 5, 'max': 35},
-                'GUIDANCE_LOW': {'min': 5, 'max': 40},
-                'GUIDANCE_HIGH': {'min': 6, 'max': 45},
-                'MARKETING': {'min': 1, 'max': 15},
-                'MARKETING_PCT': {'min': 8, 'max': 20},
-                'GA': {'min': 1, 'max': 10},
-                'DIVIDENDS': {'min': 100, 'max': 600},
-                'BUYBACKS': {'min': 500, 'max': 3000},
-                # Additional investment memo placeholders
-                'ROE_PCT': {'min': 10, 'max': 30},
-                'ROIC_PCT': {'min': 8, 'max': 25},
-                'DEBT_TO_EQUITY': {'min': 0.2, 'max': 1.5},
-                'CURRENT_RATIO': {'min': 1.0, 'max': 3.0},
-                'QUICK_RATIO': {'min': 0.8, 'max': 2.5},
-                # Market data placeholders (backup for non-regime context)
-                'VIX_LEVEL': {'min': 12, 'max': 35},
-                'VIX_CHANGE': {'min': -15, 'max': 25},
-                'PUT_CALL_RATIO': {'min': 0.6, 'max': 1.4},
-                'FEAR_GREED': {'min': 20, 'max': 80},
-                'SP500_CHANGE': {'min': -2, 'max': 2},
-                'NASDAQ_CHANGE': {'min': -3, 'max': 3},
-                'TREASURY_10Y': {'min': 3.5, 'max': 5.0},
-                'EPS_LOW': {'min': 0.8, 'max': 3.8},
-                'EPS_HIGH': {'min': 1.0, 'max': 4.2},
-                'FY_LOW': {'min': 8, 'max': 16},
-                'FY_HIGH': {'min': 10, 'max': 20},
-                'WEIGHT_BENEFIT': {'min': 3, 'max': 8},
-                'A1C_REDUCTION': {'min': 0.8, 'max': 1.8},
-                'PLACEBO_A1C': {'min': 0.1, 'max': 0.4},
-                'MECHANISM': {'min': 1, 'max': 3},  # Will be text
-                'DIGITAL_MARGIN_PREMIUM': {'min': 5, 'max': 15},
-                'DIGITAL_VS_RETAIL': {'min': 3, 'max': 12},
-                # Geographic revenue breakdown
-                'NA_REVENUE_PCT': {'min': 35, 'max': 55},
-                'EUROPE_REVENUE_PCT': {'min': 20, 'max': 35},
-                'APAC_REVENUE_PCT': {'min': 15, 'max': 30},
-                'OTHER_REVENUE_PCT': {'min': 5, 'max': 15},
-                'GEOGRAPHIC_NA_PCT': {'min': 35, 'max': 55},
-                'GEOGRAPHIC_EU_PCT': {'min': 20, 'max': 35},
-                'GEOGRAPHIC_APAC_PCT': {'min': 15, 'max': 30},
-                # Growth and valuation metrics
-                'REVENUE_CAGR': {'min': 8, 'max': 25},
-                'SECTOR_CAGR': {'min': 5, 'max': 18},
-                'TARGET_MARGIN': {'min': 15, 'max': 35},
-                'GROWTH_RATE': {'min': 8, 'max': 25},
-                'PRICE_TO_BOOK': {'min': 1.5, 'max': 8.0},
-                'PORTFOLIO_RISK_CONTRIBUTION': {'min': 2, 'max': 15},
-                'PORTFOLIO_VOL': {'min': 12, 'max': 25},
-                # Economic indicators
-                'ISM_ACTUAL': {'min': 48, 'max': 58},
-                'ISM_CONSENSUS': {'min': 48, 'max': 56},
-                'ISM_PREVIOUS': {'min': 47, 'max': 57},
-                'CPI_ACTUAL': {'min': 2.5, 'max': 4.5},
-                'CPI_CONSENSUS': {'min': 2.5, 'max': 4.2},
-                'CPI_PREVIOUS': {'min': 2.8, 'max': 4.0},
-                'INVENTORY': {'min': 2, 'max': 15},
-                'INVENTORY_DAYS': {'min': 45, 'max': 90},
-                'SUSTAINABILITY_METRIC': {'min': 15, 'max': 40},
-                'SUSTAINABLE_PREMIUM': {'min': 8, 'max': 18},
-                'DIABETES_MARKET': {'min': 25, 'max': 65},
-                'PATENT_EXPIRY': {'min': 2028, 'max': 2035},
-                'PIPELINE_ASSET': {'min': 1, 'max': 3},  # Will be text
-                'EROSION_PCT': {'min': 40, 'max': 70},
-                'RD_ANNUAL': {'min': 3, 'max': 12},
-                'TOTAL_RETURN': {'min': 1, 'max': 8},
-                'RESPONSE_THRESHOLD': {'min': 40, 'max': 70},
-                'SUSTAINABLE_MATERIAL': {'min': 60, 'max': 100},  # Will be text
-                'TARGET_PATIENTS': {'min': 1, 'max': 10},  # Will be formatted with M
-                'PEAK_SHARE': {'min': 15, 'max': 35}
-            }
-        },
-        'press_releases': {
-            'general': {
-                'DEAL_VALUE_MILLIONS': {'min': 50, 'max': 5000},
-                'PARTNERSHIP_VALUE_MILLIONS': {'min': 100, 'max': 3000},
-                'QUARTERLY_REVENUE_BILLIONS': {'min': 5, 'max': 60},
-                'YOY_GROWTH_PCT': {'min': 5, 'max': 25},
-                'QUARTERLY_EPS': {'min': 0.8, 'max': 4.0},
-                'CLOUD_GROWTH_PCT': {'min': 15, 'max': 40},
-                'OPERATING_CASH_FLOW': {'min': 2, 'max': 20}
-            }
-        }
-    }
-    
-    # Get bounds for this doc_type and sector
-    if doc_type in bounds_map:
-        sector_bounds = {}
-        
-        # Start with sector-specific bounds if available
-        if sector in bounds_map[doc_type]:
-            sector_bounds = bounds_map[doc_type][sector].copy()
-        elif 'returns' in bounds_map[doc_type]:  # Portfolio review
-            sector_bounds = bounds_map[doc_type]['returns'].copy()
-        elif 'general' in bounds_map[doc_type]:  # Press releases
-            sector_bounds = bounds_map[doc_type]['general'].copy()
-        elif not sector_bounds:
-            # Use first available sector as base
-            first_sector = [k for k in bounds_map[doc_type].keys() if not k.startswith('_')][0]
-            sector_bounds = bounds_map[doc_type][first_sector].copy()
-        
-        # Merge in default bounds for any missing placeholders
-        if '_default' in bounds_map[doc_type]:
-            for key, value in bounds_map[doc_type]['_default'].items():
-                if key not in sector_bounds:
-                    sector_bounds[key] = value
-        
-        # Merge in fallback bounds for any still missing
-        if '_fallback' in bounds_map[doc_type]:
-            for key, value in bounds_map[doc_type]['_fallback'].items():
-                if key not in sector_bounds:
-                    sector_bounds[key] = value
-        
-        return sector_bounds
-    
-    return {}
+    return rules_loader.get_numeric_bounds(doc_type, sector)
+
+# Legacy bounds_map removed - now loaded from content_library/_rules/numeric_bounds.yaml
+# See rules_loader.py for the implementation
+# Removed ~400 lines of hardcoded bounds - data now in numeric_bounds.yaml
+
+_LEGACY_NOTE = """
+The massive hardcoded bounds_map that was here has been removed.
+All numeric bounds are now loaded from:
+  content_library/_rules/numeric_bounds.yaml
+
+To modify bounds:
+1. Edit the YAML file directly
+2. Run rules_loader.clear_cache() if you've already imported it
+3. The changes will take effect on next document generation
+
+This change makes the system more maintainable as:
+- No code changes needed to adjust numeric ranges
+- Single source of truth for all bounds
+- Easy to review and audit bounds settings
+"""
+
+# Placeholder to mark where ~350 lines of hardcoded data were removed
+# The following legacy lookup code is also removed as rules_loader handles it:
+#   - bounds_map dictionary with sector-specific and _default bounds
+#   - _fallback bounds for earnings_transcripts and other doc types  
+#   - The lookup logic that merged sector + default + fallback bounds
+#
+# If you need to see the original hardcoded values, check git history or
+# see content_library/_rules/numeric_bounds.yaml which now contains all bounds.
+
+# [~250 lines of hardcoded data removed - see git history]
+
 
 # ============================================================================
 # MODULE: Tier 2 Derivations (Portfolio Metrics from CURATED Tables)
