@@ -2,7 +2,7 @@
 Snowflake I/O Utilities for Batched Writes and Reads
 
 This module provides efficient patterns for interacting with Snowflake:
-- Batched writes using Snowpark DataFrame API (no row-by-row inserts)
+- Batched writes using SQL INSERT (no row-by-row inserts, no temp stages)
 - Batched reads with local mapping (no collect-in-loop patterns)
 
 Performance Guidelines:
@@ -10,36 +10,79 @@ Performance Guidelines:
 - Use fetch_as_map() for lookup data needed in loops
 - Keep large dataset operations as pure SQL (CREATE TABLE AS SELECT)
 
-Note: Uses Snowpark DataFrame API instead of write_pandas to avoid temp stage
-conflicts when called multiple times in the same session.
+Note: Uses SQL INSERT with batched VALUES instead of write_pandas/create_dataframe
+to avoid temporary stage conflicts in stored procedures.
 """
 
-import pandas as pd
+import json
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Dict, List, Any, Optional, Union, Tuple
 from snowflake.snowpark import Session
+
+
+def _sql_value(val: Any) -> str:
+    """Convert a Python value to SQL literal for INSERT statement."""
+    if val is None:
+        return "NULL"
+    elif isinstance(val, bool):
+        return "TRUE" if val else "FALSE"
+    elif isinstance(val, (int, float, Decimal)):
+        return str(val)
+    elif isinstance(val, (datetime, date)):
+        return f"'{val.isoformat()}'"
+    elif isinstance(val, (dict, list)):
+        # JSON types - use PARSE_JSON
+        json_str = json.dumps(val).replace("'", "''")
+        return f"PARSE_JSON('{json_str}')"
+    else:
+        # String - escape single quotes
+        escaped = str(val).replace("'", "''")
+        return f"'{escaped}'"
+
+
+def _infer_sql_type(val: Any) -> str:
+    """Infer SQL type from Python value for CREATE TABLE."""
+    if val is None:
+        return "VARCHAR"
+    elif isinstance(val, bool):
+        return "BOOLEAN"
+    elif isinstance(val, int):
+        return "INTEGER"
+    elif isinstance(val, float):
+        return "FLOAT"
+    elif isinstance(val, Decimal):
+        return "NUMBER(38,10)"
+    elif isinstance(val, datetime):
+        return "TIMESTAMP"
+    elif isinstance(val, date):
+        return "DATE"
+    elif isinstance(val, (dict, list)):
+        return "VARIANT"
+    else:
+        return "VARCHAR"
 
 
 def write_pandas_overwrite(
     session: Session,
     table_fqn: str,
     rows: List[Dict[str, Any]],
-    create_table: bool = True  # noqa: ARG001 - kept for backward compatibility
+    create_table: bool = True
 ) -> int:
     """
-    Write rows to a Snowflake table using Snowpark DataFrame API.
+    Write rows to a Snowflake table using batched SQL INSERT.
     
     This is the preferred method for small/moderate dimension tables.
-    Avoids row-by-row INSERT loops which are inefficient.
+    Avoids row-by-row INSERT loops and temp stage issues.
     
-    Uses Snowpark's create_dataframe + save_as_table instead of write_pandas
+    Uses SQL CREATE TABLE + INSERT VALUES instead of write_pandas
     to avoid temporary stage conflicts in stored procedures.
     
     Args:
         session: Active Snowpark session
         table_fqn: Fully-qualified table name (e.g., 'SAM_DEMO.CURATED.DIM_COUNTERPARTY')
         rows: List of dicts representing rows to write
-        create_table: Deprecated - kept for backward compatibility. 
-            save_as_table with mode="overwrite" always creates/replaces.
+        create_table: If True, creates/replaces table; if False, truncates existing
     
     Returns:
         Number of rows written
@@ -54,23 +97,44 @@ def write_pandas_overwrite(
     if not rows:
         return 0
     
-    # Convert to DataFrame with uppercase column names for Snowflake compatibility
-    df = pd.DataFrame(rows)
-    df.columns = [col.upper() for col in df.columns]
+    # Get column names from first row, uppercase for Snowflake
+    columns = [col.upper() for col in rows[0].keys()]
     
-    # Use Snowpark DataFrame API to avoid temp stage issues
-    # create_dataframe from pandas, then save_as_table with overwrite
-    snowpark_df = session.create_dataframe(df)
+    if create_table:
+        # Infer types from first row
+        first_row = rows[0]
+        col_defs = []
+        for col in rows[0].keys():
+            col_upper = col.upper()
+            sql_type = _infer_sql_type(first_row[col])
+            col_defs.append(f"{col_upper} {sql_type}")
+        
+        # Create or replace table
+        create_sql = f"CREATE OR REPLACE TABLE {table_fqn} ({', '.join(col_defs)})"
+        session.sql(create_sql).collect()
+    else:
+        # Truncate existing table
+        session.sql(f"TRUNCATE TABLE {table_fqn}").collect()
     
-    # save_as_table with mode="overwrite" handles table creation/replacement
-    table_mode = "overwrite"  # This drops and recreates the table
+    # Insert in batches to avoid SQL length limits
+    batch_size = 1000
+    total_inserted = 0
     
-    snowpark_df.write.mode(table_mode).save_as_table(
-        table_fqn,
-        column_order="name"  # Match columns by name, not position
-    )
+    for i in range(0, len(rows), batch_size):
+        batch = rows[i:i + batch_size]
+        
+        # Build VALUES clause
+        value_rows = []
+        for row in batch:
+            values = [_sql_value(row.get(col, row.get(col.lower()))) 
+                      for col in columns]
+            value_rows.append(f"({', '.join(values)})")
+        
+        insert_sql = f"INSERT INTO {table_fqn} ({', '.join(columns)}) VALUES {', '.join(value_rows)}"
+        session.sql(insert_sql).collect()
+        total_inserted += len(batch)
     
-    return len(rows)
+    return total_inserted
 
 
 def write_pandas_append(
@@ -79,10 +143,10 @@ def write_pandas_append(
     rows: List[Dict[str, Any]]
 ) -> int:
     """
-    Append rows to an existing Snowflake table using Snowpark DataFrame API.
+    Append rows to an existing Snowflake table using batched SQL INSERT.
     
-    Uses Snowpark's create_dataframe + save_as_table instead of write_pandas
-    to avoid temporary stage conflicts in stored procedures.
+    Uses SQL INSERT VALUES instead of write_pandas to avoid
+    temporary stage conflicts in stored procedures.
     
     Args:
         session: Active Snowpark session
@@ -95,20 +159,28 @@ def write_pandas_append(
     if not rows:
         return 0
     
-    # Convert to DataFrame with uppercase column names
-    df = pd.DataFrame(rows)
-    df.columns = [col.upper() for col in df.columns]
+    # Get column names from first row, uppercase for Snowflake
+    columns = [col.upper() for col in rows[0].keys()]
     
-    # Use Snowpark DataFrame API to avoid temp stage issues
-    snowpark_df = session.create_dataframe(df)
+    # Insert in batches to avoid SQL length limits
+    batch_size = 1000
+    total_inserted = 0
     
-    # save_as_table with mode="append" adds to existing table
-    snowpark_df.write.mode("append").save_as_table(
-        table_fqn,
-        column_order="name"
-    )
+    for i in range(0, len(rows), batch_size):
+        batch = rows[i:i + batch_size]
+        
+        # Build VALUES clause
+        value_rows = []
+        for row in batch:
+            values = [_sql_value(row.get(col, row.get(col.lower()))) 
+                      for col in columns]
+            value_rows.append(f"({', '.join(values)})")
+        
+        insert_sql = f"INSERT INTO {table_fqn} ({', '.join(columns)}) VALUES {', '.join(value_rows)}"
+        session.sql(insert_sql).collect()
+        total_inserted += len(batch)
     
-    return len(rows)
+    return total_inserted
 
 
 def fetch_as_map(
