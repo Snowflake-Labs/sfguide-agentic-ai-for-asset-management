@@ -135,16 +135,16 @@ GRANT CREATE SEMANTIC VIEW ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
 -- SECTION 6: Git Integration
 -- ============================================================================
 
--- Create GitHub secret (update with your credentials if using private repo)
 CREATE OR REPLACE SECRET SAM_DEMO.PUBLIC.GITHUB_SECRET
   TYPE = PASSWORD
   USERNAME = 'user_name'
   PASSWORD = 'pat_token'
-  COMMENT = 'GitHub PAT for accessing SAM demo repository';
+  COMMENT = 'GitHub PAT for accessing private SAM demo repository';
 
+-- Grant secret usage to role
 GRANT USAGE ON SECRET SAM_DEMO.PUBLIC.GITHUB_SECRET TO ROLE SAM_DEMO_ROLE;
 
--- Create API integration for Git
+-- Create API integration for Git (must reference the secret in ALLOWED_AUTHENTICATION_SECRETS)
 CREATE OR REPLACE API INTEGRATION GITHUB_INTEGRATION_SAM_DEMO
   API_PROVIDER = git_https_api
   API_ALLOWED_PREFIXES = ('https://github.com/')
@@ -152,14 +152,14 @@ CREATE OR REPLACE API INTEGRATION GITHUB_INTEGRATION_SAM_DEMO
   ENABLED = TRUE
   COMMENT = 'Git integration with GitHub for SAM Demo repository';
 
--- Create Git repository
+-- Create Git repository object pointing to the SAM demo repo (with authentication)
 CREATE OR REPLACE GIT REPOSITORY SAM_DEMO.PUBLIC.sam_demo_repo
   API_INTEGRATION = GITHUB_INTEGRATION_SAM_DEMO
   GIT_CREDENTIALS = SAM_DEMO.PUBLIC.GITHUB_SECRET
   ORIGIN = 'https://github.com/sfc-gh-dshemsi/sfguide-agentic-ai-for-asset-management.git'
   COMMENT = 'Git repository for SAM demo setup files';
 
--- Fetch latest code
+-- Fetch latest code from Git
 ALTER GIT REPOSITORY SAM_DEMO.PUBLIC.sam_demo_repo FETCH;
 
 -- ============================================================================
