@@ -2,13 +2,16 @@
 Snowflake I/O Utilities for Batched Writes and Reads
 
 This module provides efficient patterns for interacting with Snowflake:
-- Batched writes using write_pandas (no row-by-row inserts)
+- Batched writes using Snowpark DataFrame API (no row-by-row inserts)
 - Batched reads with local mapping (no collect-in-loop patterns)
 
 Performance Guidelines:
 - Use write_pandas_overwrite() for small/moderate dimension tables
 - Use fetch_as_map() for lookup data needed in loops
 - Keep large dataset operations as pure SQL (CREATE TABLE AS SELECT)
+
+Note: Uses Snowpark DataFrame API instead of write_pandas to avoid temp stage
+conflicts when called multiple times in the same session.
 """
 
 import pandas as pd
@@ -20,19 +23,23 @@ def write_pandas_overwrite(
     session: Session,
     table_fqn: str,
     rows: List[Dict[str, Any]],
-    create_table: bool = True
+    create_table: bool = True  # noqa: ARG001 - kept for backward compatibility
 ) -> int:
     """
-    Write rows to a Snowflake table using batched write_pandas.
+    Write rows to a Snowflake table using Snowpark DataFrame API.
     
     This is the preferred method for small/moderate dimension tables.
     Avoids row-by-row INSERT loops which are inefficient.
+    
+    Uses Snowpark's create_dataframe + save_as_table instead of write_pandas
+    to avoid temporary stage conflicts in stored procedures.
     
     Args:
         session: Active Snowpark session
         table_fqn: Fully-qualified table name (e.g., 'SAM_DEMO.CURATED.DIM_COUNTERPARTY')
         rows: List of dicts representing rows to write
-        create_table: If True, creates/replaces table; if False, assumes table exists
+        create_table: Deprecated - kept for backward compatibility. 
+            save_as_table with mode="overwrite" always creates/replaces.
     
     Returns:
         Number of rows written
@@ -51,42 +58,17 @@ def write_pandas_overwrite(
     df = pd.DataFrame(rows)
     df.columns = [col.upper() for col in df.columns]
     
-    # Parse table components
-    parts = table_fqn.split('.')
-    if len(parts) == 3:
-        database, schema, table_name = parts
-    elif len(parts) == 2:
-        database = None
-        schema, table_name = parts
-    else:
-        database = None
-        schema = None
-        table_name = parts[0]
+    # Use Snowpark DataFrame API to avoid temp stage issues
+    # create_dataframe from pandas, then save_as_table with overwrite
+    snowpark_df = session.create_dataframe(df)
     
-    # Use write_pandas with quote_identifiers=False and overwrite=True
-    # This is the standard pattern per project guidelines
-    if create_table:
-        # Create or replace the table
-        session.write_pandas(
-            df,
-            table_name,
-            database=database,
-            schema=schema,
-            quote_identifiers=False,
-            overwrite=True,
-            auto_create_table=True
-        )
-    else:
-        # Truncate and insert (overwrite=True handles this)
-        session.write_pandas(
-            df,
-            table_name,
-            database=database,
-            schema=schema,
-            quote_identifiers=False,
-            overwrite=True,
-            auto_create_table=False
-        )
+    # save_as_table with mode="overwrite" handles table creation/replacement
+    table_mode = "overwrite"  # This drops and recreates the table
+    
+    snowpark_df.write.mode(table_mode).save_as_table(
+        table_fqn,
+        column_order="name"  # Match columns by name, not position
+    )
     
     return len(rows)
 
@@ -97,7 +79,10 @@ def write_pandas_append(
     rows: List[Dict[str, Any]]
 ) -> int:
     """
-    Append rows to an existing Snowflake table using batched write_pandas.
+    Append rows to an existing Snowflake table using Snowpark DataFrame API.
+    
+    Uses Snowpark's create_dataframe + save_as_table instead of write_pandas
+    to avoid temporary stage conflicts in stored procedures.
     
     Args:
         session: Active Snowpark session
@@ -114,26 +99,13 @@ def write_pandas_append(
     df = pd.DataFrame(rows)
     df.columns = [col.upper() for col in df.columns]
     
-    # Parse table components
-    parts = table_fqn.split('.')
-    if len(parts) == 3:
-        database, schema, table_name = parts
-    elif len(parts) == 2:
-        database = None
-        schema, table_name = parts
-    else:
-        database = None
-        schema = None
-        table_name = parts[0]
+    # Use Snowpark DataFrame API to avoid temp stage issues
+    snowpark_df = session.create_dataframe(df)
     
-    session.write_pandas(
-        df,
-        table_name,
-        database=database,
-        schema=schema,
-        quote_identifiers=False,
-        overwrite=False,  # Append mode
-        auto_create_table=False
+    # save_as_table with mode="append" adds to existing table
+    snowpark_df.write.mode("append").save_as_table(
+        table_fqn,
+        column_order="name"
     )
     
     return len(rows)
