@@ -389,8 +389,8 @@ WAREHOUSES = {
     },
     'cortex_search': {
         'name': 'SAM_DEMO_WH',
-        'size': 'MEDIUM',
-        'target_lag': '5 minutes',
+        'size': 'LARGE',
+        'target_lag': '1 hour',  # Faster creation; services sync in background
         'comment': 'Warehouse for SAM demo Cortex Search services'
     }
 }

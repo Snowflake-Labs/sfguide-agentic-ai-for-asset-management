@@ -89,7 +89,7 @@ GRANT ROLE SAM_DEMO_ROLE TO ROLE ACCOUNTADMIN;
 -- ============================================================================
 
 CREATE WAREHOUSE IF NOT EXISTS SAM_DEMO_WH
-    WAREHOUSE_SIZE = 'MEDIUM'
+    WAREHOUSE_SIZE = 'LARGE'  -- Faster data generation
     AUTO_SUSPEND = 60
     AUTO_RESUME = TRUE
     INITIALLY_SUSPENDED = TRUE
@@ -97,9 +97,9 @@ CREATE WAREHOUSE IF NOT EXISTS SAM_DEMO_WH
 
 GRANT USAGE ON WAREHOUSE SAM_DEMO_WH TO ROLE SAM_DEMO_ROLE;
 
--- Create dedicated Cortex Search warehouse
+-- Create dedicated Cortex Search warehouse (LARGE for faster service creation)
 CREATE WAREHOUSE IF NOT EXISTS SAM_CORTEX_SEARCH_WH
-    WAREHOUSE_SIZE = 'SMALL'
+    WAREHOUSE_SIZE = 'LARGE'  -- Faster search service indexing
     AUTO_SUSPEND = 60
     AUTO_RESUME = TRUE
     INITIALLY_SUSPENDED = TRUE
