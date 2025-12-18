@@ -13,8 +13,8 @@
 -- - 26 RAW document tables from 50+ templates  
 -- - 26 corpus tables (document collections)
 -- - 26 chunk tables (markdown-aware semantic chunks)
--- - Up to 24 Cortex Search services
--- - Up to 12 Cortex Analyst semantic views
+-- - 17 Cortex Search services (16 core + 1 real SEC filings)
+-- - 12 Cortex Analyst semantic views (9 core + 3 for real data)
 -- - 9 Cortex agents
 --
 -- RUN TIME: ~15-20 minutes
@@ -170,15 +170,9 @@ USE ROLE SAM_DEMO_ROLE;
 USE WAREHOUSE SAM_DEMO_WH;
 USE DATABASE SAM_DEMO;
 
--- Stage for Python modules and content library
-CREATE STAGE IF NOT EXISTS SAM_DEMO.PUBLIC.PYTHON_MODULES
-    COMMENT = 'Stage for Python modules from Git';
-
-CREATE STAGE IF NOT EXISTS SAM_DEMO.PUBLIC.CONTENT_LIBRARY
-    COMMENT = 'Stage for content library templates from Git';
-
 -- Create stage for reports
 CREATE STAGE IF NOT EXISTS SAM_DEMO.CURATED.SAM_REPORTS_STAGE
+    DIRECTORY = (ENABLE = TRUE)
     ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')
     COMMENT = 'Stage for generated PDF reports';
 
@@ -365,11 +359,18 @@ def run_ai_setup(session) -> str:
     import config
     config.PROJECT_ROOT = tmp_dir
     
+    # Expand 'all' to all scenario names (required for semantic views creation)
+    all_scenarios = [
+        'portfolio_copilot', 'research_copilot', 'thematic_macro_advisor',
+        'esg_guardian', 'sales_advisor', 'quant_analyst', 'compliance_advisor',
+        'middle_office_copilot', 'executive_copilot'
+    ]
+    
     # Create semantic views
     results.append("=== Creating Semantic Views ===")
     try:
         import create_semantic_views
-        create_semantic_views.create_semantic_views(session, ['all'])
+        create_semantic_views.create_semantic_views(session, all_scenarios)
         results.append("  Semantic views created!")
     except Exception as e:
         results.append(f"  ERROR creating semantic views: {e}")
@@ -379,7 +380,7 @@ def run_ai_setup(session) -> str:
     results.append("\n=== Creating Cortex Search Services ===")
     try:
         import create_cortex_search
-        create_cortex_search.create_search_services(session, ['all'])
+        create_cortex_search.create_search_services(session, all_scenarios)
         results.append("  Search services created!")
     except Exception as e:
         results.append(f"  ERROR creating search services: {e}")
@@ -1313,40 +1314,6 @@ CALL SAM_DEMO.PUBLIC.SETUP_AI_COMPONENTS();
 
 -- Create Cortex agents
 CALL SAM_DEMO.PUBLIC.SETUP_AGENTS();
-
--- ============================================================================
--- SECTION 10: Verification
--- ============================================================================
-
--- Verify tables
-SELECT 'CURATED Tables (expected: 50+)' as check_type, COUNT(*) as count 
-FROM (SHOW TABLES IN SAM_DEMO.CURATED);
-
-SELECT 'RAW Tables (expected: 26)' as check_type, COUNT(*) as count 
-FROM (SHOW TABLES IN SAM_DEMO.RAW);
-
-SELECT 'MARKET_DATA Tables' as check_type, COUNT(*) as count 
-FROM (SHOW TABLES IN SAM_DEMO.MARKET_DATA);
-
--- Verify corpus tables (document collections)
-SELECT 'Corpus Tables (expected: 26)' as check_type, COUNT(*) as count 
-FROM (SHOW TABLES IN SAM_DEMO.CURATED LIKE '%_CORPUS');
-
--- Verify chunk tables
-SELECT 'Chunk Tables (expected: 26)' as check_type, COUNT(*) as count 
-FROM (SHOW TABLES IN SAM_DEMO.CURATED LIKE '%_CHUNKS');
-
--- Verify search services
-SELECT 'Cortex Search Services (expected: up to 24)' as check_type, COUNT(*) as count 
-FROM (SHOW CORTEX SEARCH SERVICES IN SAM_DEMO.AI);
-
--- Verify semantic views
-SELECT 'Semantic Views (expected: up to 12)' as check_type, COUNT(*) as count 
-FROM (SHOW SEMANTIC VIEWS IN SAM_DEMO.AI);
-
--- Verify agents
-SELECT 'Agents (expected: 9)' as check_type, COUNT(*) as count 
-FROM (SHOW AGENTS IN SAM_DEMO.AI);
 
 -- ============================================================================
 -- Setup Complete!

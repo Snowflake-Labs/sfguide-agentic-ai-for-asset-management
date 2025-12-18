@@ -1,7 +1,0 @@
-name: sam_demo_setup
-channels:
-  - snowflake
-dependencies:
-  - snowflake-snowpark-python
-  - pandas
-  - numpy
