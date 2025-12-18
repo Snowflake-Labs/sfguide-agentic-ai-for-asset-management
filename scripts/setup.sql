@@ -85,27 +85,20 @@ GRANT ALL PRIVILEGES ON FUTURE TABLES IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM
 GRANT ROLE SAM_DEMO_ROLE TO ROLE ACCOUNTADMIN;
 
 -- ============================================================================
--- SECTION 3: Warehouse
+-- SECTION 3: Warehouse (Single LARGE warehouse for all operations)
 -- ============================================================================
 
 CREATE WAREHOUSE IF NOT EXISTS SAM_DEMO_WH
-    WAREHOUSE_SIZE = 'LARGE'  -- Faster data generation
+    WAREHOUSE_SIZE = 'LARGE'
     AUTO_SUSPEND = 60
     AUTO_RESUME = TRUE
     INITIALLY_SUSPENDED = TRUE
     COMMENT = 'Warehouse for SAM demo operations';
 
+-- Ensure warehouse is LARGE (in case it already exists with different size)
+ALTER WAREHOUSE SAM_DEMO_WH SET WAREHOUSE_SIZE = 'LARGE';
+
 GRANT USAGE ON WAREHOUSE SAM_DEMO_WH TO ROLE SAM_DEMO_ROLE;
-
--- Create dedicated Cortex Search warehouse (LARGE for faster service creation)
-CREATE WAREHOUSE IF NOT EXISTS SAM_CORTEX_SEARCH_WH
-    WAREHOUSE_SIZE = 'LARGE'  -- Faster search service indexing
-    AUTO_SUSPEND = 60
-    AUTO_RESUME = TRUE
-    INITIALLY_SUSPENDED = TRUE
-    COMMENT = 'Dedicated warehouse for Cortex Search services';
-
-GRANT USAGE ON WAREHOUSE SAM_CORTEX_SEARCH_WH TO ROLE SAM_DEMO_ROLE;
 
 -- ============================================================================
 -- SECTION 4: Marketplace Data Access

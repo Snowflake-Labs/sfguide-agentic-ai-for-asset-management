@@ -384,11 +384,11 @@ def get_table_path(schema: str, table: str) -> str:
 WAREHOUSES = {
     'execution': {
         'name': 'SAM_DEMO_WH',
-        'size': 'MEDIUM',
+        'size': 'LARGE',  # Single LARGE warehouse for all operations
         'comment': 'Warehouse for SAM demo data generation and execution'
     },
     'cortex_search': {
-        'name': 'SAM_DEMO_WH',
+        'name': 'SAM_DEMO_WH',  # Same warehouse
         'size': 'LARGE',
         'target_lag': '1 hour',  # Faster creation; services sync in background
         'comment': 'Warehouse for SAM demo Cortex Search services'
