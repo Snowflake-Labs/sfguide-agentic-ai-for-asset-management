@@ -31,8 +31,12 @@ disclosure:
 
 # {{COMPANY_NAME}} {{FISCAL_QUARTER}} {{FISCAL_YEAR}} Earnings Call Transcript
 
-**Date**: {{PUBLISH_DATE}}  
-**Participants**: {{CEO_NAME}} (CEO), {{CFO_NAME}} (CFO), Investor Relations Team
+### Date
+
+{{PUBLISH_DATE}}
+### Participants
+
+{{CEO_NAME}} (CEO), {{CFO_NAME}} (CFO), Investor Relations Team
 
 ---
 
@@ -108,93 +112,155 @@ With that, operator, let's open the line for questions.
 
 ## Question and Answer Session
 
-**Operator**: Thank you. We'll now begin the question-and-answer session. Our first question comes from Michael Chen with Northgate Analytics.
+### Operator
 
-**Michael Chen, Northgate Analytics**: Good afternoon, and congratulations on the strong results. My question is on the cloud platform segment. Can you provide more colour on what's driving the acceleration we're seeing? Is it new customer acquisition, existing customer expansion, or both? And how should we think about sustainability of these growth rates?
+Thank you. We'll now begin the question-and-answer session. Our first question comes from Michael Chen with Northgate Analytics.
 
-**{{CEO_NAME}}**: Thanks, Michael. Great question. The cloud acceleration is really being driven by both factors you mentioned. On new customer acquisition, we're seeing very strong demand particularly from mid-market and enterprise segments. Companies are consolidating workloads from multiple cloud providers onto our platform because of the comprehensive capabilities, security features, and cost efficiency we provide.
+### Michael Chen, Northgate Analytics
+
+Good afternoon, and congratulations on the strong results. My question is on the cloud platform segment. Can you provide more colour on what's driving the acceleration we're seeing? Is it new customer acquisition, existing customer expansion, or both? And how should we think about sustainability of these growth rates?
+
+### {{CEO_NAME}}
+
+Thanks, Michael. Great question. The cloud acceleration is really being driven by both factors you mentioned. On new customer acquisition, we're seeing very strong demand particularly from mid-market and enterprise segments. Companies are consolidating workloads from multiple cloud providers onto our platform because of the comprehensive capabilities, security features, and cost efficiency we provide.
 
 But equally important is the expansion we're seeing within existing customers. Our dollar-based net retention rate this quarter was {{NET_RETENTION_PCT}}%, which demonstrates that existing customers are significantly growing their spending with us. This is driven by workload migration from on-premises infrastructure, adoption of new services we've launched, and customers moving more mission-critical applications to our platform.
 
-**{{CFO_NAME}}**: I'll add to that, Michael. On sustainability, we feel good about the growth trajectory. The cloud market itself is still growing mid-to-high teens percentage points annually, and we're taking share within that growing market. Our pipeline remains very healthy, and the sales cycles we're seeing are actually shortening as cloud adoption becomes less of a "should we?" question and more of a "how fast can we?" implementation exercise.
+### {{CFO_NAME}}
 
-**Michael Chen**: That's helpful. And as a follow-up, can you talk about the competitive environment? We're seeing some pricing aggression from competitors. How are you thinking about pricing strategy versus market share?
+I'll add to that, Michael. On sustainability, we feel good about the growth trajectory. The cloud market itself is still growing mid-to-high teens percentage points annually, and we're taking share within that growing market. Our pipeline remains very healthy, and the sales cycles we're seeing are actually shortening as cloud adoption becomes less of a "should we?" question and more of a "how fast can we?" implementation exercise.
 
-**{{CEO_NAME}}**: We're definitely aware of competitive pricing dynamics. Our approach has been to lead with value rather than just price. When customers evaluate total cost of ownership — including not just compute costs but also productivity gains, reduced operational overhead, and superior capabilities — we consistently win on value proposition.
+### Michael Chen
+
+That's helpful. And as a follow-up, can you talk about the competitive environment? We're seeing some pricing aggression from competitors. How are you thinking about pricing strategy versus market share?
+
+### {{CEO_NAME}}
+
+We're definitely aware of competitive pricing dynamics. Our approach has been to lead with value rather than just price. When customers evaluate total cost of ownership — including not just compute costs but also productivity gains, reduced operational overhead, and superior capabilities — we consistently win on value proposition.
 
 That said, we're also innovating on pricing models. Our consumption-based pricing provides customers with flexibility and cost alignment with their actual usage. We've introduced optimization tools that help customers rightsize their deployments, which builds trust and long-term relationships even if it means slightly lower revenue in the near term.
 
-**Operator**: Our next question comes from Jennifer Martinez with Fairmont Capital Insights.
+### Operator
 
-**Jennifer Martinez, Fairmont Capital Insights**: Hi, thank you. I wanted to ask about the AI initiatives you mentioned. Can you quantify how much AI is contributing to growth? And how do you think about monetization of these AI capabilities?
+Our next question comes from Jennifer Martinez with Fairmont Capital Insights.
 
-**{{CEO_NAME}}**: Jennifer, AI is becoming embedded across essentially everything we do, so it's challenging to isolate its specific contribution. What I can tell you is that products with AI features have significantly higher adoption rates and customer engagement metrics. We're seeing {{AI_ADOPTION_PCT}}% of our enterprise customers now actively using our AI-powered tools.
+### Jennifer Martinez, Fairmont Capital Insights
+
+Hi, thank you. I wanted to ask about the AI initiatives you mentioned. Can you quantify how much AI is contributing to growth? And how do you think about monetization of these AI capabilities?
+
+### {{CEO_NAME}}
+
+Jennifer, AI is becoming embedded across essentially everything we do, so it's challenging to isolate its specific contribution. What I can tell you is that products with AI features have significantly higher adoption rates and customer engagement metrics. We're seeing {{AI_ADOPTION_PCT}}% of our enterprise customers now actively using our AI-powered tools.
 
 From a monetization perspective, we're taking multiple approaches. Some AI capabilities are included in premium tier subscriptions, which helps drive upgrades. Others are offered as add-on modules with separate pricing. And in some cases, AI features reduce our own operational costs, which improves margins.
 
-**{{CFO_NAME}}**: To Jennifer's question on financial impact, whilst we don't break out AI revenue separately, I can share that products launched in the past 18 months with significant AI components are growing revenue at roughly 2x the rate of our legacy products. These newer products also carry higher gross margins, which is contributing to the overall margin expansion we're seeing.
+### {{CFO_NAME}}
+
+To Jennifer's question on financial impact, whilst we don't break out AI revenue separately, I can share that products launched in the past 18 months with significant AI components are growing revenue at roughly 2x the rate of our legacy products. These newer products also carry higher gross margins, which is contributing to the overall margin expansion we're seeing.
 
 The investment we're making in AI infrastructure and talent is substantial — probably $2-3 billion annually when you include R&D, infrastructure, and strategic partnerships. But we believe this positions us to capture a disproportionate share of the AI-driven market opportunity, which more than justifies the investment.
 
-**Jennifer Martinez**: That's very helpful context. Thank you.
+### Jennifer Martinez
 
-**Operator**: Our next question comes from David Park with Sterling Wharf Intelligence.
+That's very helpful context. Thank you.
 
-**David Park, Sterling Wharf Intelligence**: Good afternoon. Question on operating margins. You delivered {{OPERATING_MARGIN_PCT}}% this quarter, which is impressive. But you're also investing heavily in growth. How do you think about the right balance between growth investment and margin expansion? And where do you see margins trending longer term?
+### Operator
 
-**{{CFO_NAME}}**: David, this is the key strategic question we wrestle with each quarter. Our philosophy has been to invest aggressively when we see high-return opportunities, but we also want to demonstrate operating leverage to shareholders. The framework we use is to ensure that incremental investments are generating appropriate returns, typically targeting 3-5x return on invested capital for new initiatives.
+Our next question comes from David Park with Sterling Wharf Intelligence.
+
+### David Park, Sterling Wharf Intelligence
+
+Good afternoon. Question on operating margins. You delivered {{OPERATING_MARGIN_PCT}}% this quarter, which is impressive. But you're also investing heavily in growth. How do you think about the right balance between growth investment and margin expansion? And where do you see margins trending longer term?
+
+### {{CFO_NAME}}
+
+David, this is the key strategic question we wrestle with each quarter. Our philosophy has been to invest aggressively when we see high-return opportunities, but we also want to demonstrate operating leverage to shareholders. The framework we use is to ensure that incremental investments are generating appropriate returns, typically targeting 3-5x return on invested capital for new initiatives.
 
 This quarter, we expanded operating margins by {{MARGIN_EXPANSION_BPS}} basis points year-over-year whilst increasing R&D spending by {{RD_GROWTH}}%. That demonstrates we can do both — invest for growth and improve profitability through scale efficiencies and operational improvements.
 
 Longer term, we see a path to 35-40% operating margins over the next 3-5 years, up from {{OPERATING_MARGIN_PCT}}% today. The key drivers will be revenue scale, particularly in high-margin cloud and software segments, continued automation of customer support and operations, and infrastructure efficiency improvements.
 
-**{{CEO_NAME}}**: I'd just add that we're not managing the business to hit specific margin targets in any given quarter. If we see compelling investment opportunities that will drive long-term shareholder value, we'll pursue them even if they create near-term margin headwinds. But structurally, this business model has significant operating leverage, and shareholders should expect to see that materialise over time.
+### {{CEO_NAME}}
 
-**Operator**: Our next question comes from Rebecca Foster with Granite Peak Advisory.
+I'd just add that we're not managing the business to hit specific margin targets in any given quarter. If we see compelling investment opportunities that will drive long-term shareholder value, we'll pursue them even if they create near-term margin headwinds. But structurally, this business model has significant operating leverage, and shareholders should expect to see that materialise over time.
 
-**Rebecca Foster, Granite Peak Advisory**: Hi there. I wanted to ask about the enterprise versus SMB customer mix. Are you seeing different growth rates or margin profiles between these segments? And how does your go-to-market strategy differ?
+### Operator
 
-**{{CEO_NAME}}**: Rebecca, we're seeing strong growth in both segments but with somewhat different dynamics. Enterprise customers represent about {{ENTERPRISE_PCT}}% of revenue and are growing {{ENTERPRISE_GROWTH}}% year-over-year. These are typically longer sales cycles but much larger contract values and excellent expansion characteristics once we land the initial workload.
+Our next question comes from Rebecca Foster with Granite Peak Advisory.
+
+### Rebecca Foster, Granite Peak Advisory
+
+Hi there. I wanted to ask about the enterprise versus SMB customer mix. Are you seeing different growth rates or margin profiles between these segments? And how does your go-to-market strategy differ?
+
+### {{CEO_NAME}}
+
+Rebecca, we're seeing strong growth in both segments but with somewhat different dynamics. Enterprise customers represent about {{ENTERPRISE_PCT}}% of revenue and are growing {{ENTERPRISE_GROWTH}}% year-over-year. These are typically longer sales cycles but much larger contract values and excellent expansion characteristics once we land the initial workload.
 
 SMB customers are growing slightly faster at {{SMB_GROWTH}}% year-over-year, driven by our self-service and digital channels. Contract values are obviously smaller, but the sales efficiency is much higher, and we can serve these customers at scale with largely automated onboarding and support processes.
 
 From a margin perspective, both segments are attractive. Enterprise has higher gross margins due to contract structure and infrastructure efficiency at scale. But SMB has very low customer acquisition costs through our digital channels, so the unit economics work well for both.
 
-**{{CFO_NAME}}**: I'll add that strategically, we see both segments as critical to our long-term success. Enterprise customers provide stability, large revenue scale, and often act as reference customers for broader market adoption. SMB customers provide volume, diversification, and a proving ground for new products before we take them upmarket to enterprise.
+### {{CFO_NAME}}
 
-**Operator**: Our next question comes from Thomas Lee with Ashfield Partners.
+I'll add that strategically, we see both segments as critical to our long-term success. Enterprise customers provide stability, large revenue scale, and often act as reference customers for broader market adoption. SMB customers provide volume, diversification, and a proving ground for new products before we take them upmarket to enterprise.
 
-**Thomas Lee, Ashfield Partners**: Thank you. Question on international markets. You mentioned strong international growth. Can you break down the regional performance? And are you seeing any macro headwinds in specific geographies?
+### Operator
 
-**{{CFO_NAME}}**: Sure, Thomas. International revenue was ${{INTL_REVENUE}}B, growing {{INTL_GROWTH}}% year-over-year and now representing {{INTL_PCT}}% of total company revenue. Europe remains our largest international market with solid mid-teens growth despite some macroeconomic uncertainty. We're seeing particular strength in the UK, Germany, and Nordics.
+Our next question comes from Thomas Lee with Ashfield Partners.
+
+### Thomas Lee, Ashfield Partners
+
+Thank you. Question on international markets. You mentioned strong international growth. Can you break down the regional performance? And are you seeing any macro headwinds in specific geographies?
+
+### {{CFO_NAME}}
+
+Sure, Thomas. International revenue was ${{INTL_REVENUE}}B, growing {{INTL_GROWTH}}% year-over-year and now representing {{INTL_PCT}}% of total company revenue. Europe remains our largest international market with solid mid-teens growth despite some macroeconomic uncertainty. We're seeing particular strength in the UK, Germany, and Nordics.
 
 Asia-Pacific is our fastest-growing region at {{APAC_GROWTH}}% year-over-year, though from a smaller base. Japan, Australia, and Singapore are performing exceptionally well. We're also seeing accelerating adoption in India, which we view as a massive long-term opportunity.
 
 On macro headwinds, we're certainly monitoring global economic conditions closely. We have seen some elongation of deal cycles in certain European markets where economic uncertainty is higher. But overall, demand for our solutions remains strong because customers view technology infrastructure as strategic and essential rather than discretionary.
 
-**{{CEO_NAME}}**: I'd emphasise that our international opportunity is still in early innings. We're under-indexed in international markets relative to the global revenue opportunity. The investments we're making in local partnerships, data centre infrastructure, and go-to-market capabilities are setting us up for sustained international growth over many years.
+### {{CEO_NAME}}
 
-**Operator**: Our next question comes from Amanda Rodriguez with Bluehaven Capital Research.
+I'd emphasise that our international opportunity is still in early innings. We're under-indexed in international markets relative to the global revenue opportunity. The investments we're making in local partnerships, data centre infrastructure, and go-to-market capabilities are setting us up for sustained international growth over many years.
 
-**Amanda Rodriguez, Bluehaven Capital Research**: Hi, thanks for taking my questions. On free cash flow, it came in a bit lighter than we modeled. Can you walk through the working capital dynamics? And how should we think about free cash flow trajectory for the remainder of the year?
+### Operator
 
-**{{CFO_NAME}}**: Good question, Amanda. Free cash flow of ${{FREE_CASH_FLOW}}B was down slightly sequentially, primarily due to timing of collections and some seasonal working capital movements. The specific drivers were accounts receivable, which increased due to strong revenue performance and some larger enterprise contracts with slightly extended payment terms, and infrastructure CapEx investments supporting our AI and cloud capacity expansion.
+Our next question comes from Amanda Rodriguez with Bluehaven Capital Research.
+
+### Amanda Rodriguez, Bluehaven Capital Research
+
+Hi, thanks for taking my questions. On free cash flow, it came in a bit lighter than we modeled. Can you walk through the working capital dynamics? And how should we think about free cash flow trajectory for the remainder of the year?
+
+### {{CFO_NAME}}
+
+Good question, Amanda. Free cash flow of ${{FREE_CASH_FLOW}}B was down slightly sequentially, primarily due to timing of collections and some seasonal working capital movements. The specific drivers were accounts receivable, which increased due to strong revenue performance and some larger enterprise contracts with slightly extended payment terms, and infrastructure CapEx investments supporting our AI and cloud capacity expansion.
 
 Looking forward, we expect free cash flow to accelerate in Q4, as typically happens with our seasonal patterns. Collections usually pick up significantly in the fourth quarter, and CapEx should moderate slightly. For the full year, we continue to target free cash flow conversion of approximately {{FCF_CONVERSION}}% of operating cash flow.
 
 It's worth noting that our CapEx this year is elevated due to strategic investments in AI infrastructure and data centre expansion. These investments have very attractive returns and are critical to supporting our growth. But they do create a temporary headwind to free cash flow in the current year that reverses as the capacity we're building comes online and generates revenue.
 
-**Amanda Rodriguez**: That makes sense. And just quickly, any changes to capital allocation priorities given the strong business momentum?
+### Amanda Rodriguez
 
-**{{CFO_NAME}}**: No changes to our overall framework. Priority one is always investing in the business — R&D, sales capacity, infrastructure — where we see compelling returns. Priority two is maintaining a strong balance sheet with ample liquidity. And priority three is returning capital to shareholders through a combination of dividends and share repurchases.
+That makes sense. And just quickly, any changes to capital allocation priorities given the strong business momentum?
+
+### {{CFO_NAME}}
+
+No changes to our overall framework. Priority one is always investing in the business — R&D, sales capacity, infrastructure — where we see compelling returns. Priority two is maintaining a strong balance sheet with ample liquidity. And priority three is returning capital to shareholders through a combination of dividends and share repurchases.
 
 We increased our dividend {{DIVIDEND_INCREASE}}% earlier this year, and as I mentioned, the Board just approved an additional $10B buyback authorization. We'll continue to be opportunistic on buybacks, but you should expect us to be active return of capital to shareholders whilst maintaining financial flexibility for organic investments or potential strategic M&A.
 
-**Operator**: Our final question comes from Kevin Walsh with Regent Square Analytics.
+### Operator
 
-**Kevin Walsh, Regent Square Analytics**: Good afternoon. My question is on the competitive moat. What do you see as the most important sustainable competitive advantages? And how are you defending against both traditional competitors and new entrants?
+Our final question comes from Kevin Walsh with Regent Square Analytics.
 
-**{{CEO_NAME}}**: Kevin, I think our competitive moat has several components. First and most important is our technology lead. We invest ${{RD_BILLIONS}}B+ annually in R&D, which is amongst the highest in our industry. That investment pace is difficult for smaller competitors to match, and it allows us to continuously extend our technology differentiation.
+### Kevin Walsh, Regent Square Analytics
+
+Good afternoon. My question is on the competitive moat. What do you see as the most important sustainable competitive advantages? And how are you defending against both traditional competitors and new entrants?
+
+### {{CEO_NAME}}
+
+Kevin, I think our competitive moat has several components. First and most important is our technology lead. We invest ${{RD_BILLIONS}}B+ annually in R&D, which is amongst the highest in our industry. That investment pace is difficult for smaller competitors to match, and it allows us to continuously extend our technology differentiation.
 
 Second is our customer relationships and installed base. With millions of customers running mission-critical workloads on our platform, we have deep integrations and switching costs that create natural stickiness. Our 95%+ retention rate reflects this dynamic.
 
@@ -204,7 +270,9 @@ Fourth is brand and trust. Particularly in enterprise markets, our reputation fo
 
 To defend these advantages, we're focused on innovation velocity, customer success, and strategic investments in emerging technologies like AI where we can establish early leadership. We're also cognizant of potential disruption and actively invest in areas that could threaten our core business, ensuring we're either the disruptor or the fast follower.
 
-**{{CFO_NAME}}**: I'll just add that we measure ourselves constantly against both traditional technology competitors and emerging challengers. We track detailed competitive metrics across product categories, win rates, pricing dynamics, and customer satisfaction. This data-driven approach to competitive intelligence helps us stay ahead of market shifts and adjust our strategy dynamically.
+### {{CFO_NAME}}
+
+I'll just add that we measure ourselves constantly against both traditional technology competitors and emerging challengers. We track detailed competitive metrics across product categories, win rates, pricing dynamics, and customer satisfaction. This data-driven approach to competitive intelligence helps us stay ahead of market shifts and adjust our strategy dynamically.
 
 ## {{CEO_NAME}} — Closing Remarks
 
@@ -212,11 +280,15 @@ Before we close, I want to reiterate a few key points. First, {{COMPANY_NAME}} d
 
 Thank you all for your time today and your continued interest in {{COMPANY_NAME}}. We look forward to updating you on our progress next quarter.
 
-**Operator**: This concludes today's {{COMPANY_NAME}} {{FISCAL_QUARTER}} {{FISCAL_YEAR}} earnings conference call. Thank you for participating. You may now disconnect.
+### Operator
+
+This concludes today's {{COMPANY_NAME}} {{FISCAL_QUARTER}} {{FISCAL_YEAR}} earnings conference call. Thank you for participating. You may now disconnect.
 
 ---
 
-**Forward-Looking Statements**: This transcript contains forward-looking statements involving risks and uncertainties. Actual results may differ materially from those discussed today. Please refer to our SEC filings for detailed risk factors.
+### Forward-Looking Statements
+
+This transcript contains forward-looking statements involving risks and uncertainties. Actual results may differ materially from those discussed today. Please refer to our SEC filings for detailed risk factors.
 
 *SAM Demo Content. Company details and figures are illustrative for demonstration purposes.*
 

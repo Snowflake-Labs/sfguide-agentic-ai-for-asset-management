@@ -11,7 +11,9 @@ placeholders:
 
 **Snowcrest Asset Management**  
 **Template Document**  
-**Version**: 1.0 | **Effective**: January 2024
+### Version
+
+1.0 | **Effective**: January 2024
 
 ---
 
@@ -41,25 +43,30 @@ Investment Manager shall maintain portfolio asset allocation within ranges speci
 
 ### Concentration Limits
 
-**Issuer Concentration**:
+### Issuer Concentration
+
 - Maximum 7.0% of portfolio market value in any single issuer (hard limit)
 - Early warning threshold of 6.5% triggers review and notification
 - Exceptions require written approval from Client
 
-**Sector Limits**:
+### Sector Limits
+
 - Maximum 25% of portfolio in any single GICS sector
 - Technology sector may be higher for technology-focused mandates with approval
 
-**Geographic Limits**:
+### Geographic Limits
+
 - Maximum 60% in any single country or region unless otherwise specified
 - Emerging markets exposure not to exceed 15% without specific approval
 
-**Quality Standards**:
+### Quality Standards
+
 - **Fixed Income**: Minimum 75% of fixed income allocation must be Investment Grade (BBB-/Baa3 or higher)
 - Maximum 5% of total portfolio in securities rated CCC+ or below
 - No defaulted securities permitted
 
-**Duration Management**:
+### Duration Management
+
 - Fixed income portfolio duration within ±1.0 years of benchmark duration
 - Duration managed to balance interest rate risk and income objectives
 
@@ -71,18 +78,21 @@ Investment Manager shall maintain portfolio asset allocation within ranges speci
 
 For portfolios marketed with ESG, sustainable, or responsible investment labels:
 
-**Rating Requirements**:
+### Rating Requirements
+
 - Maintain minimum portfolio-weighted average ESG rating of BBB
 - Maximum 10% of portfolio in securities rated below BBB for ESG purposes
 - No securities rated CCC or below for ESG purposes
 
-**Exclusions**:
+### Exclusions
+
 - No investments in controversial weapons manufacturers
 - No tobacco production companies
 - No thermal coal extraction (>5% of revenue)
 - Exclusion of companies with high-severity ESG controversies pending remediation
 
-**Controversy Monitoring**:
+### Controversy Monitoring
+
 - Quarterly screening for high-severity environmental, social, or governance controversies
 - Investment Committee review required to maintain positions with ongoing high-severity issues
 - Automatic exclusion for egregious violations (forced labour, severe environmental disasters, fraud)
@@ -101,7 +111,8 @@ Portfolios without explicit ESG labels incorporate ESG factors into fundamental 
 
 Unless specifically authorised in writing by Client:
 
-**Prohibited Securities and Strategies**:
+### Prohibited Securities and Strategies
+
 - Unlisted or private securities (limited liquidity)
 - Direct commodity investments (commodity ETFs permitted with approval)
 - Leveraged or inverse ETFs
@@ -110,7 +121,8 @@ Unless specifically authorised in writing by Client:
 - Securities subject to legal restrictions or pending litigation
 - Affiliated party transactions without disclosure and approval
 
-**Controversial Activities**:
+### Controversial Activities
+
 - Manufacturers of controversial weapons (all portfolios)
 - Additional exclusions as specified for ESG-labelled portfolios
 
@@ -129,15 +141,20 @@ Investment Manager conducts daily compliance monitoring including:
 
 ### Breach Reporting and Remediation
 
-**Breach Notification**: Investment Manager shall notify Client within 24 hours of identifying any breach of investment guidelines or restrictions.
+### Breach Notification
 
-**Remediation Requirements**:
+Investment Manager shall notify Client within 24 hours of identifying any breach of investment guidelines or restrictions.
+
+### Remediation Requirements
+
 - Immediate cessation of activities causing or contributing to breach
 - Remediation plan submitted within 3 business days
 - Breach remediation completed within 30 business days unless impractical
 - Documentation of breach, cause, and remediation for compliance records
 
-**Concentration Breach Protocol**: If position exceeds 7.0% limit due to price appreciation:
+### Concentration Breach Protocol
+
+If position exceeds 7.0% limit due to price appreciation:
 - Immediate notification to Client
 - Develop reduction plan within 3 business days
 - Execute reduction program within 30 business days
@@ -145,19 +162,22 @@ Investment Manager conducts daily compliance monitoring including:
 
 ### Reporting Requirements
 
-**Monthly Reports**:
+### Monthly Reports
+
 - Portfolio valuation and performance summary
 - Holdings detail with position sizes and changes
 - Compliance certification statement
 
-**Quarterly Reports**:
+### Quarterly Reports
+
 - Comprehensive performance attribution analysis
 - Asset allocation versus targets and IPS ranges
 - Transaction summary and rationale
 - ESG metrics and compliance (for ESG-labelled portfolios)
 - Concentration analysis and largest positions review
 
-**Annual Reports**:
+### Annual Reports
+
 - Full year performance review and outlook
 - Investment Policy Statement suitability review
 - Comprehensive portfolio analytics
@@ -167,11 +187,17 @@ Investment Manager conducts daily compliance monitoring including:
 
 ## 6. Fee Structure
 
-**Management Fee**: [Specify annual percentage fee applied quarterly]
+### Management Fee
 
-**Fee Calculation**: Based on portfolio market value as of quarter-end. Fees calculated quarterly and deducted from portfolio in arrears.
+[Specify annual percentage fee applied quarterly]
 
-**Additional Expenses**: Client responsible for:
+### Fee Calculation
+
+Based on portfolio market value as of quarter-end. Fees calculated quarterly and deducted from portfolio in arrears.
+
+### Additional Expenses
+
+Client responsible for:
 - Custodian fees and transaction costs
 - Fund expense ratios (mutual funds and ETFs)
 - Regulatory fees and assessments
@@ -181,15 +207,23 @@ Investment Manager conducts daily compliance monitoring including:
 
 ## 7. Amendment and Termination
 
-**IPS Amendments**: Changes to Investment Policy Statement require mutual written agreement. Both parties retain copies of all IPS versions with effective dates.
+### IPS Amendments
 
-**Agreement Termination**: Either party may terminate upon 30 days written notice. Upon termination, Investment Manager shall assist with orderly transition of portfolio management responsibilities.
+Changes to Investment Policy Statement require mutual written agreement. Both parties retain copies of all IPS versions with effective dates.
+
+### Agreement Termination
+
+Either party may terminate upon 30 days written notice. Upon termination, Investment Manager shall assist with orderly transition of portfolio management responsibilities.
 
 ---
 
-**Template Notes**: This template contains standard terms for investment management agreements at Snowcrest Asset Management. Specific client agreements should incorporate customised terms reflecting client circumstances, objectives, and requirements. Legal review required before client execution.
+### Template Notes
 
-**Compliance Approval**: This template has been reviewed and approved by Snowcrest Asset Management Compliance Department.
+This template contains standard terms for investment management agreements at Snowcrest Asset Management. Specific client agreements should incorporate customised terms reflecting client circumstances, objectives, and requirements. Legal review required before client execution.
+
+### Compliance Approval
+
+This template has been reviewed and approved by Snowcrest Asset Management Compliance Department.
 
 ---
 

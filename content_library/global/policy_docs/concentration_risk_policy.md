@@ -10,9 +10,15 @@ placeholders:
 # Concentration Risk Management Policy
 
 **Snowcrest Asset Management**  
-**Policy Owner**: Chief Investment Officer  
-**Version**: 2.1 | **Effective Date**: 1 January 2024  
-**Review Cycle**: Annual | **Next Review**: January 2025
+### Policy Owner
+
+Chief Investment Officer
+### Version
+
+2.1 | **Effective Date**: 1 January 2024
+### Review Cycle
+
+Annual | **Next Review**: January 2025
 
 ---
 
@@ -20,9 +26,13 @@ placeholders:
 
 Snowcrest Asset Management implements comprehensive concentration risk limits to protect client portfolios from excessive exposure to individual issuers, sectors, geographies, and asset classes. This policy establishes mandatory concentration thresholds that trigger monitoring, review, and remediation actions.
 
-**Purpose**: Ensure prudent diversification, limit downside risk from single-name exposures, and maintain compliance with regulatory requirements and client mandates.
+### Purpose
 
-**Scope**: All discretionary investment portfolios managed by Snowcrest Asset Management.
+Ensure prudent diversification, limit downside risk from single-name exposures, and maintain compliance with regulatory requirements and client mandates.
+
+### Scope
+
+All discretionary investment portfolios managed by Snowcrest Asset Management.
 
 ---
 
@@ -30,34 +40,39 @@ Snowcrest Asset Management implements comprehensive concentration risk limits to
 
 ### 2.1 Single Issuer Exposure Limits
 
-**Hard Limit — Breach Level**:
+### Hard Limit — Breach Level
+
 - **Maximum 7.0%** of portfolio market value in any single issuer
 - **Status**: Regulatory breach requiring immediate remediation
 - **Action**: Mandatory reduction within 10 business days
 - **Escalation**: Chief Investment Officer and Compliance Officer notification
 - **Client Impact**: Written notification required, potential regulatory filing
 
-**Early Warning Threshold**:
+### Early Warning Threshold
+
 - **6.5%** of portfolio market value in any single issuer
 - **Status**: Concentration warning — heightened monitoring required
 - **Action**: Portfolio Manager review, consider rebalancing at next opportunity
 - **Monitoring**: Daily position tracking, inclusion in concentration report
 - **Rationale**: Provides buffer before breach, allows proactive management
 
-**Normal Range**:
+### Normal Range
+
 - **Below 6.5%** considered within acceptable concentration parameters
 - **Best Practice**: Most positions maintained between 1-5% for optimal diversification
 - **Monitoring**: Weekly portfolio composition review
 
 ### 2.2 Calculation Methodology
 
-**Market Value Basis**:
+### Market Value Basis
+
 - Concentration calculated as: (Position Market Value / Total Portfolio Market Value) × 100
 - Uses most recent end-of-day market values
 - Includes all securities issued by the same legal entity (consolidated issuer view)
 - Parent-subsidiary consolidation required where material ownership exists
 
-**Frequency**:
+### Frequency
+
 - Calculated daily after market close
 - Alerts triggered automatically via portfolio management system
 - Weekly concentration report distributed to Portfolio Managers and CIO
@@ -69,16 +84,19 @@ Snowcrest Asset Management implements comprehensive concentration risk limits to
 
 ### 3.1 GICS Sector Limits
 
-**General Portfolios**:
+### General Portfolios
+
 - **Maximum 25%** in any single GICS Level 1 sector
 - **Early Warning**: 22% sector concentration triggers review
 - **Technology Exception**: Technology-focused mandates may exceed with documented approval
 
-**Diversified/Balanced Portfolios**:
+### Diversified/Balanced Portfolios
+
 - **Maximum 20%** in any single GICS Level 1 sector
 - **Stricter Standard**: Reflects commitment to broad diversification
 
-**ESG/Thematic Portfolios**:
+### ESG/Thematic Portfolios
+
 - **Maximum 30%** in thematic sectors (e.g., Renewable Energy for Climate portfolios)
 - **Documented Rationale**: Theme-specific concentration documented in Investment Policy Statement
 
@@ -94,12 +112,14 @@ Snowcrest Asset Management implements comprehensive concentration risk limits to
 
 ### 4.1 Country/Region Exposure
 
-**Developed Markets**:
+### Developed Markets
+
 - **Maximum 60%** in any single developed market country
 - **United States Exception**: US exposure may reach 65% for global equity portfolios given market capitalization weight
 - **Regional Limits**: Maximum 40% in any single geographic region (excluding US)
 
-**Emerging Markets**:
+### Emerging Markets
+
 - **Maximum 15%** total emerging markets exposure (aggregate)
 - **Single Country Limit**: Maximum 8% in any single emerging market
 - **Frontier Markets**: Maximum 5% total frontier markets exposure
@@ -116,7 +136,8 @@ Snowcrest Asset Management implements comprehensive concentration risk limits to
 
 ### 5.1 Fixed Income Quality Standards
 
-**Investment Grade Requirements**:
+### Investment Grade Requirements
+
 - **Minimum 75%** of fixed income allocation must be Investment Grade (BBB-/Baa3 or higher)
 - **High Yield Limit**: Maximum 25% in sub-investment grade securities
 - **CCC and Below**: Maximum 5% in securities rated CCC+ or lower
@@ -134,13 +155,15 @@ Snowcrest Asset Management implements comprehensive concentration risk limits to
 
 ### 6.1 Daily Monitoring Process
 
-**Automated Alerts**:
+### Automated Alerts
+
 - Real-time concentration monitoring via portfolio management system
 - Email alerts to Portfolio Managers when positions exceed 6.0%
 - Escalation alerts to CIO and Compliance when positions exceed 6.5%
 - Automatic reporting in morning portfolio summary reports
 
-**Concentration Dashboard**:
+### Concentration Dashboard
+
 - Updated daily with current position sizes
 - Historical trending of top 10 positions
 - Colour-coded indicators: Green (<5%), Amber (5-6.5%), Red (>6.5%)
@@ -148,22 +171,26 @@ Snowcrest Asset Management implements comprehensive concentration risk limits to
 
 ### 6.2 Reporting Requirements
 
-**Daily Reports**:
+### Daily Reports
+
 - All positions exceeding 5.0%
 - Any positions crossing 6.5% threshold
 - Day-over-day concentration changes >0.5%
 
-**Weekly Reports**:
+### Weekly Reports
+
 - Top 10 holdings across all portfolios
 - Sector and geographic concentration analysis
 - Tracking of positions requiring rebalancing
 
-**Monthly Reports**:
+### Monthly Reports
+
 - Comprehensive concentration analysis to Investment Committee
 - Historical concentration trends and patterns
 - Compliance attestation on concentration limit adherence
 
-**Quarterly Reports**:
+### Quarterly Reports
+
 - Detailed concentration risk assessment to Board
 - Analysis of concentration-driven portfolio volatility
 - Peer comparison of concentration versus industry benchmarks
@@ -190,17 +217,20 @@ Snowcrest Asset Management implements comprehensive concentration risk limits to
 
 ### 7.3 Permissible Exceptions
 
-**Market Movement Exception**:
+### Market Movement Exception
+
 - Positions may temporarily exceed 7.0% due to market appreciation
 - Must be reduced to <6.8% within 20 business days of first exceeding threshold
 - No new purchases permitted while position exceeds 6.5%
 
-**Corporate Actions**:
+### Corporate Actions
+
 - Spin-offs, rights issues, or other corporate actions may cause temporary concentration
 - Remediation plan required within 5 business days
 - Position rebalanced at earliest practical opportunity
 
-**Client Approval**:
+### Client Approval
+
 - Specific client authorization may permit higher concentration
 - Documented in Investment Policy Statement
 - Annual reaffirmation required
@@ -211,23 +241,27 @@ Snowcrest Asset Management implements comprehensive concentration risk limits to
 
 ### 8.1 Roles and Responsibilities
 
-**Portfolio Managers**:
+### Portfolio Managers
+
 - Daily monitoring of position sizes
 - Proactive position management to avoid breaches
 - Documentation of concentration warnings and remediation actions
 
-**Chief Investment Officer**:
+### Chief Investment Officer
+
 - Monthly review of concentration reports
 - Approval of remediation plans
 - Policy exception approval (with Compliance)
 
-**Compliance Department**:
+### Compliance Department
+
 - Independent concentration monitoring
 - Escalation of breaches to senior management
 - Regulatory reporting coordination
 - Annual policy review and updates
 
-**Investment Committee**:
+### Investment Committee
+
 - Quarterly assessment of concentration risk management effectiveness
 - Review of systemic concentration issues across portfolios
 - Policy amendments and updates
@@ -253,10 +287,18 @@ Snowcrest Asset Management implements comprehensive concentration risk limits to
 ---
 
 **Document Control**  
-**Classification**: Internal Use — Investment Team  
-**Distribution**: All Portfolio Managers, Investment Committee, Compliance  
-**Approval**: Chief Investment Officer | Compliance Officer  
-**Version History**: 2.0 (Jan 2023), 2.1 (Jan 2024)
+### Classification
+
+Internal Use — Investment Team
+### Distribution
+
+All Portfolio Managers, Investment Committee, Compliance
+### Approval
+
+Chief Investment Officer | Compliance Officer
+### Version History
+
+2.0 (Jan 2023), 2.1 (Jan 2024)
 
 ---
 

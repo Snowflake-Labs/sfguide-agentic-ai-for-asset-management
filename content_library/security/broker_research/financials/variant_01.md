@@ -33,8 +33,12 @@ disclosure:
 **{{BROKER_NAME}} | {{SIC_DESCRIPTION}} Coverage**  
 Lead Analyst: {{ANALYST_NAME}} | {{PUBLISH_DATE}}
 
-**Investment Rating**: **{{RATING}}**  
-**12-Month Price Target**: ${{PRICE_TARGET_USD}}
+### Investment Rating
+
+**{{RATING}}**
+### 12-Month Price Target
+
+${{PRICE_TARGET_USD}}
 
 ## Executive Summary
 
@@ -64,11 +68,17 @@ Potential merger and acquisition activity within the sector could create strateg
 
 ## Risk Factors
 
-**Credit Risk**: Economic downturn or recession could drive loan losses above normalized levels, impacting profitability and capital ratios. Whilst current credit metrics are strong, unexpected deterioration in specific sectors or geographies could pressure results.
+### Credit Risk
 
-**Regulatory Risk**: The financial services industry faces extensive regulation that can impact business operations, capital requirements, and profitability. Changes to capital requirements or restrictions on business activities represent ongoing regulatory risks.
+Economic downturn or recession could drive loan losses above normalized levels, impacting profitability and capital ratios. Whilst current credit metrics are strong, unexpected deterioration in specific sectors or geographies could pressure results.
 
-**Interest Rate Sensitivity**: Whilst rising rates generally benefit the business model, significant rate volatility or unexpected rate movements could create asset-liability mismatches or impact deposit stability. Duration management and hedging strategies mitigate but don't eliminate this risk.
+### Regulatory Risk
+
+The financial services industry faces extensive regulation that can impact business operations, capital requirements, and profitability. Changes to capital requirements or restrictions on business activities represent ongoing regulatory risks.
+
+### Interest Rate Sensitivity
+
+Whilst rising rates generally benefit the business model, significant rate volatility or unexpected rate movements could create asset-liability mismatches or impact deposit stability. Duration management and hedging strategies mitigate but don't eliminate this risk.
 
 ## Valuation
 
@@ -82,7 +92,9 @@ We believe current valuation levels present favourable risk-reward, supporting o
 
 ---
 
-**Important Information**: This research is provided for informational purposes only. {{BROKER_NAME}} may have business relationships with companies discussed herein. For full disclosures and regulatory information, please contact your {{BROKER_NAME}} representative.
+### Important Information
+
+This research is provided for informational purposes only. {{BROKER_NAME}} may have business relationships with companies discussed herein. For full disclosures and regulatory information, please contact your {{BROKER_NAME}} representative.
 
 *Demo content for Snowcrest Asset Management. {{BROKER_NAME}} is a fictional entity.*
 

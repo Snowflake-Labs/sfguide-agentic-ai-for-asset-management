@@ -17,11 +17,21 @@ word_count_target: 600
 
 # Major Earthquake Disrupts Taiwan Semiconductor Production
 
-**Event Date**: {{current_date}}  
-**Region**: Taiwan (TW)  
-**Event Type**: Natural Disaster  
-**Severity**: Critical  
-**Source**: Global Risk Monitor
+### Event Date
+
+{{current_date}}
+### Region
+
+Taiwan (TW)
+### Event Type
+
+Natural Disaster
+### Severity
+
+Critical
+### Source
+
+Global Risk Monitor
 
 ## Executive Summary
 
@@ -108,13 +118,15 @@ This event highlights strategic vulnerabilities in concentrated semiconductor pr
 
 ## Technical Details
 
-**Seismic Event Characteristics**:
+### Seismic Event Characteristics
+
 - Magnitude: 7.2 (Richter scale)
 - Depth: 8 kilometres (shallow earthquake, higher surface impact)
 - Epicentre: Central Taiwan, industrial region
 - Aftershocks: 40+ recorded in first 24 hours (M4.0-M5.5)
 
-**Facility Status**:
+### Facility Status
+
 - Structural integrity assessments ongoing
 - Clean room contamination checks required before production restart
 - Equipment recalibration necessary for precision manufacturing
@@ -122,13 +134,15 @@ This event highlights strategic vulnerabilities in concentrated semiconductor pr
 
 ## Market Implications
 
-**Expected Market Reactions**:
+### Expected Market Reactions
+
 - Technology sector volatility in near term
 - Premium valuations for companies with diversified supply chains
 - Increased investor focus on supply chain disclosure and resilience
 - Potential acceleration of reshoring and friend-shoring initiatives
 
-**Investment Considerations**:
+### Investment Considerations
+
 - Companies with high exposure to Taiwan semiconductor production face near-term headwinds
 - Potential opportunities in alternative semiconductor manufacturers
 - Long-term beneficiaries of supply chain diversification investments
@@ -147,7 +161,13 @@ This event underscores the importance of multi-hop supply chain risk analysis an
 
 ---
 
-**Document Classification**: Market Risk Alert  
-**Distribution**: Portfolio Managers, Risk Committee, Investment Committee  
-**Next Update**: 48 hours or upon material developments
+### Document Classification
+
+Market Risk Alert
+### Distribution
+
+Portfolio Managers, Risk Committee, Investment Committee
+### Next Update
+
+48 hours or upon material developments
 

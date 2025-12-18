@@ -39,8 +39,9 @@ The approval was based on the Phase III {{TRIAL_NAME}} study demonstrating stati
 
 This release contains forward-looking statements about product launch plans and market opportunity. Actual results may vary based on commercialization success, competitive dynamics, and other factors.
 
-**Contact**:  
-Investor Relations: ir@company.com  
+### Contact
+
+Investor Relations: ir@company.com
 Media: media@company.com
 
 ---

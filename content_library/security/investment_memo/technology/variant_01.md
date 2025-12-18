@@ -27,25 +27,53 @@ disclosure:
 
 # MEMORANDUM
 
-**TO**: Investment Committee  
-**FROM**: {{ANALYST_NAME}}, {{SIC_DESCRIPTION}} Analyst  
-**DATE**: {{PUBLISH_DATE}}  
-**RE**: Investment Proposal — {{COMPANY_NAME}} ({{TICKER}})  
-**CLASSIFICATION**: Internal — Committee Use Only
+### TO
+
+Investment Committee
+### FROM
+
+{{ANALYST_NAME}}, {{SIC_DESCRIPTION}} Analyst
+### DATE
+
+{{PUBLISH_DATE}}
+### RE
+
+Investment Proposal — {{COMPANY_NAME}} ({{TICKER}})
+### CLASSIFICATION
+
+Internal — Committee Use Only
 
 ---
 
 ## RECOMMENDATION
 
-**Action**: **BUY**  
-**Security**: {{COMPANY_NAME}} ({{TICKER}})  
-**Target Portfolio**: {{PORTFOLIO_NAME}}  
-**Proposed Position Size**: {{POSITION_SIZE_PCT}}% of portfolio (approximately ${{POSITION_SIZE_USD}}M)  
-**Price Target**: ${{TARGET_PRICE_USD}}  
-**Upside Potential**: {{UPSIDE_PCT}}%  
-**Timeframe**: 12-18 months  
-**Risk Rating**: Medium  
-**Investment Rating**: **{{RATING}}**
+### Action
+
+**BUY**
+### Security
+
+{{COMPANY_NAME}} ({{TICKER}})
+### Target Portfolio
+
+{{PORTFOLIO_NAME}}
+### Proposed Position Size
+
+{{POSITION_SIZE_PCT}}% of portfolio (approximately ${{POSITION_SIZE_USD}}M)
+### Price Target
+
+${{TARGET_PRICE_USD}}
+### Upside Potential
+
+{{UPSIDE_PCT}}%
+### Timeframe
+
+12-18 months
+### Risk Rating
+
+Medium
+### Investment Rating
+
+**{{RATING}}**
 
 ---
 
@@ -53,15 +81,20 @@ disclosure:
 
 I recommend the Investment Committee approve a {{POSITION_SIZE_PCT}}% position in {{COMPANY_NAME}} for the {{PORTFOLIO_NAME}}. This investment provides high-quality exposure to cloud computing and artificial intelligence themes that align with our technology sector strategy whilst offering attractive risk-adjusted return potential.
 
-**Investment Thesis in Brief**: {{COMPANY_NAME}} is a {{SIC_DESCRIPTION}} leader experiencing accelerating growth from cloud platform adoption and AI product innovation. The company's competitive moats are strengthening through network effects and customer lock-in, whilst margin expansion potential remains underappreciated by the market. Our ${{TARGET_PRICE_USD}} price target implies {{UPSIDE_PCT}}% upside from current levels.
+### Investment Thesis in Brief
 
-**Key Supporting Factors**:
+{{COMPANY_NAME}} is a {{SIC_DESCRIPTION}} leader experiencing accelerating growth from cloud platform adoption and AI product innovation. The company's competitive moats are strengthening through network effects and customer lock-in, whilst margin expansion potential remains underappreciated by the market. Our ${{TARGET_PRICE_USD}} price target implies {{UPSIDE_PCT}}% upside from current levels.
+
+### Key Supporting Factors
+
 - Accelerating cloud revenue growth ({{CLOUD_GROWTH}}% YoY) with improving retention metrics
 - AI product launches gaining strong early adoption and expanding addressable market
 - Operating leverage driving margin expansion from {{CURRENT_MARGIN}}% toward {{TARGET_MARGIN}}%
 - Valuation at {{PE_RATIO}}x forward P/E appears reasonable given {{GROWTH_RATE}}% expected earnings growth
 
-**Primary Risks**: Regulatory uncertainty around data practices, competitive intensity from established platforms, and macroeconomic sensitivity of enterprise technology spending.
+### Primary Risks
+
+Regulatory uncertainty around data practices, competitive intensity from established platforms, and macroeconomic sensitivity of enterprise technology spending.
 
 ---
 
@@ -85,17 +118,24 @@ Portfolio construction considerations support this position size. The allocation
 
 {{COMPANY_NAME}} operates in the rapidly growing cloud computing and enterprise software segments of the {{SIC_DESCRIPTION}} industry. The company's platform approach provides customers with integrated solutions spanning infrastructure, application development, data management, and AI capabilities.
 
-**Industry Dynamics**: The enterprise software and cloud infrastructure markets are experiencing robust growth driven by digital transformation imperatives. Legacy on-premises systems are being replaced with cloud-based alternatives offering superior agility, scalability, and cost efficiency. Industry growth rates of 15-20% annually are expected to sustain for the next 3-5 years.
+### Industry Dynamics
 
-**Market Position**: {{COMPANY_NAME}} ranks amongst the top-tier cloud platforms with an estimated {{MARKET_SHARE}}% market share in infrastructure-as-a-service. The company's comprehensive capabilities, enterprise focus, and proven scalability differentiate it from point-solution competitors.
+The enterprise software and cloud infrastructure markets are experiencing robust growth driven by digital transformation imperatives. Legacy on-premises systems are being replaced with cloud-based alternatives offering superior agility, scalability, and cost efficiency. Industry growth rates of 15-20% annually are expected to sustain for the next 3-5 years.
 
-**Competitive Advantages**:
+### Market Position
+
+{{COMPANY_NAME}} ranks amongst the top-tier cloud platforms with an estimated {{MARKET_SHARE}}% market share in infrastructure-as-a-service. The company's comprehensive capabilities, enterprise focus, and proven scalability differentiate it from point-solution competitors.
+
+### Competitive Advantages
+
 1. **Platform Network Effects**: Large customer and partner ecosystem creates self-reinforcing value
 2. **Data and AI Advantages**: Extensive datasets enable superior AI model training and customer insights
 3. **Enterprise Relationships**: Deep customer relationships and trusted advisor status
 4. **Technical Capabilities**: Advanced technology stack and proven innovation delivery
 
-**Management Assessment**: Leadership demonstrates strong strategic thinking, operational discipline, and effective communication with investors. The CEO's technical background and product vision have successfully positioned the company at the forefront of cloud and AI trends. Capital allocation decisions balance growth investments with shareholder returns appropriately.
+### Management Assessment
+
+Leadership demonstrates strong strategic thinking, operational discipline, and effective communication with investors. The CEO's technical background and product vision have successfully positioned the company at the forefront of cloud and AI trends. Capital allocation decisions balance growth investments with shareholder returns appropriately.
 
 ---
 
@@ -116,33 +156,44 @@ Portfolio construction considerations support this position size. The allocation
 | EPS | ${{Y1_EPS}} | ${{Y2_EPS}} | ${{Y3_EPS}} |
 | FCF/Share | ${{Y1_FCF}} | ${{Y2_FCF}} | ${{Y3_FCF}} |
 
-**Key Operating Metrics**:
+### Key Operating Metrics
+
 - Cloud platform ARR: ${{CLOUD_ARR}}B, growing {{CLOUD_GROWTH}}%
 - Dollar-based net retention: {{NET_RETENTION}}%
 - Customer count: {{CUSTOMER_COUNT}}, growing {{CUSTOMER_GROWTH}}%
 - Average contract value: ${{ACV}}, growing {{ACV_GROWTH}}%
 
-**Balance Sheet and Cash Flow**: Net cash position of ${{NET_CASH}}B provides substantial financial flexibility. Operating cash flow of ${{OCF}}B annually supports both organic investments and capital returns. Free cash flow margin of {{FCF_MARGIN}}% demonstrates high capital efficiency.
+### Balance Sheet and Cash Flow
+
+Net cash position of ${{NET_CASH}}B provides substantial financial flexibility. Operating cash flow of ${{OCF}}B annually supports both organic investments and capital returns. Free cash flow margin of {{FCF_MARGIN}}% demonstrates high capital efficiency.
 
 ---
 
 ## VALUATION
 
-**DCF Analysis**: Our discounted cash flow model yields a fair value of ${{FAIR_VALUE_USD}} per share using:
+### DCF Analysis
+
+Our discounted cash flow model yields a fair value of ${{FAIR_VALUE_USD}} per share using:
 - WACC: {{WACC_PCT}}% (beta {{BETA}}, risk-free rate {{RFR}}%, equity risk premium {{ERP}}%)
 - Revenue growth: {{LT_GROWTH}}% long-term
 - Terminal EBIT margin: {{TERMINAL_MARGIN}}%
 - Terminal growth: {{TERMINAL_GROWTH}}%
 
-**Relative Valuation**: At {{PE_RATIO}}x NTM P/E, {{COMPANY_NAME}} trades at a {{PREMIUM_DISCOUNT}}% premium to cloud platform peers and {{SOFTWARE_PREMIUM}}% premium to enterprise software companies. This premium reflects superior growth ({{GROWTH_PREMIUM}}ppts faster) and margins ({{MARGIN_PREMIUM}}ppts higher).
+### Relative Valuation
 
-**Football Field Valuation Range**: ${{VALUATION_LOW}} — ${{VALUATION_HIGH}}
+At {{PE_RATIO}}x NTM P/E, {{COMPANY_NAME}} trades at a {{PREMIUM_DISCOUNT}}% premium to cloud platform peers and {{SOFTWARE_PREMIUM}}% premium to enterprise software companies. This premium reflects superior growth ({{GROWTH_PREMIUM}}ppts faster) and margins ({{MARGIN_PREMIUM}}ppts higher).
+
+### Football Field Valuation Range
+
+${{VALUATION_LOW}} — ${{VALUATION_HIGH}}
 - DCF (30% weight): ${{FAIR_VALUE_USD}}
 - P/E multiple (25% weight): ${{PE_VALUE}}
 - EV/Sales multiple (25% weight): ${{SALES_VALUE}}
 - Precedent transactions (20% weight): ${{TRANSACTION_VALUE}}
 
-**Price Target**: ${{TARGET_PRICE_USD}} (represents mid-point of valuation range with appropriate risk adjustment)
+### Price Target
+
+${{TARGET_PRICE_USD}} (represents mid-point of valuation range with appropriate risk adjustment)
 
 ---
 
@@ -177,19 +228,29 @@ Portfolio construction considerations support this position size. The allocation
 
 4. **Macro Risk** (High Impact / Low Probability): Severe economic downturn could reduce enterprise IT budgets substantially. *Mitigation*: Diversified customer base and mission-critical nature of products provide some defensive characteristics.
 
-**Downside Scenario Analysis**: In a bear case with 15% cloud growth, flat margins, and 18x forward multiple, fair value would be approximately ${{BEAR_FAIR_VALUE}}, representing {{DOWNSIDE_PCT}}% downside from current levels. We view this as acceptable downside risk given {{UPSIDE_PCT}}% upside potential in base case.
+### Downside Scenario Analysis
+
+In a bear case with 15% cloud growth, flat margins, and 18x forward multiple, fair value would be approximately ${{BEAR_FAIR_VALUE}}, representing {{DOWNSIDE_PCT}}% downside from current levels. We view this as acceptable downside risk given {{UPSIDE_PCT}}% upside potential in base case.
 
 ---
 
 ## PORTFOLIO IMPACT
 
-**Alignment with Strategy**: This investment directly supports the {{PORTFOLIO_NAME}}'s technology sector allocation and thematic focus on digital transformation and AI innovation. The position would represent approximately {{PORTFOLIO_WEIGHT}}% of total portfolio value.
+### Alignment with Strategy
 
-**Concentration and Diversification**: The proposed {{POSITION_SIZE_PCT}}% allocation sits comfortably below our 6.5% early warning threshold. Combined with existing technology positions, sector allocation would be {{SECTOR_TOTAL}}%, within our 35-45% target range for technology exposure.
+This investment directly supports the {{PORTFOLIO_NAME}}'s technology sector allocation and thematic focus on digital transformation and AI innovation. The position would represent approximately {{PORTFOLIO_WEIGHT}}% of total portfolio value.
 
-**Risk Budget**: The position consumes approximately {{RISK_BUDGET_PCT}}% of portfolio risk budget (based on position size × expected volatility). This leaves adequate risk capacity for other active positions whilst making a meaningful allocation to this high-conviction idea.
+### Concentration and Diversification
 
-**Expected Portfolio Contribution**: Based on our return forecasts, this position should contribute approximately {{PORTFOLIO_CONTRIBUTION}}bps to annual portfolio return over the next 12-18 months.
+The proposed {{POSITION_SIZE_PCT}}% allocation sits comfortably below our 6.5% early warning threshold. Combined with existing technology positions, sector allocation would be {{SECTOR_TOTAL}}%, within our 35-45% target range for technology exposure.
+
+### Risk Budget
+
+The position consumes approximately {{RISK_BUDGET_PCT}}% of portfolio risk budget (based on position size × expected volatility). This leaves adequate risk capacity for other active positions whilst making a meaningful allocation to this high-conviction idea.
+
+### Expected Portfolio Contribution
+
+Based on our return forecasts, this position should contribute approximately {{PORTFOLIO_CONTRIBUTION}}bps to annual portfolio return over the next 12-18 months.
 
 ---
 
@@ -197,30 +258,39 @@ Portfolio construction considerations support this position size. The allocation
 
 I recommend the Investment Committee approve a {{POSITION_SIZE_PCT}}% position in {{COMPANY_NAME}} ({{TICKER}}) for the {{PORTFOLIO_NAME}}, representing our **{{RATING}}** conviction in this high-quality technology growth opportunity.
 
-**Specific Action Items**:
+### Specific Action Items
+
 1. Approve {{POSITION_SIZE_PCT}}% allocation to {{TICKER}}
 2. Authorize purchase up to ${{ENTRY_PRICE_HIGH}} per share
 3. Target completion of position build over 10-15 trading days
 4. Monitor position sizing relative to concentration limits
 
-**Next Steps Following Approval**:
+### Next Steps Following Approval
+
 - Initiate position build using VWAP execution strategy
 - Add {{TICKER}} to active monitoring list with quarterly review schedule
 - Update portfolio analytics and risk reporting to reflect new position
 
 ---
 
-**APPENDICES**:
-A. Detailed Financial Model  
+### APPENDICES
+
+A. Detailed Financial Model
 B. Comparable Company Analysis  
 C. Management Interview Notes  
 D. Competitive Intelligence Summary
 
 ---
 
-**Prepared By**: {{ANALYST_NAME}}, {{SIC_DESCRIPTION}} Analyst  
-**Reviewed By**: Head of Research  
-**For**: Investment Committee Meeting {{IC_MEETING_DATE}}
+### Prepared By
+
+{{ANALYST_NAME}}, {{SIC_DESCRIPTION}} Analyst
+### Reviewed By
+
+Head of Research
+### For
+
+Investment Committee Meeting {{IC_MEETING_DATE}}
 
 *Snowcrest Asset Management — Internal Use Only — Confidential*
 

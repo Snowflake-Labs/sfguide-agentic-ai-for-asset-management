@@ -18,11 +18,21 @@ placeholders:
 
 # {{NGO_NAME}} Report: Environmental Concerns at {{ISSUER_NAME}}
 
-**Organisation**: {{NGO_NAME}}  
-**Publication Date**: {{PUBLISH_DATE}}  
-**Companies Affected**: {{ISSUER_NAME}} ({{TICKER}})  
-**Report Category**: Environmental  
-**Severity Assessment**: **{{SEVERITY_LEVEL}}**
+### Organisation
+
+{{NGO_NAME}}
+### Publication Date
+
+{{PUBLISH_DATE}}
+### Companies Affected
+
+{{ISSUER_NAME}} ({{TICKER}})
+### Report Category
+
+Environmental
+### Severity Assessment
+
+**{{SEVERITY_LEVEL}}**
 
 ---
 
@@ -46,15 +56,25 @@ International frameworks including the Task Force on Climate-related Financial D
 
 ## Key Findings and Company Assessment
 
-**Emissions Management**: {{ISSUER_NAME}}'s greenhouse gas emissions have increased {{EMISSIONS_INCREASE}}% over the past three years, contrary to industry trends toward decarbonization. The company lacks science-based emissions reduction targets and has not committed to achieving carbon neutrality. Scope 3 emissions from the company's supply chain and product use appear inadequately measured and disclosed.
+### Emissions Management
 
-**Waste and Pollution**: Regulatory filings reveal multiple instances of environmental violations at manufacturing facilities, including exceedances of permitted discharge limits and improper waste handling procedures. Whilst the company has paid regulatory fines, evidence of systematic improvement in environmental controls is limited. Community complaints regarding air and water quality near company facilities have increased.
+{{ISSUER_NAME}}'s greenhouse gas emissions have increased {{EMISSIONS_INCREASE}}% over the past three years, contrary to industry trends toward decarbonization. The company lacks science-based emissions reduction targets and has not committed to achieving carbon neutrality. Scope 3 emissions from the company's supply chain and product use appear inadequately measured and disclosed.
 
-**Environmental Governance**: The company's environmental management systems appear insufficient for the scale and complexity of its operations. Board-level oversight of environmental matters is limited, with environmental responsibilities delegated to operational management without adequate reporting to senior leadership. Environmental performance metrics are not incorporated into executive compensation structures.
+### Waste and Pollution
 
-**Disclosure Quality**: {{ISSUER_NAME}}'s environmental disclosures lack the detail and transparency expected of companies in the {{SIC_DESCRIPTION}} sector. Climate-related financial risk disclosures are incomplete, and the company has not provided investors with adequate information to assess environmental risks and opportunities. Reporting does not align with TCFD recommendations or other recognized frameworks.
+Regulatory filings reveal multiple instances of environmental violations at manufacturing facilities, including exceedances of permitted discharge limits and improper waste handling procedures. Whilst the company has paid regulatory fines, evidence of systematic improvement in environmental controls is limited. Community complaints regarding air and water quality near company facilities have increased.
 
-**Comparison to Peers**: Leading companies in the {{SIC_DESCRIPTION}} sector have demonstrated that ambitious environmental targets and operational improvements are achievable. Peer companies have successfully reduced emissions whilst maintaining profitability, implemented circular economy principles in product design, and achieved third-party certification for environmental management systems. {{ISSUER_NAME}}'s performance lags significantly behind industry leaders.
+### Environmental Governance
+
+The company's environmental management systems appear insufficient for the scale and complexity of its operations. Board-level oversight of environmental matters is limited, with environmental responsibilities delegated to operational management without adequate reporting to senior leadership. Environmental performance metrics are not incorporated into executive compensation structures.
+
+### Disclosure Quality
+
+{{ISSUER_NAME}}'s environmental disclosures lack the detail and transparency expected of companies in the {{SIC_DESCRIPTION}} sector. Climate-related financial risk disclosures are incomplete, and the company has not provided investors with adequate information to assess environmental risks and opportunities. Reporting does not align with TCFD recommendations or other recognized frameworks.
+
+### Comparison to Peers
+
+Leading companies in the {{SIC_DESCRIPTION}} sector have demonstrated that ambitious environmental targets and operational improvements are achievable. Peer companies have successfully reduced emissions whilst maintaining profitability, implemented circular economy principles in product design, and achieved third-party certification for environmental management systems. {{ISSUER_NAME}}'s performance lags significantly behind industry leaders.
 
 ---
 
@@ -98,7 +118,9 @@ We will continue monitoring the company's environmental performance and provide 
 
 ---
 
-**About {{NGO_NAME}}**: {{NGO_NAME}} is an independent organization dedicated to promoting corporate environmental responsibility and accountability. Our research supports investors in assessing environmental risks and opportunities in their portfolios.
+### About {{NGO_NAME}}
+
+{{NGO_NAME}} is an independent organization dedicated to promoting corporate environmental responsibility and accountability. Our research supports investors in assessing environmental risks and opportunities in their portfolios.
 
 *SAM Demo Content. {{NGO_NAME}} and {{ISSUER_NAME}} details are illustrative. {{NGO_NAME}} is a fictional organization.*
 

@@ -18,7 +18,9 @@ placeholders:
 
 This template provides structure for quarterly client letters that combine performance reporting with relationship-building narrative. Quarterly letters should be more comprehensive and reflective than monthly reports, including strategic commentary, market outlook, and partnership messaging.
 
-**Tone**: Professional yet personal, demonstrating both investment expertise and relationship value. More narrative and less data-heavy than monthly reports.
+### Tone
+
+Professional yet personal, demonstrating both investment expertise and relationship value. More narrative and less data-heavy than monthly reports.
 
 ---
 
@@ -42,7 +44,7 @@ Your [Portfolio Name] delivered a return of [X.X%] for [Quarter], [outperforming
 
 *[150-200 words discussing performance context, key contributors/detractors, and attribution analysis]*
 
-**Performance Table**:
+### Performance Table
 
 | Period | Portfolio | Benchmark | Relative |
 |--------|-----------|-----------|----------|
@@ -62,14 +64,16 @@ Your [Portfolio Name] delivered a return of [X.X%] for [Quarter], [outperforming
 
 *[250-300 words providing market commentary relevant to the client's portfolio and investment objectives]*
 
-**Content Guidance**:
+### Content Guidance
+
 - Summarize major market developments and themes
 - Discuss central bank policy, economic trends, and geopolitical factors
 - Connect market environment to portfolio positioning and performance
 - Use accessible language avoiding excessive technical jargon
 - Maintain balanced perspective (neither overly optimistic nor pessimistic)
 
-**Example Themes**:
+### Example Themes
+
 - Interest rate environment and implications for equities vs bonds
 - Corporate earnings trends and economic growth outlook
 - Sector rotation patterns and market leadership
@@ -84,11 +88,17 @@ Your [Portfolio Name] delivered a return of [X.X%] for [Quarter], [outperforming
 
 *[200-250 words discussing portfolio composition, recent changes, and strategic positioning]*
 
-**Top Holdings**: Your portfolio's largest positions include [Company 1], [Company 2], and [Company 3], representing [XX%] of portfolio value. These holdings reflect our conviction in [investment theme] and demonstrate [quality characteristics].
+### Top Holdings
 
-**Recent Activity**: During the quarter, we [added to/initiated/trimmed/exited] positions in [specific securities] based on [investment rationale]. These changes align with our strategy of [strategic approach] whilst maintaining [risk management consideration].
+Your portfolio's largest positions include [Company 1], [Company 2], and [Company 3], representing [XX%] of portfolio value. These holdings reflect our conviction in [investment theme] and demonstrate [quality characteristics].
 
-**Sector Allocation**: The portfolio maintains [overweight/underweight/neutral] positioning in [specific sectors], reflecting our view on [market outlook or strategic theme]. This allocation balances [growth objectives] with [risk management priorities].
+### Recent Activity
+
+During the quarter, we [added to/initiated/trimmed/exited] positions in [specific securities] based on [investment rationale]. These changes align with our strategy of [strategic approach] whilst maintaining [risk management consideration].
+
+### Sector Allocation
+
+The portfolio maintains [overweight/underweight/neutral] positioning in [specific sectors], reflecting our view on [market outlook or strategic theme]. This allocation balances [growth objectives] with [risk management priorities].
 
 ⚠️ **Concentration Note**: [If applicable, note any positions >6.5% with specific percentages and monitoring approach]
 
@@ -100,14 +110,16 @@ Your [Portfolio Name] delivered a return of [X.X%] for [Quarter], [outperforming
 
 *[150-200 words on ESG-related developments and activities]*
 
-**Content Areas**:
+### Content Areas
+
 - Portfolio ESG metrics and any notable changes
 - Engagement activities with portfolio companies highlighting outcomes
 - ESG-related company developments (positive or concerning)
 - Connection between ESG factors and investment performance
 - Sustainability themes relevant to portfolio strategy
 
-**Example Content**:
+### Example Content
+
 "Our active ownership activities this quarter included engagement with [Company] on [ESG topic], resulting in [management commitment]. The portfolio's carbon footprint decreased [X%] through [specific action]. We continue integrating ESG considerations into fundamental analysis whilst focusing on financially material sustainability factors."
 
 ---
@@ -126,7 +138,9 @@ Your [Portfolio Name] delivered a return of [X.X%] for [Quarter], [outperforming
 - **Cybersecurity**: Data protection, security infrastructure
 - **Demographic Trends**: Aging population, emerging market consumers
 
-**Strategic Positioning**: Our portfolio is positioned to benefit from [key themes] through holdings in [specific examples]. We believe these structural trends will drive sustained growth over multiple years, creating attractive long-term investment opportunities despite near-term market volatility.
+### Strategic Positioning
+
+Our portfolio is positioned to benefit from [key themes] through holdings in [specific examples]. We believe these structural trends will drive sustained growth over multiple years, creating attractive long-term investment opportunities despite near-term market volatility.
 
 ---
 
@@ -136,14 +150,17 @@ Your [Portfolio Name] delivered a return of [X.X%] for [Quarter], [outperforming
 
 *[200-250 words on investment outlook and strategic approach]*
 
-**Content Guidance**:
+### Content Guidance
+
 - Forward-looking market view (6-12 month horizon)
 - Key risks and opportunities being monitored
 - Portfolio strategy for navigating current environment
 - Reinforcement of long-term investment discipline
 - Client-specific considerations if applicable
 
-**Concluding Thoughts**: *[75-100 words providing confidence, acknowledging partnership, and reinforcing value proposition]*
+### Concluding Thoughts
+
+*[75-100 words providing confidence, acknowledging partnership, and reinforcing value proposition]*
 
 Example: "As we look ahead to [next quarter/year], we remain confident in our portfolio positioning and investment process. Market volatility may persist, but we believe our focus on quality companies, disciplined valuation approach, and long-term perspective positions your portfolio well for sustained value creation. Thank you for your continued trust and partnership."
 
@@ -153,22 +170,31 @@ Example: "As we look ahead to [next quarter/year], we remain confident in our po
 
 We welcome your questions or feedback on your portfolio or our investment approach. Please don't hesitate to reach out to discuss any aspect of your financial plan or investment strategy.
 
-**Your Portfolio Manager**:  
-[Name]  
+### Your Portfolio Manager
+
+[Name]
 [Email]  
 [Phone]
 
-**Next Review**: [Quarterly review meeting scheduled for DATE]
+### Next Review
+
+[Quarterly review meeting scheduled for DATE]
 
 ---
 
 ### Important Disclosures
 
-**Performance**: Past performance does not guarantee future results. Returns are net of fees. Portfolio subject to market risk including possible loss of principal.
+### Performance
 
-**Benchmark**: [Specify benchmark composition]
+Past performance does not guarantee future results. Returns are net of fees. Portfolio subject to market risk including possible loss of principal.
 
-**Additional Information**: For complete holdings detail, refer to your custodian statement. Investment Policy Statement available upon request.
+### Benchmark
+
+[Specify benchmark composition]
+
+### Additional Information
+
+For complete holdings detail, refer to your custodian statement. Investment Policy Statement available upon request.
 
 ---
 

@@ -30,9 +30,15 @@ disclosure:
 
 **{{BROKER_NAME}} Technology Research** | {{ANALYST_NAME}} | Published: {{PUBLISH_DATE}}
 
-**Investment Rating**: {{RATING}}  
-**12-Month Price Target**: ${{PRICE_TARGET_USD}}  
-**Sector**: {{SIC_DESCRIPTION}}
+### Investment Rating
+
+{{RATING}}
+### 12-Month Price Target
+
+${{PRICE_TARGET_USD}}
+### Sector
+
+{{SIC_DESCRIPTION}}
 
 ## Overview and Recommendation
 
@@ -66,7 +72,9 @@ Our ${{PRICE_TARGET_USD}} price target reflects the company's strong fundamental
 
 ---
 
-**Analyst Certification**: The views expressed in this report accurately reflect the personal views of {{ANALYST_NAME}} about the subject securities and issuers.
+### Analyst Certification
+
+The views expressed in this report accurately reflect the personal views of {{ANALYST_NAME}} about the subject securities and issuers.
 
 *Demonstration content for Snowcrest Asset Management. {{BROKER_NAME}} is a fictional research provider.*
 

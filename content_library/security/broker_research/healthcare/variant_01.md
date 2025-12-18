@@ -33,7 +33,9 @@ disclosure:
 
 **{{BROKER_NAME}} Healthcare Equity Research**  
 Analyst: {{ANALYST_NAME}} | {{PUBLISH_DATE}}  
-**Rating**: {{RATING}} | **Price Target**: ${{PRICE_TARGET_USD}}
+### Rating
+
+{{RATING}} | **Price Target**: ${{PRICE_TARGET_USD}}
 
 ## Executive Summary
 
@@ -41,11 +43,17 @@ We rate {{COMPANY_NAME}} as **{{RATING}}**, supported by the company's strong po
 
 ## Investment Highlights
 
-**Innovation Pipeline**: {{COMPANY_NAME}} maintains a deep and diversified product pipeline addressing significant unmet medical needs. The company's R&D investments are yielding promising clinical trial results across multiple therapeutic areas, with several late-stage programmes approaching regulatory approval. Successful commercialisation of these pipeline assets could drive meaningful revenue growth over the medium term.
+### Innovation Pipeline
 
-**Market Position**: The company holds leadership positions in key therapeutic categories, supported by differentiated products and strong relationships with healthcare providers. Brand recognition and clinical evidence supporting product efficacy create meaningful barriers to competition. Market dynamics remain favourable, with demographic trends and increasing healthcare utilisation supporting steady demand growth.
+{{COMPANY_NAME}} maintains a deep and diversified product pipeline addressing significant unmet medical needs. The company's R&D investments are yielding promising clinical trial results across multiple therapeutic areas, with several late-stage programmes approaching regulatory approval. Successful commercialisation of these pipeline assets could drive meaningful revenue growth over the medium term.
 
-**Financial Strength**: {{COMPANY_NAME}}'s financial profile reflects the quality of its business model. Gross margins of {{GROSS_MARGIN_PCT}}% demonstrate pricing power and manufacturing efficiency, whilst EBIT margins of {{EBIT_MARGIN_PCT}}% highlight operational discipline. Strong cash flow generation funds both R&D investments and shareholder returns, creating a sustainable growth model.
+### Market Position
+
+The company holds leadership positions in key therapeutic categories, supported by differentiated products and strong relationships with healthcare providers. Brand recognition and clinical evidence supporting product efficacy create meaningful barriers to competition. Market dynamics remain favourable, with demographic trends and increasing healthcare utilisation supporting steady demand growth.
+
+### Financial Strength
+
+{{COMPANY_NAME}}'s financial profile reflects the quality of its business model. Gross margins of {{GROSS_MARGIN_PCT}}% demonstrate pricing power and manufacturing efficiency, whilst EBIT margins of {{EBIT_MARGIN_PCT}}% highlight operational discipline. Strong cash flow generation funds both R&D investments and shareholder returns, creating a sustainable growth model.
 
 ## Growth Drivers and Catalysts
 
@@ -55,11 +63,17 @@ Strategic collaborations and licensing agreements enhance the pipeline without p
 
 ## Risk Assessment
 
-**Regulatory and Clinical Risk**: The {{SIC_DESCRIPTION}} sector inherently carries regulatory and clinical development risks. Adverse outcomes in ongoing clinical trials or regulatory delays could negatively impact revenue forecasts and pipeline value. Patent expirations on key products represent a material risk, potentially exposing significant revenue to generic competition.
+### Regulatory and Clinical Risk
 
-**Pricing Pressure**: Healthcare cost containment efforts by governments and payers create ongoing pricing headwinds. Whilst the company's products demonstrate strong clinical value propositions, reimbursement negotiations and formulary access remain challenging. Any adverse pricing or coverage decisions could materially impact profitability.
+The {{SIC_DESCRIPTION}} sector inherently carries regulatory and clinical development risks. Adverse outcomes in ongoing clinical trials or regulatory delays could negatively impact revenue forecasts and pipeline value. Patent expirations on key products represent a material risk, potentially exposing significant revenue to generic competition.
 
-**Competitive Dynamics**: The pharmaceutical and biotech landscape remains intensely competitive, with numerous companies pursuing similar therapeutic targets. Competitive product approvals or superior clinical data from rivals could erode market share assumptions underlying our forecasts.
+### Pricing Pressure
+
+Healthcare cost containment efforts by governments and payers create ongoing pricing headwinds. Whilst the company's products demonstrate strong clinical value propositions, reimbursement negotiations and formulary access remain challenging. Any adverse pricing or coverage decisions could materially impact profitability.
+
+### Competitive Dynamics
+
+The pharmaceutical and biotech landscape remains intensely competitive, with numerous companies pursuing similar therapeutic targets. Competitive product approvals or superior clinical data from rivals could erode market share assumptions underlying our forecasts.
 
 ## Valuation Analysis
 
@@ -75,7 +89,9 @@ The favourable risk-reward profile, supported by visible catalysts and defensive
 
 ---
 
-**Disclosures**: {{BROKER_NAME}} may provide investment banking or advisory services to companies mentioned in this report. This report is for institutional investors and does not constitute a personal recommendation. Please refer to our full disclosures and important information at www.brokername.com/disclosures
+### Disclosures
+
+{{BROKER_NAME}} may provide investment banking or advisory services to companies mentioned in this report. This report is for institutional investors and does not constitute a personal recommendation. Please refer to our full disclosures and important information at www.brokername.com/disclosures
 
 *SAM Demo Content. {{BROKER_NAME}} is a fictional research provider.*
 

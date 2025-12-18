@@ -39,8 +39,12 @@ The transaction has been approved by both companies' boards of directors and is 
 
 This release contains forward-looking statements regarding the acquisition, expected benefits, and integration plans. Actual results may differ due to integration risks, regulatory conditions, and other factors. See SEC filings for risk factors.
 
-**Investor Contact**: investor.relations@company.com  
-**Media Contact**: media@company.com
+### Investor Contact
+
+investor.relations@company.com
+### Media Contact
+
+media@company.com
 
 ---
 

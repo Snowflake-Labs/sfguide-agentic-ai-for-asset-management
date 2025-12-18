@@ -39,19 +39,31 @@ We initiate coverage on {{COMPANY_NAME}} with a **{{RATING}}** rating and 12-mon
 
 ## Investment Highlights
 
-**Strong Market Position**: {{COMPANY_NAME}} maintains a leadership position in the {{SIC_DESCRIPTION}} industry, benefiting from significant scale advantages and an established customer base. The company's comprehensive product portfolio and brand strength provide meaningful competitive moats that support pricing power and customer retention.
+### Strong Market Position
 
-**Growth Drivers**: We identify three primary catalysts for continued revenue expansion. First, ongoing digital transformation initiatives across enterprise customers are driving sustained demand for the company's core offerings. Second, emerging opportunities in cloud computing and artificial intelligence are creating new revenue streams with attractive margins. Third, international market expansion, particularly in high-growth Asia-Pacific regions, represents a significant untapped opportunity.
+{{COMPANY_NAME}} maintains a leadership position in the {{SIC_DESCRIPTION}} industry, benefiting from significant scale advantages and an established customer base. The company's comprehensive product portfolio and brand strength provide meaningful competitive moats that support pricing power and customer retention.
 
-**Financial Strength**: The company's balance sheet remains robust with modest leverage and strong cash flow generation. EBIT margins of {{EBIT_MARGIN_PCT}}% reflect operational excellence and disciplined cost management. We expect continued margin expansion as the company realises economies of scale and shifts mix toward higher-margin software and services revenue.
+### Growth Drivers
+
+We identify three primary catalysts for continued revenue expansion. First, ongoing digital transformation initiatives across enterprise customers are driving sustained demand for the company's core offerings. Second, emerging opportunities in cloud computing and artificial intelligence are creating new revenue streams with attractive margins. Third, international market expansion, particularly in high-growth Asia-Pacific regions, represents a significant untapped opportunity.
+
+### Financial Strength
+
+The company's balance sheet remains robust with modest leverage and strong cash flow generation. EBIT margins of {{EBIT_MARGIN_PCT}}% reflect operational excellence and disciplined cost management. We expect continued margin expansion as the company realises economies of scale and shifts mix toward higher-margin software and services revenue.
 
 ## Key Risks
 
-**Competitive Intensity**: The {{SIC_DESCRIPTION}} sector remains highly competitive with rapid technological change and evolving customer preferences. New entrants and established competitors continue to invest aggressively in product development and market share acquisition, which could pressure pricing and margins.
+### Competitive Intensity
 
-**Execution Risk**: The company's growth strategy requires successful new product launches and effective go-to-market execution. Any delays in product development cycles or market adoption could negatively impact our revenue and earnings forecasts.
+The {{SIC_DESCRIPTION}} sector remains highly competitive with rapid technological change and evolving customer preferences. New entrants and established competitors continue to invest aggressively in product development and market share acquisition, which could pressure pricing and margins.
 
-**Regulatory Headwinds**: Increasing regulatory scrutiny around data privacy, cybersecurity, and antitrust matters presents potential challenges. While the company has invested substantially in compliance infrastructure, regulatory developments remain a key risk to monitor.
+### Execution Risk
+
+The company's growth strategy requires successful new product launches and effective go-to-market execution. Any delays in product development cycles or market adoption could negatively impact our revenue and earnings forecasts.
+
+### Regulatory Headwinds
+
+Increasing regulatory scrutiny around data privacy, cybersecurity, and antitrust matters presents potential challenges. While the company has invested substantially in compliance infrastructure, regulatory developments remain a key risk to monitor.
 
 ## Valuation and Price Target
 
@@ -65,7 +77,9 @@ We rate {{COMPANY_NAME}} as **{{RATING}}** based on the company's strong competi
 
 ---
 
-**Important Disclosures**: This research report is provided for informational purposes only and does not constitute investment advice. {{BROKER_NAME}} may have a business relationship with companies mentioned in this report. Past performance is not indicative of future results. Please see full disclosures at the end of this report.
+### Important Disclosures
+
+This research report is provided for informational purposes only and does not constitute investment advice. {{BROKER_NAME}} may have a business relationship with companies mentioned in this report. Past performance is not indicative of future results. Please see full disclosures at the end of this report.
 
 *Snowcrest Asset Management demonstration purposes only. {{BROKER_NAME}} is a fictional entity.*
 

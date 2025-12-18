@@ -27,25 +27,53 @@ disclosure:
 
 # MEMORANDUM
 
-**TO**: Investment Committee  
-**FROM**: {{ANALYST_NAME}}, Financials Sector Analyst  
-**DATE**: {{PUBLISH_DATE}}  
-**RE**: Investment Proposal — {{COMPANY_NAME}} ({{TICKER}})  
-**CLASSIFICATION**: Internal — Committee Use Only
+### TO
+
+Investment Committee
+### FROM
+
+{{ANALYST_NAME}}, Financials Sector Analyst
+### DATE
+
+{{PUBLISH_DATE}}
+### RE
+
+Investment Proposal — {{COMPANY_NAME}} ({{TICKER}})
+### CLASSIFICATION
+
+Internal — Committee Use Only
 
 ---
 
 ## RECOMMENDATION
 
-**Action**: **BUY**  
-**Security**: {{COMPANY_NAME}} ({{TICKER}})  
-**Target Portfolio**: {{PORTFOLIO_NAME}}  
-**Proposed Position Size**: {{POSITION_SIZE_PCT}}% of portfolio (approximately ${{POSITION_SIZE_USD}}M)  
-**Price Target**: ${{TARGET_PRICE_USD}}  
-**Upside Potential**: {{UPSIDE_PCT}}%  
-**Timeframe**: 12-18 months  
-**Risk Rating**: Medium  
-**Investment Rating**: **{{RATING}}**
+### Action
+
+**BUY**
+### Security
+
+{{COMPANY_NAME}} ({{TICKER}})
+### Target Portfolio
+
+{{PORTFOLIO_NAME}}
+### Proposed Position Size
+
+{{POSITION_SIZE_PCT}}% of portfolio (approximately ${{POSITION_SIZE_USD}}M)
+### Price Target
+
+${{TARGET_PRICE_USD}}
+### Upside Potential
+
+{{UPSIDE_PCT}}%
+### Timeframe
+
+12-18 months
+### Risk Rating
+
+Medium
+### Investment Rating
+
+**{{RATING}}**
 
 ---
 
@@ -69,35 +97,57 @@ The proposed investment aligns with {{PORTFOLIO_NAME}}'s mandate to identify hig
 
 {{COMPANY_NAME}} is positioned to benefit significantly from interest rate normalization, with our analysis indicating {{YOY_REVENUE_GROWTH_PCT}}% annual revenue growth and meaningful operating leverage over our investment horizon.
 
-**Net interest margin expansion**: Rising rates improving asset yields faster than funding cost increases, with management guidance indicating {{NIM_EXPANSION_BPS}} basis points of margin expansion annually through our forecast period.
+### Net interest margin expansion
 
-**Balance sheet positioning**: Asset-sensitive balance sheet structure with approximately {{RATE_SENSITIVITY_PCT}}% of earning assets repricing within 12 months provides near-term earnings tailwind.
+Rising rates improving asset yields faster than funding cost increases, with management guidance indicating {{NIM_EXPANSION_BPS}} basis points of margin expansion annually through our forecast period.
 
-**Deposit franchise strength**: Stable, low-cost deposit base with {{DEPOSIT_BETA_PCT}}% estimated deposit beta limits funding cost pressure during rate increases, protecting margin expansion.
+### Balance sheet positioning
 
-**Volume growth trajectory**: Loan growth of {{LOAN_GROWTH_PCT}}% annually driven by commercial lending, mortgages, and consumer credit supports revenue alongside margin expansion.
+Asset-sensitive balance sheet structure with approximately {{RATE_SENSITIVITY_PCT}}% of earning assets repricing within 12 months provides near-term earnings tailwind.
+
+### Deposit franchise strength
+
+Stable, low-cost deposit base with {{DEPOSIT_BETA_PCT}}% estimated deposit beta limits funding cost pressure during rate increases, protecting margin expansion.
+
+### Volume growth trajectory
+
+Loan growth of {{LOAN_GROWTH_PCT}}% annually driven by commercial lending, mortgages, and consumer credit supports revenue alongside margin expansion.
 
 ### 2. Diversified Business Model
 
 The company's diversified revenue streams across banking, wealth management, and capital markets provide stability and growth optionality:
 
-**Retail and commercial banking**: Core lending and deposit franchise generating predictable net interest income with modest credit risk due to diversified portfolio and conservative underwriting.
+### Retail and commercial banking
 
-**Wealth and asset management**: Fee-based revenues with attractive margins and minimal capital intensity, benefiting from growing AUM and favourable demographics driving wealth accumulation.
+Core lending and deposit franchise generating predictable net interest income with modest credit risk due to diversified portfolio and conservative underwriting.
 
-**Capital markets and trading**: Transaction-based revenues providing upside optionality during market volatility, whilst not representing material earnings dependency.
+### Wealth and asset management
 
-**Geographic diversification**: Presence across multiple markets limits concentration risk and provides organic growth opportunities.
+Fee-based revenues with attractive margins and minimal capital intensity, benefiting from growing AUM and favourable demographics driving wealth accumulation.
+
+### Capital markets and trading
+
+Transaction-based revenues providing upside optionality during market volatility, whilst not representing material earnings dependency.
+
+### Geographic diversification
+
+Presence across multiple markets limits concentration risk and provides organic growth opportunities.
 
 ### 3. Improving Returns and Capital Efficiency
 
 The company demonstrates improving financial returns with return on equity approaching {{ROE_PCT}}%, above peer averages and management's stated targets:
 
-**Operating leverage**: Positive operating leverage from revenue growth outpacing expense growth, with efficiency ratio improving towards {{EFFICIENCY_RATIO_PCT}}% through digital channel migration and process automation.
+### Operating leverage
 
-**Capital strength**: CET1 ratio of {{CET1_RATIO_PCT}}% provides buffer above regulatory minimums, supporting organic growth, bolt-on acquisitions, and enhanced capital returns.
+Positive operating leverage from revenue growth outpacing expense growth, with efficiency ratio improving towards {{EFFICIENCY_RATIO_PCT}}% through digital channel migration and process automation.
 
-**Capital allocation**: Management committed to returning excess capital through dividends and share repurchases, with {{PAYOUT_RATIO_PCT}}% total payout ratio sustainable given earnings trajectory.
+### Capital strength
+
+CET1 ratio of {{CET1_RATIO_PCT}}% provides buffer above regulatory minimums, supporting organic growth, bolt-on acquisitions, and enhanced capital returns.
+
+### Capital allocation
+
+Management committed to returning excess capital through dividends and share repurchases, with {{PAYOUT_RATIO_PCT}}% total payout ratio sustainable given earnings trajectory.
 
 Our target price of ${{TARGET_PRICE_USD}} implies {{UPSIDE_PCT}}% upside potential and is based on:
 
@@ -111,39 +161,55 @@ Our target price of ${{TARGET_PRICE_USD}} implies {{UPSIDE_PCT}}% upside potenti
 
 ### Macroeconomic Risks
 
-**Credit cycle deterioration**: Economic recession could drive loan losses and require increased provisions, pressuring profitability.
+### Credit cycle deterioration
+
+Economic recession could drive loan losses and require increased provisions, pressuring profitability.
 
 *Mitigant*: Diversified loan portfolio across geographies and sectors limits concentration. Conservative underwriting standards and strong coverage ratios provide buffer. Stress testing indicates manageable loss exposure in adverse scenarios.
 
-**Rate trajectory uncertainty**: Slower rate normalization or rate cuts would limit net interest income growth.
+### Rate trajectory uncertainty
+
+Slower rate normalization or rate cuts would limit net interest income growth.
 
 *Mitigant*: Diversified revenue streams from fee-based businesses provide downside protection. Management actively manages interest rate risk through asset-liability positioning.
 
-**Economic growth slowdown**: Reduced loan demand and increased credit stress from economic weakness.
+### Economic growth slowdown
+
+Reduced loan demand and increased credit stress from economic weakness.
 
 *Mitigant*: Strong balance sheet and liquidity position enable defensive posture during downturns. Established customer relationships provide stability in deposit base.
 
 ### Regulatory Risks
 
-**Capital requirement increases**: Evolving regulatory standards could require additional capital retention.
+### Capital requirement increases
+
+Evolving regulatory standards could require additional capital retention.
 
 *Mitigant*: Strong current capital ratios provide buffer. Proactive engagement with regulators on capital planning. Ability to adjust capital return programmes if needed.
 
-**Compliance and conduct risks**: Regulatory penalties or restrictions from compliance failures.
+### Compliance and conduct risks
+
+Regulatory penalties or restrictions from compliance failures.
 
 *Mitigant*: Significant investments in compliance infrastructure and controls. Strong compliance culture from senior management. Regular audits and monitoring.
 
 ### Competitive and Operational Risks
 
-**Digital disruption**: Technology-enabled competitors challenging traditional banking relationships.
+### Digital disruption
+
+Technology-enabled competitors challenging traditional banking relationships.
 
 *Mitigant*: Significant technology investments enhancing digital capabilities. Established customer relationships and full-service capabilities provide competitive advantages.
 
-**Cybersecurity threats**: Data breaches or system failures creating operational losses and reputational damage.
+### Cybersecurity threats
+
+Data breaches or system failures creating operational losses and reputational damage.
 
 *Mitigant*: Robust cybersecurity infrastructure with multiple layers of defence. Regular penetration testing and monitoring. Comprehensive insurance coverage.
 
-**Operational execution**: Technology transformation and efficiency initiatives creating execution risk.
+### Operational execution
+
+Technology transformation and efficiency initiatives creating execution risk.
 
 *Mitigant*: Experienced management team with strong track record. Phased implementation approach for major initiatives. Close board oversight of strategic projects.
 
@@ -169,7 +235,9 @@ The proposed {{POSITION_SIZE_PCT}}% position size reflects:
 - **Sector allocation**: Position complements existing financials exposure without excessive concentration
 - **Correlation benefits**: Financial sector exposure providing diversification from technology and growth holdings
 
-**Total portfolio risk impact**: The position contributes approximately {{PORTFOLIO_RISK_CONTRIBUTION}}bps of active risk to {{PORTFOLIO_NAME}}, within acceptable parameters for single stock exposure.
+### Total portfolio risk impact
+
+The position contributes approximately {{PORTFOLIO_RISK_CONTRIBUTION}}bps of active risk to {{PORTFOLIO_NAME}}, within acceptable parameters for single stock exposure.
 
 ---
 
@@ -184,21 +252,27 @@ The proposed {{POSITION_SIZE_PCT}}% position size reflects:
 
 ### Monitoring and Review
 
-**Performance monitoring**: Track quarterly against key performance indicators including:
+### Performance monitoring
+
+Track quarterly against key performance indicators including:
 - Net interest margin and loan growth trends
 - Credit quality metrics (NPLs, coverage ratios, provisions)
 - Fee income trends and AUM growth
 - Return on equity and efficiency ratio progression
 - Capital ratios and capital distribution
 
-**Catalyst calendar**: Major events warranting review include:
+### Catalyst calendar
+
+Major events warranting review include:
 - Quarterly earnings releases and guidance updates
 - Regulatory stress test results
 - Significant M&A announcements or divestitures
 - Material credit quality developments
 - Changes to capital return programmes
 
-**Review triggers**: Re-evaluate position if:
+### Review triggers
+
+Re-evaluate position if:
 - Share price reaches target price or fundamentals deteriorate
 - Credit cycle indicators suggest material deterioration
 - Regulatory environment shifts materially negatively
@@ -233,7 +307,13 @@ The proposed {{POSITION_SIZE_PCT}}% position size appropriately balances convict
 
 ---
 
-**Prepared by**: {{ANALYST_NAME}}  
-**Date**: {{PUBLISH_DATE}}  
-**Classification**: Internal Use Only — Not for External Distribution
+### Prepared by
+
+{{ANALYST_NAME}}
+### Date
+
+{{PUBLISH_DATE}}
+### Classification
+
+Internal Use Only — Not for External Distribution
 

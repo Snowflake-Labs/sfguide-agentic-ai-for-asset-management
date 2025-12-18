@@ -27,9 +27,15 @@ disclosure:
 
 # {{COMPANY_NAME}} {{FISCAL_QUARTER}} {{FISCAL_YEAR}} Earnings Conference Call
 
-**Date**: {{PUBLISH_DATE}}  
-**Time**: 14:00 PT / 17:00 ET  
-**Participants**: Executive Leadership and Investor Relations
+### Date
+
+{{PUBLISH_DATE}}
+### Time
+
+14:00 PT / 17:00 ET
+### Participants
+
+Executive Leadership and Investor Relations
 
 ---
 
@@ -107,57 +113,93 @@ With that, let's open for questions.
 
 ## Q&A Session
 
-**Operator**: Our first question comes from Sarah Johnson with Kingswell Securities Research.
+### Operator
 
-**Sarah Johnson**: Congratulations on the quarter. Can you talk about what you're seeing in enterprise spending? Any changes in customer buying behavior or deal cycles?
+Our first question comes from Sarah Johnson with Kingswell Securities Research.
 
-**{{CEO_NAME}}**: Thanks, Sarah. Enterprise demand remains healthy. We're not seeing meaningful elongation of sales cycles or budget compression. If anything, AI and cloud migration have elevated technology spending priority for most CIOs. Customers view these as strategic imperatives rather than discretionary projects.
+### Sarah Johnson
+
+Congratulations on the quarter. Can you talk about what you're seeing in enterprise spending? Any changes in customer buying behavior or deal cycles?
+
+### {{CEO_NAME}}
+
+Thanks, Sarah. Enterprise demand remains healthy. We're not seeing meaningful elongation of sales cycles or budget compression. If anything, AI and cloud migration have elevated technology spending priority for most CIOs. Customers view these as strategic imperatives rather than discretionary projects.
 
 Deal sizes are growing. Average contract value was up {{ACV_GROWTH}}% year-over-year. Customers are starting larger, doing broader deployments, and committing to multi-year agreements. This reflects confidence in our platform and desire to consolidate onto fewer vendors.
 
-**{{CFO_NAME}}**: I'd add that our pipeline remains very strong, both in terms of new logo opportunity and expansion within existing accounts. Win rates are stable to improving. Customer success metrics show high satisfaction. We feel good about enterprise demand sustainability.
+### {{CFO_NAME}}
 
-**Operator**: Next question from Mark Stevens with Crescent Point Analytics.
+I'd add that our pipeline remains very strong, both in terms of new logo opportunity and expansion within existing accounts. Win rates are stable to improving. Customer success metrics show high satisfaction. We feel good about enterprise demand sustainability.
 
-**Mark Stevens**: Question on AI monetization. How are you pricing AI capabilities? And what's the revenue contribution so far?
+### Operator
 
-**{{CEO_NAME}}**: We're taking multiple monetization approaches for AI. Some AI features are embedded in existing products, enhancing value proposition and supporting pricing power. Others are priced as add-on modules or separate SKUs. And in some cases, AI improves our own efficiency, which helps margins.
+Next question from Mark Stevens with Crescent Point Analytics.
+
+### Mark Stevens
+
+Question on AI monetization. How are you pricing AI capabilities? And what's the revenue contribution so far?
+
+### {{CEO_NAME}}
+
+We're taking multiple monetization approaches for AI. Some AI features are embedded in existing products, enhancing value proposition and supporting pricing power. Others are priced as add-on modules or separate SKUs. And in some cases, AI improves our own efficiency, which helps margins.
 
 Revenue contribution is still relatively small percentage of total, but growing very rapidly. Products with meaningful AI components launched in last 12-18 months are now contributing several hundred million dollars quarterly and growing triple digits year-over-year. As these products mature and we launch additional AI offerings, contribution will increase materially.
 
-**Operator**: Question from Lisa Anderson with Brookline Advisory Group.
+### Operator
 
-**Lisa Anderson**: Can you discuss competition? Are you seeing pricing pressure or market share shifts?
+Question from Lisa Anderson with Brookline Advisory Group.
 
-**{{CEO_NAME}}**: Competition is always intense in technology. We compete with large platforms, specialized point solutions, and emerging startups. Our differentiation comes from comprehensive capabilities, proven enterprise scale, and integration depth.
+### Lisa Anderson
+
+Can you discuss competition? Are you seeing pricing pressure or market share shifts?
+
+### {{CEO_NAME}}
+
+Competition is always intense in technology. We compete with large platforms, specialized point solutions, and emerging startups. Our differentiation comes from comprehensive capabilities, proven enterprise scale, and integration depth.
 
 We're not seeing broad-based pricing pressure. Some specific product categories are competitive on price, but our value proposition usually wins on total cost of ownership. When customers consider not just license costs but implementation, operations, productivity gains, and innovation pace, we compete very effectively.
 
 Market share data shows we're gaining in most categories. Our cloud infrastructure share is expanding, particularly in enterprise segment. Software categories are growing share steadily. We're winning more competitive evaluations than we're losing.
 
-**{{CFO_NAME}}**: I'd note our revenue growth of {{YOY_GROWTH_PCT}}% is well above overall market growth rates, which by definition means share gain. And we're doing that whilst maintaining or expanding margins, which suggests we're winning on value not just price.
+### {{CFO_NAME}}
 
-**Operator**: Final question from Robert Chen with Whitestone Equity Research.
+I'd note our revenue growth of {{YOY_GROWTH_PCT}}% is well above overall market growth rates, which by definition means share gain. And we're doing that whilst maintaining or expanding margins, which suggests we're winning on value not just price.
 
-**Robert Chen**: Thanks. Question on capital allocation. How are you thinking about M&A versus organic investment versus shareholder returns?
+### Operator
 
-**{{CFO_NAME}}**: Our capital allocation framework remains consistent. Priority one is organic investment in the business where we see compelling returns. R&D, infrastructure, go-to-market — these drive our long-term growth and competitive position.
+Final question from Robert Chen with Whitestone Equity Research.
+
+### Robert Chen
+
+Thanks. Question on capital allocation. How are you thinking about M&A versus organic investment versus shareholder returns?
+
+### {{CFO_NAME}}
+
+Our capital allocation framework remains consistent. Priority one is organic investment in the business where we see compelling returns. R&D, infrastructure, go-to-market — these drive our long-term growth and competitive position.
 
 We're always evaluating M&A for capabilities, technology, or talent that accelerates our strategy. The bar is high. Acquisitions must be strategically aligned, financially attractive, and executable from integration perspective. We've done several smaller acquisitions this year adding specific capabilities, and we'll continue that pattern.
 
 On shareholder returns, we increased our dividend {{DIV_INCREASE}}% this year and remain committed to growing it over time. Buybacks are opportunistic but substantial. We returned ${{CAPITAL_RETURN}}B this quarter and expect to be active returning capital whilst maintaining balance sheet strength.
 
-**{{CEO_NAME}}**: I'll just add that we have financial flexibility to do all of these things simultaneously. Strong cash generation, solid balance sheet, and access to capital markets give us strategic flexibility. We can invest organically, pursue M&A when it makes sense, and return meaningful capital to shareholders.
+### {{CEO_NAME}}
+
+I'll just add that we have financial flexibility to do all of these things simultaneously. Strong cash generation, solid balance sheet, and access to capital markets give us strategic flexibility. We can invest organically, pursue M&A when it makes sense, and return meaningful capital to shareholders.
 
 ## Closing
 
-**{{CEO_NAME}}**: Thanks, everyone, for joining today. Q{{QUARTER_NUM}} was an outstanding quarter reflecting strong customer demand, excellent execution, and significant opportunity ahead. We're excited about our product pipeline, market position, and long-term growth prospects. We look forward to updating you next quarter.
+### {{CEO_NAME}}
 
-**Operator**: This concludes the {{COMPANY_NAME}} {{FISCAL_QUARTER}} {{FISCAL_YEAR}} earnings call. Thank you for participating.
+Thanks, everyone, for joining today. Q{{QUARTER_NUM}} was an outstanding quarter reflecting strong customer demand, excellent execution, and significant opportunity ahead. We're excited about our product pipeline, market position, and long-term growth prospects. We look forward to updating you next quarter.
+
+### Operator
+
+This concludes the {{COMPANY_NAME}} {{FISCAL_QUARTER}} {{FISCAL_YEAR}} earnings call. Thank you for participating.
 
 ---
 
-**Safe Harbor**: Forward-looking statements subject to risks and uncertainties. See SEC filings for risk factors.
+### Safe Harbor
+
+Forward-looking statements subject to risks and uncertainties. See SEC filings for risk factors.
 
 *SAM Demo Content*
 

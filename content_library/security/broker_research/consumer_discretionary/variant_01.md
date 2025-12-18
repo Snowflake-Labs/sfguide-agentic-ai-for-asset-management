@@ -30,7 +30,9 @@ disclosure:
 
 **{{BROKER_NAME}} Consumer Research**  
 Analyst: {{ANALYST_NAME}} | {{PUBLISH_DATE}}  
-**Rating**: {{RATING}} | **12-Month Target**: ${{PRICE_TARGET_USD}}
+### Rating
+
+{{RATING}} | **12-Month Target**: ${{PRICE_TARGET_USD}}
 
 ## Executive Summary
 
@@ -38,13 +40,21 @@ We rate {{COMPANY_NAME}} as **{{RATING}}** with a price target of ${{PRICE_TARGE
 
 ## Investment Highlights
 
-**Brand Strength and Consumer Loyalty**: {{COMPANY_NAME}} has built powerful brand recognition that drives customer preference and supports premium pricing. The company's marketing investments, product quality reputation, and customer experience focus have created meaningful competitive advantages. Brand equity translates into higher lifetime customer value and provides resilience during market downturns.
+### Brand Strength and Consumer Loyalty
 
-**Digital Transformation Success**: The company has successfully transformed its business model to embrace e-commerce and digital customer engagement. Online sales now represent a significant and growing portion of total revenue, with digital channels offering superior unit economics and valuable customer data insights. The integration of physical retail presence with digital capabilities creates a differentiated omnichannel customer experience.
+{{COMPANY_NAME}} has built powerful brand recognition that drives customer preference and supports premium pricing. The company's marketing investments, product quality reputation, and customer experience focus have created meaningful competitive advantages. Brand equity translates into higher lifetime customer value and provides resilience during market downturns.
 
-**Innovation and Product Development**: {{COMPANY_NAME}}'s product innovation pipeline remains robust, with new launches addressing evolving consumer preferences and market trends. The company demonstrates strong capabilities in identifying consumer needs, translating insights into compelling products, and executing successful launches. Product development cycles have shortened whilst maintaining quality standards, improving time-to-market competitiveness.
+### Digital Transformation Success
 
-**Operational Excellence**: Management has driven operational improvements across the supply chain, manufacturing, and distribution functions. Efficiency gains support margin expansion whilst maintaining service levels. Investments in automation, data analytics, and process optimization are yielding measurable returns.
+The company has successfully transformed its business model to embrace e-commerce and digital customer engagement. Online sales now represent a significant and growing portion of total revenue, with digital channels offering superior unit economics and valuable customer data insights. The integration of physical retail presence with digital capabilities creates a differentiated omnichannel customer experience.
+
+### Innovation and Product Development
+
+{{COMPANY_NAME}}'s product innovation pipeline remains robust, with new launches addressing evolving consumer preferences and market trends. The company demonstrates strong capabilities in identifying consumer needs, translating insights into compelling products, and executing successful launches. Product development cycles have shortened whilst maintaining quality standards, improving time-to-market competitiveness.
+
+### Operational Excellence
+
+Management has driven operational improvements across the supply chain, manufacturing, and distribution functions. Efficiency gains support margin expansion whilst maintaining service levels. Investments in automation, data analytics, and process optimization are yielding measurable returns.
 
 ## Growth Drivers and Catalysts
 
@@ -56,13 +66,21 @@ Product category expansion into adjacent segments leverages existing brand equit
 
 ## Risk Factors
 
-**Consumer Discretionary Cyclicality**: The {{SIC_DESCRIPTION}} sector inherently carries macroeconomic sensitivity, with consumer spending on discretionary items vulnerable to economic downturns. Recession or significant consumer confidence deterioration could materially impact demand for the company's products.
+### Consumer Discretionary Cyclicality
 
-**Competitive Intensity**: The consumer sector remains highly competitive with both established brands and emerging direct-to-consumer challengers. Market share battles, promotional intensity, and pricing pressure represent ongoing risks to revenue and margin assumptions.
+The {{SIC_DESCRIPTION}} sector inherently carries macroeconomic sensitivity, with consumer spending on discretionary items vulnerable to economic downturns. Recession or significant consumer confidence deterioration could materially impact demand for the company's products.
 
-**Supply Chain Disruption**: Global supply chain complexity creates operational risks including component shortages, logistics delays, and cost inflation. Whilst the company has diversified its supplier base and improved inventory management, supply chain challenges remain a key risk factor.
+### Competitive Intensity
 
-**Changing Consumer Preferences**: Rapid evolution in consumer tastes, sustainability preferences, and purchasing behaviours requires continuous adaptation. Failure to anticipate or respond to shifting preferences could result in brand relevance erosion or market share losses.
+The consumer sector remains highly competitive with both established brands and emerging direct-to-consumer challengers. Market share battles, promotional intensity, and pricing pressure represent ongoing risks to revenue and margin assumptions.
+
+### Supply Chain Disruption
+
+Global supply chain complexity creates operational risks including component shortages, logistics delays, and cost inflation. Whilst the company has diversified its supplier base and improved inventory management, supply chain challenges remain a key risk factor.
+
+### Changing Consumer Preferences
+
+Rapid evolution in consumer tastes, sustainability preferences, and purchasing behaviours requires continuous adaptation. Failure to anticipate or respond to shifting preferences could result in brand relevance erosion or market share losses.
 
 ## Valuation
 
@@ -76,7 +94,9 @@ On a relative basis, {{COMPANY_NAME}} trades at {{PE_RATIO}}x forward earnings, 
 
 ---
 
-**Disclosures**: {{BROKER_NAME}} may provide services to companies mentioned in this report. This report does not constitute personalised investment advice. Please see full disclosures.
+### Disclosures
+
+{{BROKER_NAME}} may provide services to companies mentioned in this report. This report does not constitute personalised investment advice. Please see full disclosures.
 
 *SAM Demo. {{BROKER_NAME}} is fictional.*
 

@@ -25,22 +25,26 @@ This template provides standardised structure for monthly client portfolio repor
 ### Executive Summary
 *[150-200 words summarising key performance highlights, notable portfolio changes, and forward outlook]*
 
-**Purpose**: Provide busy clients with immediate understanding of portfolio status and key developments without requiring detailed report review.
+### Purpose
 
-**Content Guidance**:
+Provide busy clients with immediate understanding of portfolio status and key developments without requiring detailed report review.
+
+### Content Guidance
+
 - Lead with performance result and benchmark comparison
 - Highlight 2-3 most significant portfolio developments or themes
 - Note any concentration warnings or compliance matters
 - Conclude with brief forward outlook
 
-**Example Language**:
+### Example Language
+
 "Your [Portfolio Name] delivered [X.X%] return for [Month], [outperforming/underperforming] the benchmark return of [X.X%] by [X.X] percentage points. Year-to-date performance stands at [X.X%] versus benchmark [X.X%]. Key contributors this month included [holdings], benefiting from [catalyst]. Looking ahead, we maintain conviction in our positioning around [theme] whilst monitoring [risk factors]."
 
 ---
 
 ### Performance Summary
 
-**Monthly Performance Table**:
+### Monthly Performance Table
 
 | Period | Portfolio Return | Benchmark Return | Relative Return |
 |--------|------------------|------------------|-----------------|
@@ -53,23 +57,28 @@ This template provides standardised structure for monthly client portfolio repor
 
 *Returns shown are time-weighted, net of all fees, in [base currency].*
 
-**Performance Chart**: Include visual showing portfolio vs benchmark performance over trailing 12 months.
+### Performance Chart
+
+Include visual showing portfolio vs benchmark performance over trailing 12 months.
 
 ---
 
 ### Attribution Analysis
 
-**Contributors to Performance**:
+### Contributors to Performance
+
 - [Security Name] ([Ticker]): Contributed [+X.X%] to portfolio return
   - Rationale: [Brief explanation of performance driver]
 - [Repeat for top 3-5 contributors]
 
-**Detractors from Performance**:
+### Detractors from Performance
+
 - [Security Name] ([Ticker]): Detracted [-X.X%] from portfolio return
   - Rationale: [Brief explanation of performance driver]
 - [Repeat for notable detractors]
 
-**Sector Attribution**:
+### Sector Attribution
+
 - [Sector]: Allocation effect [+/-X.X%], Selection effect [+/-X.X%]
 - [Summarise top sector effects]
 
@@ -77,33 +86,37 @@ This template provides standardised structure for monthly client portfolio repor
 
 ### Portfolio Holdings
 
-**Top 10 Holdings**:
+### Top 10 Holdings
 
 | Holding | Ticker | Sector | Weight % | Change |
 |---------|--------|--------|----------|--------|
 | [Name] | [TKR] | [Sector] | [X.X%] | [↑↓→] |
 | ... | ... | ... | ... | ... |
 
-**Concentration Analysis**:
+### Concentration Analysis
+
 - Top 10 holdings: [XX%] of portfolio
 - Largest position: [Name] at [X.X%]
 - ⚠️ **Concentration Warnings**: [Flag any positions >6.5% with specific percentage]
 
-**Portfolio Activity This Month**:
+### Portfolio Activity This Month
 
 **Purchases**:
 - [Security name, ticker, amount or percentage]: [Brief rationale]
 
-**Sales**:
+### Sales
+
 - [Security name, ticker, amount or percentage]: [Brief rationale]
 
-**Net Activity**: [Net bought/sold, impact on cash levels]
+### Net Activity
+
+[Net bought/sold, impact on cash levels]
 
 ---
 
 ### Asset Allocation
 
-**Current Allocation vs Targets**:
+### Current Allocation vs Targets
 
 | Asset Class | Current % | Target % | IPS Range | Deviation |
 |-------------|-----------|----------|-----------|-----------|
@@ -118,7 +131,8 @@ This template provides standardised structure for monthly client portfolio repor
 - Financials: [XX%] (Benchmark: [XX%])
 - [Continue for all material sectors]
 
-**Geographic Allocation**:
+### Geographic Allocation
+
 - North America: [XX%]
 - Europe: [XX%]
 - Asia-Pacific: [XX%]
@@ -130,14 +144,17 @@ This template provides standardised structure for monthly client portfolio repor
 
 *[250-300 words discussing current market environment and implications for portfolio]*
 
-**Content Guidance**:
+### Content Guidance
+
 - Summarise key market developments during the month
 - Discuss relevant economic data releases and implications
 - Comment on central bank policy and interest rate environment
 - Note sector rotation patterns or thematic trends
 - Connect market commentary to portfolio positioning
 
-**Tone**: Professional, balanced, avoiding excessive optimism or pessimism. Focus on relevant developments rather than comprehensive market review.
+### Tone
+
+Professional, balanced, avoiding excessive optimism or pessimism. Focus on relevant developments rather than comprehensive market review.
 
 ---
 
@@ -145,7 +162,8 @@ This template provides standardised structure for monthly client portfolio repor
 
 *[150-200 words on ESG-related developments and portfolio characteristics]*
 
-**Content Areas**:
+### Content Areas
+
 - Portfolio ESG rating and any significant changes
 - Notable engagement activities with portfolio companies
 - ESG-related company announcements or controversies
@@ -158,7 +176,8 @@ This template provides standardised structure for monthly client portfolio repor
 
 *[200-250 words on investment outlook and strategic positioning]*
 
-**Content Guidance**:
+### Content Guidance
+
 - Forward-looking view on market conditions (6-12 month horizon)
 - Key themes informing current portfolio positioning
 - Opportunities and risks on the horizon
@@ -169,28 +188,32 @@ This template provides standardised structure for monthly client portfolio repor
 
 ### Important Disclosures
 
-**Performance Disclosures**:
+### Performance Disclosures
+
 - Performance shown is time-weighted return methodology
 - Returns are net of all management fees and expenses
 - Past performance does not guarantee future results
 - Benchmark is [specific index name and composition]
 - Performance may not reflect impact of taxes
 
-**Risk Disclosures**:
+### Risk Disclosures
+
 - Investing involves risk including possible loss of principal
 - Securities are not FDIC insured and may lose value
 - No guarantee portfolio will achieve investment objectives
 - Portfolio concentrations may increase volatility
 
-**Additional Information**:
+### Additional Information
+
 - For complete portfolio holdings, please refer to custodian statement
 - Investment Policy Statement available upon request
 - Questions regarding this report should be directed to your portfolio manager
 
 ---
 
-**Contact Information**:  
-Portfolio Manager: [Name]  
+### Contact Information
+
+Portfolio Manager: [Name]
 Email: [Email]  
 Phone: [Phone]  
 Snowcrest Asset Management  

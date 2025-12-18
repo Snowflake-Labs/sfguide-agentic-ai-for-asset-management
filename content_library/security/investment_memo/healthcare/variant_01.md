@@ -27,25 +27,53 @@ disclosure:
 
 # MEMORANDUM
 
-**TO**: Investment Committee  
-**FROM**: {{ANALYST_NAME}}, Healthcare Sector Analyst  
-**DATE**: {{PUBLISH_DATE}}  
-**RE**: Investment Proposal — {{COMPANY_NAME}} ({{TICKER}})  
-**CLASSIFICATION**: Internal — Committee Use Only
+### TO
+
+Investment Committee
+### FROM
+
+{{ANALYST_NAME}}, Healthcare Sector Analyst
+### DATE
+
+{{PUBLISH_DATE}}
+### RE
+
+Investment Proposal — {{COMPANY_NAME}} ({{TICKER}})
+### CLASSIFICATION
+
+Internal — Committee Use Only
 
 ---
 
 ## RECOMMENDATION
 
-**Action**: **BUY**  
-**Security**: {{COMPANY_NAME}} ({{TICKER}})  
-**Target Portfolio**: {{PORTFOLIO_NAME}}  
-**Proposed Position Size**: {{POSITION_SIZE_PCT}}% of portfolio (approximately ${{POSITION_SIZE_USD}}M)  
-**Price Target**: ${{TARGET_PRICE_USD}}  
-**Upside Potential**: {{UPSIDE_PCT}}%  
-**Timeframe**: 12-18 months  
-**Risk Rating**: Medium-High  
-**Investment Rating**: **{{RATING}}**
+### Action
+
+**BUY**
+### Security
+
+{{COMPANY_NAME}} ({{TICKER}})
+### Target Portfolio
+
+{{PORTFOLIO_NAME}}
+### Proposed Position Size
+
+{{POSITION_SIZE_PCT}}% of portfolio (approximately ${{POSITION_SIZE_USD}}M)
+### Price Target
+
+${{TARGET_PRICE_USD}}
+### Upside Potential
+
+{{UPSIDE_PCT}}%
+### Timeframe
+
+12-18 months
+### Risk Rating
+
+Medium-High
+### Investment Rating
+
+**{{RATING}}**
 
 ---
 
@@ -69,25 +97,41 @@ The proposed investment aligns with {{PORTFOLIO_NAME}}'s mandate to identify hig
 
 {{COMPANY_NAME}} is positioned to deliver {{YOY_REVENUE_GROWTH_PCT}}% annual revenue growth over our investment horizon, significantly above healthcare sector averages. Growth will be driven by:
 
-**Product portfolio strength**: Recent launches demonstrating strong commercial uptake, with market share gains in key therapeutic areas supported by superior clinical profiles and favourable positioning with prescribers and payers.
+### Product portfolio strength
 
-**Demographic tailwinds**: Aging populations and rising chronic disease prevalence create sustained demand growth for the company's therapeutic areas, providing visibility into long-term revenue trajectory.
+Recent launches demonstrating strong commercial uptake, with market share gains in key therapeutic areas supported by superior clinical profiles and favourable positioning with prescribers and payers.
 
-**Geographic expansion**: Penetration into emerging markets with favourable demographics and growing healthcare infrastructure offers incremental growth beyond mature markets.
+### Demographic tailwinds
 
-**Pipeline progression**: Late-stage clinical assets targeting large addressable markets provide upside optionality, with multiple potential approvals over the next 18-24 months.
+Aging populations and rising chronic disease prevalence create sustained demand growth for the company's therapeutic areas, providing visibility into long-term revenue trajectory.
+
+### Geographic expansion
+
+Penetration into emerging markets with favourable demographics and growing healthcare infrastructure offers incremental growth beyond mature markets.
+
+### Pipeline progression
+
+Late-stage clinical assets targeting large addressable markets provide upside optionality, with multiple potential approvals over the next 18-24 months.
 
 ### 2. Sustainable Competitive Advantages
 
 The company's competitive moat derives from several reinforcing factors:
 
-**Clinical differentiation**: Products demonstrate superior efficacy or safety versus standard of care, enabling premium pricing and favourable formulary placement. Recent clinical data support expansion into additional indications, broadening addressable patient populations.
+### Clinical differentiation
 
-**Intellectual property**: Strong patent estate protects key products through 2030+, whilst trade secrets around manufacturing processes create additional barriers for biosimilar competition.
+Products demonstrate superior efficacy or safety versus standard of care, enabling premium pricing and favourable formulary placement. Recent clinical data support expansion into additional indications, broadening addressable patient populations.
 
-**Commercial capabilities**: Established relationships with key opinion leaders, integrated delivery networks, and pharmacy benefit managers facilitate rapid market adoption and sustained market share.
+### Intellectual property
 
-**R&D productivity**: Efficient drug development capabilities generate attractive return on R&D investment, with above-peer success rates in late-stage clinical programmes.
+Strong patent estate protects key products through 2030+, whilst trade secrets around manufacturing processes create additional barriers for biosimilar competition.
+
+### Commercial capabilities
+
+Established relationships with key opinion leaders, integrated delivery networks, and pharmacy benefit managers facilitate rapid market adoption and sustained market share.
+
+### R&D productivity
+
+Efficient drug development capabilities generate attractive return on R&D investment, with above-peer success rates in late-stage clinical programmes.
 
 ### 3. Financial Quality and Valuation
 
@@ -108,35 +152,49 @@ Our target price of ${{TARGET_PRICE_USD}} implies {{UPSIDE_PCT}}% upside potenti
 
 ### Clinical and Regulatory Risks
 
-**Pipeline execution risk**: Clinical trial failures could eliminate key growth drivers and pressure valuations. 
+### Pipeline execution risk
+
+Clinical trial failures could eliminate key growth drivers and pressure valuations.
 
 *Mitigant*: Diversified pipeline across multiple programmes and therapeutic areas limits single-asset dependency. Strong track record of R&D execution provides confidence in development capabilities.
 
-**Regulatory environment**: Evolving standards for approval and reimbursement create uncertainty around product launches and pricing assumptions.
+### Regulatory environment
+
+Evolving standards for approval and reimbursement create uncertainty around product launches and pricing assumptions.
 
 *Mitigant*: Company's focus on innovation and strong clinical data positions products favourably for regulatory approval and payer acceptance. Management maintains proactive engagement with regulators.
 
-**Patent expiry**: Loss of exclusivity exposes key products to generic or biosimilar competition.
+### Patent expiry
+
+Loss of exclusivity exposes key products to generic or biosimilar competition.
 
 *Mitigant*: Pipeline progression provides new growth drivers to offset maturing products. Life cycle management initiatives extend commercial runway for key franchises.
 
 ### Commercial Risks
 
-**Pricing pressure**: Government initiatives and payer consolidation continue to pressure pharmaceutical and device pricing.
+### Pricing pressure
+
+Government initiatives and payer consolidation continue to pressure pharmaceutical and device pricing.
 
 *Mitigant*: Clinical differentiation and health economic value propositions support pricing power. Portfolio focus on innovative products with limited generic competition.
 
-**Competitive dynamics**: Novel mechanisms or superior clinical profiles from competitors could impact market share.
+### Competitive dynamics
+
+Novel mechanisms or superior clinical profiles from competitors could impact market share.
 
 *Mitigant*: Strong commercial execution and switching costs provide defensibility. Ongoing R&D investments maintain competitive positioning.
 
 ### Financial Risks
 
-**Manufacturing risks**: Complex manufacturing processes create operational risk around supply continuity and quality control.
+### Manufacturing risks
+
+Complex manufacturing processes create operational risk around supply continuity and quality control.
 
 *Mitigant*: Company maintains redundant manufacturing capacity and strong quality track record. Investments in process improvements enhance reliability.
 
-**M&A execution**: Business development activities introduce integration risk and potential for value destruction.
+### M&A execution
+
+Business development activities introduce integration risk and potential for value destruction.
 
 *Mitigant*: Management demonstrates disciplined approach to acquisitions with focus on strategic fit and attractive valuations.
 
@@ -162,7 +220,9 @@ The proposed {{POSITION_SIZE_PCT}}% position size reflects:
 - **Diversification**: Position complements existing healthcare holdings without excessive concentration
 - **Liquidity**: Adequate daily trading volume supports position entry and potential exit
 
-**Total portfolio risk impact**: The position contributes approximately {{PORTFOLIO_RISK_CONTRIBUTION}}bps of active risk to {{PORTFOLIO_NAME}}, within acceptable parameters for single stock exposure.
+### Total portfolio risk impact
+
+The position contributes approximately {{PORTFOLIO_RISK_CONTRIBUTION}}bps of active risk to {{PORTFOLIO_NAME}}, within acceptable parameters for single stock exposure.
 
 ---
 
@@ -177,15 +237,21 @@ The proposed {{POSITION_SIZE_PCT}}% position size reflects:
 
 ### Monitoring and Review
 
-**Performance monitoring**: Track quarterly against key performance indicators including revenue growth, margin trends, pipeline progression, and market share dynamics.
+### Performance monitoring
 
-**Catalyst calendar**: Major events warranting review include:
+Track quarterly against key performance indicators including revenue growth, margin trends, pipeline progression, and market share dynamics.
+
+### Catalyst calendar
+
+Major events warranting review include:
 - Clinical trial data releases ({{NEXT_DATA_READOUT}})
 - Regulatory approval decisions ({{NEXT_APPROVAL_DATE}})
 - Quarterly earnings and guidance updates
 - Competitive product launches or data releases
 
-**Review triggers**: Re-evaluate position if:
+### Review triggers
+
+Re-evaluate position if:
 - Share price reaches target price
 - Material negative clinical or regulatory developments
 - Fundamental thesis deterioration
@@ -219,7 +285,13 @@ The proposed {{POSITION_SIZE_PCT}}% position size appropriately balances convict
 
 ---
 
-**Prepared by**: {{ANALYST_NAME}}  
-**Date**: {{PUBLISH_DATE}}  
-**Classification**: Internal Use Only — Not for External Distribution
+### Prepared by
+
+{{ANALYST_NAME}}
+### Date
+
+{{PUBLISH_DATE}}
+### Classification
+
+Internal Use Only — Not for External Distribution
 

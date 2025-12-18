@@ -15,7 +15,9 @@ London, EC2N 2AN, United Kingdom
 +44 20 1234 5678  
 www.snowcrestam.com
 
-**Dated**: 31 March 2024
+### Dated
+
+31 March 2024
 
 This brochure provides information about the qualifications and business practices of Snowcrest Asset Management. If you have any questions about the contents of this brochure, please contact us at compliance@snowcrestam.com or +44 20 1234 5678.
 
@@ -33,7 +35,9 @@ Registration as an investment adviser does not imply a certain level of skill or
 
 Snowcrest Asset Management ("SAM" or "the Firm") is a registered investment adviser providing discretionary investment management services to institutional and high-net-worth clients globally. The Firm was established in 2010 and is headquartered in London with operations in the United Kingdom, European Union, and United States.
 
-**Principal Owners**: The Firm is privately held with ownership interests held by senior management and certain institutional investors. No single person or entity owns 25% or more of the Firm.
+### Principal Owners
+
+The Firm is privately held with ownership interests held by senior management and certain institutional investors. No single person or entity owns 25% or more of the Firm.
 
 **Assets Under Management** (as of 31 December 2023):
 - Discretionary Assets: $12.5 billion
@@ -42,14 +46,18 @@ Snowcrest Asset Management ("SAM" or "the Firm") is a registered investment advi
 
 ### B. Types of Advisory Services
 
-**Portfolio Management Services**: We provide discretionary investment management services to institutional clients, pension plans, endowments, family offices, and high-net-worth individuals. Services include:
+### Portfolio Management Services
+
+We provide discretionary investment management services to institutional clients, pension plans, endowments, family offices, and high-net-worth individuals. Services include:
 
 - **Multi-Asset Portfolio Management**: Customized portfolios across equities, fixed income, and alternative investments aligned with client objectives
 - **Equity Strategies**: Growth, value, ESG-focused, and thematic equity mandates
 - **Fixed Income Management**: Investment grade, multi-sector, and duration-managed bond portfolios
 - **ESG and Sustainable Investing**: Strategies integrating environmental, social, and governance factors
 
-**Investment Consulting**: We provide investment consulting services including investment policy development, asset allocation studies, and manager search assistance for clients managing assets directly.
+### Investment Consulting
+
+We provide investment consulting services including investment policy development, asset allocation studies, and manager search assistance for clients managing assets directly.
 
 ### C. Client-Tailored Services
 
@@ -74,9 +82,13 @@ Snowcrest Asset Management does not sponsor or participate in wrap fee programs.
 | Next £35 million | 0.45% |
 | Over £50 million | Negotiable |
 
-**Minimum Account Size**: £2 million (may be waived for related accounts or special circumstances)
+### Minimum Account Size
 
-**Institutional Separate Account Fees**: Negotiated based on account size, strategy complexity, and service requirements. Typically range from 0.25% to 0.75% annually depending on mandate size.
+£2 million (may be waived for related accounts or special circumstances)
+
+### Institutional Separate Account Fees
+
+Negotiated based on account size, strategy complexity, and service requirements. Typically range from 0.25% to 0.75% annually depending on mandate size.
 
 ### B. Fee Billing
 
@@ -90,13 +102,21 @@ Pro-rated fees apply for partial quarter periods based on account funding or ter
 
 Clients incur additional costs beyond our advisory fees:
 
-**Custodian Fees**: Account maintenance, safekeeping, and transaction fees charged by custodian. Custodian fee schedules provided separately.
+### Custodian Fees
 
-**Transaction Costs**: Brokerage commissions, trade execution spreads, and regulatory fees on securities transactions. We seek best execution and competitive commission rates but do not control these costs directly.
+Account maintenance, safekeeping, and transaction fees charged by custodian. Custodian fee schedules provided separately.
 
-**Fund Expenses**: Clients invested in mutual funds or ETFs incur fund expense ratios, typically 0.05% to 1.00% annually depending on fund type. Fund expenses are embedded in fund pricing and reduce fund returns.
+### Transaction Costs
 
-**Other Charges**: Wire transfer fees, account statement fees, legal fees (extraordinary circumstances), and other incidental expenses.
+Brokerage commissions, trade execution spreads, and regulatory fees on securities transactions. We seek best execution and competitive commission rates but do not control these costs directly.
+
+### Fund Expenses
+
+Clients invested in mutual funds or ETFs incur fund expense ratios, typically 0.05% to 1.00% annually depending on fund type. Fund expenses are embedded in fund pricing and reduce fund returns.
+
+### Other Charges
+
+Wire transfer fees, account statement fees, legal fees (extraordinary circumstances), and other incidental expenses.
 
 ### D. Advance Payment and Termination
 
@@ -126,7 +146,9 @@ We provide investment advisory services to:
 - Insurance Companies
 - Investment Companies and Pooled Investment Vehicles
 
-**Account Minimum**: £2 million for separately managed accounts. Lower minimums may be accepted for related accounts, employee accounts, or special circumstances at our discretion.
+### Account Minimum
+
+£2 million for separately managed accounts. Lower minimums may be accepted for related accounts, employee accounts, or special circumstances at our discretion.
 
 ---
 
@@ -134,39 +156,67 @@ We provide investment advisory services to:
 
 ### A. Methods of Analysis
 
-**Fundamental Analysis**: Primary analytical method involves detailed company and industry analysis including financial statement examination, competitive positioning assessment, management quality evaluation, and valuation analysis using multiple methodologies (DCF, comparable companies, precedent transactions).
+### Fundamental Analysis
 
-**ESG Analysis**: Environmental, social, and governance factors integrated into fundamental analysis. Material ESG risks and opportunities identified and incorporated into investment valuations and decisions.
+Primary analytical method involves detailed company and industry analysis including financial statement examination, competitive positioning assessment, management quality evaluation, and valuation analysis using multiple methodologies (DCF, comparable companies, precedent transactions).
 
-**Quantitative Analysis**: Factor analysis, risk modeling, and quantitative screening complement fundamental research. Portfolio construction optimizes risk-adjusted returns considering correlations and factor exposures.
+### ESG Analysis
+
+Environmental, social, and governance factors integrated into fundamental analysis. Material ESG risks and opportunities identified and incorporated into investment valuations and decisions.
+
+### Quantitative Analysis
+
+Factor analysis, risk modeling, and quantitative screening complement fundamental research. Portfolio construction optimizes risk-adjusted returns considering correlations and factor exposures.
 
 ### B. Investment Strategies
 
-**Long-Term Equity Investing**: Focus on high-quality companies with sustainable competitive advantages, strong management teams, and attractive valuations. Typical holding periods 3-5 years.
+### Long-Term Equity Investing
 
-**Fixed Income Management**: Credit-focused approach emphasizing capital preservation, income generation, and duration management aligned with client objectives and rate outlook.
+Focus on high-quality companies with sustainable competitive advantages, strong management teams, and attractive valuations. Typical holding periods 3-5 years.
 
-**ESG Integration**: Systematic incorporation of sustainability factors into investment analysis. Exclusion of controversial weapons and high-severity ESG controversies. Active ownership through engagement and proxy voting.
+### Fixed Income Management
 
-**Thematic Investing**: Strategies focused on structural trends including technology innovation, climate transition, demographic changes, and digital transformation.
+Credit-focused approach emphasizing capital preservation, income generation, and duration management aligned with client objectives and rate outlook.
+
+### ESG Integration
+
+Systematic incorporation of sustainability factors into investment analysis. Exclusion of controversial weapons and high-severity ESG controversies. Active ownership through engagement and proxy voting.
+
+### Thematic Investing
+
+Strategies focused on structural trends including technology innovation, climate transition, demographic changes, and digital transformation.
 
 ### C. Material Risks
 
 Investing in securities involves risk of loss that clients should be prepared to bear:
 
-**Market Risk**: Equity and bond markets can decline significantly during market downturns. No guarantee of positive returns in any period.
+### Market Risk
 
-**Interest Rate Risk**: Bond prices fall when interest rates rise. Duration management mitigates but doesn't eliminate this risk.
+Equity and bond markets can decline significantly during market downturns. No guarantee of positive returns in any period.
 
-**Credit Risk**: Bond issuers may default on obligations. Credit rating downgrades negatively impact prices.
+### Interest Rate Risk
 
-**Liquidity Risk**: Some securities may be difficult to sell quickly without price concessions. Illiquid positions may require selling at unfavorable prices during market stress.
+Bond prices fall when interest rates rise. Duration management mitigates but doesn't eliminate this risk.
 
-**Concentration Risk**: Focused portfolios accepting higher concentration may experience greater volatility than diversified portfolios.
+### Credit Risk
 
-**Currency Risk**: International investments subject to currency fluctuations (we typically hedge major currency exposures).
+Bond issuers may default on obligations. Credit rating downgrades negatively impact prices.
 
-**Manager Risk**: Our active management decisions may underperform passive index approaches. No guarantee our strategies will achieve objectives.
+### Liquidity Risk
+
+Some securities may be difficult to sell quickly without price concessions. Illiquid positions may require selling at unfavorable prices during market stress.
+
+### Concentration Risk
+
+Focused portfolios accepting higher concentration may experience greater volatility than diversified portfolios.
+
+### Currency Risk
+
+International investments subject to currency fluctuations (we typically hedge major currency exposures).
+
+### Manager Risk
+
+Our active management decisions may underperform passive index approaches. No guarantee our strategies will achieve objectives.
 
 ---
 
@@ -209,13 +259,21 @@ A copy of our Code of Ethics is available to clients upon request.
 
 Covered Persons may invest in same securities as clients, subject to Code of Ethics restrictions:
 
-**Pre-Clearance**: Personnel must pre-clear most securities transactions 24 hours in advance. Pre-clearance ensures no conflicts with client trading and no material non-public information.
+### Pre-Clearance
 
-**Blackout Periods**: Trading blackouts before and after client trades, during quarterly period-end, and while possessing material non-public information.
+Personnel must pre-clear most securities transactions 24 hours in advance. Pre-clearance ensures no conflicts with client trading and no material non-public information.
 
-**Holding Periods**: 30-day minimum holding period for purchased securities reduces short-term trading.
+### Blackout Periods
 
-**Reporting**: Quarterly transaction reports, annual holdings certification, duplicate brokerage statements to CCO.
+Trading blackouts before and after client trades, during quarterly period-end, and while possessing material non-public information.
+
+### Holding Periods
+
+30-day minimum holding period for purchased securities reduces short-term trading.
+
+### Reporting
+
+Quarterly transaction reports, annual holdings certification, duplicate brokerage statements to CCO.
 
 ### C. Conflicts of Interest from Personal Trading
 
@@ -223,7 +281,9 @@ Personal trading creates potential conflicts:
 - Personnel could benefit from information about firm's trading or recommendations
 - Personnel could trade ahead of client trades (front-running)
 
-**Mitigation**: Pre-clearance system prevents trading ahead of clients. CCO reviews all personal trading. Violations result in disciplinary action including disgorgement of profits and potential termination.
+### Mitigation
+
+Pre-clearance system prevents trading ahead of clients. CCO reviews all personal trading. Violations result in disciplinary action including disgorgement of profits and potential termination.
 
 ---
 
@@ -231,15 +291,20 @@ Personal trading creates potential conflicts:
 
 ### A. Broker-Dealer Selection
 
-**Best Execution Standard**: We seek best execution of client trades considering price, execution speed, reliability, and total transaction costs.
+### Best Execution Standard
 
-**Broker Selection Factors**:
+We seek best execution of client trades considering price, execution speed, reliability, and total transaction costs.
+
+### Broker Selection Factors
+
 - Price competitiveness and execution quality
 - Operational capabilities and error rates
 - Financial stability and reputation
 - Research services (soft dollars, see below)
 
-**Recommended Custodians**: We recommend institutional custodians including [Custodian 1], [Custodian 2], and [Custodian 3] based on service quality, custody fees, and technology platforms. Clients open accounts directly with custodians.
+### Recommended Custodians
+
+We recommend institutional custodians including [Custodian 1], [Custodian 2], and [Custodian 3] based on service quality, custody fees, and technology platforms. Clients open accounts directly with custodians.
 
 ### B. Soft Dollar Benefits
 
@@ -276,9 +341,12 @@ We aggregate (bunch) orders for multiple clients when possible to achieve better
 
 ### A. Periodic Reviews
 
-**Quarterly Portfolio Reviews**: All discretionary accounts reviewed at least quarterly by assigned portfolio manager. Reviews assess performance, asset allocation versus targets, holdings appropriateness, and client circumstance changes.
+### Quarterly Portfolio Reviews
 
-**Triggers for Non-Periodic Reviews**:
+All discretionary accounts reviewed at least quarterly by assigned portfolio manager. Reviews assess performance, asset allocation versus targets, holdings appropriateness, and client circumstance changes.
+
+### Triggers for Non-Periodic Reviews
+
 - Material market events affecting portfolio holdings
 - Changes in client financial situation or objectives
 - Significant portfolio losses (>10% drawdown)
@@ -286,11 +354,17 @@ We aggregate (bunch) orders for multiple clients when possible to achieve better
 
 ### B. Reports to Clients
 
-**Quarterly Performance Reports**: Comprehensive reports including performance versus benchmarks, attribution analysis, holdings detail, asset allocation, and portfolio activity summary.
+### Quarterly Performance Reports
 
-**Annual Review**: In-depth annual review including multi-year performance analysis, IPS review and recommendations, and comprehensive portfolio analytics.
+Comprehensive reports including performance versus benchmarks, attribution analysis, holdings detail, asset allocation, and portfolio activity summary.
 
-**Monthly Custodian Statements**: Clients receive monthly statements directly from custodian showing all holdings, transactions, and market values.
+### Annual Review
+
+In-depth annual review including multi-year performance analysis, IPS review and recommendations, and comprehensive portfolio analytics.
+
+### Monthly Custodian Statements
+
+Clients receive monthly statements directly from custodian showing all holdings, transactions, and market values.
 
 ---
 
@@ -320,13 +394,15 @@ Clients should carefully review custodian statements and compare with any report
 
 We typically provide investment advisory services on discretionary basis, meaning we make investment decisions without obtaining client approval for each transaction.
 
-**Discretionary Authority Includes**:
+### Discretionary Authority Includes
+
 - Securities to buy and sell
 - Amount of securities to trade
 - Timing of transactions
 - Broker-dealer selection (subject to any client-directed brokerage)
 
-**Limitations on Discretion**:
+### Limitations on Discretion
+
 - Must follow Investment Policy Statement guidelines
 - Must adhere to client-imposed restrictions
 - Cannot withdraw funds except for fee deduction (with authorization)
@@ -401,8 +477,12 @@ Please see attached Brochure Supplements (Form ADV Part 2B) providing biographic
 
 This brochure accurately describes Snowcrest Asset Management's advisory business as of the date noted. Material changes will be disclosed through updated brochures or supplements delivered to clients within 30 days.
 
-**Prepared by**: Compliance Department  
-**Next Annual Update**: By 31 March 2025
+### Prepared by
+
+Compliance Department
+### Next Annual Update
+
+By 31 March 2025
 
 ---
 

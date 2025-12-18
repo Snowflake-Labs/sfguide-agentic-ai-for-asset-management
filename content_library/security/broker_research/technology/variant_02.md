@@ -30,7 +30,9 @@ disclosure:
 # {{COMPANY_NAME}} ({{TICKER}}) — {{RATING}} Rating
 
 **{{BROKER_NAME}} Equity Research** | {{ANALYST_NAME}}, Senior Analyst | {{PUBLISH_DATE}}  
-**Current Rating**: {{RATING}} | **Price Target**: ${{PRICE_TARGET_USD}} (12-month)
+### Current Rating
+
+{{RATING}} | **Price Target**: ${{PRICE_TARGET_USD}} (12-month)
 
 ## Investment Thesis
 
@@ -48,9 +50,13 @@ Looking ahead, we model continued revenue acceleration as new product cycles gai
 
 ## Risks and Catalysts
 
-**Upside Catalysts**: Faster-than-expected adoption of AI-enabled products could drive revenue upside beyond our base case assumptions. Strategic partnerships or acquisitions in adjacent technology segments might accelerate market expansion. Regulatory clarity around data governance could remove competitive uncertainties and strengthen the company's compliance advantage.
+### Upside Catalysts
 
-**Downside Risks**: Increasing competition from both established technology giants and emerging startups represents the primary risk to our thesis. Product development delays or customer migration challenges could impact near-term growth trajectories. Macroeconomic headwinds affecting enterprise IT spending budgets pose cyclical risks, particularly if economic conditions deteriorate.
+Faster-than-expected adoption of AI-enabled products could drive revenue upside beyond our base case assumptions. Strategic partnerships or acquisitions in adjacent technology segments might accelerate market expansion. Regulatory clarity around data governance could remove competitive uncertainties and strengthen the company's compliance advantage.
+
+### Downside Risks
+
+Increasing competition from both established technology giants and emerging startups represents the primary risk to our thesis. Product development delays or customer migration challenges could impact near-term growth trajectories. Macroeconomic headwinds affecting enterprise IT spending budgets pose cyclical risks, particularly if economic conditions deteriorate.
 
 Regulatory risks warrant close monitoring, particularly around data privacy standards and potential antitrust scrutiny. Any adverse regulatory developments could necessitate costly compliance investments or operational changes. Additionally, cyber security threats and platform stability concerns remain ongoing operational risks requiring continuous investment.
 
@@ -66,7 +72,9 @@ We believe the current valuation adequately reflects the company's quality chara
 
 ---
 
-**Disclosures**: This report is intended for institutional investors only. {{BROKER_NAME}} and its affiliates may hold positions in securities mentioned in this report. For complete disclosures and important information, please refer to our website.
+### Disclosures
+
+This report is intended for institutional investors only. {{BROKER_NAME}} and its affiliates may hold positions in securities mentioned in this report. For complete disclosures and important information, please refer to our website.
 
 *For SAM demonstration purposes. {{BROKER_NAME}} is a fictional research firm.*
 

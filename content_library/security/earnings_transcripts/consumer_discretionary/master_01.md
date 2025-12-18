@@ -27,8 +27,12 @@ disclosure:
 
 # {{COMPANY_NAME}} {{FISCAL_QUARTER}} {{FISCAL_YEAR}} Earnings Call
 
-**Date**: {{PUBLISH_DATE}}  
-**Participants**: {{CEO_NAME}} (CEO), {{CFO_NAME}} (CFO)
+### Date
+
+{{PUBLISH_DATE}}
+### Participants
+
+{{CEO_NAME}} (CEO), {{CFO_NAME}} (CFO)
 
 ---
 
@@ -96,41 +100,67 @@ Operator, questions please.
 
 ## Q&A Session
 
-**Operator**: First question from Amanda Foster with Kingswell Securities Research.
+### Operator
 
-**Amanda Foster**: Congratulations. Can you talk about consumer health? Are you seeing any trade-down behavior or spending caution?
+First question from Amanda Foster with Kingswell Securities Research.
 
-**{{CEO_NAME}}**: Amanda, consumer health remains generally good in our categories. We're a premium brand, so we watch for trading down carefully. What we're seeing is consumers prioritizing value — they're still willing to pay premium prices but expect premium products and experiences in return.
+### Amanda Foster
+
+Congratulations. Can you talk about consumer health? Are you seeing any trade-down behavior or spending caution?
+
+### {{CEO_NAME}}
+
+Amanda, consumer health remains generally good in our categories. We're a premium brand, so we watch for trading down carefully. What we're seeing is consumers prioritizing value — they're still willing to pay premium prices but expect premium products and experiences in return.
 
 Our brand strength helps during uncertain times. Customers trust our quality and have emotional connections to our products. That loyalty provides resilience. We're not seeing meaningful trade-down to lower-priced alternatives.
 
 That said, we're being thoughtful about pricing. We've taken selective price increases to offset cost inflation, but we're ensuring price increases are justified by value delivered. Maintaining customer trust is more important than maximizing short-term pricing.
 
-**Operator**: Question from David Park with Crescent Point Analytics.
+### Operator
 
-**David Park**: On digital growth, how sustainable is the {{DIGITAL_GROWTH}}% rate? And what's the margin difference between digital and retail?
+Question from David Park with Crescent Point Analytics.
 
-**{{CFO_NAME}}**: Digital growth should remain strong though likely moderating from current peak rates. We see long-term structural shift toward online purchasing, particularly in younger demographics. Our digital channel can sustain 15-20% growth for several more years as we gain share and the overall market expands.
+### David Park
+
+On digital growth, how sustainable is the {{DIGITAL_GROWTH}}% rate? And what's the margin difference between digital and retail?
+
+### {{CFO_NAME}}
+
+Digital growth should remain strong though likely moderating from current peak rates. We see long-term structural shift toward online purchasing, particularly in younger demographics. Our digital channel can sustain 15-20% growth for several more years as we gain share and the overall market expands.
 
 On margins, direct digital sales have gross margins {{DIGITAL_MARGIN_PREMIUM}}ppts higher than wholesale and {{DIGITAL_VS_RETAIL}}ppts higher than our own retail stores when you include occupancy costs. The margin advantage makes digital growth particularly valuable from profitability perspective.
 
 That said, digital requires marketing spend to drive traffic and customer acquisition costs can be high. On a full P&L basis, digital and retail have comparable profitability, though digital scales better with growth.
 
-**Operator**: Question from Lisa Thompson with Sterling Wharf Intelligence.
+### Operator
 
-**Lisa Thompson**: Can you discuss inventory levels and any discounting or promotional activity?
+Question from Lisa Thompson with Sterling Wharf Intelligence.
 
-**{{CFO_NAME}}**: Inventory management has been excellent this quarter. We ended with ${{INVENTORY}}B in inventory, representing {{INVENTORY_DAYS}} days, which is healthy and appropriate for our seasonal patterns. We're not sitting on excess inventory requiring heavy markdowns.
+### Lisa Thompson
+
+Can you discuss inventory levels and any discounting or promotional activity?
+
+### {{CFO_NAME}}
+
+Inventory management has been excellent this quarter. We ended with ${{INVENTORY}}B in inventory, representing {{INVENTORY_DAYS}} days, which is healthy and appropriate for our seasonal patterns. We're not sitting on excess inventory requiring heavy markdowns.
 
 Promotional activity was in line with historical norms for the quarter. We ran planned promotions during key shopping events but didn't see need for elevated discounting to move product. Sell-through rates were strong, and margin realization was good.
 
-**{{CEO_NAME}}**: I'd add that our inventory planning and demand forecasting have improved significantly through data analytics and AI. We're better at predicting demand, aligning production, and minimizing excess stock situations. This drives both margin improvement and working capital efficiency.
+### {{CEO_NAME}}
 
-**Operator**: Final question from Thomas Richardson with Northgate Analytics.
+I'd add that our inventory planning and demand forecasting have improved significantly through data analytics and AI. We're better at predicting demand, aligning production, and minimizing excess stock situations. This drives both margin improvement and working capital efficiency.
 
-**Thomas Richardson**: On sustainability, can you update us on ESG initiatives and whether consumers are rewarding sustainable products with higher purchase intent?
+### Operator
 
-**{{CEO_NAME}}**: Sustainability is core to our strategy. We're making good progress toward our 2030 targets including {{SUSTAINABILITY_METRIC}}. This quarter we launched our first product line using {{SUSTAINABLE_MATERIAL}}% recycled materials, and consumer response has been very positive.
+Final question from Thomas Richardson with Northgate Analytics.
+
+### Thomas Richardson
+
+On sustainability, can you update us on ESG initiatives and whether consumers are rewarding sustainable products with higher purchase intent?
+
+### {{CEO_NAME}}
+
+Sustainability is core to our strategy. We're making good progress toward our 2030 targets including {{SUSTAINABILITY_METRIC}}. This quarter we launched our first product line using {{SUSTAINABLE_MATERIAL}}% recycled materials, and consumer response has been very positive.
 
 On purchase intent, we're definitely seeing sustainability influence decisions, particularly with younger consumers. Products marketed with sustainability attributes have {{SUSTAINABLE_PREMIUM}}% price premium and growing category share. This validates our sustainability investments both from brand and business perspectives.
 
@@ -142,11 +172,15 @@ We view sustainability as both responsibility and opportunity. Doing right thing
 
 Thank you all for your time today. {{FISCAL_QUARTER}} was an excellent quarter demonstrating our brand strength, operational excellence, and growth opportunities. We're excited about our momentum and look forward to updating you on progress next quarter.
 
-**Operator**: This concludes the {{COMPANY_NAME}} earnings call. Thank you for participating.
+### Operator
+
+This concludes the {{COMPANY_NAME}} earnings call. Thank you for participating.
 
 ---
 
-**Safe Harbor**: Forward-looking statements subject to risks. See SEC filings.
+### Safe Harbor
+
+Forward-looking statements subject to risks. See SEC filings.
 
 *SAM Demo*
 

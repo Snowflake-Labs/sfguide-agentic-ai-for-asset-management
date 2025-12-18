@@ -31,8 +31,12 @@ disclosure:
 **{{BROKER_NAME}} | {{SIC_DESCRIPTION}} Equity Research**  
 {{ANALYST_NAME}}, Senior Analyst | {{PUBLISH_DATE}}
 
-**Investment Rating**: **{{RATING}}**  
-**Price Target**: ${{PRICE_TARGET_USD}} (12-month)
+### Investment Rating
+
+**{{RATING}}**
+### Price Target
+
+${{PRICE_TARGET_USD}} (12-month)
 
 ## Executive Summary
 
@@ -56,23 +60,39 @@ Cash flow generation remains exceptional, with free cash flow conversion consist
 
 ## Growth Opportunities
 
-**Advertising Market Share Gains**: Digital advertising continues gaining share from traditional media, with industry growth rates in mid-teens percentage range. {{COMPANY_NAME}} is positioned to capture disproportionate share given its scale advantages, targeting capabilities, and measurable ROI for advertisers.
+### Advertising Market Share Gains
 
-**International Expansion**: Whilst the company maintains strong positions in developed markets, emerging market penetration remains relatively early stage. Rising smartphone adoption, improving internet infrastructure, and growing middle-class consumer spending in Asia, Latin America, and Africa create substantial international growth opportunities.
+Digital advertising continues gaining share from traditional media, with industry growth rates in mid-teens percentage range. {{COMPANY_NAME}} is positioned to capture disproportionate share given its scale advantages, targeting capabilities, and measurable ROI for advertisers.
 
-**AI and Machine Learning**: The company's AI capabilities enhance ad targeting effectiveness, improve content recommendations, and enable new product features. Ongoing AI investments should drive both user engagement and monetisation efficiency improvements.
+### International Expansion
 
-**Adjacent Market Opportunities**: Cloud computing services, hardware products, and digital payment services represent diversification opportunities leveraging existing capabilities and customer relationships.
+Whilst the company maintains strong positions in developed markets, emerging market penetration remains relatively early stage. Rising smartphone adoption, improving internet infrastructure, and growing middle-class consumer spending in Asia, Latin America, and Africa create substantial international growth opportunities.
+
+### AI and Machine Learning
+
+The company's AI capabilities enhance ad targeting effectiveness, improve content recommendations, and enable new product features. Ongoing AI investments should drive both user engagement and monetisation efficiency improvements.
+
+### Adjacent Market Opportunities
+
+Cloud computing services, hardware products, and digital payment services represent diversification opportunities leveraging existing capabilities and customer relationships.
 
 ## Risk Assessment
 
-**Regulatory and Policy Risks**: Increasing regulatory scrutiny regarding data privacy, content moderation, and market dominance represents the primary risk to our investment thesis. Potential regulatory outcomes include data usage restrictions, content liability expansion, or structural remedies that could materially impact business operations and economics.
+### Regulatory and Policy Risks
 
-**User Privacy and Data Regulation**: Evolving privacy regulations including GDPR, CCPA, and similar frameworks limit data collection and usage, potentially impacting ad targeting effectiveness. Apple's iOS privacy changes have already demonstrated how platform policy shifts can affect advertising business models.
+Increasing regulatory scrutiny regarding data privacy, content moderation, and market dominance represents the primary risk to our investment thesis. Potential regulatory outcomes include data usage restrictions, content liability expansion, or structural remedies that could materially impact business operations and economics.
 
-**Competition and Innovation**: Whilst the company maintains dominant market positions, competitive threats from established rivals and emerging platforms require continuous innovation investment. User attention is finite, and new social media platforms or content consumption patterns could shift engagement away from the company's properties.
+### User Privacy and Data Regulation
 
-**Advertiser Spending Sensitivity**: Digital advertising expenditure correlates with overall economic activity and corporate marketing budgets. Economic downturns typically drive advertising cutbacks, creating cyclical revenue risk despite secular growth tailwinds.
+Evolving privacy regulations including GDPR, CCPA, and similar frameworks limit data collection and usage, potentially impacting ad targeting effectiveness. Apple's iOS privacy changes have already demonstrated how platform policy shifts can affect advertising business models.
+
+### Competition and Innovation
+
+Whilst the company maintains dominant market positions, competitive threats from established rivals and emerging platforms require continuous innovation investment. User attention is finite, and new social media platforms or content consumption patterns could shift engagement away from the company's properties.
+
+### Advertiser Spending Sensitivity
+
+Digital advertising expenditure correlates with overall economic activity and corporate marketing budgets. Economic downturns typically drive advertising cutbacks, creating cyclical revenue risk despite secular growth tailwinds.
 
 ## Valuation and Price Target
 
@@ -86,7 +106,9 @@ Relative valuation suggests reasonable upside from current levels. Whilst {{COMP
 
 ---
 
-**Analyst Certification**: {{ANALYST_NAME}} certifies that the views expressed herein accurately reflect the analyst's personal views about {{COMPANY_NAME}}.
+### Analyst Certification
+
+{{ANALYST_NAME}} certifies that the views expressed herein accurately reflect the analyst's personal views about {{COMPANY_NAME}}.
 
 *Demo content. {{BROKER_NAME}} is fictional.*
 

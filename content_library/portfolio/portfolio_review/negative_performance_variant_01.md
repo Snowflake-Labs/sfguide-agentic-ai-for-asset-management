@@ -46,10 +46,18 @@ placeholders:
 
 # Quarterly Portfolio Review
 
-**Portfolio**: {{PORTFOLIO_NAME}}  
-**Reporting Period**: {{FISCAL_QUARTER}}  
-**Report Date**: {{REPORT_DATE}}  
-**Prepared By**: Snowcrest Asset Management Portfolio Management Team
+### Portfolio
+
+{{PORTFOLIO_NAME}}
+### Reporting Period
+
+{{FISCAL_QUARTER}}
+### Report Date
+
+{{REPORT_DATE}}
+### Prepared By
+
+Snowcrest Asset Management Portfolio Management Team
 
 ---
 
@@ -59,13 +67,15 @@ placeholders:
 
 The {{PORTFOLIO_NAME}} delivered a return of {{QTD_RETURN_PCT}}% for the quarter, {{RELATIVE_PERFORMANCE}} the benchmark return of {{BENCHMARK_QTD_PCT}}% by {{RELATIVE_RETURN_DIFF}} percentage points. Year-to-date, the portfolio has generated {{YTD_RETURN_PCT}}% compared to the benchmark's {{BENCHMARK_YTD_PCT}}%.
 
-**Quarterly Performance Summary**:
+### Quarterly Performance Summary
+
 - Portfolio return: {{QTD_RETURN_PCT}}%
 - Benchmark return: {{BENCHMARK_QTD_PCT}}%
 - Relative performance: {{RELATIVE_RETURN_DIFF}}%
 - Year-to-date: {{YTD_RETURN_PCT}}% vs benchmark {{BENCHMARK_YTD_PCT}}%
 
-**Key Themes**:
+### Key Themes
+
 - Market volatility and sector rotation created challenging conditions for growth-oriented positioning
 - Active risk management preserved capital and maintained strategic allocations
 - Portfolio positioning remains aligned with long-term investment themes
@@ -85,11 +95,17 @@ Despite near-term market challenges, the fundamental drivers of our investment t
 
 ## Performance Attribution
 
-**Sector Allocation Effects**: Our overweight positioning in Information Technology and Communication Services detracted from relative performance during the quarter as these sectors underperformed the broader market. Conversely, our underweight to Energy and Materials proved costly as commodity-related sectors rallied on supply concerns and inflation hedging dynamics.
+### Sector Allocation Effects
 
-**Stock Selection**: Security selection was modestly positive in aggregate, with several portfolio holdings delivering strong company-specific performance despite challenging sector conditions. Our largest position, {{LARGEST_POSITION_NAME}} ({{LARGEST_POSITION_WEIGHT}}% of portfolio), performed in line with sector averages. Several mid-cap technology holdings demonstrated resilience, beating sector performance through strong execution and earnings results.
+Our overweight positioning in Information Technology and Communication Services detracted from relative performance during the quarter as these sectors underperformed the broader market. Conversely, our underweight to Energy and Materials proved costly as commodity-related sectors rallied on supply concerns and inflation hedging dynamics.
 
-**Active Management Decisions**: We maintained discipline around our strategic themes during the volatility, resisting pressure to abandon long-term convictions for short-term performance improvement. We did trim certain positions that had appreciated significantly prior to the quarter, which provided some downside protection. These proceeds were redeployed into higher-conviction names that had sold off on sector weakness rather than company-specific concerns.
+### Stock Selection
+
+Security selection was modestly positive in aggregate, with several portfolio holdings delivering strong company-specific performance despite challenging sector conditions. Our largest position, {{LARGEST_POSITION_NAME}} ({{LARGEST_POSITION_WEIGHT}}% of portfolio), performed in line with sector averages. Several mid-cap technology holdings demonstrated resilience, beating sector performance through strong execution and earnings results.
+
+### Active Management Decisions
+
+We maintained discipline around our strategic themes during the volatility, resisting pressure to abandon long-term convictions for short-term performance improvement. We did trim certain positions that had appreciated significantly prior to the quarter, which provided some downside protection. These proceeds were redeployed into higher-conviction names that had sold off on sector weakness rather than company-specific concerns.
 
 ---
 
@@ -101,23 +117,33 @@ Despite near-term market challenges, the fundamental drivers of our investment t
 
 {{CONCENTRATION_WARNING_TEXT}}
 
-**Portfolio Positioning**: Our current holdings reflect conviction in technology-driven secular growth themes despite near-term market headwinds. The portfolio maintains overweight positions in Information Technology ({{TECH_WEIGHT}}% vs benchmark {{TECH_BENCH_WEIGHT}}%) and Communication Services ({{COMM_WEIGHT}}% vs benchmark {{COMM_BENCH_WEIGHT}}%).
+### Portfolio Positioning
 
-**Sector Allocation**:
+Our current holdings reflect conviction in technology-driven secular growth themes despite near-term market headwinds. The portfolio maintains overweight positions in Information Technology ({{TECH_WEIGHT}}% vs benchmark {{TECH_BENCH_WEIGHT}}%) and Communication Services ({{COMM_WEIGHT}}% vs benchmark {{COMM_BENCH_WEIGHT}}%).
+
+### Sector Allocation
 
 {{SECTOR_ALLOCATION_TABLE}}
 
-**Recent Portfolio Activity**: During the quarter, we added to positions in several high-quality technology companies that experienced valuation compression on sector weakness rather than company-specific concerns. These additions improved portfolio quality whilst taking advantage of attractive entry points. We exited one position in the Consumer Discretionary sector due to deteriorating company-specific fundamentals.
+### Recent Portfolio Activity
+
+During the quarter, we added to positions in several high-quality technology companies that experienced valuation compression on sector weakness rather than company-specific concerns. These additions improved portfolio quality whilst taking advantage of attractive entry points. We exited one position in the Consumer Discretionary sector due to deteriorating company-specific fundamentals.
 
 ---
 
 ## Risk Management
 
-**Concentration Monitoring**: {{CONCENTRATION_WARNING_STATEMENT}} We actively monitor all positions approaching concentration thresholds and maintain documented plans for position reduction if limits are approached.
+### Concentration Monitoring
 
-**Volatility Management**: Portfolio volatility increased during the quarter consistent with broader market conditions, though remained within expected parameters given our growth-oriented positioning. Estimated annual volatility of {{PORTFOLIO_VOL}}% reflects the technology sector weighting and represents appropriate risk-taking given portfolio mandate.
+{{CONCENTRATION_WARNING_STATEMENT}} We actively monitor all positions approaching concentration thresholds and maintain documented plans for position reduction if limits are approached.
 
-**Downside Protection**: Whilst the portfolio experienced negative absolute returns this quarter, the decline was contained relative to potential downside given market volatility. Our focus on high-quality companies with strong balance sheets, positive free cash flow, and defensible market positions provided some resilience.
+### Volatility Management
+
+Portfolio volatility increased during the quarter consistent with broader market conditions, though remained within expected parameters given our growth-oriented positioning. Estimated annual volatility of {{PORTFOLIO_VOL}}% reflects the technology sector weighting and represents appropriate risk-taking given portfolio mandate.
+
+### Downside Protection
+
+Whilst the portfolio experienced negative absolute returns this quarter, the decline was contained relative to potential downside given market volatility. Our focus on high-quality companies with strong balance sheets, positive free cash flow, and defensible market positions provided some resilience.
 
 ---
 
@@ -133,9 +159,13 @@ Our medium-term outlook for equity markets incorporates both near-term uncertain
 - **Digital Transformation**: Structural shift toward digital business models accelerating despite economic uncertainty
 - **Cybersecurity**: Increasing threat environment driving sustained security spending
 
-**Portfolio Strategy**: We intend to maintain our strategic positioning in technology and growth-oriented sectors, viewing current market conditions as creating attractive long-term entry points rather than signaling fundamental weakness. The portfolio's investment horizon allows us to look through near-term volatility toward long-term value creation.
+### Portfolio Strategy
 
-**Tactical Considerations**: Should market volatility provide further valuation compression in our high-conviction holdings, we are prepared to add selectively to positions. Conversely, any rapid market recovery that restores full valuations would prompt disciplined profit-taking and rebalancing toward target weights.
+We intend to maintain our strategic positioning in technology and growth-oriented sectors, viewing current market conditions as creating attractive long-term entry points rather than signaling fundamental weakness. The portfolio's investment horizon allows us to look through near-term volatility toward long-term value creation.
+
+### Tactical Considerations
+
+Should market volatility provide further valuation compression in our high-conviction holdings, we are prepared to add selectively to positions. Conversely, any rapid market recovery that restores full valuations would prompt disciplined profit-taking and rebalancing toward target weights.
 
 ---
 
@@ -143,19 +173,23 @@ Our medium-term outlook for equity markets incorporates both near-term uncertain
 
 The {{PORTFOLIO_NAME}} experienced challenging market conditions this quarter, with sector rotation headwinds impacting relative performance. However, portfolio positioning remains aligned with our investment process, strategic themes, and mandate objectives. We maintain conviction in our holdings and view current valuations as attractive for long-term wealth creation.
 
-**Monitoring Priorities**:
+### Monitoring Priorities
+
 - Track concentration levels in largest holdings ({{LARGEST_POSITION_NAME}})
 - Monitor technology sector relative valuation for tactical opportunities
 - Assess portfolio positioning relative to evolving market leadership
 
-**Action Items**:
+### Action Items
+
 - Continue monitoring largest position ({{LARGEST_POSITION_NAME}}) relative to 6.5% threshold
 - Review rebalancing opportunities if market volatility provides attractive entry points
 - Maintain communication with portfolio companies regarding execution and outlook
 
 ---
 
-**Important Disclosures**: Past performance does not guarantee future results. Portfolio holdings and allocations subject to change. This report is for informational purposes and does not constitute investment advice. Please refer to Investment Policy Statement for complete portfolio guidelines.
+### Important Disclosures
+
+Past performance does not guarantee future results. Portfolio holdings and allocations subject to change. This report is for informational purposes and does not constitute investment advice. Please refer to Investment Policy Statement for complete portfolio guidelines.
 
 *Snowcrest Asset Management Quarterly Portfolio Review — {{REPORT_DATE}}*
 
