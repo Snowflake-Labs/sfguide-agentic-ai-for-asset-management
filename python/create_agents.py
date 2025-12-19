@@ -1163,25 +1163,25 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     financial_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_SEC_FINANCIALS_VIEW"
     implementation_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_IMPLEMENTATION_VIEW"
     supply_chain_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_SUPPLY_CHAIN_VIEW"
     search_broker_research:
       search_service: "{database_name}.AI.SAM_BROKER_RESEARCH"
@@ -1222,7 +1222,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
       execution_environment:
         query_timeout: 60
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       identifier: "{database_name}.AI.GENERATE_INVESTMENT_COMMITTEE_PDF"
       name: "GENERATE_INVESTMENT_COMMITTEE_PDF(VARCHAR, VARCHAR, VARCHAR)"
       type: "procedure"
@@ -1230,13 +1230,13 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_STOCK_PRICES_VIEW"
     sec_financials:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_REAL_SEC_VIEW"
   $$;
 """
@@ -1373,13 +1373,13 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_research_copilot
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_SEC_FINANCIALS_VIEW"
     fundamentals_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_FUNDAMENTALS_VIEW"
     search_broker_research:
       search_service: "{database_name}.AI.SAM_BROKER_RESEARCH"
@@ -1400,7 +1400,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_research_copilot
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_REAL_SEC_VIEW"
     search_sec_filings:
       search_service: "{database_name}.AI.SAM_REAL_SEC_FILINGS"
@@ -1458,7 +1458,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_thematic_macro_advisor
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     search_broker_research:
       search_service: "{database_name}.AI.SAM_BROKER_RESEARCH"
@@ -1540,7 +1540,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_esg_guardian
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     search_ngo_reports:
       search_service: "{database_name}.AI.SAM_NGO_REPORTS"
@@ -1611,7 +1611,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_compliance_advisor
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     search_policies:
       search_service: "{database_name}.AI.SAM_POLICY_DOCS"
@@ -1666,7 +1666,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_sales_advisor
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     search_sales_templates:
       search_service: "{database_name}.AI.SAM_SALES_TEMPLATES"
@@ -1730,13 +1730,13 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_quant_analyst
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_QUANT_VIEW"
     financial_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_SEC_FINANCIALS_VIEW"
     search_broker_research:
       search_service: "{database_name}.AI.SAM_BROKER_RESEARCH"
@@ -1752,7 +1752,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_quant_analyst
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_STOCK_PRICES_VIEW"
   $$;
 """
@@ -2366,7 +2366,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_middle_office_copilot
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_MIDDLE_OFFICE_VIEW"
     search_custodian_reports:
       search_service: "{database_name}.AI.SAM_CUSTODIAN_REPORTS"
@@ -2828,25 +2828,25 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_executive_copilot
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_EXECUTIVE_VIEW"
     quantitative_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     financial_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_SEC_FINANCIALS_VIEW"
     implementation_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_EXECUTION_WH"
+        warehouse: "SAM_DEMO_WH"
       semantic_view: "{database_name}.AI.SAM_IMPLEMENTATION_VIEW"
     search_strategy_docs:
       search_service: "{database_name}.AI.SAM_STRATEGY_DOCUMENTS"
