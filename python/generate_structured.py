@@ -42,15 +42,17 @@ def build_all(session: Session, scenarios: List[str], test_mode: bool = False):
     
 
 def create_database_structure(session: Session):
-    """Create database and schema structure."""
+    """Create schema structure (database already exists from setup.sql)."""
     try:
-        session.sql(f"CREATE OR REPLACE DATABASE {config.DATABASE['name']}").collect()
-        session.sql(f"CREATE OR REPLACE SCHEMA {config.DATABASE['name']}.RAW").collect()
-        session.sql(f"CREATE OR REPLACE SCHEMA {config.DATABASE['name']}.CURATED").collect()
-        session.sql(f"CREATE OR REPLACE SCHEMA {config.DATABASE['name']}.AI").collect()
+        # Don't create/replace the database - it's already created by setup.sql
+        # and contains the stored procedure we're running from!
+        # Only create schemas if they don't exist
+        session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.RAW").collect()
+        session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.CURATED").collect()
+        session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.AI").collect()
         session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.MARKET_DATA").collect()
     except Exception as e:
-        config.log_error(f" Failed to create database structure: {e}")
+        config.log_error(f" Failed to create schema structure: {e}")
         raise
 
 def check_market_data_table_exists(session: Session, table_name: str) -> bool:
