@@ -88,14 +88,14 @@ GRANT ROLE SAM_DEMO_ROLE TO ROLE ACCOUNTADMIN;
 -- ============================================================================
 
 CREATE WAREHOUSE IF NOT EXISTS SAM_DEMO_WH
-    WAREHOUSE_SIZE = 'LARGE'
+    WAREHOUSE_SIZE = 'XLARGE'
     AUTO_SUSPEND = 60
     AUTO_RESUME = TRUE
     INITIALLY_SUSPENDED = TRUE
     COMMENT = 'Warehouse for SAM demo operations';
 
--- Ensure warehouse is LARGE (in case it already exists with different size)
-ALTER WAREHOUSE SAM_DEMO_WH SET WAREHOUSE_SIZE = 'LARGE';
+-- Ensure warehouse is XLARGE (in case it already exists with different size)
+ALTER WAREHOUSE SAM_DEMO_WH SET WAREHOUSE_SIZE = 'XLARGE';
 
 GRANT USAGE ON WAREHOUSE SAM_DEMO_WH TO ROLE SAM_DEMO_ROLE;
 

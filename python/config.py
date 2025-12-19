@@ -56,12 +56,12 @@ DATABASE = {
 WAREHOUSES = {
     'execution': {
         'name': 'SAM_DEMO_WH',
-        'size': 'LARGE',
+        'size': 'XLARGE',
         'comment': 'Warehouse for SAM demo data generation and execution'
     },
     'cortex_search': {
         'name': 'SAM_DEMO_WH',
-        'size': 'LARGE',
+        'size': 'XLARGE',
         'target_lag': '1 hour',
         'comment': 'Warehouse for SAM demo Cortex Search services'
     }
