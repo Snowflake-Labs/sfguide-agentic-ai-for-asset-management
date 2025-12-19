@@ -36,15 +36,25 @@ disclosure:
 
 ## Investment Thesis
 
+### Rating Rationale
+
 We maintain our **{{RATING}}** rating on {{COMPANY_NAME}}, reflecting the company's strong execution in a dynamic {{SIC_DESCRIPTION}} landscape. The company continues to demonstrate impressive revenue momentum with {{YOY_REVENUE_GROWTH_PCT}}% year-over-year growth whilst maintaining industry-leading profitability metrics. Our investment case centres on three key pillars: accelerating adoption of the company's cloud-based platform offerings, expanding addressable markets through AI and machine learning capabilities, and operating leverage driving margin expansion.
+
+### Strategic Positioning
 
 The company's strategic positioning within high-growth technology segments provides multiple expansion vectors. Management's focus on recurring revenue streams and platform economics has successfully shifted the business model toward more predictable, higher-margin revenue. We expect this transition to continue delivering both top-line growth and profitability improvements over our forecast period.
 
 ## Financial Analysis
 
+### Current Performance
+
 {{COMPANY_NAME}}'s financial performance demonstrates the strength of its competitive position and operational execution. Revenue growth of {{YOY_REVENUE_GROWTH_PCT}}% significantly outpaces broader {{SIC_DESCRIPTION}} sector trends, driven by market share gains and strong customer retention metrics. The company's gross margin of {{GROSS_MARGIN_PCT}}% reflects the value proposition of its technology platform, whilst EBIT margins of {{EBIT_MARGIN_PCT}}% highlight disciplined operational management.
 
+### Cash Flow and Capital Allocation
+
 Cash flow generation remains robust, supporting both organic growth investments and shareholder returns through dividends and share repurchases. The balance sheet provides ample flexibility with modest leverage and substantial cash reserves. We view the company's capital allocation framework as balanced and shareholder-friendly, prioritising high-return organic investments whilst returning excess capital to shareholders.
+
+### Forward Outlook
 
 Looking ahead, we model continued revenue acceleration as new product cycles gain traction and international markets contribute more meaningfully. Operating leverage should drive margin expansion, with EBIT margins potentially reaching {{EBIT_MARGIN_PCT_UPPER}}% over the next 24-36 months as the company scales its cloud infrastructure and benefits from platform network effects.
 
@@ -62,7 +72,11 @@ Regulatory risks warrant close monitoring, particularly around data privacy stan
 
 ## Valuation
 
+### Price Target Methodology
+
 Our ${{PRICE_TARGET_USD}} price target reflects a blend of valuation methodologies. Our discounted cash flow analysis yields a fair value of ${{PRICE_TARGET_USD}}, assuming normalized growth rates and terminal value multiples consistent with historical sector averages. On a relative basis, our target implies a forward P/E of {{PE_RATIO}}x, representing an appropriate premium to the {{SIC_DESCRIPTION}} sector median given the company's superior growth profile and profitability metrics.
+
+### Valuation Assessment
 
 We believe the current valuation adequately reflects the company's quality characteristics whilst providing attractive risk-adjusted return potential. The {{RATING}} rating incorporates both fundamental analysis and technical considerations, suggesting favourable entry points for long-term investors.
 

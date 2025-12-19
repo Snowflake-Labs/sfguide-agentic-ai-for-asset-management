@@ -1,0 +1,266 @@
+---
+alwaysApply: true
+---
+
+# SAM Demo - Cortex Search Creation Guide
+
+Complete step-by-step guide for creating and testing Cortex Search services for document search.
+
+**Related Rules**: 
+- @agent-config.mdc - For agent configuration using search services
+- @data-generation.mdc - For document corpus creation
+- @troubleshooting.mdc - For search service troubleshooting
+
+## Overview
+
+Cortex Search services enable AI-powered document search across unstructured content. This guide provides the exact syntax patterns, validation procedures, and troubleshooting steps needed to create working search services.
+
+## Step 1: Prerequisites and Preparation
+
+### 1.1 Verify Corpus Table Structure
+Before creating a search service, verify the corpus table exists and has the required columns:
+
+```python
+def verify_corpus_table(session: Session, corpus_table: str):
+    """Verify corpus table exists and has required columns"""
+    try:
+        # Test table access
+        session.sql(f"SELECT 1 FROM {corpus_table} LIMIT 1").collect()
+        
+        # Check required columns exist
+        columns = session.sql(f"DESCRIBE TABLE {corpus_table}").collect()
+        column_names = [row['name'] for row in columns]
+        
+        required_columns = ['DOCUMENT_ID', 'DOCUMENT_TITLE', 'DOCUMENT_TEXT']
+        missing_columns = [col for col in required_columns if col not in column_names]
+        
+        if missing_columns:
+            print(f"❌ Missing required columns: {missing_columns}")
+            return False
+            
+        print(f"✅ Corpus table validated: {corpus_table}")
+        print(f"   Columns: {column_names}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Corpus table not accessible: {e}")
+        return False
+```
+
+### 1.2 Validate Content Quality
+Ensure the corpus table has searchable content:
+
+```sql
+-- Check document count and content quality
+SELECT 
+    COUNT(*) as total_docs,
+    COUNT(CASE WHEN LENGTH(DOCUMENT_TEXT) > 100 THEN 1 END) as docs_with_content,
+    AVG(LENGTH(DOCUMENT_TEXT)) as avg_content_length
+FROM {corpus_table};
+```
+
+## Step 2: Search Service Creation
+
+### 2.1 Correct Syntax Format (CRITICAL)
+
+**Service Creation Pattern:**
+```sql
+CREATE OR REPLACE CORTEX SEARCH SERVICE <service_name>
+    ON <content_column>
+    ATTRIBUTES <attribute1>, <attribute2>, <attribute3>
+    WAREHOUSE = <warehouse_name>
+    TARGET_LAG = '<time_period>'
+    AS 
+    SELECT 
+        <id_column>,
+        <title_column> AS <title_alias>,
+        <content_column> AS <content_alias>,
+        <attribute_columns>
+    FROM <corpus_table>
+```
+
+**Critical Requirements:**
+- **ATTRIBUTES must match SELECT columns**: If SELECT has `TITLE`, ATTRIBUTES must include `TITLE`
+- **ON content_column**: Specify the searchable content column
+- **WAREHOUSE is mandatory**: Use dedicated warehouse or `CURRENT_WAREHOUSE()`
+- **AS SELECT pattern**: Complete SELECT with proper column aliases
+- **TARGET_LAG considerations**: Use '5 minutes' for demos (faster refresh), '1 day' for production
+
+### 2.2 Complete Working Example
+```sql
+-- Enhanced search service with SecurityID and IssuerID support
+CREATE OR REPLACE CORTEX SEARCH SERVICE SAM_DEMO.AI.SAM_BROKER_RESEARCH
+    ON DOCUMENT_TEXT
+    ATTRIBUTES DOCUMENT_TITLE, SecurityID, IssuerID, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE
+    WAREHOUSE = SAM_DEMO_CORTEX_WH
+    TARGET_LAG = '5 minutes'  -- Use shorter lag for demos (5 minutes vs 1 day)
+    AS 
+    SELECT 
+        DOCUMENT_ID,
+        DOCUMENT_TITLE,
+        DOCUMENT_TEXT,
+        SecurityID,
+        IssuerID,
+        DOCUMENT_TYPE,
+        PUBLISH_DATE,
+        LANGUAGE
+    FROM SAM_DEMO.CURATED.BROKER_RESEARCH_CORPUS;
+```
+
+### 2.3 Implementation Template
+```python
+def create_search_service(session: Session, service_name: str, corpus_table: str):
+    """Create search service using correct syntax"""
+    
+    # Step 1: Get current warehouse
+    try:
+        current_warehouse = session.sql("SELECT CURRENT_WAREHOUSE()").collect()[0][0]
+        if not current_warehouse:
+            print("❌ No warehouse available")
+            return False
+    except Exception as e:
+        print(f"❌ Failed to get warehouse: {e}")
+        return False
+    
+    # Step 2: Create search service
+    try:
+        session.sql(search_service_sql).collect()
+        print(f"✅ Created search service: {service_name}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to create search service: {e}")
+        
+        # Diagnose common issues
+        if "Missing option" in str(e):
+            print("🔍 Check WAREHOUSE parameter")
+        elif "invalid identifier" in str(e):
+            print("🔍 Verify ATTRIBUTES match SELECT columns")
+        elif "table not found" in str(e):
+            print("🔍 Verify corpus table exists")
+            
+        return False
+```
+
+## Step 3: Validation and Testing
+
+### 3.1 Basic Service Validation
+```sql
+-- 1. Verify service was created
+SHOW CORTEX SEARCH SERVICES IN SAM_DEMO.AI;
+
+-- 2. Check service details
+DESCRIBE CORTEX SEARCH SERVICE {service_name};
+```
+
+### 3.2 Search Testing (MANDATORY)
+Test search services systematically:
+
+**Testing Strategy:**
+1. **Basic Search**: Simple query to verify functionality
+2. **Content Relevance**: Test with domain-specific queries
+3. **Filter Testing**: Test attribute-based filtering (if applicable)
+4. **Edge Cases**: Test with empty results, complex queries
+
+**Testing Pattern:**
+```sql
+-- Basic functionality test
+SELECT SNOWFLAKE.CORTEX.SEARCH_PREVIEW(
+    '{service_name}',
+    '{"query": "test query", "limit": 1}'
+);
+
+-- Domain-specific test
+SELECT SNOWFLAKE.CORTEX.SEARCH_PREVIEW(
+    '{service_name}',
+    '{"query": "{relevant_business_term}", "limit": 3}'
+);
+
+-- Filter test (if attributes support filtering)
+SELECT SNOWFLAKE.CORTEX.SEARCH_PREVIEW(
+    '{service_name}',
+    '{"query": "query", "filter": {"{attribute_name}": "{filter_value}"}, "limit": 2}'
+);
+```
+
+### 3.3 Validation Checklist
+- [ ] Search service created without errors
+- [ ] `SHOW CORTEX SEARCH SERVICES` lists the service
+- [ ] Basic search returns results
+- [ ] Domain-specific searches return relevant content
+- [ ] Attribute filtering works (if applicable)
+- [ ] No performance issues during search
+
+## Step 4: Troubleshooting
+
+### 4.1 Common Error Messages and Solutions
+
+**"Missing option WAREHOUSE"**
+- **Cause**: WAREHOUSE parameter not specified
+- **Solution**: Add `WAREHOUSE = <warehouse_name>` to service definition
+
+**"invalid identifier"**
+- **Cause**: ATTRIBUTES don't match SELECT column aliases
+- **Solution**: Ensure ATTRIBUTES exactly match SELECT column names/aliases
+
+**"table not found"**
+- **Cause**: Corpus table doesn't exist or not accessible
+- **Solution**: Verify corpus table exists with `SELECT COUNT(*) FROM {corpus_table}`
+
+**"syntax error"**
+- **Cause**: Incorrect AS SELECT pattern or column mappings
+- **Solution**: Verify AS SELECT syntax and column aliases
+
+### 4.2 Performance and Quality Issues
+
+**Search returns no results:**
+- Check if corpus table has content: `SELECT COUNT(*) FROM {corpus_table}`
+- Verify DOCUMENT_TEXT column has searchable text
+- Test with simpler queries first
+
+**Poor search relevance:**
+- Ensure DOCUMENT_TEXT contains clean, readable content
+- Check for encoding or formatting issues in text
+- Verify document language matches expected content
+
+**Slow search performance:**
+- Consider TARGET_LAG settings (5 minutes for demos, 1 day for production)
+- Monitor warehouse size during service creation
+- Split large document collections into multiple services
+
+## Step 5: Advanced Patterns
+
+### 5.1 Multiple Document Types
+For scenarios requiring multiple search services:
+- Create one service per document type
+- Use consistent naming patterns
+- Plan attributes based on filtering needs
+- Test services independently before agent integration
+
+### 5.2 Enhanced Attributes
+Different document types may need different attributes:
+
+**Security-Specific Documents:**
+```sql
+ATTRIBUTES DOCUMENT_TITLE, SecurityID, IssuerID, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE
+```
+
+**Global Documents:**
+```sql
+ATTRIBUTES DOCUMENT_TITLE, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE
+```
+
+**ESG Documents:**
+```sql
+ATTRIBUTES DOCUMENT_TITLE, SecurityID, IssuerID, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE, SEVERITY_LEVEL
+```
+
+### 5.3 Service Configuration for Agents
+For Snowflake Intelligence agent setup:
+- **Service Name**: Full path (e.g., `SAM_DEMO.AI.SAM_BROKER_RESEARCH`)
+- **ID Column**: `DOCUMENT_ID`
+- **Title Column**: Use alias from SELECT (e.g., `DOCUMENT_TITLE` not `TITLE`)
+- **Description**: Clear guidance on when agents should use each service
+
+## Summary
+
+This guide provides a complete workflow for creating Cortex Search services that work reliably with document search. Follow the steps sequentially for best results, and refer back to the syntax patterns and troubleshooting sections as needed.

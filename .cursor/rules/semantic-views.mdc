@@ -1,0 +1,669 @@
+---
+alwaysApply: true
+---
+# SAM Demo - Semantic Views Creation Guide
+
+Complete step-by-step guide for creating and testing SEMANTIC VIEWs for Cortex Analyst.
+
+**Related Rules**: 
+- @agent-config.mdc - For agent configuration using semantic views
+- @data-generation.mdc - For underlying data tables
+- @troubleshooting.mdc - For semantic view troubleshooting
+
+## 🔴 CRITICAL SYNTAX RULE - READ THIS FIRST 🔴
+
+### The #1 Rule That You Must Never Forget
+
+```
+SEMANTIC_NAME  AS  DATABASE_COLUMN
+     ↑         ↑         ↑
+   What      Always   Actual column
+   users      this     from table
+   say      direction  (from DESCRIBE)
+```
+
+**Before writing ANY dimension or metric:**
+1. Run `DESCRIBE TABLE` to get exact column names
+2. Decide what semantic name users will say
+3. Write: `TABLE.SemanticName AS ACTUAL_COLUMN_NAME`
+4. NOT: `TABLE.ACTUAL_COLUMN_NAME AS SemanticName` ← THIS IS WRONG
+
+**Quick Check:** If you see `AS LEGALNAME`, `AS SIC_DESCRIPTION`, `AS COSTSHARE` → ✅ CORRECT
+**Quick Check:** If you see `LEGALNAME AS`, `SIC_DESCRIPTION AS`, `COSTSHARE AS` → ❌ WRONG (unless in TABLES section)
+
+### Workflow for Creating Dimensions/Metrics
+
+**Step 1:** Get actual column names
+```sql
+DESCRIBE TABLE SAM_DEMO.CURATED.DIM_ISSUER;
+-- Result: ISSUERID, LEGALNAME, SIC_DESCRIPTION, COUNTRYOFINCORPORATION
+```
+
+**Step 2:** For each column, decide semantic name
+- `LEGALNAME` → Users will call it: `CompanyName` 
+- `SIC_DESCRIPTION` → Users will call it: `CompanyIndustry`
+- `COUNTRYOFINCORPORATION` → Users will call it: `CompanyCountry`
+
+**Step 3:** Write dimension with pattern: `SemanticName AS DatabaseColumn`
+```sql
+COMPANY_ISSUERS.CompanyName AS LEGALNAME
+COMPANY_ISSUERS.CompanyIndustry AS SIC_DESCRIPTION  
+COMPANY_ISSUERS.CompanyCountry AS COUNTRYOFINCORPORATION
+```
+
+**Step 4:** Verify direction by reading it as: "Call it {Semantic}, it's really {Database}"
+- ✅ "Call it CompanyName, it's really LEGALNAME" 
+- ✅ "Call it CompanyIndustry, it's really SIC_DESCRIPTION"
+
+### 🔴 CRITICAL: Querying Semantic Views 🔴
+
+**When using `SELECT * FROM SEMANTIC_VIEW()`, you MUST use the SEMANTIC NAME (the name BEFORE AS):**
+
+```sql
+-- In semantic view definition:
+PORTFOLIOS.PORTFOLIONAME AS PortfolioName
+SECURITIES.DESCRIPTION AS Description
+ISSUERS.Industry AS SIC_DESCRIPTION
+
+-- ✅ CORRECT query (use semantic names BEFORE AS):
+SELECT * FROM SEMANTIC_VIEW(
+    SAM_DEMO.AI.SAM_ANALYST_VIEW
+    METRICS TOTAL_MARKET_VALUE
+    DIMENSIONS PORTFOLIONAME, DESCRIPTION, Industry
+)
+
+-- ❌ WRONG query (using database column names AFTER AS):
+SELECT * FROM SEMANTIC_VIEW(
+    SAM_DEMO.AI.SAM_ANALYST_VIEW
+    METRICS TOTAL_MARKET_VALUE
+    DIMENSIONS PortfolioName, Description, SIC_DESCRIPTION  -- These won't work!
+)
+```
+
+**Key Rule:** 
+- **Definition**: `SemanticName AS DatabaseColumn` → Semantic name goes to Cortex Analyst
+- **Query**: Use `SemanticName` (the name BEFORE AS), NOT `DatabaseColumn` (the name AFTER AS)
+
+**Example:**
+```sql
+-- Definition:
+ISSUERS.Industry AS SIC_DESCRIPTION
+
+-- Query uses "Industry" (BEFORE AS):
+DIMENSIONS Industry  ✅
+
+-- NOT "SIC_DESCRIPTION" (AFTER AS):
+DIMENSIONS SIC_DESCRIPTION  ❌
+```
+
+---
+
+## Overview
+
+Semantic views are required for Cortex Analyst to understand your data model. This guide provides the exact syntax patterns, validation procedures, and troubleshooting steps needed to create working semantic views.
+
+## Step 1: Prerequisites and Preparation
+
+### 1.1 Verify Table Structure
+Before creating a semantic view, verify all required tables exist and check their exact column names:
+
+```python
+# Check table existence and column names
+def verify_tables_for_semantic_view(session: Session, tables: List[str]):
+    """Verify all required tables exist and get column names"""
+    for table in tables:
+        try:
+            # Test table access
+            session.sql(f"SELECT 1 FROM {table} LIMIT 1").collect()
+            
+            # Get exact column names (case-sensitive)
+            columns = session.sql(f"DESCRIBE TABLE {table}").collect()
+            print(f"✅ Table {table} columns:")
+            for row in columns:
+                print(f"   - {row['name']} ({row['type']})")
+        except Exception as e:
+            print(f"❌ Table {table} not accessible: {e}")
+            return False
+    return True
+
+# Example usage:
+required_tables = [
+    'SAM_DEMO.CURATED.FACT_POSITION_DAILY_ABOR',
+    'SAM_DEMO.CURATED.DIM_PORTFOLIO', 
+    'SAM_DEMO.CURATED.DIM_SECURITY',
+    'SAM_DEMO.CURATED.DIM_ISSUER'
+]
+verify_tables_for_semantic_view(session, required_tables)
+```
+
+### 1.2 Plan Your Synonyms (CRITICAL)
+Plan all synonyms upfront to avoid duplicates. **MANDATORY**: Validate synonym uniqueness before creating semantic view:
+
+```python
+def validate_synonym_uniqueness(dimensions_and_metrics: dict):
+    """Validate that no synonyms are duplicated across dimensions and metrics"""
+    all_synonyms = set()
+    duplicates = set()
+    
+    for item_name, synonyms in dimensions_and_metrics.items():
+        for synonym in synonyms:
+            if synonym in all_synonyms:
+                duplicates.add(synonym)
+            all_synonyms.add(synonym)
+    
+    if duplicates:
+        print(f"❌ Duplicate synonyms found: {duplicates}")
+        return False
+    print("✅ All synonyms are unique")
+    return True
+
+# Plan your synonyms before creating the semantic view
+planned_synonyms = {
+    'PORTFOLIONAME': ['fund_name', 'strategy_name', 'portfolio_name'],
+    'DESCRIPTION': ['company', 'security_name', 'description'], 
+    'LEGALNAME': ['issuer_name', 'legal_name', 'company_name'],  # Note: company_name only here
+    'SIC_DESCRIPTION': ['industry','sector','industry_type','sic_industry','business_type','industry_description','industry_classification'],
+    'TOTAL_MARKET_VALUE': ['exposure', 'aum', 'market_value']
+}
+validate_synonym_uniqueness(planned_synonyms)
+
+# CRITICAL: Check for conflicts across ALL tables, dimensions, and metrics
+# Common conflicts to avoid:
+# - 'company' vs 'company_name' vs 'company_description'
+# - 'weight' vs 'weight_percent' 
+# - 'position' vs 'position_value' vs 'position_count'
+# - 'exposure' across different contexts
+# - 'risk' in different metrics
+# - 'date' across different date dimensions
+```
+
+## Step 2: Semantic View Creation
+
+### 2.1 Correct Syntax Format (CRITICAL)
+
+## 🚨 MOST IMPORTANT RULE: Semantic Name BEFORE Database Column 🚨
+
+The pattern is **ALWAYS**:
+```
+<table_alias>.<SEMANTIC_NAME> AS <DATABASE_COLUMN_NAME>
+```
+
+**The semantic name (what users will say) comes FIRST, the actual database column name comes AFTER the AS.**
+
+### Visual Pattern Guide
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ DIMENSIONS Pattern:                                              │
+│                                                                   │
+│ TABLE_ALIAS . SemanticName  AS  ACTUAL_COLUMN_FROM_DATABASE     │
+│    ↑            ↑            ↑            ↑                      │
+│    │            │            │            │                      │
+│  Table      What users   Direction   Real column                │
+│  alias      will say     indicator   from table                 │
+│                                                                   │
+│ METRICS Pattern:                                                 │
+│                                                                   │
+│ TABLE_ALIAS . MetricName  AS  AGG_FUNCTION(COLUMN_NAME)        │
+│    ↑            ↑          ↑            ↑                       │
+│    │            │          │            │                       │
+│  Table      What users Direction  SQL aggregation               │
+│  alias      will say   indicator  with real column              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Real-World Examples (From Actual Tables)
+
+If `DIM_ISSUER` has columns: `ISSUERID`, `LEGALNAME`, `SIC_DESCRIPTION`, `COUNTRYOFINCORPORATION`
+
+```sql
+-- ✅ ✅ ✅ CORRECT - Semantic name FIRST, database column AFTER AS
+COMPANY_ISSUERS.CompanyName AS LEGALNAME
+COMPANY_ISSUERS.CompanyIndustry AS SIC_DESCRIPTION  
+COMPANY_ISSUERS.CompanyCountry AS COUNTRYOFINCORPORATION
+
+-- ❌ ❌ ❌ WRONG - Database column first (WILL CAUSE "invalid identifier" ERROR)
+COMPANY_ISSUERS.LEGALNAME AS CompanyName
+COMPANY_ISSUERS.SIC_DESCRIPTION AS CompanyIndustry
+COMPANY_ISSUERS.COUNTRYOFINCORPORATION AS CompanyCountry
+```
+
+If `DIM_SUPPLY_CHAIN_RELATIONSHIPS` has columns: `RELATIONSHIPID`, `COMPANY_ISSUERID`, `RELATIONSHIPTYPE`, `COSTSHARE`
+
+```sql
+-- ✅ ✅ ✅ CORRECT - Semantic name FIRST, database column AFTER AS  
+SUPPLY_CHAIN.RelationshipType AS RELATIONSHIPTYPE
+SUPPLY_CHAIN.CompanyIssuerID AS COMPANY_ISSUERID
+SUPPLY_CHAIN.UPSTREAM_EXPOSURE AS SUM(COSTSHARE)
+
+-- ❌ ❌ ❌ WRONG - Database column first
+SUPPLY_CHAIN.RELATIONSHIPTYPE AS RelationshipType
+SUPPLY_CHAIN.COMPANY_ISSUERID AS CompanyIssuerID
+SUPPLY_CHAIN.UPSTREAM_EXPOSURE AS SUM(CostShare)
+```
+
+### Memory Aid
+
+Think of it as: **"Call it X, it's really Y"**
+- `CompanyName AS LEGALNAME` = "Call it CompanyName, it's really LEGALNAME in the database"
+- `CompanyIndustry AS SIC_DESCRIPTION` = "Call it CompanyIndustry, it's really SIC_DESCRIPTION in the database"
+- `RelationshipType AS RELATIONSHIPTYPE` = "Call it RelationshipType, it's really RELATIONSHIPTYPE in the database"
+
+### Complete Syntax Patterns
+
+**TABLES Section:**
+```sql
+<table_alias> AS <physical_table_name>
+    PRIMARY KEY (column1, column2) 
+    WITH SYNONYMS=('synonym1','synonym2') 
+    COMMENT='Table description'
+```
+
+**RELATIONSHIPS Section:**
+```sql
+<relationship_name> AS <table_alias>(foreign_key_column) REFERENCES <table_alias>(primary_key_column)
+```
+
+**DIMENSIONS Section:**
+```sql
+<table_alias>.<semantic_dimension_name> AS <database_column_name> WITH SYNONYMS=('synonym1','synonym2') COMMENT='Description'
+```
+
+**CRITICAL**: `<database_column_name>` must be the EXACT column name from the physical table (case-sensitive). Get it from `DESCRIBE TABLE`.
+
+**SYNONYM UNIQUENESS RULE (MANDATORY):**
+Each synonym can only be used ONCE across ALL dimensions and metrics in a semantic view. Duplicate synonyms will cause compilation errors.
+
+**METRICS Section:**
+```sql
+<table_alias>.<metric_name> AS <aggregation_function> WITH SYNONYMS=('synonym1','synonym2') COMMENT='Description'
+```
+
+**CRITICAL**: In metrics, the aggregation function must reference actual column names from the table, not semantic names.
+
+### CRITICAL SYNTAX RULES (Must Follow)
+```sql
+-- ✅ CORRECT table declaration
+HOLDINGS AS SAM_DEMO.CURATED.FACT_POSITION_DAILY_ABOR
+
+-- ✅ CORRECT relationship declaration
+HOLDINGS_TO_PORTFOLIOS AS HOLDINGS(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID)
+
+-- ✅ CORRECT dimension (NO PUBLIC keyword) - semantic_name AS database_column
+PORTFOLIOS.PortfolioName AS PORTFOLIONAME WITH SYNONYMS=('fund_name','strategy_name')
+
+-- ✅ CORRECT metric (NO PUBLIC keyword)  
+HOLDINGS.TOTAL_MARKET_VALUE AS SUM(MarketValue_Base) WITH SYNONYMS=('exposure','aum')
+
+-- ❌ WRONG table order
+SAM_DEMO.CURATED.FACT_POSITION_DAILY_ABOR AS HOLDINGS
+
+-- ❌ WRONG dimension format with PUBLIC keyword
+PUBLIC SECURITIES.COMPANY_NAME AS securities.COMPANY_NAME
+
+-- ❌ WRONG metric format with table.alias
+PUBLIC HOLDINGS.TOTAL_MARKET_VALUE AS holdings.MARKET_VALUE
+
+-- ❌ DUPLICATE synonyms across dimensions and metrics (WILL CAUSE ERROR)
+SECURITIES.Description AS DESCRIPTION WITH SYNONYMS=('company_name')
+ISSUERS.LegalName AS LEGALNAME WITH SYNONYMS=('company_name')  -- ERROR: 'company_name' used twice!
+
+-- ❌ DUPLICATE synonyms between dimensions and metrics (WILL CAUSE ERROR)  
+HOLDINGS.PortfolioWeight AS PORTFOLIO_WEIGHT WITH SYNONYMS=('weight')
+HOLDINGS.TOTAL_WEIGHT AS SUM(Weight) WITH SYNONYMS=('weight')  -- ERROR: 'weight' used twice!
+
+-- ❌ RESERVED word usage
+HOLDINGS.SELECT AS SELECT_VALUE  -- SELECT is reserved
+```
+
+### Formatting Requirements (MANDATORY)
+- **Indentation**: Use tabs, not spaces
+- **Synonyms**: Use `WITH SYNONYMS=()` format (equals sign, no spaces)
+- **Comments**: Include meaningful comments for all elements
+- **Case Sensitivity**: Use exact column names from `DESCRIBE TABLE`
+- **No PUBLIC Keyword**: Never use PUBLIC in DIMENSIONS or METRICS sections
+- **Unique Synonyms**: Each synonym can only appear once across all dimensions and metrics
+
+### 2.2 Complete Working Example
+```sql
+CREATE OR REPLACE SEMANTIC VIEW SAM_DEMO.AI.SAM_ANALYST_VIEW
+	TABLES (
+		HOLDINGS AS SAM_DEMO.CURATED.FACT_POSITION_DAILY_ABOR
+			PRIMARY KEY (HOLDINGDATE, PORTFOLIOID, SECURITYID) 
+			WITH SYNONYMS=('positions','investments','allocations','holdings') 
+			COMMENT='Daily portfolio holdings and positions',
+		PORTFOLIOS AS SAM_DEMO.CURATED.DIM_PORTFOLIO
+			PRIMARY KEY (PORTFOLIOID) 
+			WITH SYNONYMS=('funds','strategies','mandates','portfolios') 
+			COMMENT='Investment portfolios and fund information',
+		SECURITIES AS SAM_DEMO.CURATED.DIM_SECURITY
+			PRIMARY KEY (SECURITYID) 
+			WITH SYNONYMS=('companies','stocks','bonds','instruments','securities') 
+			COMMENT='Master security reference data',
+		ISSUERS AS SAM_DEMO.CURATED.DIM_ISSUER
+			PRIMARY KEY (ISSUERID) 
+			WITH SYNONYMS=('issuers','entities','corporates') 
+			COMMENT='Issuer and corporate hierarchy data'
+	)
+	RELATIONSHIPS (
+		HOLDINGS_TO_PORTFOLIOS AS HOLDINGS(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID),
+		HOLDINGS_TO_SECURITIES AS HOLDINGS(SECURITYID) REFERENCES SECURITIES(SECURITYID),
+		SECURITIES_TO_ISSUERS AS SECURITIES(ISSUERID) REFERENCES ISSUERS(ISSUERID)
+	)
+	DIMENSIONS (
+		-- Portfolio dimensions
+		PORTFOLIOS.PORTFOLIONAME AS PortfolioName WITH SYNONYMS=('fund_name','strategy_name','portfolio_name') COMMENT='Portfolio or fund name',
+		PORTFOLIOS.STRATEGY AS Strategy WITH SYNONYMS=('investment_strategy','portfolio_strategy') COMMENT='Investment strategy type',
+		
+		-- Security dimensions  
+		SECURITIES.DESCRIPTION AS Description WITH SYNONYMS=('company','security_name','description') COMMENT='Security description or company name',
+		SECURITIES.PRIMARYTICKER AS Ticker WITH SYNONYMS=('ticker_symbol','symbol','primary_ticker') COMMENT='Primary trading symbol',
+		SECURITIES.ASSETCLASS AS AssetClass WITH SYNONYMS=('instrument_type','security_type','asset_class') COMMENT='Asset class: Equity, Corporate Bond, ETF',
+		
+		-- Issuer dimensions (for enhanced analysis)
+		ISSUERS.LegalName AS LEGALNAME WITH SYNONYMS=('issuer_name','legal_name','company_name') COMMENT='Legal issuer name',
+		ISSUERS.Industry AS SIC_DESCRIPTION WITH SYNONYMS=('industry','sector','industry_type','sic_industry','business_type','industry_description','industry_classification') COMMENT='SIC industry classification with granular descriptions (e.g., Semiconductors and related devices, Computer programming services, Motor vehicles and car bodies). Use this for industry-level filtering and analysis.',
+		ISSUERS.CountryOfIncorporation AS COUNTRYOFINCORPORATION WITH SYNONYMS=('domicile','country_of_risk','country') COMMENT='Country of incorporation',
+		
+		-- Time dimensions
+		HOLDINGS.HOLDINGDATE AS HoldingDate WITH SYNONYMS=('position_date','as_of_date','date') COMMENT='Holdings as-of date'
+	)
+	METRICS (
+		-- Core position metrics
+		HOLDINGS.TOTAL_MARKET_VALUE AS SUM(MarketValue_Base) WITH SYNONYMS=('exposure','total_exposure','aum','market_value','position_value') COMMENT='Total market value in base currency',
+		HOLDINGS.HOLDING_COUNT AS COUNT(SecurityID) WITH SYNONYMS=('position_count','number_of_holdings','holding_count','count') COMMENT='Count of portfolio positions',
+		
+		-- Portfolio weight metrics  
+		HOLDINGS.PORTFOLIO_WEIGHT AS SUM(PortfolioWeight) WITH SYNONYMS=('weight','allocation','portfolio_weight') COMMENT='Portfolio weight as decimal',
+		HOLDINGS.PORTFOLIO_WEIGHT_PCT AS SUM(PortfolioWeight) * 100 WITH SYNONYMS=('weight_percent','allocation_percent','percentage_weight') COMMENT='Portfolio weight as percentage',
+		
+		-- Issuer-level metrics (enhanced capability)
+		HOLDINGS.ISSUER_EXPOSURE AS SUM(MarketValue_Base) WITH SYNONYMS=('issuer_total','issuer_value','issuer_exposure') COMMENT='Total exposure to issuer across all securities',
+		
+		-- Concentration metrics
+		HOLDINGS.MAX_POSITION_WEIGHT AS MAX(PortfolioWeight) WITH SYNONYMS=('largest_position','max_weight','concentration') COMMENT='Largest single position weight'
+	)
+	COMMENT='Multi-asset semantic view for portfolio analytics with issuer hierarchy support';
+```
+
+### 2.3 Implementation Template
+```python
+def create_semantic_view(session: Session):
+    """Create semantic view using correct syntax"""
+    
+    # Step 1: Drop any existing views
+    session.sql("DROP VIEW IF EXISTS SAM_DEMO.AI.SAM_ANALYST_VIEW").collect()
+    session.sql("DROP SEMANTIC VIEW IF EXISTS SAM_DEMO.AI.SAM_ANALYST_VIEW").collect()
+    
+    # Step 2: Create semantic view
+    try:
+        session.sql(semantic_view_sql).collect()
+        print("✅ Created semantic view: SAM_ANALYST_VIEW")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to create semantic view: {e}")
+        
+        # Diagnose common issues
+        if "invalid identifier" in str(e):
+            print("🔍 Check column names with DESCRIBE TABLE")
+        elif "duplicate" in str(e):
+            print("🔍 Check for duplicate synonyms or relationships")
+        elif "cannot resolve" in str(e):
+            print("🔍 Verify foreign key relationships exist")
+            
+        raise  # Don't create fallback views - Cortex Analyst requires semantic views
+```
+
+### 2.4 Enhanced Configuration with WITH EXTENSION
+
+**Purpose**: The `WITH EXTENSION` clause allows you to add enhanced metadata directly to the semantic view definition, including:
+- Time dimensions with custom expressions
+- Verified queries for testing and agent onboarding
+- Custom instructions for SQL generation and question categorization
+
+**Syntax**:
+```sql
+CREATE OR REPLACE SEMANTIC VIEW {view_name}
+    TABLES (...)
+    RELATIONSHIPS (...)
+    DIMENSIONS (...)
+    METRICS (...)
+    COMMENT='...'
+    WITH EXTENSION (CA='{json_configuration}');
+```
+
+**CRITICAL RULES**:
+1. **JSON Escaping**: Use single braces `{` and `}` in Python f-strings (they become `{{` and `}}` in the final JSON)
+2. **No Newlines**: Never use `\n` in `module_custom_instructions` - use spaces instead
+3. **Semantic Names in Verified Queries**: Always use semantic names (the name BEFORE AS in dimension/metric definitions) in verified query SQL
+4. **Dimension Names**: In the `tables` array metadata, use semantic names consistently (e.g., `LEGALNAME`, `PRIMARYTICKER`, not `CompanyName`, `Ticker`)
+
+**Enhanced Configuration Structure**:
+```json
+{
+  "tables": [
+    {
+      "name": "TABLE_ALIAS",
+      "metrics": [{"name": "METRIC_NAME"}],
+      "dimensions": [{"name": "DIMENSION_NAME"}],
+      "time_dimensions": [
+        {
+          "name": "dimension_name",
+          "expr": "SQL_EXPRESSION",
+          "data_type": "DATE",
+          "synonyms": ["synonym1", "synonym2"],
+          "description": "User-friendly description"
+        }
+      ]
+    }
+  ],
+  "relationships": [{"name": "RELATIONSHIP_NAME"}],
+  "verified_queries": [
+    {
+      "name": "query_name",
+      "question": "Natural language question",
+      "sql": "SELECT __TABLE.SemanticName FROM ... WHERE ...",
+      "use_as_onboarding_question": true
+    }
+  ],
+  "module_custom_instructions": {
+    "sql_generation": "Instructions without newlines for SQL generation behavior",
+    "question_categorization": "Instructions without newlines for question understanding"
+  }
+}
+```
+
+**Complete Example**:
+```python
+# In build_ai.py
+def create_sam_analyst_view(session: Session):
+    session.sql(f"""
+        CREATE OR REPLACE SEMANTIC VIEW SAM_DEMO.AI.SAM_ANALYST_VIEW
+        TABLES (
+            HOLDINGS AS SAM_DEMO.CURATED.FACT_POSITION_DAILY_ABOR
+                PRIMARY KEY (HOLDINGDATE, PORTFOLIOID, SECURITYID),
+            PORTFOLIOS AS SAM_DEMO.CURATED.DIM_PORTFOLIO
+                PRIMARY KEY (PORTFOLIOID),
+            SECURITIES AS SAM_DEMO.CURATED.DIM_SECURITY
+                PRIMARY KEY (SECURITYID),
+            ISSUERS AS SAM_DEMO.CURATED.DIM_ISSUER
+                PRIMARY KEY (ISSUERID)
+        )
+        RELATIONSHIPS (
+            HOLDINGS_TO_PORTFOLIOS AS HOLDINGS(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID),
+            HOLDINGS_TO_SECURITIES AS HOLDINGS(SECURITYID) REFERENCES SECURITIES(SECURITYID),
+            SECURITIES_TO_ISSUERS AS SECURITIES(ISSUERID) REFERENCES ISSUERS(ISSUERID)
+        )
+        DIMENSIONS (
+            PORTFOLIOS.PORTFOLIONAME AS PortfolioName,
+            SECURITIES.DESCRIPTION AS Description,
+            SECURITIES.PRIMARYTICKER AS Ticker,
+            ISSUERS.LegalName AS LEGALNAME,
+            ISSUERS.Industry AS SIC_DESCRIPTION,
+            HOLDINGS.HOLDINGDATE AS HoldingDate
+        )
+        METRICS (
+            HOLDINGS.TOTAL_MARKET_VALUE AS SUM(MarketValue_Base),
+            HOLDINGS.HOLDING_COUNT AS COUNT(SecurityID)
+        )
+        COMMENT='Portfolio analytics semantic view'
+        WITH EXTENSION (CA='{{"tables":[{{"name":"HOLDINGS","metrics":[{{"name":"TOTAL_MARKET_VALUE"}},{{"name":"HOLDING_COUNT"}}],"time_dimensions":[{{"name":"HoldingDate","expr":"HOLDINGDATE","data_type":"DATE","synonyms":["position_date","as_of_date"],"description":"Holdings valuation date"}},{{"name":"holding_month","expr":"DATE_TRUNC(\\'MONTH\\', HOLDINGDATE)","data_type":"DATE","synonyms":["month","monthly"],"description":"Monthly aggregation"}}]}},{{"name":"PORTFOLIOS","dimensions":[{{"name":"PORTFOLIONAME"}}]}},{{"name":"SECURITIES","dimensions":[{{"name":"DESCRIPTION"}},{{"name":"PRIMARYTICKER"}}]}},{{"name":"ISSUERS","dimensions":[{{"name":"LEGALNAME"}},{{"name":"SIC_DESCRIPTION"}}]}}],"relationships":[{{"name":"HOLDINGS_TO_PORTFOLIOS"}},{{"name":"HOLDINGS_TO_SECURITIES"}},{{"name":"SECURITIES_TO_ISSUERS"}}],"verified_queries":[{{"name":"top_holdings","question":"What are the top 10 holdings?","sql":"SELECT __SECURITIES.DESCRIPTION, __SECURITIES.PRIMARYTICKER, __HOLDINGS.MARKETVALUE_BASE FROM __HOLDINGS JOIN __SECURITIES ON __HOLDINGS.SECURITYID = __SECURITIES.SECURITYID WHERE __HOLDINGS.HOLDINGDATE = (SELECT MAX(HOLDINGDATE) FROM __HOLDINGS) ORDER BY __HOLDINGS.MARKETVALUE_BASE DESC LIMIT 10","use_as_onboarding_question":true}}],"module_custom_instructions":{{"sql_generation":"For portfolio weight calculations, always multiply by 100 to show percentages. For current holdings queries, automatically filter to the most recent holding date.","question_categorization":"If users ask about funds or portfolios, treat these as the same concept."}}}}');
+    """).collect()
+```
+
+**Key Points for Verified Queries**:
+- Use `__TABLE_ALIAS.SemanticName` format (double underscore prefix)
+- Reference semantic names (BEFORE AS in definitions):
+  - ✅ `__SECURITIES.DESCRIPTION` (semantic name)
+  - ✅ `__ISSUERS.LegalName` (semantic name)
+  - ❌ `__SECURITIES.Description` (database column name after AS)
+  - ❌ `__ISSUERS.LEGALNAME` (database column name after AS)
+- Always use semantic names that match the DIMENSIONS section
+- Include realistic business queries for agent training
+
+**Common Mistakes to Avoid**:
+```python
+# ❌ WRONG - Double braces {{ }} in f-string (becomes {{{{  }}}} in output)
+f"""WITH EXTENSION (CA='{{{{ "tables": [...] }}}}')"""
+
+# ✅ CORRECT - Single braces { } in f-string (becomes {{ }} in output)
+f"""WITH EXTENSION (CA='{{"tables": [...]}}')"""
+
+# ❌ WRONG - Newlines in module_custom_instructions
+"module_custom_instructions": {
+    "sql_generation": "Instruction line 1.\nInstruction line 2."
+}
+
+# ✅ CORRECT - Spaces instead of newlines
+"module_custom_instructions": {
+    "sql_generation": "Instruction line 1. Instruction line 2."
+}
+
+# ❌ WRONG - Using database column name in verified query
+"sql": "SELECT __ISSUERS.LEGALNAME FROM ..."  # LEGALNAME is after AS
+
+# ✅ CORRECT - Using semantic name in verified query
+"sql": "SELECT __ISSUERS.LegalName FROM ..."  # LegalName is before AS
+```
+
+## Step 3: Validation and Testing
+
+### 3.1 Basic Structure Validation
+```sql
+-- 1. Verify semantic view was created
+DESCRIBE SEMANTIC VIEW SAM_DEMO.AI.SAM_ANALYST_VIEW;
+
+-- 2. Check that it has expected dimensions and metrics
+SHOW SEMANTIC VIEWS IN SAM_DEMO.AI;
+```
+
+### 3.2 Query Testing (MANDATORY)
+Test semantic view systematically with these approaches:
+
+**Testing Strategy:**
+1. **Single Metric + Single Dimension**: Verify basic functionality
+2. **Multiple Metrics + Multiple Dimensions**: Test complex queries
+3. **Cross-Table Queries**: Test relationships between tables
+4. **Edge Cases**: Test with filters, aggregations, and business-specific queries
+
+**Testing Pattern:**
+```sql
+-- Basic functionality test
+SELECT * FROM SEMANTIC_VIEW(
+    {semantic_view_name}
+    METRICS {primary_metric}
+    DIMENSIONS {primary_dimension}
+) LIMIT 5;
+
+-- Complex query test
+SELECT * FROM SEMANTIC_VIEW(
+    {semantic_view_name}
+    METRICS {metric1}, {metric2}
+    DIMENSIONS {dimension1}, {dimension2}, {dimension3}
+) LIMIT 10;
+
+-- Business scenario test (use actual business queries your agents will run)
+SELECT * FROM SEMANTIC_VIEW(
+    {semantic_view_name}
+    METRICS {relevant_metrics}
+    DIMENSIONS {relevant_dimensions}
+    FILTERS {business_filters}
+) LIMIT 20;
+```
+
+### 3.3 Validation Checklist
+- [ ] Semantic view created without errors
+- [ ] `DESCRIBE SEMANTIC VIEW` returns structure information
+- [ ] Basic portfolio query returns data
+- [ ] Holdings analysis query works
+- [ ] Sector breakdown query functions
+- [ ] Issuer-level aggregation works (if applicable)
+- [ ] All planned synonyms are working
+- [ ] No duplicate synonym errors
+
+## Step 4: Troubleshooting
+
+### 4.1 Common Error Messages and Solutions
+
+**"invalid identifier 'TABLE.COLUMN'"**
+- **Cause**: Column name doesn't exist or wrong case
+- **Solution**: Run `DESCRIBE TABLE` to get exact column names
+
+**"duplicate synonym"**
+- **Cause**: Same synonym used in multiple dimensions/metrics
+- **Solution**: Use unique synonym sets for each dimension/metric
+
+**"cannot resolve reference"**
+- **Cause**: Foreign key relationship doesn't exist
+- **Solution**: Verify table relationships with sample JOINs
+
+**"unexpected COMMENT"**
+- **Cause**: Indentation issues (spaces instead of tabs)
+- **Solution**: Use tabs for indentation throughout
+
+### 4.2 Debugging Process
+```python
+def debug_semantic_view_creation(session: Session, error_message: str):
+    """Step-by-step debugging for semantic view errors"""
+    
+    print("🔍 Debugging semantic view creation...")
+    
+    if "invalid identifier" in error_message:
+        print("1. Check column names with DESCRIBE TABLE")
+        print("2. Ensure exact case matching")
+        print("3. Verify table aliases are correct")
+        
+    elif "duplicate" in error_message:
+        print("1. Check for duplicate synonyms across dimensions/metrics") 
+        print("2. Verify relationship names are unique")
+        print("3. Check for reserved keyword conflicts")
+        
+    elif "cannot resolve" in error_message:
+        print("1. Verify foreign key relationships exist")
+        print("2. Test JOINs manually between tables")
+        print("3. Check PRIMARY KEY definitions")
+        
+    else:
+        print("1. Verify table existence and access permissions")
+        print("2. Check indentation (use tabs, not spaces)")
+        print("3. Validate SQL syntax and formatting")
+```
+
+## Step 5: Advanced Patterns
+
+### 5.1 Multi-Table Views
+When including multiple related tables:
+- Start with 2 tables and test
+- Add one table at a time
+- Keep relationships simple (avoid complex JOIN chains)
+- Test performance with realistic data volumes
+
+### 5.2 Performance Considerations
+- Use appropriate PRIMARY KEY definitions
+- Limit number of tables in single view
+- Consider multiple focused views vs one large view
+- Monitor query response times during testing
+
+## Summary
+
+This guide provides a complete workflow for creating semantic views that work reliably with Cortex Analyst. Follow the steps sequentially for best results, and refer back to the syntax patterns and troubleshooting sections as needed.

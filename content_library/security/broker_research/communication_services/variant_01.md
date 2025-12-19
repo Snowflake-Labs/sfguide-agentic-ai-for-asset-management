@@ -96,6 +96,8 @@ Digital advertising expenditure correlates with overall economic activity and co
 
 ## Valuation and Price Target
 
+### DCF Analysis
+
 Our ${{PRICE_TARGET_USD}} price target is based on discounted cash flow analysis assuming mid-teens revenue growth, modest margin expansion, and terminal value multiples consistent with high-quality technology platforms. This valuation implies a forward P/E of {{PE_RATIO}}x, representing a premium to the broader market but appropriate for the company's growth profile and competitive positioning.
 
 Relative valuation suggests reasonable upside from current levels. Whilst {{COMPANY_NAME}} trades at premium multiples, the quality of earnings, cash generation, and long-term growth visibility justify differentiated valuation. Our **{{RATING}}** rating reflects confidence in the multi-year investment case.

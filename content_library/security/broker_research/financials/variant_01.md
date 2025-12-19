@@ -42,6 +42,8 @@ ${{PRICE_TARGET_USD}}
 
 ## Executive Summary
 
+### Overview
+
 We initiate coverage of {{COMPANY_NAME}} with a **{{RATING}}** rating and price target of ${{PRICE_TARGET_USD}}. As a well-established {{SIC_DESCRIPTION}} institution, the company demonstrates solid fundamentals with return on equity of {{ROE_PCT}}% and consistent profitability through market cycles. The bank's diversified business model, strong capital position, and prudent risk management support our constructive investment view.
 
 ## Business Model and Competitive Position

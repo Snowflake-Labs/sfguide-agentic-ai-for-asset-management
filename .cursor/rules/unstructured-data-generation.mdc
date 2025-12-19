@@ -1,0 +1,221 @@
+---
+alwaysApply: true
+---
+
+# SAM Demo - Unstructured Data Generation Rules
+
+Complete patterns and standards for generating realistic unstructured documents across all document types in the SAM demo using **template-based generation**. This is the **single source of truth** for document generation patterns.
+
+## Overview
+
+This guide provides standardized patterns for generating 19 document types that support the SAM demo scenarios using the hydration engine with pre-authored templates, ensuring consistency, realism, and proper integration with the SecurityID-based data model.
+
+**Generation Approach**: **Hybrid (Template-Based + Real Data)**
+- **Template-Based**: 50+ curated markdown templates in `content_library/` for most document types
+- **Real Data Integration**: Company event transcripts sourced from SNOWFLAKE_PUBLIC_DATA_FREE
+- No LLM generation during builds (deterministic, fast, high-quality)
+- Entity prioritization aligned with portfolio holdings
+
+**Document Categories:**
+- **Security-Level**: broker_research, press_releases, internal_research, investment_memo
+- **Security-Level (Real Data)**: company_event_transcripts (replaces earnings_transcripts - sourced from SNOWFLAKE_PUBLIC_DATA_FREE with AI speaker identification)
+- **Issuer-Level**: ngo_reports, engagement_notes  
+- **Portfolio-Level**: ips (Investment Policy Statements), portfolio_review
+- **Global**: policy_docs, sales_templates, philosophy_docs, compliance_manual, risk_framework, market_data
+- **Regulatory**: form_adv, form_crs, regulatory_updates
+
+**Key Principles:**
+- **Template-Based**: All content from curated templates (no LLM calls)
+- **Deterministic**: Same RNG_SEED produces identical output
+- **Entity Alignment**: Documents generated for companies that appear in portfolio holdings
+- **Realistic Content**: Industry-appropriate language and structure from curated templates
+- **Proper Linkage**: SecurityID/IssuerID integration for search and analytics
+- **Consistent Quality**: Standardized word counts and formatting via templates
+- **Demo Alignment**: Content supports specific agent scenarios
+
+## Document Type Specifications
+
+**Implementation**: See `python/generate_unstructured.py` and `python/hydration_engine.py`
+**Templates**: See `content_library/` for 50+ curated markdown templates
+
+### Document Categories and Linkage
+
+| Document Type | Linkage | Word Count | Table/Service |
+|---------------|---------|------------|---------------|
+| **Security-Level (Template-Based)** ||||
+| broker_research | SecurityID + IssuerID | 700-1,200 | BROKER_RESEARCH_CORPUS / SAM_BROKER_RESEARCH |
+| press_releases | SecurityID + IssuerID | 250-400 | PRESS_RELEASES_CORPUS / SAM_PRESS_RELEASES |
+| **Security-Level (Real Data)** ||||
+| company_event_transcripts | PRIMARY_TICKER + CIK | ~512 tokens/chunk | COMPANY_EVENT_TRANSCRIPTS_CORPUS / SAM_COMPANY_EVENTS |
+| **Issuer-Level** ||||
+| ngo_reports | IssuerID only | 400-800 | NGO_REPORTS_CORPUS / SAM_NGO_REPORTS |
+| engagement_notes | IssuerID only | 150-300 | ENGAGEMENT_NOTES_CORPUS / SAM_ENGAGEMENT_NOTES |
+| **Global** ||||
+| policy_docs | None | 800-1,500 | POLICY_DOCS_CORPUS / SAM_POLICY_DOCS |
+| sales_templates | None | 800-1,500 | SALES_TEMPLATES_CORPUS / SAM_SALES_TEMPLATES |
+| philosophy_docs | None | 800-1,500 | PHILOSOPHY_DOCS_CORPUS / SAM_PHILOSOPHY_DOCS |
+
+### Template-Based Generation Approach
+
+**Key Principles:**
+- All documents generated from curated markdown templates in `content_library/`
+- No LLM generation during builds (deterministic, fast, high-quality)
+- Templates use YAML front matter + placeholder hydration
+- Entity prioritization aligned with portfolio holdings
+
+### Real Data Integration: Company Event Transcripts
+
+**Implementation**: See `python/generate_real_transcripts.py`
+
+**Data Source**: `SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.COMPANY_EVENT_TRANSCRIPT_ATTRIBUTES`
+
+**Event Types Covered**:
+- Earnings Calls
+- Annual General Meetings (AGMs)
+- M&A Announcements
+- Investor / Analyst Days
+- Special Calls / Update Briefings
+
+**Processing Pipeline**:
+1. **Speaker Identification**: Uses `AI_COMPLETE` (claude-haiku-4-5) to extract speaker name, role, and company from transcripts
+2. **Segment Formatting**: Formats each segment as `{Speaker Name} ({Role} - {Company}): {Text}`
+3. **Chunking**: Uses `SNOWFLAKE.CORTEX.SPLIT_TEXT_RECURSIVE_CHARACTER` for ~512 token chunks
+4. **Metadata Enrichment**: Each chunk includes: Company, Ticker, Event Type, Date, Fiscal Year/Quarter, Speaker info
+
+**Target Companies**: Demo companies + major US stocks + SNOW (~31 tickers)
+
+**Key Tables Created**:
+- `MARKET_DATA.COMP_EVENT_SPEAKER_MAPPING` - Speaker identification results
+- `CURATED.COMPANY_EVENT_TRANSCRIPTS_CORPUS` - Chunked, enriched transcripts for search
+
+## Implementation Patterns
+
+### 1. Template-Based Hydration
+**Implementation**: See `python/hydration_engine.py`
+
+**Process**:
+1. Load templates from `content_library/`
+2. Hydrate with real security/issuer data
+3. Create corpus tables for Cortex Search
+
+**No full code needed - reference implementation files**
+
+### 2. Entity Selection Pattern (Aligned with Portfolio Holdings)
+
+**CRITICAL**: Never hardcode FIGI values in SQL. Use config helper functions.
+
+```python
+def get_entities_for_doc_type(session: Session, doc_type: str, test_mode: bool = False):
+    """Get entities prioritized to match portfolio holdings."""
+    
+    if linkage_level == 'security':
+        # ✅ CORRECT: Use config.get_demo_company_priority_sql() - no hardcoding
+        securities = session.sql(f"""
+            SELECT s.SecurityID as id
+            FROM SAM_DEMO.CURATED.DIM_SECURITY s
+            JOIN SAM_DEMO.CURATED.DIM_ISSUER i ON s.IssuerID = i.IssuerID
+            WHERE s.AssetClass = 'Equity'
+            ORDER BY 
+                -- Prioritize demo companies using config-driven priority (no hardcoding!)
+                CASE 
+                    {config.get_demo_company_priority_sql()}
+                    -- Other major US stocks
+                    WHEN s.Ticker IN {config.safe_sql_tuple(config.get_major_us_stocks('tier1'))} 
+                         AND i.CountryOfIncorporation = 'US' THEN 5
+                    ELSE 6
+                END
+            LIMIT {coverage_count}
+        """).collect()
+        return [{'id': s['ID']} for s in securities]
+```
+
+**❌ WRONG APPROACH (OLD CODE):**
+```python
+# NEVER hardcode FIGI values like this:
+CASE 
+    WHEN s.FIGI = 'BBG001S5N8V8' THEN 1  -- ❌ Hardcoded!
+    WHEN s.FIGI = 'BBG001S5PXG8' THEN 2  -- ❌ Hardcoded!
+    WHEN s.FIGI IN ('BBG001S5TD05', 'BBG001S5TZJ6') THEN 4  -- ❌ Hardcoded list!
+    ELSE 5
+END
+```
+
+**Key Principles:**
+- Use `config.get_demo_company_priority_sql()` for dynamic priority CASE statements
+- Use `config.safe_sql_tuple()` for safe IN clause generation (handles empty lists)
+- Leverage data model columns: `AssetClass`, `CountryOfIncorporation` instead of regex patterns
+- All company selection driven by `config.DEMO_COMPANIES` dictionary
+```
+
+### 3. Corpus Creation
+**Implementation**: See `python/generate_unstructured.py`
+
+**Key Pattern:**
+- Transform RAW tables → CURATED corpus tables
+- Add proper linkage (SecurityID/IssuerID based on document type)
+- Extract clean titles from first line
+- Standardized columns: DOCUMENT_ID, DOCUMENT_TITLE, DOCUMENT_TYPE, SecurityID, IssuerID, PUBLISH_DATE, LANGUAGE, DOCUMENT_TEXT
+
+## Quality Standards
+
+**Implementation**: See validation functions in `python/generate_unstructured.py`
+
+**Key Requirements:**
+- Realistic industry language and UK English
+- Word counts within specified ranges
+- Proper SecurityID/IssuerID linkage
+- Clean titles and consistent formatting
+
+## Agent-Document Alignment
+
+**Configuration**: See `config.py` - `SCENARIO_DATA_REQUIREMENTS`
+
+**Key Mappings:**
+- portfolio_copilot → broker_research, company_event_transcripts, press_releases
+- research_copilot → broker_research, company_event_transcripts (primary scenario)
+- quant_analyst → broker_research, company_event_transcripts
+- market_analyst → company_event_transcripts (market trend analysis)
+- esg_guardian → ngo_reports, engagement_notes, policy_docs
+- sales_advisor → sales_templates, philosophy_docs, policy_docs
+
+**Critical Principle**: Content must align with portfolio holdings for demo coherence
+
+**Note**: `company_event_transcripts` replaces the synthetic `earnings_transcripts` with real data from SNOWFLAKE_PUBLIC_DATA_FREE
+
+## Demo Coherence
+
+**Critical Challenge**: Multi-step demo flows need predictable company coverage
+
+**Solution Approach**:
+1. Prioritize demo companies from `config.DEMO_COMPANIES` in entity selection
+2. Ensure templates cover key themes for demo scenarios
+3. Test complete flows after document regeneration
+4. Make queries specific (not broad searches)
+
+**Example**: Research Copilot needs Microsoft in "AI and cloud computing" searches
+- Solution: Prioritize Microsoft for broker research generation
+- Use specific query phrases that match template content
+
+## Performance
+
+**Key Principles:**
+- SQL-first approach (no large DataFrames)
+- Process document types sequentially
+- Batch entity selection queries
+- Continue on individual failures (don't stop entire batch)
+
+## Summary
+
+This rule provides the complete framework for generating consistent, realistic unstructured documents across all SAM demo scenarios. Follow these patterns to ensure:
+
+- **Consistency**: Standardized structure and quality across document types
+- **Realism**: Industry-appropriate content and terminology
+- **Integration**: Proper linkage with SecurityID-based data model
+- **Performance**: Efficient generation and processing patterns
+- **Quality**: Comprehensive validation and error handling
+
+**Related Files**:
+- Template-Based Implementation: `python/generate_unstructured.py`
+- Real Transcripts Implementation: `python/generate_real_transcripts.py`
+- Configuration: `python/config.py` (DOCUMENT_TYPES section)
+- Agent Integration: See @agent-config.mdc for agent-document mappings

@@ -20,16 +20,11 @@ def build_all(session: Session, scenarios: List[str], build_semantic: bool = Tru
     
     Args:
         session: Active Snowpark session
-        scenarios: List of scenario names (use ['all'] for all scenarios)
+        scenarios: List of scenario names
         build_semantic: Whether to build semantic views
         build_search: Whether to build search services
         build_agents: Whether to create Snowflake Intelligence agents
     """
-    
-    # Expand 'all' to all scenario names
-    if 'all' in scenarios:
-        scenarios = list(config.SCENARIO_DATA_REQUIREMENTS.keys())
-        config.log_detail(f"  Expanding 'all' to {len(scenarios)} scenarios")
     
     if build_semantic:
         try:

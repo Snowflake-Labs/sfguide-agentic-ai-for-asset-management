@@ -413,3 +413,4 @@ def get_transcript_stats(session: Session, target_tickers: List[str]) -> dict:
         config.log_warning(f"Failed to get transcript stats: {e}")
     
     return {'total_transcripts': 0, 'companies_with_transcripts': 0, 'event_types': 0}
+

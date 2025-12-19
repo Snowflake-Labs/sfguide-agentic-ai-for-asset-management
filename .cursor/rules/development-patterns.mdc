@@ -1,0 +1,416 @@
+---
+alwaysApply: true
+---
+
+# SAM Demo - Development Patterns Guide
+
+Self-contained patterns for extending the SAM demo with new tables, semantic views, agents, and scenarios without requiring chat history.
+
+## Adding New Data Tables
+
+### Pattern 1: Dimension Tables
+```sql
+-- Template for new dimension tables
+CREATE OR REPLACE TABLE {DATABASE_NAME}.CURATED.DIM_{ENTITY_NAME} (
+    {Entity}ID BIGINT IDENTITY(1,1) PRIMARY KEY,
+    {ParentEntity}ID BIGINT,                     -- FK to parent if hierarchical
+    {Entity}Name VARCHAR(255) NOT NULL,
+    {Entity}Code VARCHAR(100),
+    {Attribute1} VARCHAR(100),
+    {Attribute2} DATE,
+    RecordStartDate TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    RecordEndDate TIMESTAMP_NTZ,
+    IsActive BOOLEAN DEFAULT TRUE
+);
+```
+
+### Pattern 2: Fact Tables
+```sql
+-- Template for new fact tables
+CREATE OR REPLACE TABLE {DATABASE_NAME}.CURATED.FACT_{EVENT_NAME} (
+    {Event}ID BIGINT IDENTITY(1,1) PRIMARY KEY,
+    {Event}Date DATE NOT NULL,
+    PortfolioID BIGINT,                          -- FK to DIM_PORTFOLIO
+    SecurityID BIGINT,                           -- FK to DIM_SECURITY
+    {MeasureColumn1} DECIMAL(38,10),
+    {MeasureColumn2} DECIMAL(18,8),
+    {CategoryColumn} VARCHAR(100),
+    Currency CHAR(3) DEFAULT 'USD',
+    SourceSystem VARCHAR(50),
+    FOREIGN KEY (PortfolioID) REFERENCES DIM_PORTFOLIO(PortfolioID),
+    FOREIGN KEY (SecurityID) REFERENCES DIM_SECURITY(SecurityID)
+);
+```
+
+### Data Generation Function Template
+```python
+def build_{table_name}(session: Session, test_mode: bool = False):
+    """Build {description} table using efficient SQL generation."""
+    
+    # CRITICAL: Extract config values before using in f-strings to avoid nested bracket issues
+    database_name = config.DATABASE['name']
+    
+    session.sql(f"""
+        CREATE OR REPLACE TABLE {database_name}.CURATED.{TABLE_NAME} AS
+        WITH base_data AS (
+            SELECT 
+                -- Base selection from existing tables
+                {existing_table_joins}
+        ),
+        calculated_metrics AS (
+            SELECT 
+                *,
+                -- Business logic calculations
+                {calculated_fields}
+            FROM base_data
+        )
+        SELECT * FROM calculated_metrics
+    """).collect()
+    
+    print(f"✅ Created {table_name} with {specific_characteristics}")
+```
+
+### SQL Generation Best Practices
+
+**CRITICAL RULES:**
+1. **Never hardcode config values in SQL** - Use `config.get_demo_company_priority_sql()` and other helper functions
+2. **Use data model columns** - Leverage `AssetClass`, `CountryOfIncorporation` instead of regex patterns
+3. **Safe tuple generation** - Always use `config.safe_sql_tuple()` for IN clauses (handles empty lists)
+4. **Extract config values** - Get dictionary values before f-string to avoid nested bracket syntax errors
+
+```python
+# ✅ CORRECT: Config-driven SQL with helper functions
+CASE 
+    {config.get_demo_company_priority_sql()}  -- Dynamic CASE from config
+    WHEN s.Ticker IN {config.safe_sql_tuple(config.get_major_us_stocks('tier1'))} THEN 5
+    WHEN i.CountryOfIncorporation = 'US' AND s.AssetClass = 'Equity' THEN 6
+    ELSE 7
+END
+
+# ❌ WRONG: Hardcoded values and unsafe tuple generation
+CASE 
+    WHEN s.FIGI = 'BBG001S5N8V8' THEN 1  -- ❌ Hardcoded!
+    WHEN s.Ticker IN {tuple(['MSFT', 'AAPL'])} THEN 5  -- ❌ Unsafe for empty lists!
+    WHEN s.Ticker RLIKE '^[A-Z]{1,5}$' THEN 6  -- ❌ Use AssetClass instead!
+    ELSE 7
+END
+```
+
+### Batched I/O: Inserts and Lookups
+
+**MANDATORY**: Follow @performance-io.mdc for all data access patterns.
+
+**Key Rules:**
+1. **No row-by-row INSERTs** - Use `snowflake_io_utils.write_pandas_overwrite()` for dimension tables
+2. **No collect-in-loop** - Prefetch all data before iterating with `prefetch_*` helpers
+3. **Pure SQL for large datasets** - Use `CREATE TABLE AS SELECT` for > 10K rows
+
+**Quick Reference:**
+```python
+import snowflake_io_utils
+
+# ✅ Batch write small dimension tables
+rows = [{'ID': 1, 'Name': 'Value1'}, {'ID': 2, 'Name': 'Value2'}]
+snowflake_io_utils.write_pandas_overwrite(session, 'DB.SCHEMA.TABLE', rows)
+
+# ✅ Batch lookup before loop
+security_map = snowflake_io_utils.batch_lookup_security_ids(
+    session, database_name, tickers=['AAPL', 'MSFT']
+)
+for ticker in tickers:
+    sec_id = security_map.get(ticker)  # No query - uses local map
+
+# ❌ NEVER do this
+for item in items:
+    session.sql(f"INSERT INTO TABLE VALUES (...)").collect()  # Row-by-row!
+    result = session.sql(f"SELECT * WHERE id = {item['id']}").collect()  # Per-entity query!
+```
+
+See `python/snowflake_io_utils.py` for all available helpers.
+
+## Adding New Semantic Views
+
+### Semantic View Creation Pattern
+```python
+def create_{view_name}_semantic_view(session: Session):
+    """Create semantic view for {specific_use_case}."""
+    
+    semantic_view_sql = f"""
+        CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.{VIEW_NAME} (
+            TABLES (
+                {table_alias} AS {config.DATABASE['name']}.CURATED.{TABLE_NAME}
+                    PRIMARY KEY ({primary_key_columns})
+                    WITH SYNONYMS=('{synonym1}','{synonym2}')
+                    COMMENT='{table_description}'
+            )
+            RELATIONSHIPS (
+                {relationship_name} AS {child_table}({fk_column}) REFERENCES {parent_table}({pk_column})
+            )
+            DIMENSIONS (
+                {table_alias}.{dimension_name} AS {column_name} 
+                    WITH SYNONYMS=('{dim_synonym1}','{dim_synonym2}') 
+                    COMMENT='{dimension_description}'
+            )
+            METRICS (
+                {table_alias}.{metric_name} AS {aggregation}({column_name}) 
+                    WITH SYNONYMS=('{metric_synonym1}','{metric_synonym2}') 
+                    COMMENT='{metric_description}'
+            )
+        )
+    """
+    
+    session.sql(semantic_view_sql).collect()
+    print(f"✅ Created semantic view: {VIEW_NAME}")
+```
+
+### Semantic View Validation Template
+```python
+def validate_{view_name}_semantic_view(session: Session):
+    """Validate semantic view functionality."""
+    
+    # Test basic functionality
+    test_result = session.sql(f"""
+        SELECT * FROM SEMANTIC_VIEW(
+            {config.DATABASE['name']}.AI.{VIEW_NAME}
+            METRICS {primary_metric}
+            DIMENSIONS {primary_dimension}
+        ) LIMIT 5
+    """).collect()
+    
+    if len(test_result) > 0:
+        print(f"✅ Semantic view {VIEW_NAME} validation passed")
+    else:
+        raise Exception(f"❌ Semantic view {VIEW_NAME} validation failed")
+```
+
+## Adding New Cortex Search Services
+
+### Search Service Creation Pattern
+```python
+def create_{service_name}_search_service(session: Session):
+    """Create Cortex Search service for {document_type}."""
+    
+    service_sql = f"""
+        CREATE OR REPLACE CORTEX SEARCH SERVICE {config.DATABASE['name']}.AI.SAM_{SERVICE_NAME}
+            ON DOCUMENT_TEXT
+            ATTRIBUTES DOCUMENT_TITLE, SecurityID, IssuerID, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE
+            WAREHOUSE = {config.WAREHOUSES['cortex_search']['name']}
+            TARGET_LAG = '5 minutes'
+            AS 
+            SELECT 
+                DOCUMENT_ID,
+                DOCUMENT_TITLE,
+                DOCUMENT_TEXT,
+                SecurityID,
+                IssuerID,
+                DOCUMENT_TYPE,
+                PUBLISH_DATE,
+                LANGUAGE
+            FROM {config.DATABASE['name']}.CURATED.{CORPUS_TABLE_NAME}
+    """
+    
+    session.sql(service_sql).collect()
+    print(f"✅ Created search service: SAM_{SERVICE_NAME}")
+```
+
+### Document Corpus Creation Pattern
+```python
+def create_{document_type}_corpus(session: Session, documents: List[dict]):
+    """Create document corpus for {document_type}."""
+    
+    corpus_data = []
+    for doc in documents:
+        corpus_data.append({
+            'DOCUMENT_ID': doc['id'],
+            'DOCUMENT_TITLE': doc['title'],
+            'DOCUMENT_TYPE': '{DOCUMENT_TYPE}',
+            'SecurityID': doc.get('security_id'),
+            'IssuerID': doc.get('issuer_id'), 
+            'PUBLISH_DATE': doc['date'],
+            'LANGUAGE': 'en',
+            'DOCUMENT_TEXT': doc['content']
+        })
+    
+    corpus_df = session.create_dataframe(corpus_data)
+    corpus_df.write.mode("overwrite").save_as_table(
+        f"{config.DATABASE['name']}.CURATED.{DOCUMENT_TYPE}_CORPUS"
+    )
+    
+    print(f"✅ Created corpus table: {DOCUMENT_TYPE}_CORPUS")
+```
+
+## Adding New Agent Scenarios
+
+### Agent Configuration Template
+```yaml
+# Agent template for new scenarios
+Agent Name: {scenario_name}
+Display Name: {Agent Display Name}
+Description: {Business context and specific capabilities}
+Orchestration Model: Claude 4
+
+Tools:
+  - {tool_1_name} (Cortex Analyst/Search)
+  - {tool_2_name} (Cortex Analyst/Search)
+
+Planning Instructions: |
+  1. Analyze user query for {specific_domain} requirements
+  2. Select appropriate tools based on query type:
+     - {Tool 1}: Use for {specific_use_case_1}
+     - {Tool 2}: Use for {specific_use_case_2}
+  3. For complex queries, use multiple tools systematically
+  4. Synthesize findings into coherent business insights
+  5. Always provide {domain_specific} context and implications
+
+Response Instructions: |
+  1. Professional {domain} expert tone
+  2. Use UK English spelling and terminology
+  3. Format data clearly with tables for comparisons
+  4. Include proper citations for document sources
+  5. Focus on actionable {domain_specific} insights
+  6. Generate charts when requested or when they enhance understanding
+```
+
+### Scenario Implementation Function
+```python
+def build_scenario_data(session: Session, scenario: str):
+    """Build scenario-specific data and components."""
+    
+    scenario_configs = {
+        '{scenario_name}': {
+            'required_tables': ['{table1}', '{table2}'],
+            'search_services': ['{service1}', '{service2}'],
+            'semantic_views': ['{view1}'],
+            'agent_types': ['{agent_type}']
+        }
+    }
+    
+    if scenario not in scenario_configs:
+        print(f"⏭️ Scenario data for {scenario} - not implemented yet")
+        return
+    
+    config = scenario_configs[scenario]
+    
+    # Build required tables
+    for table in config['required_tables']:
+        globals()[f'build_{table}'](session)
+    
+    # Create search services
+    for service in config['search_services']:
+        globals()[f'create_{service}_search_service'](session)
+    
+    # Create semantic views
+    for view in config['semantic_views']:
+        globals()[f'create_{view}_semantic_view'](session)
+    
+    print(f"✅ Built scenario data for {scenario}")
+```
+
+## Adding New Document Types
+
+### Document Generation Pattern
+
+**For complete unstructured data generation patterns, see @unstructured-data-generation.mdc**
+
+The dedicated unstructured data generation rule provides:
+- Standardized patterns for all 7 document types
+- Content quality requirements and validation
+- Proper SecurityID/IssuerID linkage patterns
+- Agent-specific content alignment guidelines
+
+## Performance and Testing Patterns
+
+### Data Quality Validation Template
+```python
+def validate_{component}_data_quality(session: Session):
+    """Validate data quality for {component}."""
+    
+    # Test 1: Check record counts
+    count_check = session.sql(f"""
+        SELECT COUNT(*) as record_count 
+        FROM {table_name}
+    """).collect()[0]['RECORD_COUNT']
+    
+    assert count_check > 0, f"No records found in {table_name}"
+    
+    # Test 2: Check data integrity
+    integrity_check = session.sql(f"""
+        SELECT COUNT(*) as issues
+        FROM {table_name}
+        WHERE {integrity_conditions}
+    """).collect()[0]['ISSUES']
+    
+    assert integrity_check == 0, f"Data integrity issues found: {integrity_check}"
+    
+    print(f"✅ Data quality validation passed for {component}")
+```
+
+### Component Testing Template  
+```python
+def test_{component}_functionality(session: Session):
+    """Test {component} end-to-end functionality."""
+    
+    try:
+        # Test basic functionality
+        result = session.sql(f"""
+            {test_query}
+        """).collect()
+        
+        assert len(result) > 0, "No results returned"
+        
+        # Test specific business logic
+        {specific_tests}
+        
+        print(f"✅ {component} functionality test passed")
+        return True
+        
+    except Exception as e:
+        print(f"❌ {component} functionality test failed: {e}")
+        return False
+```
+
+## Configuration Management Patterns
+
+### Adding New Configuration Options
+```python
+# In config.py - add new configuration constants
+{NEW_FEATURE}_ENABLED = True
+{NEW_FEATURE}_CONFIG = {
+    'setting1': 'value1',
+    'setting2': 'value2'
+}
+
+# Document pattern in docstring
+"""
+{NEW_FEATURE} Configuration:
+- {NEW_FEATURE}_ENABLED: Enable/disable the feature
+- {NEW_FEATURE}_CONFIG: Feature-specific settings
+"""
+```
+
+### CLI Integration Pattern
+```python
+# In main.py - add new CLI arguments
+parser.add_argument(
+    '--{new-flag}',
+    action='store_true',
+    help='{Description of what this flag does}'
+)
+
+# Handle the flag in main logic
+if args.{new_flag}:
+    print(f"🔧 {Action description}...")
+    result = {function_call}(session)
+    if result:
+        print("✅ {Success message}")
+    else:
+        print("❌ {Failure message}")
+        return
+```
+
+This patterns guide provides complete templates for extending any aspect of the SAM demo without requiring chat history context.
+
+**Related Documentation**:
+- Agent Setup: `docs/agents_setup.md` - Complete agent configurations for all phases
+- Demo Scripts: `docs/demo_scenarios.md` - Step-by-step demo conversation flows
+- Troubleshooting: @troubleshooting.mdc - Issue resolution guide

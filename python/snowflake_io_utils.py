@@ -2,65 +2,18 @@
 Snowflake I/O Utilities for Batched Writes and Reads
 
 This module provides efficient patterns for interacting with Snowflake:
-- Batched writes using SQL INSERT (no row-by-row inserts, no temp stages)
+- Batched writes using write_pandas (no row-by-row inserts)
 - Batched reads with local mapping (no collect-in-loop patterns)
 
 Performance Guidelines:
 - Use write_pandas_overwrite() for small/moderate dimension tables
 - Use fetch_as_map() for lookup data needed in loops
 - Keep large dataset operations as pure SQL (CREATE TABLE AS SELECT)
-
-Note: Uses SQL INSERT with batched VALUES instead of write_pandas/create_dataframe
-to avoid temporary stage conflicts in stored procedures.
 """
 
-import json
-from datetime import date, datetime
-from decimal import Decimal
+import pandas as pd
 from typing import Dict, List, Any, Optional, Union, Tuple
 from snowflake.snowpark import Session
-
-
-def _sql_value(val: Any) -> str:
-    """Convert a Python value to SQL literal for INSERT statement."""
-    if val is None:
-        return "NULL"
-    elif isinstance(val, bool):
-        return "TRUE" if val else "FALSE"
-    elif isinstance(val, (int, float, Decimal)):
-        return str(val)
-    elif isinstance(val, (datetime, date)):
-        return f"'{val.isoformat()}'"
-    elif isinstance(val, (dict, list)):
-        # JSON types - use PARSE_JSON
-        json_str = json.dumps(val).replace("'", "''")
-        return f"PARSE_JSON('{json_str}')"
-    else:
-        # String - escape single quotes
-        escaped = str(val).replace("'", "''")
-        return f"'{escaped}'"
-
-
-def _infer_sql_type(val: Any) -> str:
-    """Infer SQL type from Python value for CREATE TABLE."""
-    if val is None:
-        return "VARCHAR"
-    elif isinstance(val, bool):
-        return "BOOLEAN"
-    elif isinstance(val, int):
-        return "INTEGER"
-    elif isinstance(val, float):
-        return "FLOAT"
-    elif isinstance(val, Decimal):
-        return "NUMBER(38,10)"
-    elif isinstance(val, datetime):
-        return "TIMESTAMP"
-    elif isinstance(val, date):
-        return "DATE"
-    elif isinstance(val, (dict, list)):
-        return "VARIANT"
-    else:
-        return "VARCHAR"
 
 
 def write_pandas_overwrite(
@@ -70,19 +23,16 @@ def write_pandas_overwrite(
     create_table: bool = True
 ) -> int:
     """
-    Write rows to a Snowflake table using batched SQL INSERT.
+    Write rows to a Snowflake table using batched write_pandas.
     
     This is the preferred method for small/moderate dimension tables.
-    Avoids row-by-row INSERT loops and temp stage issues.
-    
-    Uses SQL CREATE TABLE + INSERT VALUES instead of write_pandas
-    to avoid temporary stage conflicts in stored procedures.
+    Avoids row-by-row INSERT loops which are inefficient.
     
     Args:
         session: Active Snowpark session
         table_fqn: Fully-qualified table name (e.g., 'SAM_DEMO.CURATED.DIM_COUNTERPARTY')
         rows: List of dicts representing rows to write
-        create_table: If True, creates/replaces table; if False, truncates existing
+        create_table: If True, creates/replaces table; if False, assumes table exists
     
     Returns:
         Number of rows written
@@ -97,44 +47,48 @@ def write_pandas_overwrite(
     if not rows:
         return 0
     
-    # Get column names from first row, uppercase for Snowflake
-    columns = [col.upper() for col in rows[0].keys()]
+    # Convert to DataFrame with uppercase column names for Snowflake compatibility
+    df = pd.DataFrame(rows)
+    df.columns = [col.upper() for col in df.columns]
     
-    if create_table:
-        # Infer types from first row
-        first_row = rows[0]
-        col_defs = []
-        for col in rows[0].keys():
-            col_upper = col.upper()
-            sql_type = _infer_sql_type(first_row[col])
-            col_defs.append(f"{col_upper} {sql_type}")
-        
-        # Create or replace table
-        create_sql = f"CREATE OR REPLACE TABLE {table_fqn} ({', '.join(col_defs)})"
-        session.sql(create_sql).collect()
+    # Parse table components
+    parts = table_fqn.split('.')
+    if len(parts) == 3:
+        database, schema, table_name = parts
+    elif len(parts) == 2:
+        database = None
+        schema, table_name = parts
     else:
-        # Truncate existing table
-        session.sql(f"TRUNCATE TABLE {table_fqn}").collect()
+        database = None
+        schema = None
+        table_name = parts[0]
     
-    # Insert in batches to avoid SQL length limits
-    batch_size = 1000
-    total_inserted = 0
+    # Use write_pandas with quote_identifiers=False and overwrite=True
+    # This is the standard pattern per project guidelines
+    if create_table:
+        # Create or replace the table
+        session.write_pandas(
+            df,
+            table_name,
+            database=database,
+            schema=schema,
+            quote_identifiers=False,
+            overwrite=True,
+            auto_create_table=True
+        )
+    else:
+        # Truncate and insert (overwrite=True handles this)
+        session.write_pandas(
+            df,
+            table_name,
+            database=database,
+            schema=schema,
+            quote_identifiers=False,
+            overwrite=True,
+            auto_create_table=False
+        )
     
-    for i in range(0, len(rows), batch_size):
-        batch = rows[i:i + batch_size]
-        
-        # Build VALUES clause
-        value_rows = []
-        for row in batch:
-            values = [_sql_value(row.get(col, row.get(col.lower()))) 
-                      for col in columns]
-            value_rows.append(f"({', '.join(values)})")
-        
-        insert_sql = f"INSERT INTO {table_fqn} ({', '.join(columns)}) VALUES {', '.join(value_rows)}"
-        session.sql(insert_sql).collect()
-        total_inserted += len(batch)
-    
-    return total_inserted
+    return len(rows)
 
 
 def write_pandas_append(
@@ -143,10 +97,7 @@ def write_pandas_append(
     rows: List[Dict[str, Any]]
 ) -> int:
     """
-    Append rows to an existing Snowflake table using batched SQL INSERT.
-    
-    Uses SQL INSERT VALUES instead of write_pandas to avoid
-    temporary stage conflicts in stored procedures.
+    Append rows to an existing Snowflake table using batched write_pandas.
     
     Args:
         session: Active Snowpark session
@@ -159,28 +110,33 @@ def write_pandas_append(
     if not rows:
         return 0
     
-    # Get column names from first row, uppercase for Snowflake
-    columns = [col.upper() for col in rows[0].keys()]
+    # Convert to DataFrame with uppercase column names
+    df = pd.DataFrame(rows)
+    df.columns = [col.upper() for col in df.columns]
     
-    # Insert in batches to avoid SQL length limits
-    batch_size = 1000
-    total_inserted = 0
+    # Parse table components
+    parts = table_fqn.split('.')
+    if len(parts) == 3:
+        database, schema, table_name = parts
+    elif len(parts) == 2:
+        database = None
+        schema, table_name = parts
+    else:
+        database = None
+        schema = None
+        table_name = parts[0]
     
-    for i in range(0, len(rows), batch_size):
-        batch = rows[i:i + batch_size]
-        
-        # Build VALUES clause
-        value_rows = []
-        for row in batch:
-            values = [_sql_value(row.get(col, row.get(col.lower()))) 
-                      for col in columns]
-            value_rows.append(f"({', '.join(values)})")
-        
-        insert_sql = f"INSERT INTO {table_fqn} ({', '.join(columns)}) VALUES {', '.join(value_rows)}"
-        session.sql(insert_sql).collect()
-        total_inserted += len(batch)
+    session.write_pandas(
+        df,
+        table_name,
+        database=database,
+        schema=schema,
+        quote_identifiers=False,
+        overwrite=False,  # Append mode
+        auto_create_table=False
+    )
     
-    return total_inserted
+    return len(rows)
 
 
 def fetch_as_map(

@@ -1,0 +1,1820 @@
+---
+alwaysApply: true
+---
+
+# SAM Demo - Agent Configuration Guide
+
+Complete step-by-step guide for configuring Snowflake Intelligence agents with proper tool setup, instructions, and validation procedures. This guide is self-contained and provides all patterns needed to create new agents without external context.
+
+## Overview
+
+This guide provides the exact patterns and procedures for creating Snowflake Intelligence agents using SQL `CREATE AGENT` statements. All agents are now automatically created via `python/create_agents.py` during the build process.
+
+**Agent Creation Method:**
+- ✅ **SQL-Based**: All agents created using `CREATE OR REPLACE AGENT` statements
+- ✅ **Automated**: Executed automatically via `python main.py`
+- ✅ **Centralized**: All agent creation logic in `python/create_agents.py`
+- ✅ **Properly Formatted**: Instructions use YAML escaping (`\n` for newlines, `\"` for quotes)
+
+**Agent Types by Use Case:**
+- **Multi-Tool Hybrid**: Portfolio Copilot (multiple Cortex Analyst + Search tools)
+- **Search-Focused**: Research Copilot (document synthesis and analysis)
+- **Analytics-Focused**: Quant Analyst (single/multiple Cortex Analyst tools)  
+- **Compliance-Focused**: ESG Guardian (policy search + ESG analytics)
+
+**Current Implementation Status** (see @project-setup.mdc for details):
+- ✅ **All 8 agents**: Automatically created via SQL during build process
+- ✅ **Agent Location**: Created in `{DATABASE['name']}.{DATABASE['schemas']['ai']}` schema
+- ✅ **Registration**: Automatically registered with Snowflake Intelligence
+- ✅ **portfolio_copilot**: Full instructions from docs/agents_setup.md
+- ✅ **research_copilot**: Full instructions from docs/agents_setup.md
+- ✅ **thematic_macro_advisor**: Full instructions from docs/agents_setup.md
+- ✅ **esg_guardian, compliance_advisor, sales_advisor, quant_analyst, middle_office_copilot**: Comprehensive instructions
+
+## Snowflake Intelligence Prerequisites
+
+**CRITICAL**: Before creating agents, verify Snowflake Intelligence exists.
+
+### Check for Snowflake Intelligence
+```sql
+SHOW SNOWFLAKE INTELLIGENCES;
+```
+
+If no results, create it first:
+```sql
+CREATE SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;
+```
+
+For more information, see: https://docs.snowflake.com/en/user-guide/snowflake-intelligence
+
+### Agent Location and Registration
+
+**Agents are created in**: `{DATABASE['name']}.{DATABASE['schemas']['ai']}.{agent_name}`
+
+Example: `SAM_DEMO.AI.AM_portfolio_copilot`
+
+**After creation, agents are registered with Snowflake Intelligence**:
+```sql
+ALTER SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT 
+ADD AGENT SAM_DEMO.AI.AM_portfolio_copilot;
+```
+
+This registration step is handled automatically by `python/create_agents.py`.
+
+## Step 1: Prerequisites and Preparation
+
+### 1.1 Verify AI Components
+Before configuring agents, verify all required AI components exist:
+
+```python
+def verify_ai_components_for_agent(session: Session, required_services: List[str]):
+    """Verify semantic view and search services exist"""
+    
+    # Check semantic view exists
+    try:
+        session.sql("DESCRIBE SEMANTIC VIEW SAM_DEMO.AI.SAM_ANALYST_VIEW").collect()
+        print("✅ Semantic view: SAM_ANALYST_VIEW")
+    except Exception as e:
+        print(f"❌ Semantic view missing: {e}")
+        return False
+    
+    # Check search services exist
+    services = session.sql("SHOW CORTEX SEARCH SERVICES IN SAM_DEMO.AI").collect()
+    existing_services = [service['name'] for service in services]
+    
+    for required_service in required_services:
+        if required_service in existing_services:
+            print(f"✅ Search service: {required_service}")
+        else:
+            print(f"❌ Missing search service: {required_service}")
+            return False
+    
+    return True
+
+# Example usage for Portfolio Copilot:
+required_services = ['SAM_BROKER_RESEARCH', 'SAM_EARNINGS_TRANSCRIPTS', 'SAM_PRESS_RELEASES', 'SAM_REAL_SEC_FILINGS']
+verify_ai_components_for_agent(session, required_services)
+```
+
+### 1.2 Validate Data Readiness
+Ensure data is ready for agent testing:
+
+```python
+def validate_agent_data_readiness(session: Session):
+    """Validate data quality and completeness for agents"""
+    
+    # Check portfolio data
+    portfolios = session.sql("SELECT PORTFOLIONAME FROM SAM_DEMO.CURATED.DIM_PORTFOLIO").collect()
+    print(f"✅ Available portfolios: {len(portfolios)}")
+    
+    # Check holdings data
+    holdings_count = session.sql("""
+        SELECT COUNT(*) as count 
+        FROM SAM_DEMO.CURATED.FACT_POSITION_DAILY_ABOR 
+        WHERE HoldingDate = (SELECT MAX(HoldingDate) FROM SAM_DEMO.CURATED.FACT_POSITION_DAILY_ABOR)
+    """).collect()[0]['COUNT']
+    print(f"✅ Current holdings: {holdings_count} positions")
+    
+    # Check document corpus
+    for corpus in ['BROKER_RESEARCH_CORPUS', 'EARNINGS_TRANSCRIPTS_CORPUS', 'PRESS_RELEASES_CORPUS']:
+        doc_count = session.sql(f"SELECT COUNT(*) as count FROM SAM_DEMO.CURATED.{corpus}").collect()[0]['COUNT']
+        print(f"✅ {corpus}: {doc_count} documents")
+    
+    return True
+```
+
+## Step 2: SQL-Based Agent Creation (Current Implementation)
+
+### 2.1 Automated Agent Creation via SQL
+
+**All agents are now created automatically using SQL `CREATE AGENT` statements.** The build process executes `python/create_agents.py` which generates and runs SQL for all 8 agents.
+
+**Implementation**: See `python/create_agents.py`
+
+**Key Components:**
+
+1. **Agent Creation Functions**: One function per agent (e.g., `create_portfolio_copilot()`)
+2. **Instruction Helpers**: Functions that return properly formatted instructions (e.g., `get_portfolio_copilot_response_instructions()`)
+3. **YAML Formatting**: Helper function `format_instructions_for_yaml()` that escapes instructions for SQL
+4. **Intelligence Verification**: Checks for Snowflake Intelligence existence before creation
+5. **Agent Registration**: Automatically registers each agent with Snowflake Intelligence
+
+**Example Pattern:**
+```python
+def create_portfolio_copilot(session: Session):
+    """Create Portfolio Copilot agent with full instructions from documentation."""
+    database_name = config.DATABASE['name']
+    ai_schema = config.DATABASE['schemas']['ai']
+    
+    # Get instructions from helper functions
+    instructions = get_agent_instructions()['portfolio_copilot']
+    response_formatted = format_instructions_for_yaml(instructions['response'])
+    orchestration_formatted = format_instructions_for_yaml(instructions['orchestration'])
+    
+    sql = f"""
+CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
+  COMMENT = 'Expert AI assistant for portfolio managers...'
+  PROFILE = '{{"display_name": "Portfolio Co-Pilot (AM Demo)"}}'
+  FROM SPECIFICATION
+  $$
+  models:
+    orchestration: claude-sonnet-4-5
+  instructions:
+    response: "{response_formatted}"
+    orchestration: "{orchestration_formatted}"
+  tools:
+    - tool_spec:
+        type: "cortex_analyst_text_to_sql"
+        name: "quantitative_analyzer"
+        description: "Analyzes portfolio holdings..."
+    # ... additional tools
+  tool_resources:
+    quantitative_analyzer:
+      execution_environment:
+        query_timeout: 30
+        type: "warehouse"
+        warehouse: "SAM_DEMO_EXECUTION_WH"
+      semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
+  $$;
+"""
+    
+    session.sql(sql).collect()
+    
+    # Agent is then automatically registered with Snowflake Intelligence via:
+    # ALTER SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT 
+    # ADD AGENT {database_name}.{ai_schema}.AM_portfolio_copilot;
+```
+
+### 2.2 Critical Formatting Rules for SQL Agent Creation
+
+**YAML Escaping Requirements:**
+- **Line breaks**: Convert actual newlines to `\n` 
+- **Double quotes**: Escape with `\"`
+- **Single quotes**: Escape with `''` (double single quote for SQL)
+
+**Helper Function:**
+```python
+def format_instructions_for_yaml(text: str) -> str:
+    """
+    Format multi-line instructions for YAML specification within SQL.
+    - Replace actual line breaks with \n
+    - Escape double quotes with \"
+    - Escape single quotes with ''
+    """
+    formatted = text.replace('\n', '\\n')
+    formatted = formatted.replace('"', '\\"')
+    formatted = formatted.replace("'", "''")
+    return formatted
+```
+
+**Example Input/Output:**
+```python
+# Input (Python multi-line string):
+"""Style:
+- Tone: Professional
+- Example: "This is a quote"
+User: "What are my holdings?"
+Response: "Your portfolio has 10 holdings"
+"""
+
+# Output (YAML-ready string):
+"Style:\n- Tone: Professional\n- Example: \"This is a quote\"\nUser: \"What are my holdings?\"\nResponse: \"Your portfolio has 10 holdings\""
+```
+
+### 2.3 Agent Creation Workflow
+
+**When you run `python main.py`:**
+1. Build process creates semantic views and search services
+2. `build_ai.py` calls `create_agents.create_all_agents()`
+3. System verifies Snowflake Intelligence exists via `SHOW SNOWFLAKE INTELLIGENCES`
+4. Each agent creation function executes its `CREATE AGENT` SQL in `{DATABASE['name']}.{DATABASE['schemas']['ai']}` schema
+5. Each agent is registered with Snowflake Intelligence via `ALTER SNOWFLAKE INTELLIGENCE ADD AGENT`
+6. Agents are immediately available in Snowflake Intelligence UI
+
+**Manual Agent Creation (if needed):**
+```bash
+# Create all agents
+python main.py  # Agents created automatically as part of build
+
+# Or directly test agent creation
+python -c "from snowflake.snowpark import Session; import create_agents; session = Session.builder.configs(...).create(); create_agents.create_all_agents(session, ['all'])"
+```
+
+### 2.4 Adding New Agents - Complete Workflow
+
+**To add a new agent, follow this comprehensive workflow that uses all patterns from this guide:**
+
+#### Step 1: Design Agent Instructions (Using Patterns from Step 3)
+
+**Response Instructions** - Use pattern from Section 3.2.1:
+```python
+def get_new_agent_response_instructions():
+    """Get response instructions for new agent"""
+    return """Style:
+- Tone: [Specific tone for persona - see Section 3.2.1]
+- Lead With: [Answer pattern - see Section 3.2.1]
+- Terminology: [Domain-specific terms - see Section 3.2.1]
+- Precision: [Detail level - see Section 3.2.1]
+- Limitations: [How to communicate gaps - see Section 3.2.1]
+
+Presentation:
+- Tables: Use for [criteria with threshold - see Section 3.2.1]
+- Bar Charts: Use for [criteria - see Section 3.2.1]
+- Line Charts: Use for [criteria - see Section 3.2.1]
+- Single Metrics: Format as "[pattern]"
+- Data Freshness: Always include "[pattern]"
+
+Response Structure for [Common Query Type 1]:
+Template: "[Structure with placeholders - see Section 3.2.1 for examples]"
+
+Example:
+User: "[realistic question]"
+Response: "[complete example showing all elements]"
+
+Response Structure for [Common Query Type 2]:
+Template: "[Different structure for different query type]"
+
+Example:
+User: "[example question]"
+Response: "[complete example]"
+"""
+```
+
+**Orchestration Instructions** - Use patterns from Sections 3.1.1, 3.1.2, 3.1.3:
+```python
+def get_new_agent_orchestration_instructions():
+    """Get orchestration instructions for new agent"""
+    return """Business Context:
+
+Organization Context:
+- [Organization details - see Section 3.1.1]
+- [Key metrics - see Section 3.1.1]
+- [Regulatory framework - see Section 3.1.1]
+- [Data operations - see Section 3.1.1]
+
+Key Business Terms:
+- [Term 1]: [Definition with thresholds - see Section 3.1.1]
+- [Term 2]: [Definition with thresholds - see Section 3.1.1]
+- [Term 3]: [Definition with process - see Section 3.1.1]
+
+[Domain] Categories:
+- [Category 1]: [Characteristics - see Section 3.1.1]
+- [Category 2]: [Characteristics - see Section 3.1.1]
+
+Tool Selection Strategy:
+
+1. [Query categorization - see Section 3.1]
+2. [Tool selection logic with ✅/❌ examples]
+3. [Workflow sequencing for multi-tool queries]
+
+Complete Workflow Examples:
+
+Workflow 1: [Workflow Name]
+Trigger: User asks "[example question]"
+
+Step-by-Step Execution:
+1. [First Action]
+   Tool: [tool_name]
+   Query/Search: "[exact pattern]"
+   Extract from results: [specific info]
+   Why this step: [business justification]
+
+2. [Second Action]
+   Tool: [tool_name]
+   Query/Search: "[exact pattern using Step 1 results]"
+   Extract from results: [specific info]
+
+3. [Third Action]
+   [Continue pattern - see Section 3.1.2 for complete example]
+
+4. Synthesize Final Response:
+   - [Element 1]: From Step [X]
+   - [Element 2]: From Step [Y]
+   - Format as: [specific format]
+   - Include: [required elements]
+
+Example Complete Interaction:
+User Question: "[realistic question]"
+Agent Response: "[complete response showing all workflow elements]"
+
+Workflow 2: [Another Workflow]
+[Follow same pattern - see Section 3.1.2]
+
+Error Handling and Edge Cases:
+
+Scenario 1: [Error Condition]
+Detection: [How to identify - see Section 3.1.3]
+Recovery Steps:
+  1. [Recovery action 1]
+  2. [Recovery action 2]
+  3. [Final fallback]
+User Message: "[Exact message pattern]"
+Alternative: [What to suggest]
+
+Scenario 2: [Different Error]
+[Follow same pattern - see Section 3.1.3 for 5 complete examples]
+
+[Continue for 3-5 scenarios]
+"""
+```
+
+#### Step 2: Configure Tools (Using Patterns from Section 2.2)
+
+**For Cortex Analyst tools** - Use pattern from Section 2.2.1:
+- Include Data Coverage (5 elements)
+- Include Semantic Model Contents (4 elements)
+- Include When to Use (3-4 examples)
+- Include When NOT to Use (3 anti-patterns with alternatives)
+- Include Query Best Practices (3+ with ✅/❌ examples)
+
+**For Cortex Search tools** - Use pattern from Section 2.2.1:
+- Include Data Sources (5 elements)
+- Include When to Use (3-4 examples)
+- Include When NOT to Use (3 anti-patterns with alternatives)
+- Include Search Query Best Practices (3+ with ✅/❌ examples)
+
+#### Step 3: Implement Agent Creation Function
+
+```python
+def create_new_agent(session: Session):
+    """Create new agent with comprehensive tool descriptions."""
+    database_name = config.DATABASE['name']
+    ai_schema = config.DATABASE['schemas']['ai']
+    
+    # Get instructions from helper functions
+    instructions = get_agent_instructions()['new_agent']
+    response_formatted = format_instructions_for_yaml(instructions['response'])
+    orchestration_formatted = format_instructions_for_yaml(instructions['orchestration'])
+    
+    sql = f"""
+CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_new_agent
+  COMMENT = '[2-3 sentence description: persona + capabilities + value proposition]'
+  PROFILE = '{{"display_name": "[Display Name]"}}'
+  FROM SPECIFICATION
+  $$
+  models:
+    orchestration: claude-sonnet-4-5
+  instructions:
+    response: "{response_formatted}"
+    orchestration: "{orchestration_formatted}"
+  tools:
+    - tool_spec:
+        type: "cortex_analyst_text_to_sql"
+        name: "[tool_name]"
+        description: "[Use comprehensive pattern from Section 2.2.1 - include Data Coverage, When to Use/NOT, Query Best Practices]"
+    - tool_spec:
+        type: "cortex_search"
+        name: "search_[document_type]"
+        description: "[Use comprehensive pattern from Section 2.2.1 - include Data Sources, When to Use/NOT, Search Best Practices]"
+  tool_resources:
+    [tool_name]:
+      execution_environment:
+        query_timeout: 30
+        type: "warehouse"
+        warehouse: "SAM_DEMO_EXECUTION_WH"
+      semantic_view: "{database_name}.AI.[SEMANTIC_VIEW_NAME]"
+    search_[document_type]:
+      search_service: "{database_name}.AI.SAM_[SERVICE_NAME]"
+      id_column: "DOCUMENT_ID"
+      title_column: "DOCUMENT_TITLE"
+      max_results: 4
+  $$;
+"""
+    
+    session.sql(sql).collect()
+    print("✅ Created agent: new_agent")
+```
+
+#### Step 4: Register Agent
+
+**Add to `get_agent_instructions()` function**:
+```python
+def get_agent_instructions():
+    return {
+        # ... existing agents
+        'new_agent': {
+            'response': get_new_agent_response_instructions(),
+            'orchestration': get_new_agent_orchestration_instructions()
+        }
+    }
+```
+
+**Add to `create_all_agents()` function**:
+```python
+def create_all_agents(session: Session, scenarios: List[str]):
+    agents_to_create = {
+        # ... existing agents
+        'new_agent': create_new_agent
+    }
+    # ... rest of function
+```
+
+#### Step 5: Validate Using Checklist
+
+Follow the validation checklist:
+- [ ] Use **Section 2.2.1** for comprehensive tool descriptions
+- [ ] Use **Section 3.1.1** for business context patterns
+- [ ] Use **Section 3.1.2** for explicit workflow examples
+- [ ] Use **Section 3.1.3** for error handling patterns
+- [ ] Use **Section 3.2.1** for structured response instructions
+- [ ] Reference **@agent_configuration_checklist.md** for systematic validation
+- [ ] Reference **@agent_config_enhanced_example.md** for complete reference template
+
+#### Complete Example Reference
+
+See existing agents in `create_agents.py` for working examples:
+- **portfolio_copilot**: Full comprehensive example with all patterns
+- **research_copilot**: Multi-tool search and analysis pattern
+- **thematic_macro_advisor**: Thematic investment strategy pattern
+- **esg_guardian**: Compliance and risk monitoring pattern
+
+## Step 3: Agent Configuration Reference (For Documentation)
+
+### 3.1 Agent Setup Templates
+
+**Multi-Tool Agent (Mixed Cortex Analyst + Search):**
+```yaml
+Agent Name: {agent_name}
+Display Name: {Agent Display Name}
+Description: {Business context and capabilities}
+Response Instructions: {Tone, format, and output guidelines}
+
+Tools:
+  - {analyst_tool_1} (Cortex Analyst)              # e.g., quantitative_analyzer
+  - {analyst_tool_2} (Cortex Analyst)              # e.g., risk_analyzer (optional)
+  - search_{document_type_1} (Cortex Search)       # e.g., search_broker_research
+  - search_{document_type_2} (Cortex Search)       # e.g., search_earnings_transcripts
+
+Orchestration Model: Claude 4
+Planning Instructions: {Tool selection logic for multiple analysts and document search}
+```
+
+**Multiple Cortex Analyst Agent (Pure Analytics):**
+```yaml
+Agent Name: {agent_name}
+Display Name: {Agent Display Name}
+Description: {Comprehensive quantitative analysis across multiple domains}
+Response Instructions: {Data-focused tone and formatting guidelines}
+
+Tools:
+  - {analyst_tool_1} (Cortex Analyst)              # e.g., portfolio_analyzer
+  - {analyst_tool_2} (Cortex Analyst)              # e.g., risk_analyzer
+  - {analyst_tool_3} (Cortex Analyst)              # e.g., performance_analyzer
+
+Orchestration Model: Claude 4
+Planning Instructions: {Logic for selecting appropriate analyst tool based on query type}
+```
+
+**Single Cortex Analyst Agent (Focused Analytics):**
+```yaml
+Agent Name: {agent_name}
+Display Name: {Agent Display Name}
+Description: {Specific analytical domain focus}
+Response Instructions: {Domain-focused tone and formatting guidelines}
+
+Tools:
+  - {analyst_tool_name} (Cortex Analyst)           # e.g., quantitative_analyzer, risk_analyzer
+
+Orchestration Model: Claude 4
+Planning Instructions: {Logic for single-domain quantitative analysis}
+```
+
+**Cortex Search Only Agent (Document Research):**
+```yaml
+Agent Name: {agent_name}
+Display Name: {Agent Display Name}
+Description: {Document search and qualitative research capabilities}
+Response Instructions: {Research-focused tone with proper citations}
+
+Tools:
+  - search_{document_type_1} (Cortex Search)       # e.g., search_policies
+  - search_{document_type_2} (Cortex Search)       # e.g., search_engagement_notes
+
+Orchestration Model: Claude 4
+Planning Instructions: {Logic for document search and content synthesis}
+```
+
+### 2.2 Tool Configuration Patterns
+
+**Cortex Analyst Tool Pattern (Optional):**
+```yaml
+Tool Name: {analyst_tool_name}                    # e.g., quantitative_analyzer, risk_analyzer
+Type: Cortex Analyst
+Semantic View: SAM_DEMO.AI.{SEMANTIC_VIEW_NAME}   # e.g., SAM_ANALYST_VIEW, SAM_RISK_VIEW
+Description: "Use this tool for {specific_analysis_type}. It can {capabilities_list}. Use for questions about {when_to_use_guidance}."
+
+# Example: Portfolio Analytics
+Tool Name: quantitative_analyzer
+Type: Cortex Analyst
+Semantic View: SAM_DEMO.AI.SAM_ANALYST_VIEW
+Description: "Use this tool for quantitative analysis of portfolio data, fund holdings, market metrics, performance calculations, and financial ratios. It can calculate exposures, generate lists of securities, perform aggregations, and create charts. Use for questions about numbers, percentages, rankings, comparisons, visualizations, and fund/portfolio analytics."
+```
+
+**Cortex Search Tool Pattern (Optional):**
+```yaml
+Tool Name: search_{document_type}                 # e.g., search_broker_research, search_policies
+Type: Cortex Search
+Service: SAM_DEMO.AI.SAM_{DOCUMENT_TYPE}         # e.g., SAM_BROKER_RESEARCH, SAM_POLICY_DOCS
+ID Column: DOCUMENT_ID
+Title Column: DOCUMENT_TITLE
+Description: "Search {document_type} for {specific_use_case}. Use for {when_to_use_guidance}."
+
+# Example: Document Search
+Tool Name: search_broker_research
+Type: Cortex Search
+Service: SAM_DEMO.AI.SAM_BROKER_RESEARCH
+ID Column: DOCUMENT_ID
+Title Column: DOCUMENT_TITLE
+Description: "Search broker research reports for investment opinions, ratings, and market commentary. Use for questions about analyst views, price targets, and investment recommendations."
+```
+
+### 2.2.1 Comprehensive Tool Description Pattern
+
+**Following Snowflake Best Practices**, tool descriptions should be detailed and explicit to guide the agent's tool selection accurately. Use this enhanced pattern for all tools:
+
+**Cortex Analyst Tool - Comprehensive Description Pattern:**
+```yaml
+Tool Name: {analyst_tool_name}
+Type: Cortex Analyst
+Semantic View: SAM_DEMO.AI.{SEMANTIC_VIEW_NAME}
+
+Description: |
+  {One-sentence purpose statement describing what this tool analyzes}
+  
+  Data Coverage:
+  - Historical: {time range of historical data, e.g., "12 months of transaction history"}
+  - Current: {update frequency, e.g., "Daily at 4 PM ET market close"}
+  - Sources: {underlying data tables, e.g., "DIM_SECURITY, FACT_POSITION_DAILY_ABOR"}
+  - Records: {approximate scale, e.g., "14,000+ securities, 27,000+ holdings"}
+  - Refresh: {refresh schedule with timezone, e.g., "Daily at 4 PM ET with 2-hour processing lag"}
+  
+  Semantic Model Contents:
+  - Tables: {table list with brief purpose}
+  - Key Metrics: {primary metrics available}
+  - Time Dimensions: {date columns and granularity}
+  - Common Filters: {frequently used dimension filters}
+  
+  When to Use:
+  - {Specific use case 1 with example query pattern}
+  - {Specific use case 2 with example query pattern}
+  - {Specific use case 3 with example query pattern}
+  - Questions like: "{example question 1}", "{example question 2}"
+  
+  When NOT to Use:
+  - {Anti-pattern 1 with alternative: "Use {other_tool} instead"}
+  - {Anti-pattern 2 with alternative: "Use {other_tool} instead"}
+  - {Anti-pattern 3 with explanation of limitation}
+  
+  Query Best Practices:
+  1. Be specific about time ranges:
+     ✅ "in the last 30 days" or "as of 2024-12-31"
+     ❌ "recently" or "current" (ambiguous)
+  
+  2. Use semantic metric names:
+     ✅ "total market value", "portfolio weight"
+     ❌ Raw SQL column names (model handles this)
+  
+  3. Filter to latest date for current holdings:
+     ✅ "most recent holding date" or "latest positions"
+     ❌ All historical dates (causes duplicates)
+  
+  4. Leverage pre-defined metrics:
+     ✅ "Show me concentration warnings" (uses model definition)
+     ❌ "Calculate positions over 6.5%" (reinventing metric)
+
+# Example: Portfolio Analytics Tool
+Tool Name: quantitative_analyzer
+Type: Cortex Analyst
+Semantic View: SAM_DEMO.AI.SAM_ANALYST_VIEW
+
+Description: |
+  Analyzes portfolio holdings, position weights, sector allocations, and mandate 
+  compliance for SAM investment portfolios.
+  
+  Data Coverage:
+  - Historical: 12 months of position and transaction history
+  - Current: End-of-day holdings updated daily at 4 PM ET
+  - Sources: DIM_SECURITY, DIM_PORTFOLIO, FACT_POSITION_DAILY_ABOR, DIM_ISSUER
+  - Records: 14,000+ real securities, 10 portfolios, 27,000+ holdings
+  - Refresh: Daily at market close with 2-hour processing lag
+  
+  Semantic Model Contents:
+  - Tables: Holdings, Securities, Portfolios, Issuers with relationships
+  - Key Metrics: TOTAL_MARKET_VALUE, PORTFOLIO_WEIGHT, HOLDING_COUNT, ISSUER_EXPOSURE
+  - Time Dimensions: HoldingDate (daily granularity)
+  - Common Filters: PORTFOLIONAME, AssetClass, GICS_Sector, CountryOfIncorporation
+  
+  When to Use:
+  - Questions about portfolio holdings, weights, and composition
+  - Concentration analysis and position-level risk metrics
+  - Sector/geographic allocation and benchmark comparisons
+  - Questions like: "What are my top holdings?", "Show sector allocation"
+  
+  When NOT to Use:
+  - Real-time intraday positions (data is end-of-day only, use market data feed)
+  - Individual company financial analysis (use financial_analyzer for SEC filing data)
+  - Document content questions (use search_broker_research, search_earnings_transcripts)
+  - Implementation costs and execution planning (use implementation_analyzer)
+  
+  Query Best Practices:
+  1. Be specific about portfolio names:
+     ✅ "SAM Technology & Infrastructure portfolio"
+     ❌ "tech portfolio" (ambiguous)
+  
+  2. Filter to latest date for current holdings:
+     ✅ "most recent holding date" or "latest positions"
+     ❌ All dates without filter (returns historical duplicates)
+  
+  3. Use semantic metric names:
+     ✅ "total market value", "portfolio weight", "concentration"
+     ❌ Raw SQL aggregations (model handles calculations)
+```
+
+**Cortex Search Tool - Comprehensive Description Pattern:**
+```yaml
+Tool Name: search_{document_type}
+Type: Cortex Search
+Service: SAM_DEMO.AI.SAM_{DOCUMENT_TYPE}
+ID Column: DOCUMENT_ID
+Title Column: DOCUMENT_TITLE
+
+Description: |
+  {One-sentence purpose statement describing document search capability}
+  
+  Data Sources:
+  - Document Types: {types of documents included}
+  - Update Frequency: {how often new documents added}
+  - Historical Range: {typical age range of documents}
+  - Index Freshness: {lag between document creation and searchability}
+  - Typical Count: {approximate number of documents}
+  
+  When to Use:
+  - Questions about {domain} requiring document content
+  - {Specific use case 1 with example}
+  - {Specific use case 2 with example}
+  - Queries like: "{example question}"
+  
+  When NOT to Use:
+  - Portfolio holdings or quantitative data (use quantitative_analyzer)
+  - Financial metrics requiring calculation (use Cortex Analyst tools)
+  - Real-time market data (documents have publication lag)
+  - Questions requiring data aggregation across securities
+  
+  Search Query Best Practices:
+  1. Use specific company/product names:
+     ✅ "Microsoft Azure cloud computing strategy"
+     ❌ "cloud strategy" (too generic)
+  
+  2. Include multiple related keywords:
+     ✅ "artificial intelligence machine learning strategy investment"
+     ❌ "AI" (too broad, returns too many results)
+  
+  3. Use technical terms when appropriate:
+     ✅ "debt-to-equity leverage ratio financial health"
+     ❌ "company finances" (colloquial)
+  
+  4. Handle low relevance results:
+     - If relevance scores < 0.5, rephrase with more specific terms
+     - Try synonyms, expand acronyms, add industry context
+     - If still no relevant results, inform user explicitly
+  
+  Example Scenarios:
+  
+  Scenario 1 - Company Research:
+  User: "What is the latest analyst view on Microsoft?"
+  Search: "Microsoft analyst opinion rating investment recommendation latest"
+  Expected: 3-5 relevant broker research documents
+  
+  Scenario 2 - Low Relevance Handling:
+  Initial Search: "tech opportunities"
+  Results: Low relevance (<0.5)
+  Action: Rephrase → "artificial intelligence cloud computing technology sector investment opportunities"
+  
+  Scenario 3 - No Results:
+  Search: "[obscure company] analyst coverage"
+  Results: No documents with relevance >0.3
+  Response: "I couldn't find analyst research on this company. This may indicate 
+  limited coverage in our broker research corpus. Would you like me to search 
+  earnings transcripts or press releases instead?"
+
+# Example: Broker Research Search Tool
+Tool Name: search_broker_research
+Type: Cortex Search
+Service: SAM_DEMO.AI.SAM_BROKER_RESEARCH
+ID Column: DOCUMENT_ID
+Title Column: DOCUMENT_TITLE
+
+Description: |
+  Searches broker research reports and analyst notes for investment opinions, 
+  ratings, price targets, and market commentary on securities.
+  
+  Data Sources:
+  - Document Types: Broker research reports, analyst initiations, sector updates
+  - Update Frequency: New reports added as generated (batch daily)
+  - Historical Range: Typically last 18 months of research coverage
+  - Index Freshness: 24-hour lag from document generation
+  - Typical Count: ~200 reports covering major securities
+  
+  When to Use:
+  - Questions about analyst views, investment ratings, price targets
+  - Qualitative research synthesis and market commentary
+  - Sector themes and investment thesis development
+  - Queries like: "What do analysts say about Microsoft's AI strategy?"
+  
+  When NOT to Use:
+  - Portfolio holdings questions (use quantitative_analyzer)
+  - Financial statement data (use financial_analyzer for SEC filings)
+  - Real-time stock prices (research has publication lag)
+  - Quantitative comparisons across multiple securities (use Cortex Analyst)
+  
+  Search Query Best Practices:
+  1. Use specific company names and topics:
+     ✅ "NVIDIA artificial intelligence GPU data center growth"
+     ❌ "tech growth" (too generic)
+  
+  2. Include investment-relevant keywords:
+     ✅ "Apple iPhone revenue outlook analyst estimate rating"
+     ❌ "Apple news" (too broad, returns non-investment content)
+  
+  3. Combine company + theme for thematic searches:
+     ✅ "renewable energy climate technology investment opportunity"
+     ❌ "climate" (needs more context)
+```
+
+### 2.3 Complete Agent Example (Portfolio Copilot)
+```yaml
+Agent Name: portfolio_copilot
+Display Name: Portfolio Co-Pilot
+Description: Expert AI assistant for portfolio managers providing instant access to portfolio analytics, holdings analysis, benchmark comparisons, and supporting research. Helps portfolio managers make informed investment decisions by combining quantitative portfolio data with qualitative market intelligence.
+
+Response Instructions: Professional, data-driven tone with concentration flagging and UK English terminology
+
+Tools:
+  1. quantitative_analyzer (Cortex Analyst)
+     - Semantic View: SAM_DEMO.AI.SAM_ANALYST_VIEW
+     - Description: "Use for portfolio analytics, holdings analysis, sector breakdowns, performance metrics, and quantitative calculations"
+     
+  2. search_broker_research (Cortex Search)
+     - Service: SAM_DEMO.AI.SAM_BROKER_RESEARCH
+     - ID Column: DOCUMENT_ID
+     - Title Column: DOCUMENT_TITLE
+     - Description: "Search broker research reports for investment opinions, ratings, and market commentary"
+     
+  3. search_earnings_transcripts (Cortex Search)
+     - Service: SAM_DEMO.AI.SAM_EARNINGS_TRANSCRIPTS
+     - ID Column: DOCUMENT_ID
+     - Title Column: DOCUMENT_TITLE
+     - Description: "Search earnings call transcripts for company guidance and financial updates"
+     
+  4. search_press_releases (Cortex Search)
+     - Service: SAM_DEMO.AI.SAM_PRESS_RELEASES
+     - ID Column: DOCUMENT_ID
+     - Title Column: DOCUMENT_TITLE
+     - Description: "Search company press releases for corporate developments and announcements"
+
+  5. real_stock_prices (Cortex Analyst) - NEW
+     - Semantic View: SAM_DEMO.AI.SAM_STOCK_PRICES_VIEW
+     - Description: "Analyze real daily stock prices (OHLCV) from Nasdaq for ~50 companies"
+
+  6. real_sec_financials (Cortex Analyst) - NEW
+     - Semantic View: SAM_DEMO.AI.SAM_REAL_SEC_VIEW
+     - Description: "Analyze real SEC financial metrics from 10-K/10-Q filings"
+
+Orchestration Model: Claude 4
+Planning Instructions: Use quantitative_analyzer for portfolio data, search tools for document content, real_stock_prices and real_sec_financials for authentic market/financial data, flag concentrations >6.5%
+```
+
+### 2.4 Real Data Tools (NEW)
+
+The following tools provide access to real SEC data from SNOWFLAKE_PUBLIC_DATA_FREE:
+
+**Real Stock Prices Tool:**
+```yaml
+Tool Name: real_stock_prices
+Type: Cortex Analyst
+Semantic View: SAM_DEMO.AI.SAM_STOCK_PRICES_VIEW
+Description: |
+  Analyzes real daily stock prices (OHLCV) from Nasdaq for companies in the demo portfolio.
+  
+  Data Coverage:
+  - Records: 5.2M+ daily price records
+  - Companies: ~50 with ticker linkage to demo data
+  - History: 2 years of daily prices
+  - Metrics: Open, High, Low, Close, Volume
+  - Source: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.STOCK_PRICE_TIMESERIES
+  
+  When to Use:
+  - Real historical stock price analysis
+  - Price trend visualization
+  - Volume analysis
+  - Questions like: "What is AAPL's price history?", "Show me NVDA's trading volume"
+  
+  When NOT to Use:
+  - Portfolio holdings analysis (use quantitative_analyzer)
+  - Companies without CIK linkage
+```
+
+**Real SEC Financials Tool:**
+```yaml
+Tool Name: real_sec_financials
+Type: Cortex Analyst
+Semantic View: SAM_DEMO.AI.SAM_REAL_SEC_VIEW
+Description: |
+  Analyzes real SEC financial metrics from 10-K and 10-Q filings.
+  
+  Data Coverage:
+  - Records: 9,400+ financial data points
+  - Companies: ~39 with CIK linkage
+  - History: 5 years of SEC filings
+  - Metrics: Revenue segments, geographic breakdowns, and other financial data
+  - Source: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.SEC_METRICS_TIMESERIES
+  
+  When to Use:
+  - Authentic SEC-reported financials
+  - Revenue segment analysis
+  - Geographic revenue breakdown
+  - Questions like: "What is NVIDIA's revenue by segment?", "Show Apple's revenue trends"
+  
+  When NOT to Use:
+  - Analyst estimates (use fundamentals_analyzer)
+  - Companies without SEC filings
+```
+
+**Real SEC Filing Text Search:**
+```yaml
+Tool Name: search_real_sec_filings
+Type: Cortex Search
+Service: SAM_DEMO.AI.SAM_REAL_SEC_FILINGS
+ID Column: DOCUMENT_ID
+Title Column: DOCUMENT_TITLE
+Description: |
+  Searches real SEC filing text (10-K, 10-Q, 8-K) for qualitative company information.
+  
+  Data Coverage:
+  - Records: 6,300+ filing text sections
+  - Companies: ~50 with SEC filings
+  - Content: MD&A, Risk Factors, Business Descriptions, etc.
+  - Source: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.SEC_REPORT_TEXT_ATTRIBUTES
+  
+  When to Use:
+  - In-depth qualitative analysis from official disclosures
+  - Risk factor research
+  - Management discussion and analysis
+  - Questions like: "What are Tesla's key risks?", "Describe Microsoft's business model"
+  
+  When NOT to Use:
+  - Structured financial metrics (use real_sec_financials)
+  - Analyst opinions (use search_broker_research)
+```
+
+## Step 3: Agent Instructions
+
+### 3.1 Planning Instructions Templates
+
+**Multi-Tool Agent (Multiple Analysts + Search):**
+```
+1. Analyze the user's query to identify distinct sub-questions and analytical domains
+2. Classify each sub-question by type:
+   - QUANTITATIVE: Numbers, calculations, lists, rankings, exposures, weights, performance metrics, charts
+   - QUALITATIVE: Summaries, opinions, context, explanations, "why" questions
+3. For quantitative questions: Choose appropriate analyst tool based on domain:
+   - {Analyst tool 1}: {Domain and use cases}
+   - {Analyst tool 2}: {Domain and use cases}
+   - {Analyst tool 3}: {Domain and use cases}
+4. For qualitative questions: Choose appropriate search tool based on information type:
+   - {Document type 1 guidance}
+   - {Document type 2 guidance}
+   - {Document type 3 guidance}
+5. For mixed questions: Use appropriate analyst tool first, then search tools with results as context
+6. Always synthesize multiple tool outputs into coherent response
+7. If user requests charts/visualizations, ensure appropriate analyst tool generates them
+```
+
+**Multiple Cortex Analyst Agent:**
+```
+1. Analyze the user's query to identify data requirements and analytical domains
+2. Select appropriate analyst tool(s) based on query type:
+   - {Analyst tool 1}: {Specific domain and capabilities}
+   - {Analyst tool 2}: {Specific domain and capabilities}
+   - {Analyst tool 3}: {Specific domain and capabilities}
+3. For queries spanning multiple domains, use multiple analyst tools systematically
+4. Generate charts and visualizations when requested or when they enhance understanding
+5. Provide comprehensive quantitative insights with proper context and business implications
+6. If data is unavailable in one domain, try alternative analyst tools or suggest alternatives
+```
+
+**Single Cortex Analyst Agent:**
+```
+1. Analyze the user's query to identify data requirements and analytical approach
+2. Use {analyst_tool_name} tool for all data analysis, calculations, and insights
+3. For complex queries, break into logical sub-questions and analyze systematically
+4. Generate charts and visualizations when requested or when they enhance understanding
+5. Provide quantitative insights with proper context and business implications
+6. If data is unavailable, clearly state limitations and suggest alternative approaches
+```
+
+**Cortex Search Only Agent:**
+```
+1. Analyze the user's query to identify relevant document types and search terms
+2. Choose appropriate search tool(s) based on information type:
+   - {Document type 1 guidance}
+   - {Document type 2 guidance}
+   - {Document type 3 guidance}
+3. For multi-faceted queries, search across multiple document types systematically
+4. Synthesize findings from different document sources into coherent response
+5. Always provide proper citations with document type, title, and date
+6. If no relevant documents found, suggest alternative search terms or document types
+```
+
+### 3.1.1 Business Context Pattern
+
+**Following Snowflake Best Practices**, provide explicit business context to help the agent understand domain-specific terminology and rules. Add this section BEFORE tool selection logic in orchestration instructions:
+
+```yaml
+Business Context:
+
+Organization Context:
+- {Organization name and type, e.g., "Snowcrest Asset Management (SAM) is a multi-asset investment firm"}
+- {Key operational metrics, e.g., "Manages £2.5B AUM across 10 investment strategies"}
+- {Regulatory framework, e.g., "FCA-regulated with quarterly compliance reviews"}
+- {Data operations, e.g., "Data refreshes daily at market close (4 PM ET), 2-hour processing lag"}
+
+Key Business Terms:
+- {Term 1}: {Definition with specific thresholds/values}
+  Example: "Concentration Threshold: 6.5% warning level, 7.0% breach level (per firm policy)"
+- {Term 2}: {Definition with specific thresholds/values}
+  Example: "ESG Grades: AAA (best) to CCC (worst), minimum BBB for ESG-labelled portfolios"
+- {Term 3}: {Definition with specific thresholds/values}
+  Example: "Mandate Breach: Position exceeding policy limits requiring immediate committee action"
+- {Term 4}: {Definition with specific process}
+  Example: "Investment Committee Memo: Formal documentation for breach remediation with timeline"
+
+{Domain} Categories:
+- {Category 1}: {Description with key characteristics}
+  Example: "Growth Strategies: Technology & Infrastructure, Global Thematic Growth (high concentration risk, active style)"
+- {Category 2}: {Description with key characteristics}
+  Example: "Value Strategies: Defensive, Market Neutral (lower concentration, higher diversification)"
+- {Category 3}: {Description with key characteristics}
+  Example: "ESG Strategies: ESG Leaders Global Equity, Renewable & Climate Solutions (ESG grade floors, screening requirements)"
+
+# Example: Portfolio Copilot Business Context
+Business Context:
+
+Organization Context:
+- Snowcrest Asset Management (SAM) is a multi-asset investment firm
+- Manages £2.5B AUM across 10 active investment strategies (growth, value, ESG, thematic)
+- FCA-regulated with quarterly compliance reviews and daily risk monitoring
+- Data refreshes daily at market close (4 PM ET) with 2-hour processing lag
+
+Key Business Terms:
+- Concentration Threshold: 6.5% warning level, 7.0% breach level (per Concentration Risk Policy)
+- ESG Grades: AAA (best) to CCC (worst), minimum BBB required for ESG-labelled portfolios
+- Mandate Breach: Position exceeding policy limits requiring immediate Investment Committee action
+- Investment Committee Memo: Formal documentation for breach remediation with specific timeline and actions
+- FCA Reporting: Quarterly regulatory submissions requiring audit trail and compliance documentation
+
+Investment Strategies:
+- Growth: Technology & Infrastructure, Global Thematic Growth (higher concentration risk, active management, 30-50 holdings)
+- Value: Defensive, Market Neutral (lower concentration, higher diversification, 60-100 holdings)
+- ESG: ESG Leaders Global Equity, Renewable & Climate Solutions (ESG grade floors, negative screening, exclusion lists)
+- Thematic: Sector-focused strategies with elevated concentration potential and benchmark deviation
+```
+
+### 3.1.2 Explicit Workflow Examples
+
+**Following Snowflake Best Practices**, provide concrete multi-step workflow examples to guide the agent through complex scenarios. Add 2-3 complete workflows to orchestration instructions:
+
+```yaml
+Complete Workflow Examples:
+
+Workflow 1: {Workflow Name}
+Trigger: User asks "{example question pattern that triggers this workflow}"
+
+Step-by-Step Execution:
+1. {First Action with Specific Tool}
+   Tool: {tool_name}
+   Query/Search: "{exact query pattern to send to tool}"
+   Extract from results: {specific information to capture}
+   Why this step: {business justification}
+
+2. {Second Action with Specific Tool}
+   Tool: {tool_name}
+   Query/Search: "{exact query pattern, incorporating Step 1 results}"
+   Use context from Step 1: {how to use previous results}
+   Extract from results: {specific information to capture}
+
+3. {Third Action if needed}
+   Tool: {tool_name}
+   Context: {what context from previous steps to include}
+   Query/Search: "{exact query pattern}"
+   Extract from results: {specific information to capture}
+
+4. Synthesize Final Response:
+   - {Element 1}: From Step {X} results
+   - {Element 2}: From Step {Y} results  
+   - {Element 3}: Calculated from Steps {X} and {Y}
+   - Format as: {specific format with example}
+   - Include: {required elements like thresholds, citations, warnings}
+
+Example Complete Interaction:
+User Question: "{realistic example question}"
+Agent Response: "{complete synthesized response showing all elements}"
+
+# Example Workflow 1: Concentration Risk with Policy Enforcement
+Workflow 1: Concentration Risk Analysis with Policy-Driven Flagging
+Trigger: User asks "Which positions need attention?" or "Show me concentration warnings"
+
+Step-by-Step Execution:
+1. Retrieve Concentration Thresholds from Policy
+   Tool: search_policies
+   Query/Search: "concentration risk limits issuer concentration position limits"
+   Extract from results: Warning threshold (6.5%) and breach threshold (7.0%)
+   Why this step: Ensures we use current firm policy, not hardcoded assumptions
+
+2. Get Current Portfolio Holdings
+   Tool: quantitative_analyzer
+   Query/Search: "Show all portfolio positions with weights for most recent holding date"
+   Use context from Step 1: Keep thresholds for comparison
+   Extract from results: List of securities with tickers, names, weights, market values
+
+3. Apply Policy Thresholds and Flag Positions
+   Processing: Compare Step 2 weights against Step 1 thresholds
+   - Positions 6.5-7.0%: Flag with "⚠️ CONCENTRATION WARNING"
+   - Positions >7.0%: Flag with "🚨 BREACH"
+   Extract: Flagged positions, total exposure of flagged positions
+
+4. Synthesize Final Response:
+   - Table: Flagged positions with ticker, name, weight %, market value, flag severity
+   - Policy citation: "Per Concentration Risk Policy, warning at 6.5%, breach at 7.0%"
+   - Total exposure: Calculate sum of all flagged position weights
+   - Recommendations: 
+     * Warning level → "Monitor closely, consider reduction in next rebalance"
+     * Breach level → "Immediate action required per policy, recommend partial sale"
+   - Format as: Professional table with clear severity indicators
+
+Example Complete Interaction:
+User Question: "Which of my positions in SAM Technology & Infrastructure need attention?"
+Agent Response: 
+"Based on the Concentration Risk Policy (6.5% warning, 7.0% breach), 3 positions require attention:
+
+| Ticker | Company | Weight | Value | Status |
+|--------|---------|--------|-------|--------|
+| AAPL   | Apple   | 8.2%   | £41M  | 🚨 BREACH |
+| MSFT   | Microsoft | 7.4% | £37M  | 🚨 BREACH |
+| NVDA   | NVIDIA  | 6.8%   | £34M  | ⚠️ WARNING |
+
+Total flagged exposure: 22.4% of portfolio
+
+Recommendations:
+- Apple (8.2%): Immediate reduction required per policy. Recommend 1.5% sale to bring below 7%.
+- Microsoft (7.4%): Immediate reduction required. Recommend 0.5% sale to bring below 7%.
+- NVIDIA (6.8%): Monitor closely. Consider reduction in next quarterly rebalance.
+
+All actions should be documented in Investment Committee Memo per compliance requirements."
+
+# Example Workflow 2: Company Financial Analysis for Portfolio Holdings
+Workflow 2: Multi-Tool Company Analysis
+Trigger: User asks "Analyze the financial health of my top technology holdings"
+
+Step-by-Step Execution:
+1. Get Top Technology Holdings
+   Tool: quantitative_analyzer
+   Query/Search: "Top 5 holdings in technology sector by market value in most recent date"
+   Extract from results: List of tickers and company names
+
+2. Analyze Financial Metrics for Each Company
+   Tool: financial_analyzer
+   Query/Search: For each ticker from Step 1, "Show financial ratios, revenue growth, profit margins, debt-to-equity for [TICKER]"
+   Extract from results: Key financial health metrics (leverage, profitability, growth)
+
+3. Get Management Commentary
+   Tool: search_earnings_transcripts
+   Query/Search: For companies with concerning metrics, "[Company] financial guidance outlook management commentary"
+   Extract from results: Management's explanation of financial position
+
+4. Synthesize Final Response:
+   - Table: Financial metrics comparison across top 5 holdings
+   - Highlight: Flag any concerning leverage (debt/equity >2.0) or declining margins
+   - Context: Include management commentary for flagged concerns
+   - Format as: Executive summary + detailed table + quoted management commentary
+
+Example Complete Interaction:
+User Question: "Analyze the financial health of my top 3 technology holdings"
+Agent Response:
+"Financial health analysis of your top 3 technology holdings:
+
+| Company | Debt/Equity | Profit Margin | Revenue Growth | Assessment |
+|---------|-------------|---------------|----------------|------------|
+| Apple   | 1.4         | 26%           | 8% YoY         | Strong |
+| Microsoft | 0.8       | 35%           | 12% YoY        | Excellent |
+| NVIDIA  | 0.3         | 45%           | 126% YoY       | Exceptional |
+
+All three holdings show strong financial health with manageable leverage and healthy profitability. NVIDIA shows exceptional growth driven by AI data center demand. According to NVIDIA's latest earnings call (Nov 2024): 'Data center revenue grew 279% year-over-year, with strong momentum continuing into next quarter.'
+
+No financial concerns identified in your top holdings."
+```
+
+### 3.1.3 Error Handling Patterns
+
+**Following Snowflake Best Practices**, provide explicit guidance for common error scenarios to improve user experience when data is unavailable or queries are ambiguous:
+
+```yaml
+Error Handling and Edge Cases:
+
+Scenario: {Error Condition}
+Detection: {How to identify this error has occurred}
+Recovery Steps: {Actions to take to resolve or work around}
+User Message: "{Exact message pattern to provide user}"
+Alternative: {What to suggest instead or how to rephrase}
+
+# Common Error Scenarios:
+
+Scenario 1: Portfolio/Entity Not Found
+Detection: Query returns no results for specified portfolio name
+Recovery Steps:
+  1. Try alternative portfolio names (with/without "SAM" prefix, check for typos)
+  2. If still not found, query list of all available portfolios
+  3. Present alternatives to user
+User Message: "I couldn't find a portfolio named '[name]'. Available portfolios are: [list]. Did you mean one of these?"
+Alternative: Suggest closest match based on string similarity
+
+Scenario 2: Search Returns No Results
+Detection: Search query returns no documents with relevance >0.3
+Recovery Steps:
+  1. Try rephrasing query with broader terms, fewer keywords
+  2. Try alternative document types (earnings instead of research)
+  3. If still no results, state limitation explicitly
+User Message: "I couldn't find research on [topic]. This may indicate limited analyst coverage. Would you like me to search [alternative document type] instead?"
+Alternative: Suggest related searches or alternative approaches
+
+Scenario 3: Date Ambiguity
+Detection: User uses relative time references ("recent", "current", "latest")
+Recovery Steps:
+  1. If "current/latest" holdings → automatically filter to MAX(HoldingDate)
+  2. If "recent" trends → default to last 30 days and state assumption
+  3. Include data freshness in response
+User Message: "Analyzing [last 30 days/most recent date] as 'recent' timeframe (data as of [specific date])"
+Alternative: Always include explicit date in response for clarity
+
+Scenario 4: Metric Unavailable in Tool
+Detection: User asks for metric not in semantic view or search corpus
+Recovery Steps:
+  1. State clearly what IS available in the tool
+  2. Suggest alternative tool that has the data
+  3. Explain limitation
+User Message: "I don't have [metric] data in this tool. I can show you [available alternatives]. For [metric], you would need [other tool/data source]."
+Alternative: Redirect to appropriate tool or data source
+
+Scenario 5: Insufficient Data for Calculation
+Detection: Query requires statistical calculation but sample size too small
+Recovery Steps:
+  1. Calculate anyway but flag low sample size
+  2. Provide warning about statistical significance
+  3. Suggest aggregating to higher level if possible
+User Message: "Based on [N] data points (⚠️ small sample size): [result]. Consider [aggregation suggestion] for more robust analysis."
+Alternative: Suggest alternative aggregation or time period
+
+# Example: Complete Error Handling
+User asks: "Show me recent positions in the tech portfolio"
+
+Issues Detected:
+1. "recent" is ambiguous (Scenario 3)
+2. "tech portfolio" may not be exact name (Scenario 1)
+
+Recovery:
+1. Try query with "most recent holding date" for all portfolios containing "tech"
+2. If multiple matches, ask user to clarify
+3. If no matches, list all available portfolios
+
+Response: "I found 2 portfolios matching 'tech': SAM Technology & Infrastructure and SAM Global Thematic Growth. Which would you like to see? (Using most recent holding date: 2024-12-31)"
+```
+
+### 3.2 Response Instructions Template
+```
+1. You are {Agent Role}, an expert assistant for {target_users}
+2. Tone: {Professional style appropriate for persona}
+3. Format numerical data clearly using tables for lists/comparisons
+4. FLAGGING AND THRESHOLDS: Include specific flagging requirements based on agent type:
+   - Portfolio agents: Flag positions >6.5% with "⚠️ CONCENTRATION WARNING"
+   - Compliance agents: Flag breaches >7% with "🚨 BREACH" and warnings >6.5% with "⚠️ WARNING"
+   - ESG agents: Flag controversies with severity levels (High/Medium/Low)
+   - Include exact percentages and recommend specific actions
+5. Always cite document sources with type and date (e.g., "According to {source} from {date}...")
+6. For charts: Include clear titles describing what is shown
+7. If information unavailable: State clearly and suggest alternatives
+8. Focus on actionable insights and {domain-specific} implications
+9. Use UK English spelling and terminology
+```
+
+### 3.2.1 Structured Response Instructions
+
+**Following Snowflake Best Practices**, structure response instructions with explicit style, presentation, and format guidance:
+
+```yaml
+Response Instructions:
+
+Style:
+- Tone: {Specific tone for persona, e.g., "Professional and data-driven for portfolio managers"}
+- Lead With: {Answer pattern, e.g., "Direct answer first, then supporting analysis"}
+- Terminology: {Domain terms, e.g., "UK English: 'shares' not 'stocks', 'portfolios' not 'funds'"}
+- Precision: {Detail level, e.g., "Include exact percentages to 1 decimal place, statistical significance where relevant"}
+- Limitations: {How to communicate gaps, e.g., "State data limitations clearly, offer alternatives"}
+
+Presentation:
+- Tables: Use for {criteria with threshold}
+  Example: "Use tables for security lists (>4 securities), portfolio comparisons, metric comparisons"
+- Bar Charts: Use for {criteria}
+  Example: "Use bar charts for sector allocation, geographic distribution, categorical comparisons"
+- Line Charts: Use for {criteria}
+  Example: "Use line charts for time series, performance trends, historical comparisons"
+- Single Metrics: Format as "{pattern}"
+  Example: "Portfolio weight is 8.2% (⚠️ exceeds 6.5% threshold) as of 31 Dec 2024"
+- Data Freshness: Always include "{pattern}"
+  Example: "As of [date] market close" or "Data refreshed [date] at [time]"
+
+Response Structure for {Common Query Type 1}:
+Template: "[Structure with placeholders showing order and elements]"
+
+Example:
+User: "{example question}"
+Response: "{complete example showing all elements in proper structure}"
+
+Response Structure for {Common Query Type 2}:
+Template: "[Structure with placeholders]"
+
+Example:
+User: "{example question}"
+Response: "{complete example}"
+
+# Example: Portfolio Copilot Response Instructions
+
+Response Instructions:
+
+Style:
+- Tone: Professional, data-driven, action-oriented for portfolio managers
+- Lead With: Direct answer with key metric, then supporting table/chart, then analysis
+- Terminology: UK English throughout ('shares' not 'stocks', 'portfolios', 'holdings', 'concentration')
+- Precision: Percentages to 1 decimal place, currency in millions with £ symbol, exact dates
+- Limitations: State clearly if data unavailable, suggest alternative tools or timeframes
+
+Presentation:
+- Tables: Use for holdings lists (>4 securities), sector breakdowns, concentration warnings
+- Bar Charts: Use for sector allocation, geographic distribution, issuer exposure
+- Line Charts: Use for performance trends, historical weight changes over time
+- Single Metrics: Format as "Metric is X.X% (comparison) as of DD MMM YYYY"
+  Example: "Technology allocation is 38.2% (+3.1% vs benchmark) as of 31 Dec 2024"
+- Data Freshness: Always include "As of DD MMM YYYY market close"
+
+Response Structure for Holdings Questions:
+Template: "[Direct count/summary] + [Table: Ticker | Company | Weight% | Value £M] + [Concentration flags] + [Total exposure]"
+
+Example:
+User: "What are my top 10 holdings in SAM Technology & Infrastructure?"
+Response: "Your SAM Technology & Infrastructure portfolio has 10 top holdings totalling 65.3% of assets:
+
+| Ticker | Company | Weight | Market Value |
+|--------|---------|--------|-------------|
+| AAPL   | Apple   | 8.2%   | £41.2M      |
+| MSFT   | Microsoft | 7.4% | £37.1M      |
+...
+
+⚠️ CONCENTRATION WARNINGS: 3 positions exceed 6.5% threshold
+- Apple: 8.2% (⚠️ 1.7% above threshold)
+- Microsoft: 7.4% (⚠️ 0.9% above threshold)  
+- NVIDIA: 6.8% (⚠️ 0.3% above threshold)
+
+Total flagged exposure: 22.4% of portfolio. Recommend monitoring for next rebalance.
+As of 31 Dec 2024 market close."
+
+Response Structure for Concentration Analysis:
+Template: "[Policy threshold statement] + [Flagged positions table] + [Severity assessment] + [Specific recommendations with timeline]"
+
+Example:
+User: "Check for concentration breaches"
+Response: "Per Concentration Risk Policy (6.5% warning, 7.0% breach):
+
+| Position | Weight | Status | Action Required |
+|----------|--------|--------|-----------------|
+| Apple    | 8.2%   | 🚨 BREACH | Immediate reduction |
+| Microsoft | 7.4%  | 🚨 BREACH | Immediate reduction |
+
+Immediate actions required:
+- Apple: Reduce by 1.5% to bring below 7.0% threshold
+- Microsoft: Reduce by 0.5% to bring below 7.0% threshold
+
+Document all actions in Investment Committee Memo per compliance requirements.
+As of 31 Dec 2024 market close."
+
+Response Structure for Research Questions:
+Template: "[Summary of key findings] + [Quoted excerpts with citations] + [Synthesis across sources]"
+
+Example:
+User: "What is latest research on Microsoft?"
+Response: "Latest research on Microsoft shows positive outlook on AI growth:
+
+Goldman Sachs (15 Jan 2025): 'Azure AI services growing 150%+ YoY, expect continued momentum through 2025. Maintain BUY rating, price target £425.'
+
+Morgan Stanley (12 Jan 2025): 'Microsoft well-positioned in AI race with enterprise focus. Cloud margins expanding. Reiterate OVERWEIGHT.'
+
+Consensus: Analysts bullish on AI-driven growth, particularly Azure cloud services and enterprise AI adoption. 2/2 reports recommend BUY/OVERWEIGHT."
+```
+
+## Step 4: Agent Testing and Validation
+
+### 4.1 Systematic Testing Approach
+**Testing Strategy:**
+1. **Component Testing**: Verify each tool works independently
+2. **Integration Testing**: Test tool combinations for mixed queries
+3. **Business Scenario Testing**: Test with actual demo conversation flows
+4. **Edge Case Testing**: Test with missing data, complex queries, error conditions
+
+### 4.2 Component Testing Pattern
+```python
+def test_agent_components(session: Session, agent_name: str, tools: List[str]):
+    """Test each agent tool independently based on tool type"""
+    
+    # Test Cortex Analyst tools (if any)
+    analyst_tools = [tool for tool in tools if not tool.startswith('search_')]
+    for analyst_tool in analyst_tools:
+        try:
+            # Test with basic semantic view query
+            result = session.sql("""
+                SELECT * FROM SEMANTIC_VIEW(
+                    SAM_DEMO.AI.SAM_ANALYST_VIEW
+                    METRICS TOTAL_MARKET_VALUE
+                    DIMENSIONS PORTFOLIONAME
+                ) LIMIT 5
+            """).collect()
+            print(f"✅ Cortex Analyst tool test passed: {analyst_tool} ({len(result)} results)")
+        except Exception as e:
+            print(f"❌ Cortex Analyst tool test failed for {analyst_tool}: {e}")
+    
+    # Test Cortex Search tools (if any)
+    search_tools = [tool for tool in tools if tool.startswith('search_')]
+    for search_tool in search_tools:
+        service_name = f"SAM_{search_tool.replace('search_', '').upper()}"
+        try:
+            result = session.sql(f"""
+                SELECT SNOWFLAKE.CORTEX.SEARCH_PREVIEW(
+                    'SAM_DEMO.AI.{service_name}',
+                    '{{"query": "test", "limit": 1}}'
+                )
+            """).collect()
+            print(f"✅ Cortex Search tool test passed: {search_tool}")
+        except Exception as e:
+            print(f"❌ Cortex Search tool test failed for {search_tool}: {e}")
+    
+    # Validate agent has at least one working tool
+    if not analyst_tools and not search_tools:
+        print(f"❌ Agent {agent_name} has no valid tools configured")
+        return False
+    
+    return True
+```
+
+### 4.3 Business Scenario Testing
+Test with queries appropriate for your agent's tool configuration:
+
+**Testing Strategy by Agent Type:**
+
+**Multi-Tool Agents (Multiple Analysts + Search):**
+- Test quantitative queries that use different Cortex Analyst tools
+- Test qualitative queries that use Cortex Search tools
+- Test mixed queries that require both analyst and search tools
+- Test queries that span multiple analytical domains
+- Verify tool selection logic works correctly for different domains
+
+**Multiple Cortex Analyst Agents:**
+- Test queries appropriate for each analyst tool domain
+- Test domain-specific analytical scenarios
+- Test queries that require multiple analyst perspectives
+- Test chart and visualization generation across tools
+- Verify all business metrics are accessible in appropriate tools
+
+**Single Cortex Analyst Agents:**
+- Test data analysis and calculation queries for the specific domain
+- Test chart and visualization generation
+- Test complex analytical scenarios within the domain
+- Verify all relevant business metrics are accessible
+
+**Cortex Search Only Agents:**
+- Test document search across all configured document types
+- Test synthesis of information from multiple sources
+- Test citation and source attribution
+- Verify search relevance and coverage
+
+**Example Test Query Patterns:**
+```python
+# Portfolio analytics (Cortex Analyst)
+"What are my top 10 holdings in the SAM Global Thematic Growth fund?"
+"Show me sector allocation across all portfolios"
+"Calculate concentration warnings above 6.5%"
+
+# Document research (Cortex Search)  
+"What is the latest research on Apple and Microsoft?"
+"Find ESG controversies in my portfolio companies"
+"What does our policy say about environmental violations?"
+
+# Mixed queries (Multi-tool agents)
+"Show me top holdings and their latest research ratings"
+"Analyze sector exposure and find supporting research themes"
+```
+
+### 4.4 Validation Checklist
+- [ ] All required AI components exist (semantic views and/or search services)
+- [ ] Data quality validated (appropriate for agent's tool types)
+- [ ] Each configured tool works independently
+- [ ] Tool combinations work correctly (for multi-tool agents)
+- [ ] Business scenario queries return expected results
+- [ ] Error handling works appropriately
+- [ ] Performance is acceptable for demo use
+- [ ] Agent responds appropriately when tools have no data
+
+## Step 5: Troubleshooting
+
+For comprehensive troubleshooting of agent setup, query issues, performance problems, and live demo testing issues, see @troubleshooting.mdc.
+
+**Quick Reference for Common Issues:**
+- **Agent not responding**: Verify AI components exist (semantic views, search services)
+- **Tool not found**: Check service names and column configurations match exactly
+- **No search results**: Verify document corpus exists and has content
+- **Portfolio not found**: Use full names with "SAM" prefix in test queries
+- **Performance issues**: Check warehouse size and optimize query patterns
+
+**Critical Demo Testing Queries:**
+```
+"What are my top 10 holdings in the SAM Global Thematic Growth fund?"
+"What is the latest research on Apple, Microsoft, and NVIDIA?"
+"Show me technology sector allocation across all portfolios"
+```
+
+## Step 6: Agent Archetypes and Patterns
+
+### 6.1 Agent Archetypes
+
+**Multi-Domain Analytics Agents (Multiple Cortex Analysts):**
+- **Use Cases**: Comprehensive analysis across different data domains (portfolio + risk + performance)
+- **Tool Configuration**: Multiple Cortex Analyst tools with different semantic views
+- **Planning Focus**: Domain-specific tool selection, cross-domain synthesis
+- **Examples**: Chief investment officer agent, comprehensive portfolio manager, multi-domain analyst
+
+**Single-Domain Analytics Agents (Single Cortex Analyst):**
+- **Use Cases**: Focused analysis within specific domain (portfolio analysis, risk monitoring, performance attribution)
+- **Tool Configuration**: Single Cortex Analyst tool with domain-specific semantic view
+- **Planning Focus**: Deep analytical capabilities within domain, visualization generation
+- **Examples**: Portfolio analyzer, risk monitor, performance tracker, ESG scorer
+
+**Research-Focused Agents (Cortex Search Only):**
+- **Use Cases**: Document synthesis, policy research, literature review, compliance checking
+- **Tool Configuration**: Multiple Cortex Search tools for different document types
+- **Planning Focus**: Document search, content synthesis, citation management
+- **Examples**: Policy researcher, document librarian, compliance checker, ESG researcher
+
+**Hybrid Agents (Multiple Analysts + Search):**
+- **Use Cases**: Investment decisions, comprehensive analysis, client advisory, multi-domain insights
+- **Tool Configuration**: Multiple Cortex Analyst tools + multiple Cortex Search tools
+- **Planning Focus**: Complex tool selection logic, data-to-document workflows, cross-domain synthesis
+- **Examples**: Portfolio copilot, investment advisor, ESG guardian, chief risk officer agent
+
+### 6.2 Configuration Best Practices
+
+**Tool Ordering:**
+- List most frequently used tools first
+- Group similar tools together (all search tools together)
+- Consider tool execution time in ordering
+
+**Description Clarity:**
+- Clearly define when to use each tool
+- Avoid overlapping use cases between tools
+- Include specific examples of appropriate queries
+
+**Planning Instructions:**
+- Provide explicit tool selection logic
+- Handle edge cases (no data, multiple tools applicable)
+- Include synthesis guidance for multi-tool responses
+- Include specific flagging and threshold logic for the agent to apply
+
+**CRITICAL PRINCIPLE: Flagging Logic Placement**
+- **Agent Instructions**: All flagging, thresholds, and highlighting behaviors
+- **Cortex Analyst**: Only data calculations and SQL generation
+- **Never**: Put business rule flagging in semantic view custom instructions
+
+### 6.3 Tool Configuration Pitfalls
+
+**Following Snowflake Best Practices**, avoid these common mistakes that lead to poor agent performance and incorrect tool selection:
+
+#### Tool Description Pitfalls
+
+❌ **Generic, Vague Descriptions**
+```yaml
+Bad: "Gets data from the database"
+Bad: "Searches documents for information"
+Bad: "Analyzes portfolios"
+```
+Why it fails: Agent can't distinguish between tools, leads to incorrect selection
+
+✅ **Specific, Detailed Descriptions**
+```yaml
+Good: "Analyzes portfolio holdings, position weights, and sector allocations using 14,000+ 
+real securities with daily 4 PM ET refresh. Use for questions about current holdings, 
+concentration analysis, and sector breakdowns. Data Coverage: 12 months history, 
+10 portfolios, 27,000+ holdings."
+```
+Why it works: Agent understands exact capabilities, data coverage, and appropriate use cases
+
+---
+
+❌ **Missing "When NOT to Use"**
+```yaml
+Bad: Tool description only lists capabilities
+"Use this tool for portfolio analytics and holdings analysis"
+```
+Why it fails: Agent doesn't know alternatives, may use wrong tool for edge cases
+
+✅ **Explicit Anti-Patterns with Alternatives**
+```yaml
+Good: "When NOT to Use:
+- Real-time intraday positions (data is end-of-day only)
+- Individual company financial analysis (use financial_analyzer for SEC filing data)
+- Implementation costs (use implementation_analyzer)
+- Document content (use search_broker_research, search_earnings_transcripts)"
+```
+Why it works: Directs agent to correct tool for each anti-pattern
+
+---
+
+❌ **No Query Guidance for Cortex Analyst**
+```yaml
+Bad: "Use this tool for data analysis"
+```
+Why it fails: Agent doesn't know how to formulate effective natural language queries
+
+✅ **Concrete Good/Bad Query Examples**
+```yaml
+Good: "Query Best Practices:
+1. Be specific about portfolio names:
+   ✅ 'SAM Technology & Infrastructure portfolio'
+   ❌ 'tech portfolio' (ambiguous)
+
+2. Filter to latest date for current holdings:
+   ✅ 'most recent holding date' or 'latest positions'
+   ❌ All dates without filter (returns historical duplicates)"
+```
+Why it works: Agent learns from examples, avoids common query mistakes
+
+---
+
+❌ **Vague Search Guidance for Cortex Search**
+```yaml
+Bad: "Search for company information"
+```
+Why it fails: No guidance on keyword selection, relevance handling
+
+✅ **Specific Search Query Patterns**
+```yaml
+Good: "Search Query Best Practices:
+1. Use specific company names and topics:
+   ✅ 'NVIDIA artificial intelligence GPU data center growth'
+   ❌ 'tech growth' (too generic)
+
+2. Handle low relevance (<0.5):
+   Rephrase with more specific terms, synonyms, industry context"
+```
+Why it works: Guides agent to formulate effective searches, handle edge cases
+
+#### Orchestration Pitfalls
+
+❌ **Assumed Business Context**
+```yaml
+Bad: "Check for concentration violations"
+Bad: "Flag positions that exceed limits"
+```
+Why it fails: Agent doesn't know thresholds, assumes values
+
+✅ **Explicit Business Rules**
+```yaml
+Good: "Business Context:
+- Concentration Threshold: 6.5% warning level, 7.0% breach level (per Concentration Risk Policy)
+- ESG Grades: AAA (best) to CCC (worst), minimum BBB for ESG portfolios
+- Mandate Breach: Position exceeding policy limits requiring immediate Investment Committee action"
+```
+Why it works: Agent has exact thresholds, knows severity levels, understands process
+
+---
+
+❌ **Implicit Workflow Sequences**
+```yaml
+Bad: "Use appropriate tools to answer the question"
+Bad: "Combine data from multiple sources as needed"
+```
+Why it fails: Agent guesses at workflow, inconsistent results
+
+✅ **Step-by-Step Workflows**
+```yaml
+Good: "Workflow: Concentration Risk Analysis
+1. Retrieve thresholds from search_policies
+2. Get holdings from quantitative_analyzer  
+3. Apply thresholds and flag positions
+4. Synthesize with policy citations and recommendations"
+```
+Why it works: Consistent execution, proper tool sequencing, complete results
+
+---
+
+❌ **No Error Handling Guidance**
+```yaml
+Bad: Planning instructions that assume everything works perfectly
+```
+Why it fails: Agent doesn't recover from missing data, ambiguous queries
+
+✅ **Explicit Error Scenarios**
+```yaml
+Good: "Error Handling:
+Scenario 1: Portfolio Not Found
+- Try alternatives (with/without 'SAM' prefix)
+- List all available portfolios
+- Message: 'I couldn't find [name]. Available: [list]. Did you mean one of these?'"
+```
+Why it works: Graceful degradation, helpful user messages, suggests alternatives
+
+#### Response Instructions Pitfalls
+
+❌ **General Style Guidance**
+```yaml
+Bad: "Be professional and helpful"
+Bad: "Format responses nicely"
+```
+Why it fails: Too vague, inconsistent formatting
+
+✅ **Specific Format Rules**
+```yaml
+Good: "Style:
+- Lead With: Direct answer first, then supporting table/chart
+- Tables: Use for security lists (>4 securities)
+- Single Metrics: Format as 'Weight is 8.2% (⚠️ exceeds 6.5%) as of 31 Dec 2024'
+- Data Freshness: Always include 'As of [date] market close'"
+```
+Why it works: Specific patterns, consistent output, professional presentation
+
+---
+
+❌ **No Response Structure Templates**
+```yaml
+Bad: "Provide complete answers"
+```
+Why it fails: Inconsistent structure, missing elements
+
+✅ **Template with Examples**
+```yaml
+Good: "Response Structure for Holdings Questions:
+Template: '[Count/summary] + [Table] + [Concentration flags] + [Total exposure]'
+
+Example:
+'Your portfolio has 10 top holdings totalling 65.3%:
+[table]
+⚠️ 3 positions exceed 6.5% threshold
+Total flagged: 22.4%'"
+```
+Why it works: Consistent structure, complete information, clear examples
+
+#### Quick Checklist: Avoid These Mistakes
+
+**Tool Descriptions:**
+- [ ] No generic descriptions ("gets data", "searches documents")
+- [ ] Include "When to Use" with 3+ specific examples
+- [ ] Include "When NOT to Use" with alternative tools
+- [ ] Add Data Coverage section (historical range, refresh, counts)
+- [ ] For Cortex Analyst: Add Query Best Practices with ✅/❌ examples
+- [ ] For Cortex Search: Add Search Query Best Practices
+
+**Orchestration:**
+- [ ] No assumed context - provide explicit Business Context section
+- [ ] Define all thresholds, terms, and categories
+- [ ] Include 2-3 complete workflow examples with step-by-step logic
+- [ ] Add Error Handling section with 5 common scenarios
+- [ ] Explicit tool selection with query pattern matching
+
+**Response Instructions:**
+- [ ] No vague guidance - provide specific Style rules
+- [ ] Include Presentation rules (tables, charts, metrics)
+- [ ] Add Response Structure templates for 2-3 common query types
+- [ ] Include complete example responses
+- [ ] Specify data freshness format
+
+## Agent Implementation Roadmap
+
+### Ready for Immediate Implementation (Phase 2)
+
+#### research_copilot
+**Purpose**: Document research and analysis agent
+**Dependencies**: ✅ All required components exist
+- Uses: SAM_BROKER_RESEARCH, SAM_EARNINGS_TRANSCRIPTS, SAM_RESEARCH_VIEW
+- Agent Type: Search-focused with semantic analysis
+- Implementation Time: 1-2 days
+
+#### thematic_macro_advisor  
+**Purpose**: Thematic investment strategy advisor
+**Dependencies**: ✅ All required components exist
+- Uses: SAM_BROKER_RESEARCH, SAM_PRESS_RELEASES, SAM_ANALYST_VIEW
+- Agent Type: Multi-search with macro focus
+- Implementation Time: 1-2 days
+
+### Requires New Components (Phase 3-4)
+
+#### esg_guardian
+**Status**: Requires new document types
+**New Requirements**: 
+- Document types: ngo_reports, engagement_notes, policy_docs
+- Search services: SAM_NGO_REPORTS, SAM_ENGAGEMENT_NOTES, SAM_POLICY_DOCS
+- Enhanced ESG semantic view with controversy tracking
+**Implementation**: Follow @development-patterns.mdc for document generation
+
+#### sales_advisor
+**Status**: Requires sales templates
+**New Requirements**:
+- Document types: sales_templates, philosophy_docs  
+- Search services: SAM_SALES_TEMPLATES, SAM_PHILOSOPHY_DOCS
+- Client presentation builder capabilities
+**Implementation**: Follow @development-patterns.mdc for document generation
+
+### Implementation Steps for New Agents
+
+1. **Verify Dependencies** (Step 1.1 verification pattern)
+2. **Choose Agent Archetype** (Section 6.1 patterns)
+3. **Configure Tools** (Section 2.2-2.3 patterns)
+4. **Write Instructions** (Section 3.1-3.2 templates)
+5. **Test Systematically** (Section 4.1-4.3 validation)
+6. **Document Results** (Section 5 troubleshooting patterns)
+
+### Testing Patterns by Agent Type
+
+**Search-Focused Agents**:
+```
+"Find research on renewable energy trends"
+"What are analysts saying about ESG regulations?"
+"Summarize earnings guidance for technology companies"
+```
+
+**Analytics-Focused Agents**:
+```  
+"Show factor exposure breakdown for growth portfolios"
+"Calculate risk attribution for defensive strategies"
+"Compare performance metrics across asset classes"
+```
+
+**Multi-Tool Hybrid Agents**:
+```
+"Analyze portfolio ESG scores and find supporting research"
+"Show sector allocation with latest analyst recommendations"
+"Risk assessment with regulatory compliance check"
+```
+
+## Summary
+
+This guide provides a complete workflow for configuring Snowflake Intelligence agents that work reliably with the SAM demo. Follow the steps sequentially for best results, and refer back to the testing patterns and troubleshooting sections as needed.
+
+**Next Steps**: See @development-patterns.mdc for detailed implementation templates when creating new agents or extending existing ones.
+
+**Complete Documentation**: 
+- Agent Configurations: See `docs/agents_setup.md` for all agent tool setups and instructions
+- Demo Scenarios: See `docs/demo_scenarios.md` for complete demo conversation flows

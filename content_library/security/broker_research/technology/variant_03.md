@@ -46,23 +46,39 @@ ${{PRICE_TARGET_USD}}
 
 ## Technology Sector Opportunities Analysis
 
+### Sector Transformation
+
 The broader technology sector is experiencing transformational shifts driven by artificial intelligence, machine learning, and cloud infrastructure modernisation. {{COMPANY_NAME}} is well-positioned to capitalise on these secular trends through its comprehensive platform strategy and technology leadership. The company's investments in AI capabilities, edge computing, and digital transformation solutions align directly with enterprise customer priorities.
 
+### Cloud and Digital Transformation
+
 Cloud computing and digital transformation initiatives represent significant growth vectors. Management has successfully pivoted the business model toward recurring cloud-based revenue, which now constitutes an increasing proportion of total sales. This transition improves revenue visibility, enhances customer lifetime value, and supports premium valuation multiples.
+
+### AI Integration
 
 AI and machine learning capabilities are becoming increasingly central to the company's value proposition. Recent product launches incorporating generative AI features have been well-received by enterprise customers, driving both new customer acquisition and expansion within the installed base. We view AI integration as a key competitive differentiator and growth catalyst over the coming years.
 
 ## Financial Performance and Outlook
 
+### Financial Results
+
 {{COMPANY_NAME}}'s financial results reflect strong operational execution and market share gains. Revenue growth of {{YOY_REVENUE_GROWTH_PCT}}% significantly exceeds broader technology sector trends, demonstrating the company's ability to outperform in both favourable and challenging market conditions. EBIT margin of {{EBIT_MARGIN_PCT}}% positions the company amongst the most profitable in its peer group.
 
+### Revenue Model Strength
+
 The company's subscription-based revenue model provides excellent visibility and predictability. Annual recurring revenue continues to grow at impressive rates, supported by high customer retention metrics and expanding average contract values. We forecast continued acceleration as new cloud products gain traction and cross-selling opportunities mature.
+
+### Capital Allocation
 
 Management's disciplined approach to capital allocation enhances shareholder value creation. The company balances growth investments in R&D and sales capacity with consistent shareholder returns through dividends and buybacks. This financial framework supports sustainable long-term value creation whilst maintaining balance sheet strength and strategic flexibility.
 
 ## Risk Factors
 
+### Competitive Risks
+
 Key risks to our investment thesis include intensifying competition from both established technology platforms and emerging challengers. The pace of technological change requires continuous innovation investment, and any execution missteps could result in market share losses or margin pressure.
+
+### Macroeconomic Sensitivity
 
 Macroeconomic sensitivity represents a tangible risk, as enterprise technology spending tends to correlate with broader economic activity. A significant economic downturn could lead customers to delay or reduce technology investments, impacting revenue growth trajectories.
 

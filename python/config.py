@@ -20,7 +20,7 @@ import sys
 # =============================================================================
 
 # Snowflake connection name (from ~/.snowflake/connections.toml)
-DEFAULT_CONNECTION_NAME = 'default'
+DEFAULT_CONNECTION_NAME = 'sfseeurope-mstellwall-aws-us-west3'
 
 # Seed for reproducible random generation (change to get different deterministic output)
 RNG_SEED = 42
@@ -38,6 +38,137 @@ TEST_MODE_MULTIPLIER = 0.1
 # Model used for speaker identification in transcript processing (AI_COMPLETE)
 # Options: 'claude-haiku-4-5', 'claude-sonnet-4', 'llama3.1-8b', etc.
 AI_SPEAKER_IDENTIFICATION_MODEL = 'claude-haiku-4-5'
+
+# =============================================================================
+# DATABASE & WAREHOUSE CONFIGURATION
+# =============================================================================
+
+DATABASE = {
+    'name': 'SAM_DEMO',
+    'schemas': {
+        'raw': 'RAW',
+        'curated': 'CURATED',
+        'ai': 'AI',
+        'market_data': 'MARKET_DATA'  # External provider data (financial statements, estimates, filings)
+    }
+}
+
+WAREHOUSES = {
+    'execution': {
+        'name': 'SAM_DEMO_EXECUTION_WH',
+        'size': 'MEDIUM',
+        'comment': 'Warehouse for SAM demo data generation and execution'
+    },
+    'cortex_search': {
+        'name': 'SAM_DEMO_CORTEX_WH',
+        'size': 'MEDIUM',
+        'target_lag': '5 minutes',
+        'comment': 'Warehouse for SAM demo Cortex Search services'
+    }
+}
+
+# =============================================================================
+# REAL DATA SOURCES (external public data shares)
+# =============================================================================
+#
+# Point these to your public data share. The tables dict is defined later in
+# REAL_DATA_SOURCES_TABLES and attached to this dict after the file loads.
+#
+REAL_DATA_SOURCES = {
+    # -------------------------------------------------------------------------
+    # Change these two values to match your Snowflake Marketplace data share
+    # -------------------------------------------------------------------------
+    'database': 'SNOWFLAKE_PUBLIC_DATA_FREE',  # e.g. 'SNOWFLAKE_PUBLIC_DATA_FREE'
+    'schema': 'PUBLIC_DATA_FREE',                           # e.g. 'PUBLIC_DATA_FREE'
+
+    # Enable/disable use of external real data (set False to use synthetic only)
+    'enabled': True,
+
+    # Key into REAL_DATA_SOURCES['tables'] to probe for share access (must exist in share)
+    'access_probe_table_key': 'sec_metrics'
+}
+
+# =============================================================================
+# SECURITY & DOCUMENT VOLUME KNOBS
+# =============================================================================
+
+# Securities configuration - number of each asset type to include
+SECURITIES = {
+    'counts': {
+        'equities': 10000,
+        'bonds': 3000,
+        'etfs': 1000
+    },
+    'real_assets_view': 'V_REAL_ASSETS'
+}
+
+# =============================================================================
+# DEMO SCENARIO COMPANIES (top priority for holdings & document coverage)
+# =============================================================================
+
+DEMO_COMPANIES = {
+    'AAPL': {
+        'openfigi_id': 'BBG001S5N8V8',
+        'ticker': 'AAPL',
+        'company_name': 'Apple Inc.',
+        'country': 'US',
+        'sector': 'Information Technology',
+        'priority': 1
+    },
+    'CMC': {
+        'openfigi_id': 'BBG001S5PXG8',
+        'ticker': 'CMC',
+        'company_name': 'Commercial Metals Co',
+        'country': 'US',
+        'sector': 'Materials',
+        'priority': 2
+    },
+    'RBBN': {
+        'openfigi_id': 'BBG00HW4CSH5',
+        'ticker': 'RBBN',
+        'company_name': 'Ribbon Communications Inc.',
+        'country': 'US',
+        'sector': 'Information Technology',
+        'priority': 3
+    },
+    'MSFT': {
+        'openfigi_id': 'BBG001S5TD05',
+        'ticker': 'MSFT',
+        'company_name': 'Microsoft Corp',
+        'country': 'US',
+        'sector': 'Information Technology',
+        'priority': 4
+    },
+    'NVDA': {
+        'openfigi_id': 'BBG001S5TZJ6',
+        'ticker': 'NVDA',
+        'company_name': 'NVIDIA Corp',
+        'country': 'US',
+        'sector': 'Information Technology',
+        'priority': 4
+    },
+    'GOOGL': {
+        'openfigi_id': 'BBG009S39JY5',
+        'ticker': 'GOOGL',
+        'company_name': 'Alphabet Inc.',
+        'country': 'US',
+        'sector': 'Communication Services',
+        'priority': 4
+    },
+    'TSM': {
+        'openfigi_id': 'BBG001S5WWW4',  # Taiwan Semiconductor ADR
+        'ticker': 'TSM',
+        'company_name': 'Taiwan Semiconductor Manufacturing Company Ltd',
+        'country': 'TW',
+        'sector': 'Information Technology',
+        'priority': 4  # Same priority as NVDA/MSFT for demo scenarios
+    }
+}
+
+MAJOR_US_STOCKS = {
+    'tier1': ['AMZN', 'TSLA', 'META', 'NFLX', 'CRM', 'ORCL'],
+    'tier2': ['CSCO', 'IBM', 'INTC', 'AMD', 'ADBE', 'NOW', 'INTU', 'MU', 'QCOM', 'AVGO', 'TXN', 'LRCX', 'KLAC', 'AMAT', 'MRVL']
+}
 
 # #############################################################################
 #
@@ -109,36 +240,6 @@ def log_phase_complete(summary: str = None):
     if summary:
         print(f"  ✅ {summary}")
 
-def log_phase_complete(summary: str = None):
-    """Mark phase complete with optional summary"""
-    if VERBOSITY == 0 and _step_count > 0:
-        print()  # New line after progress dots
-    if summary:
-        print(f"  ✅ {summary}")
-
-# =============================================================================
-# CORE SETTINGS
-# =============================================================================
-
-# Connection and execution
-DEFAULT_CONNECTION_NAME = 'sfseeurope-mstellwall-aws-us-west3'
-RNG_SEED = 42
-YEARS_OF_HISTORY = 5
-TEST_MODE_MULTIPLIER = 0.1
-
-# =============================================================================
-# DATABASE & WAREHOUSE CONFIGURATION
-# =============================================================================
-
-DATABASE = {
-    'name': 'SAM_DEMO',
-    'schemas': {
-        'raw': 'RAW',
-        'curated': 'CURATED',
-        'ai': 'AI',
-        'market_data': 'MARKET_DATA'  # External provider data (financial statements, estimates, filings)
-    }
-}
 
 # =============================================================================
 # MARKET_DATA SCHEMA CONFIGURATION (External Provider Data)
@@ -188,9 +289,9 @@ MARKET_DATA = {
     'semantic_views': {
         'fundamentals': 'SAM_FUNDAMENTALS_VIEW',  # Financial statements + estimates
     },
-    # Data generation settings
+    # Data generation settings (years_of_history wired to top-level YEARS_OF_HISTORY)
     'generation': {
-        'years_of_history': 5,
+        'years_of_history': YEARS_OF_HISTORY,
         'quarters_per_year': 4,
         'estimates_forward_years': 2,
         'brokers_per_company': (3, 8),  # Min/max broker coverage
@@ -381,21 +482,6 @@ def get_table_path(schema: str, table: str) -> str:
     """Get fully qualified table path. (Alias for get_full_table_path)"""
     return get_full_table_path(schema, table)
 
-WAREHOUSES = {
-    'execution': {
-        'name': 'SAM_DEMO_WH',
-        'size': 'LARGE',  # Single LARGE warehouse for all operations
-        'comment': 'Warehouse for SAM demo data generation and execution'
-    },
-    'cortex_search': {
-        'name': 'SAM_DEMO_WH',  # Same warehouse
-        'size': 'LARGE',
-        'target_lag': '1 hour',  # Faster creation; services sync in background
-        'comment': 'Warehouse for SAM demo Cortex Search services'
-    }
-}
-
-
 # =============================================================================
 # DATA MODEL CONFIGURATION
 # =============================================================================
@@ -411,28 +497,14 @@ DATA_MODEL = {
     'portfolio_code_prefix': 'SAM'
 }
 
-# Securities configuration
-SECURITIES = {
-    'counts': {
-        'equities': 10000,
-        'bonds': 3000,
-        'etfs': 1000
-    },
-    'real_assets_view': 'V_REAL_ASSETS'
-    # Note: External data source config moved to REAL_DATA_SOURCES below
-}
-
 # =============================================================================
-# REAL DATA SOURCES CONFIGURATION
+# REAL DATA SOURCES - TABLE CATALOGUE
 # =============================================================================
-
-# Public data sources for replacing synthetic data
-# All external data comes from SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE
-REAL_DATA_SOURCES = {
-    'database': 'SNOWFLAKE_PUBLIC_DATA_FREE',
-    'schema': 'PUBLIC_DATA_FREE',
-    'enabled': True,  # Toggle to use real vs synthetic data
-    'tables': {
+#
+# This dict is attached to REAL_DATA_SOURCES['tables'] at module load time.
+# It describes available tables in the external public data share.
+#
+REAL_DATA_SOURCES_TABLES = {
         # =============================================================================
         # OPENFIGI SECURITY DATA (for V_REAL_ASSETS view)
         # =============================================================================
@@ -556,7 +628,9 @@ REAL_DATA_SOURCES = {
             'used_by': ['generate_real_transcripts.py']
         }
     }
-}
+
+# Attach the table catalogue to REAL_DATA_SOURCES for compatibility
+REAL_DATA_SOURCES['tables'] = REAL_DATA_SOURCES_TABLES
 
 # Helper function for test mode counts
 def get_securities_count(test_mode: bool = False) -> dict:
@@ -686,74 +760,6 @@ PORTFOLIOS = {
         'inception_date': '2019-01-01',
         'base_currency': 'USD'
     }
-}
-
-# =============================================================================
-# DEMO SCENARIO CONFIGURATION
-# =============================================================================
-
-DEMO_COMPANIES = {
-    'AAPL': {
-        'openfigi_id': 'BBG001S5N8V8',
-        'ticker': 'AAPL',
-        'company_name': 'Apple Inc.',
-        'country': 'US',
-        'sector': 'Information Technology',
-        'priority': 1
-    },
-    'CMC': {
-        'openfigi_id': 'BBG001S5PXG8',
-        'ticker': 'CMC',
-        'company_name': 'Commercial Metals Co',
-        'country': 'US',
-        'sector': 'Materials',
-        'priority': 2
-    },
-    'RBBN': {
-        'openfigi_id': 'BBG00HW4CSH5',
-        'ticker': 'RBBN',
-        'company_name': 'Ribbon Communications Inc.',
-        'country': 'US',
-        'sector': 'Information Technology',
-        'priority': 3
-    },
-    'MSFT': {
-        'openfigi_id': 'BBG001S5TD05',
-        'ticker': 'MSFT',
-        'company_name': 'Microsoft Corp',
-        'country': 'US',
-        'sector': 'Information Technology',
-        'priority': 4
-    },
-    'NVDA': {
-        'openfigi_id': 'BBG001S5TZJ6',
-        'ticker': 'NVDA',
-        'company_name': 'NVIDIA Corp',
-        'country': 'US',
-        'sector': 'Information Technology',
-        'priority': 4
-    },
-    'GOOGL': {
-        'openfigi_id': 'BBG009S39JY5',
-        'ticker': 'GOOGL',
-        'company_name': 'Alphabet Inc.',
-        'country': 'US',
-        'sector': 'Communication Services',
-        'priority': 4
-    },
-    'TSM': {
-        'openfigi_id': 'BBG001S5WWW4',  # Taiwan Semiconductor ADR
-        'ticker': 'TSM',
-        'company_name': 'Taiwan Semiconductor Manufacturing Company Ltd',
-        'country': 'TW',
-        'sector': 'Information Technology',
-        'priority': 4  # Same priority as NVDA/MSFT for demo scenarios
-    }
-}
-
-MAJOR_US_STOCKS = {
-    'tier1': ['AMZN', 'TSLA', 'META', 'NFLX', 'CRM', 'ORCL'],
-    'tier2': ['CSCO', 'IBM', 'INTC', 'AMD', 'ADBE', 'NOW', 'INTU', 'MU', 'QCOM', 'AVGO', 'TXN', 'LRCX', 'KLAC', 'AMAT', 'MRVL']
 }
 
 # =============================================================================
@@ -1536,9 +1542,29 @@ ESG_CONTROVERSY_KEYWORDS = {
 }
 
 # Fictional provider names
-# REMOVED: FICTIONAL_BROKER_NAMES and FICTIONAL_NGO_NAMES
-# These are now loaded from content_library/_rules/fictional_providers.yaml
-# Use rules_loader.get_fictional_brokers() and rules_loader.get_fictional_ngos() instead
+FICTIONAL_BROKER_NAMES = [
+    'Ashfield Partners', 'Northgate Analytics', 'Blackstone Ridge Research',
+    'Fairmont Capital Insights', 'Kingswell Securities Research',
+    'Brookline Advisory Group', 'Harrow Street Markets', 'Marlowe & Co. Research',
+    'Crescent Point Analytics', 'Sterling Wharf Intelligence', 'Granite Peak Advisory',
+    'Alder & Finch Investments', 'Bluehaven Capital Research', 'Regent Square Analytics',
+    'Whitestone Equity Research'
+]
+
+FICTIONAL_NGO_NAMES = {
+    'environmental': [
+        'Global Sustainability Watch', 'Environmental Justice Initiative',
+        'Climate Action Network', 'Green Future Alliance'
+    ],
+    'social': [
+        'Human Rights Monitor', 'Labour Rights Observatory',
+        'Ethical Investment Coalition', 'Fair Workplace Institute'
+    ],
+    'governance': [
+        'Corporate Accountability Forum', 'Transparency Advocacy Group',
+        'Corporate Responsibility Institute', 'Ethical Governance Council'
+    ]
+}
 
 # Numeric tier by document type
 NUMERIC_TIER_BY_DOC_TYPE = {

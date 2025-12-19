@@ -1,0 +1,237 @@
+---
+alwaysApply: false
+description: "Troubleshooting guide for SAM demo components - agents, semantic views, search services, and data issues"
+---
+
+# SAM Demo - Troubleshooting Guide
+
+Comprehensive troubleshooting guide for resolving issues with agents, semantic views, search services, and data generation.
+
+## Agent Issues
+
+### Agent Setup Problems
+
+**"Agent not responding to queries"**
+- **Cause**: Missing semantic view or search services
+- **Solution**: Verify all AI components exist with validation queries from @agent-config.mdc
+- **Debug**: Run `SHOW SEMANTIC VIEWS` and `SHOW CORTEX SEARCH SERVICES`
+
+**"Tool not found" errors**
+- **Cause**: Incorrect service names or column configurations  
+- **Solution**: Check exact service names and column mappings
+- **Debug**: Verify tool names match exactly in agent configuration
+
+**"No results from quantitative queries"**
+- **Cause**: Semantic view issues or empty data
+- **Solution**: Test semantic view directly with validation queries from @semantic-views.mdc
+
+### Query Issues
+
+**"Portfolio not found" errors**
+- **Cause**: Agent using partial portfolio names
+- **Solution**: Use full portfolio names with "SAM" prefix in test queries
+- **Working Query**: "What are my top 10 holdings in the SAM Global Thematic Growth fund?"
+
+**"Search returns no results"**
+- **Cause**: Document corpus empty or search terms don't match content
+- **Solution**: Verify document counts and use relevant business terms
+- **Debug**: Check corpus tables with `SELECT COUNT(*) FROM {CORPUS_TABLE}`
+
+**"Duplicate or inconsistent results"**
+- **Cause**: Agent not filtering to current date for holdings
+- **Solution**: Enhanced planning instructions to filter to latest date
+
+### Performance Issues
+
+**"Slow query responses"**
+- **Cause**: Complex semantic view queries or large document corpus
+- **Solution**: Optimize semantic view structure or split large document collections
+
+**"Timeout errors"**
+- **Cause**: Warehouse size insufficient for agent workload
+- **Solution**: Scale up warehouse or optimize query patterns
+
+### Live Demo Testing Issues (CRITICAL)
+
+**"Portfolio Name Not Found" errors**
+- **Solution**: Use full portfolio names with "SAM" prefix in test queries
+- **Working Query**: "What are my top 10 holdings in the SAM Global Thematic Growth fund?"
+
+**"Holdings/Research Ticker Mismatch"**
+- **Cause**: Portfolio holdings use generated tickers, research covers real tickers
+- **Solution**: Use specific real ticker names in test queries  
+- **Working Query**: "What is the latest research on Apple, Microsoft, and NVIDIA?"
+
+**"Performance Data Gaps"**
+- **Cause**: Complex benchmark performance queries fail
+- **Solution**: Focus on sector allocation and holdings analysis
+- **Working Query**: "Show me technology sector allocation across all portfolios"
+
+## Semantic View Issues
+
+### Creation Errors
+
+**"invalid identifier 'TABLE.COLUMN'"**
+- **Cause**: Column name doesn't exist or wrong case
+- **Solution**: Run `DESCRIBE TABLE` to get exact column names
+- **Reference**: See @semantic-views.mdc for correct syntax patterns
+
+**"duplicate synonym"**
+- **Cause**: Same synonym used in multiple dimensions/metrics
+- **Solution**: Use unique synonym sets for each dimension/metric
+- **Tool**: Use synonym validation function from @semantic-views.mdc
+
+**"cannot resolve reference"**
+- **Cause**: Foreign key relationship doesn't exist
+- **Solution**: Verify table relationships with sample JOINs
+
+### Query Errors
+
+**"No data returned from semantic view"**
+- **Cause**: Empty underlying tables or incorrect relationships
+- **Solution**: Test underlying tables directly first
+- **Debug**: Validate with basic metric/dimension queries
+
+## Search Service Issues
+
+### Creation Problems
+
+**"Missing option WAREHOUSE"**
+- **Cause**: WAREHOUSE parameter not specified
+- **Solution**: Add `WAREHOUSE = <warehouse_name>` to service definition
+- **Reference**: See @cortex-search.mdc for correct syntax
+
+**"invalid identifier"**
+- **Cause**: ATTRIBUTES don't match SELECT column aliases
+- **Solution**: Ensure ATTRIBUTES exactly match SELECT column names/aliases
+
+**"table not found"**
+- **Cause**: Corpus table doesn't exist or not accessible
+- **Solution**: Verify corpus table exists with `SELECT COUNT(*) FROM {corpus_table}`
+
+### Search Quality Issues
+
+**"Search returns no results"**
+- **Cause**: Empty corpus or poor search terms
+- **Solution**: Check document counts and content quality
+- **Debug**: Test with simple queries first
+
+**"Poor search relevance"**
+- **Cause**: Document text quality issues
+- **Solution**: Verify DOCUMENT_TEXT contains clean, readable content
+
+## Data Generation Issues
+
+### Real Asset Integration
+
+**"Real assets view returned no data"**
+- **Cause**: V_REAL_ASSETS view not created or SEC Filings access issue
+- **Solution**: Check SEC_FILINGS database access, view will auto-create during build
+- **Reference**: See @real-assets.mdc for view creation patterns
+
+**"'float' object has no attribute 'lower'"**
+- **Cause**: pandas NaN values in string operations
+- **Solution**: Use safe NaN handling patterns from @real-assets.mdc
+- **Pattern**: Check `pd.isna()` before string operations
+
+**"Using 0 real securities"**
+- **Cause**: Filtering logic too restrictive for asset type
+- **Solution**: Use asset-category-specific filtering from @real-assets.mdc
+
+### Data Quality Issues
+
+**"Portfolio weights don't sum to 100%"**
+- **Cause**: Calculation errors in portfolio weight logic
+- **Solution**: Check weight calculation in position generation
+- **Validation**: Run weight validation queries from @data-generation.mdc
+
+**"Transaction balances don't match positions"**
+- **Cause**: Transaction log and position snapshot mismatch
+- **Solution**: Verify transaction-to-position logic consistency
+
+**"Negative market values"**
+- **Cause**: Price or quantity calculation errors
+- **Solution**: Add validation checks for negative values
+
+## Performance Issues
+
+### Build Performance
+
+**"Slow data generation"**
+- **Cause**: Inefficient pandas operations or large datasets
+- **Solution**: Use SQL-first patterns from @real-assets.mdc
+- **Optimization**: Leverage Snowpark for large transformations
+
+**"Memory errors during build"**
+- **Cause**: Large pandas DataFrames in memory
+- **Solution**: Use session.create_dataframe() for batching
+
+### Runtime Performance
+
+**"Slow semantic view queries"**
+- **Cause**: Complex aggregations or large fact tables
+- **Solution**: Optimize semantic view design or warehouse size
+
+**"Search service timeouts"**
+- **Cause**: Large document corpus or complex queries
+- **Solution**: Consider TARGET_LAG settings or corpus splitting
+
+## Development Issues
+
+### Environment Setup
+
+**"Connection failed"**
+- **Cause**: Incorrect connection configuration
+- **Solution**: Verify `~/.snowflake/connections.toml` settings
+- **Reference**: See @project-setup.mdc for connection template
+
+**"Permission denied"**
+- **Cause**: Insufficient privileges for database/schema operations
+- **Solution**: Verify account has necessary role permissions
+
+**"Warehouse not found"**
+- **Cause**: Warehouse doesn't exist or not accessible
+- **Solution**: Create warehouses per @project-setup.mdc specifications
+
+### Code Issues
+
+**"Import errors"**
+- **Cause**: Missing dependencies or incorrect imports
+- **Solution**: Verify all required packages installed per requirements
+
+**"Configuration errors"**
+- **Cause**: Missing or incorrect config.py settings
+- **Solution**: Verify all required constants defined in config.py
+
+## Diagnostic Commands
+
+### Quick Health Check
+```sql
+-- Verify core tables exist
+SELECT COUNT(*) FROM SAM_DEMO.CURATED.DIM_SECURITY;
+SELECT COUNT(*) FROM SAM_DEMO.CURATED.FACT_POSITION_DAILY_ABOR;
+
+-- Check AI components
+SHOW SEMANTIC VIEWS IN SAM_DEMO.AI;
+SHOW CORTEX SEARCH SERVICES IN SAM_DEMO.AI;
+```
+
+### Data Quality Validation
+```sql
+-- Portfolio weight validation
+SELECT PortfolioID, SUM(PortfolioWeight) as TotalWeight
+FROM SAM_DEMO.CURATED.FACT_POSITION_DAILY_ABOR 
+WHERE HoldingDate = (SELECT MAX(HoldingDate) FROM SAM_DEMO.CURATED.FACT_POSITION_DAILY_ABOR)
+GROUP BY PortfolioID;
+```
+
+### Search Service Testing
+```sql
+-- Test search functionality
+SELECT SNOWFLAKE.CORTEX.SEARCH_PREVIEW(
+    'SAM_DEMO.AI.SAM_BROKER_RESEARCH',
+    '{"query": "technology", "limit": 2}'
+);
+```
+
+This guide provides systematic troubleshooting for all SAM demo components with references to relevant rule files for detailed solutions.

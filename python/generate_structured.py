@@ -23,14 +23,9 @@ def build_all(session: Session, scenarios: List[str], test_mode: bool = False):
     
     Args:
         session: Active Snowpark session
-        scenarios: List of scenario names to build data for (use ['all'] for all scenarios)
+        scenarios: List of scenario names to build data for
         test_mode: If True, use 10% data volumes for faster testing
     """
-    
-    # Expand 'all' to all scenario names
-    if 'all' in scenarios:
-        scenarios = list(config.SCENARIO_DATA_REQUIREMENTS.keys())
-        config.log_detail(f"  Expanding 'all' to {len(scenarios)} scenarios")
     
     # Step 1: Create database and schemas
     create_database_structure(session)
@@ -47,30 +42,15 @@ def build_all(session: Session, scenarios: List[str], test_mode: bool = False):
     
 
 def create_database_structure(session: Session):
-    """Verify schema structure exists (database and schemas created by setup.sql)."""
+    """Create database and schema structure."""
     try:
-        # Database and schemas are already created by setup.sql with ACCOUNTADMIN
-        # Just verify they exist - don't try to create (may lack CREATE DATABASE privilege)
-        schemas_needed = ['RAW', 'CURATED', 'AI', 'MARKET_DATA']
-        db_name = config.DATABASE['name']
-        
-        # Check if schemas exist
-        existing_schemas = session.sql(f"SHOW SCHEMAS IN DATABASE {db_name}").collect()
-        existing_names = {row['name'] for row in existing_schemas}
-        
-        missing = [s for s in schemas_needed if s not in existing_names]
-        if missing:
-            # Try to create missing schemas (requires CREATE SCHEMA privilege)
-            for schema in missing:
-                try:
-                    session.sql(f"CREATE SCHEMA IF NOT EXISTS {db_name}.{schema}").collect()
-                except Exception as schema_err:
-                    print(f"WARNING: Could not create schema {schema}: {schema_err}")
-                    print(f"   Please run setup.sql as ACCOUNTADMIN first to create schemas.")
-                    raise
-        config.log_detail(f"  Database structure verified: {db_name}")
+        session.sql(f"CREATE OR REPLACE DATABASE {config.DATABASE['name']}").collect()
+        session.sql(f"CREATE OR REPLACE SCHEMA {config.DATABASE['name']}.RAW").collect()
+        session.sql(f"CREATE OR REPLACE SCHEMA {config.DATABASE['name']}.CURATED").collect()
+        session.sql(f"CREATE OR REPLACE SCHEMA {config.DATABASE['name']}.AI").collect()
+        session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.MARKET_DATA").collect()
     except Exception as e:
-        config.log_error(f" Failed to verify database structure: {e}")
+        config.log_error(f" Failed to create database structure: {e}")
         raise
 
 def check_market_data_table_exists(session: Session, table_name: str) -> bool:

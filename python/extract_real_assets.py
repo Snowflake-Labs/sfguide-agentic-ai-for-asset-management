@@ -57,10 +57,10 @@ def verify_sec_filings_access(session: Session) -> bool:
         
         # Verify we can access a key table
         session.sql(f"SELECT 1 FROM {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.COMPANY_INDEX LIMIT 1").collect()
+        
         return True
         
     except Exception as e:
-        # print(f"❌ SEC Filings access verification failed: {e}")
         raise
 
 
@@ -75,7 +75,6 @@ def create_real_assets_view(session: Session) -> bool:
     Returns:
         bool: True if successful
     """
-    # print("📊 Creating real assets view in RAW schema...")
     
     # First verify SEC Filings dataset access
     verify_sec_filings_access(session)
@@ -219,14 +218,9 @@ def create_real_assets_view(session: Session) -> bool:
         FROM {config.DATABASE['name']}.{config.DATABASE['schemas']['RAW'.lower()]}.V_REAL_ASSETS
         """).collect()[0]
         
-        # print(f"✅ Created view V_REAL_ASSETS with {stats['TOTAL_ASSETS']:,} assets")
-        # print(f"   📊 Asset categories: {stats['ASSET_CATEGORIES']}")
-        # print(f"   🌍 Market regions: {stats['MARKET_REGIONS']}")
-        # print(f"   🔗 Assets with CIK: {stats['ASSETS_WITH_CIK']:,}")
         
         return True
         
     except Exception as e:
-        # print(f"❌ Failed to create real assets view: {e}")
         raise
 

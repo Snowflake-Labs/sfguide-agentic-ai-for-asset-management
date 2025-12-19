@@ -1,0 +1,540 @@
+---
+alwaysApply: true
+---
+
+# SAM Demo - 100% Real Asset Data Model Guide
+
+Complete guide for the industry-standard data model using 100% authentic securities from SEC Filings dataset (OpenFIGI). **No synthetic securities generated.**
+
+## Overview
+
+This guide covers the enhanced data model with 14,000+ real securities, immutable SecurityID, transaction-based holdings, and corporate hierarchy support using synthetic market data for consistent performance.
+
+**Key Principles:**
+- **100% Real Assets**: All 14,000+ securities from authentic OpenFIGI dataset
+- **Industry-Standard Architecture**: Professional asset management data model following best practices
+- **Authentic Identifiers**: TICKER + real Bloomberg FIGI identifiers only
+- **Performance-Optimized**: SQL-first approach with efficient Snowpark operations  
+- **Comprehensive Coverage**: Complete fact/dimension model with proper relationships
+
+**Naming Standards**: See @naming-conventions.mdc for complete naming guidelines.
+
+## Critical Design Principle: OpenFIGI vs Ticker Identifiers
+
+### **🎯 Fundamental Rule: Tickers Are NOT Unique**
+
+**CRITICAL**: Never assume tickers are unique identifiers. The same ticker can represent multiple different assets across markets, exchanges, and instrument types.
+
+#### **✅ Correct Approach:**
+```python
+# Load ALL assets that meet quality criteria - do NOT deduplicate by ticker
+category_assets = real_assets_df[
+    (real_assets_df['ASSET_CATEGORY'] == asset_category) &
+    (real_assets_df['PRIMARY_TICKER'].notna()) &
+    (real_assets_df['PRIMARY_TICKER'].str.len() <= 15) &
+    (real_assets_df['TOP_LEVEL_OPENFIGI_ID'].notna())
+]
+# No .drop_duplicates(subset=['PRIMARY_TICKER']) - this would remove valid assets!
+```
+
+#### **❌ Wrong Approach:**
+```python
+# NEVER do this - removes valid assets due to ticker collisions
+category_assets = (...).drop_duplicates(subset=['PRIMARY_TICKER'], keep='first')
+```
+
+### **Real-World Example: CMC Ticker Collision**
+The ticker `CMC` represents multiple companies:
+- `BBG001S5PXG8` → Commercial Metals Co (USA) ✅ *Demo scenario company*
+- `BBG00BLXJ2S4` → Chaoprayamahanakorn PCL (Thailand)
+- `BBG001T6CS16` → Cielo Waste Solutions Corp (Canada)
+- `BBG001SSGJ60` → CMC Investment JSC (Vietnam)
+- `BBG007MM4S14` → Comeco SA (Poland)
+
+**If you deduplicate by ticker, you lose 4 valid companies and might keep the wrong one!**
+
+### **Design Principles:**
+1. **Tickers**: Non-unique, used for display and human reference
+2. **OpenFIGI IDs**: Globally unique, used for precise asset identification
+3. **Asset Loading**: Keep ALL assets, let OpenFIGI-based selection handle precision
+4. **Portfolio Selection**: Use OpenFIGI IDs for exact company matching
+5. **Demo Scenarios**: Always specify exact companies via OpenFIGI IDs
+
+### **Implementation Pattern:**
+```python
+# 1. Load all assets (no ticker deduplication)
+all_assets = load_all_real_assets_meeting_criteria()
+
+# 2. Use OpenFIGI IDs for precise selection
+demo_companies = {
+    'AAPL': 'BBG001S5N8V8',  # Apple Inc. (not Apple Inc-CDR)
+    'CMC': 'BBG001S5PXG8',   # Commercial Metals Co (not Thai company)
+    'RBBN': 'BBG00HW4CSH5'   # Ribbon Communications Inc.
+}
+
+# 3. Portfolio logic uses OpenFIGI for exact matching
+WHEN s.FIGI = 'BBG001S5PXG8' THEN 1  -- Exact company, no ambiguity
+```
+
+## Critical SQL Generation Best Practices
+
+### **🎯 Rule 1: Never Hardcode Config Values in SQL**
+
+**CRITICAL**: Always use config helper functions, never hardcode company FIGIs, tickers, or priorities in SQL generation code.
+
+#### **✅ Correct Approach:**
+```python
+# Use config helper function to generate SQL dynamically
+CASE 
+    -- Demo companies with their configured priorities from config.DEMO_COMPANIES
+    {config.get_demo_company_priority_sql()}
+    -- Other major stocks from config
+    WHEN s.Ticker IN {config.safe_sql_tuple(config.get_major_us_stocks('tier1'))} THEN 5
+    ELSE 10
+END
+```
+
+#### **❌ Wrong Approach:**
+```python
+# NEVER hardcode FIGI values or priorities
+CASE 
+    WHEN s.FIGI = 'BBG001S5N8V8' THEN 1  -- ❌ Hardcoded!
+    WHEN s.FIGI = 'BBG001S5PXG8' THEN 2  -- ❌ Hardcoded!
+    WHEN s.FIGI IN ('BBG001S5TD05', 'BBG001S5TZJ6') THEN 4  -- ❌ Hardcoded!
+END
+```
+
+### **🎯 Rule 2: Use Data Model Columns, Not Regex Patterns**
+
+**CRITICAL**: Leverage `AssetClass`, `CountryOfRisk`, `CountryOfIncorporation` instead of regex or ticker length checks.
+
+#### **✅ Correct Approach:**
+```python
+# Use data model columns
+CASE 
+    {config.get_demo_company_priority_sql()}
+    WHEN s.Ticker IN {config.safe_sql_tuple(config.get_major_us_stocks('tier1'))} 
+         AND i.CountryOfIncorporation = 'US' THEN 5
+    WHEN i.CountryOfIncorporation = 'US' AND s.AssetClass = 'Equity' THEN 6
+    WHEN s.AssetClass = 'Equity' THEN 7
+    ELSE 8
+END
+```
+
+#### **❌ Wrong Approach:**
+```python
+# NEVER use regex patterns when data model has the info
+CASE 
+    WHEN s.Ticker RLIKE '^[A-Z]{1,5}$' AND LENGTH(s.Ticker) <= 5 THEN 3  -- ❌ Unnecessary regex!
+    ELSE 4
+END
+```
+
+### **🎯 Rule 3: SQL Tuple Generation Must Be Safe**
+
+**CRITICAL**: Empty lists cause SQL syntax errors. Always use `config.safe_sql_tuple()`.
+
+#### **✅ Correct Approach:**
+```python
+# Safe tuple generation handles empty lists
+WHEN s.FIGI IN {config.safe_sql_tuple(config.get_demo_company_figis())} THEN 1
+# If empty list: generates ('__NONE__') instead of ()
+```
+
+#### **❌ Wrong Approach:**
+```python
+# NEVER use bare tuple() - causes SQL errors with empty lists
+WHEN s.FIGI IN {tuple(config.get_demo_company_figis())} THEN 1  # ❌ Breaks if empty!
+# Empty list generates () which is invalid SQL syntax
+```
+
+### **Key Helper Functions in config.py:**
+
+```python
+# Generate SQL CASE statement from DEMO_COMPANIES config
+config.get_demo_company_priority_sql()
+# Returns: "WHEN s.FIGI = 'BBG001S5N8V8' THEN 1 WHEN s.FIGI = 'BBG001S5PXG8' THEN 2 ..."
+
+# Safe SQL tuple generation (handles empty lists)
+config.safe_sql_tuple(items, default_value="'__NONE__'")
+# Empty list: "('__NONE__')" not "()"
+# Single item: "('ITEM')" not "('ITEM',)" (no trailing comma in SQL!)
+# Multiple: "('ITEM1', 'ITEM2', 'ITEM3')"
+
+# Get demo company FIGIs by priority group
+config.get_demo_company_figis('all')      # All demo companies
+config.get_demo_company_figis('top3')     # Priority 1-3 only
+config.get_demo_company_figis('additional')  # Priority 4+ only
+
+# Get major US stock tickers
+config.get_major_us_stocks('tier1')  # Top tier
+config.get_major_us_stocks('tier2')  # Second tier
+config.get_major_us_stocks('all')    # All tiers
+```
+
+### **🎯 Rule 4: Use Batched I/O for Writes and Reads**
+
+**CRITICAL**: Never use row-by-row INSERT loops or per-entity SELECT queries. See @performance-io.mdc for complete guidelines.
+
+#### **✅ Correct Approach for Small Dimension Tables:**
+```python
+import snowflake_io_utils
+
+# Build all rows locally, write in a single batch
+rows = [
+    {'CounterpartyID': 1, 'Name': 'Goldman Sachs', 'Rating': 'A'},
+    {'CounterpartyID': 2, 'Name': 'Morgan Stanley', 'Rating': 'A'},
+]
+snowflake_io_utils.write_pandas_overwrite(
+    session,
+    f"{database_name}.CURATED.DIM_COUNTERPARTY",
+    rows
+)
+```
+
+#### **❌ Wrong Approach:**
+```python
+# NEVER do row-by-row inserts
+for name, rating in counterparties:
+    session.sql(f"""
+        INSERT INTO DIM_COUNTERPARTY (Name, Rating)
+        VALUES ('{name}', '{rating}')
+    """).collect()  # ❌ N round-trips to Snowflake!
+```
+
+#### **✅ Correct Approach for Lookups in Loops:**
+```python
+import snowflake_io_utils
+
+# Prefetch ALL data in one query before the loop
+security_ids = [e['id'] for e in entities]
+prefetched = snowflake_io_utils.prefetch_security_contexts(
+    session, database_name, security_ids
+)
+
+# Use prefetched data in loop - no queries
+for entity in entities:
+    context = prefetched.get(entity['id'])
+    # ... process without database round-trips
+```
+
+#### **❌ Wrong Approach:**
+```python
+# NEVER query inside a loop
+for entity in entities:
+    result = session.sql(f"""
+        SELECT * FROM DIM_SECURITY WHERE SecurityID = {entity['id']}
+    """).collect()  # ❌ N round-trips to Snowflake!
+```
+
+### **Config Structure Usage:**
+
+```python
+# ✅ CORRECT: Use structured config dictionaries
+database_name = config.DATABASE['name']
+warehouse_name = config.WAREHOUSES['execution']['name']
+warehouse_size = config.WAREHOUSES['execution']['size']
+
+# ❌ WRONG: Don't use flat constants (these don't exist anymore)
+database_name = config.DATABASE_NAME  # ❌ Removed in config simplification
+warehouse_name = config.EXECUTION_WAREHOUSE  # ❌ Removed in config simplification
+```
+
+### **F-String Nested Brackets:**
+
+```python
+# ✅ CORRECT: Extract value before using in f-string
+database_name = config.DATABASE['name']
+sql = f"CREATE TABLE {database_name}.SCHEMA.TABLE ..."
+
+# ❌ WRONG: Nested brackets in f-string cause syntax errors
+sql = f"CREATE TABLE {config.DATABASE['name']}.SCHEMA.TABLE ..."  # ❌ Syntax error!
+```
+
+## Enhanced Data Model Architecture
+
+### 1.1 Core Dimension Tables (Industry Standard)
+```sql
+-- Master security dimension with immutable SecurityID and direct identifiers
+DIM_SECURITY (
+    SecurityID BIGINT IDENTITY(1,1) PRIMARY KEY,  -- Immutable surrogate key
+    IssuerID BIGINT NOT NULL,                     -- FK to DIM_ISSUER
+    Ticker VARCHAR(50) NOT NULL,                  -- Real ticker from OpenFIGI dataset
+    FIGI VARCHAR(50),                             -- Real FIGI from OpenFIGI (only authentic external ID)
+    Description VARCHAR(255),
+    AssetClass VARCHAR(50),                       -- 'Equity', 'Corporate Bond', 'ETF'
+    SecurityType VARCHAR(100),
+    CountryOfRisk CHAR(2),
+    IssueDate DATE,
+    MaturityDate DATE,                            -- For bonds
+    CouponRate DECIMAL(18, 8),                    -- For bonds
+    RecordStartDate TIMESTAMP_NTZ,
+    RecordEndDate TIMESTAMP_NTZ,
+    IsActive BOOLEAN
+)
+
+-- Issuer dimension with corporate hierarchies
+DIM_ISSUER (
+    IssuerID BIGINT IDENTITY(1,1) PRIMARY KEY,
+    UltimateParentIssuerID BIGINT,                -- Self-referencing for hierarchy
+    LegalName VARCHAR(255) NOT NULL,
+    LEI VARCHAR(20),                              -- Legal Entity Identifier
+    CountryOfIncorporation CHAR(2),
+    GICS_Sector VARCHAR(100)
+)
+
+-- Portfolio and benchmark dimensions
+DIM_PORTFOLIO (
+    PortfolioID BIGINT IDENTITY(1,1) PRIMARY KEY,
+    PortfolioCode VARCHAR(100) UNIQUE NOT NULL,
+    PortfolioName VARCHAR(255),
+    Strategy VARCHAR(100),
+    BaseCurrency CHAR(3),
+    InceptionDate DATE
+)
+
+DIM_BENCHMARK (
+    BenchmarkID BIGINT IDENTITY(1,1) PRIMARY KEY,
+    BenchmarkName VARCHAR(255) UNIQUE NOT NULL,
+    Provider VARCHAR(100)
+)
+```
+
+### 1.2 Core Fact Tables (Transaction-Based Model)
+```sql
+-- Canonical transaction log (source of truth)
+FACT_TRANSACTION (
+    TransactionID BIGINT IDENTITY(1,1) PRIMARY KEY,
+    TransactionDate DATE NOT NULL,                -- Direct date column
+    PortfolioID BIGINT NOT NULL,
+    SecurityID BIGINT NOT NULL,
+    TransactionType VARCHAR(50) NOT NULL,         -- 'BUY', 'SELL', 'DIVIDEND', 'INTEREST'
+    TradeDate DATE NOT NULL,
+    SettleDate DATE,
+    Quantity DECIMAL(38, 10),
+    Price DECIMAL(38, 10),
+    GrossAmount_Local DECIMAL(38, 10),
+    Commission_Local DECIMAL(38, 10),
+    Currency CHAR(3),
+    SourceSystem VARCHAR(50)                      -- 'ABOR' or 'IBOR'
+)
+
+-- ABOR positions (built from transactions)
+FACT_POSITION_DAILY_ABOR (
+    HoldingDate DATE NOT NULL,                    -- Direct date column
+    PortfolioID BIGINT NOT NULL,
+    SecurityID BIGINT NOT NULL,
+    Quantity DECIMAL(38, 10),
+    MarketValue_Local DECIMAL(38, 10),
+    MarketValue_Base DECIMAL(38, 10),
+    CostBasis_Local DECIMAL(38, 10),
+    CostBasis_Base DECIMAL(38, 10),
+    AccruedInterest_Local DECIMAL(38, 10),
+    PortfolioWeight DECIMAL(18, 12)
+)
+
+-- Enhanced market data
+FACT_MARKETDATA_TIMESERIES (
+    PriceDate DATE NOT NULL,                      -- Direct date column
+    SecurityID BIGINT NOT NULL,
+    Price_Close DECIMAL(38, 10),
+    Price_Open DECIMAL(38, 10),
+    Price_High DECIMAL(38, 10),
+    Price_Low DECIMAL(38, 10),
+    Volume BIGINT,
+    TotalReturnFactor_Daily DECIMAL(38, 15)
+)
+```
+
+## Step 2: Data Generation Patterns
+
+### 2.1 Foundation Table Creation Order
+**Implementation**: See `python/generate_structured.py`
+
+**Key Principles:**
+1. Build in dependency order: Issuers → Securities → Portfolios → Transactions → Positions
+2. Extract config values before f-strings: `database_name = config.DATABASE['name']`
+3. Use SQL-first approach for large datasets
+4. Always use config helper functions for priorities and lists
+
+### 2.2 Priority-Based Security Selection
+**Critical Pattern for Transaction Generation:**
+
+```python
+# ✅ CORRECT: Config-driven priority with data model columns
+CASE 
+    {config.get_demo_company_priority_sql()}  -- Dynamic from DEMO_COMPANIES
+    WHEN s.Ticker IN {config.safe_sql_tuple(config.get_major_us_stocks('tier1'))} 
+         AND i.CountryOfIncorporation = 'US' THEN 5
+    WHEN i.CountryOfIncorporation = 'US' AND s.AssetClass = 'Equity' THEN 6
+    WHEN s.AssetClass = 'Equity' THEN 7
+    ELSE 8
+END as priority
+```
+
+**Key Elements:**
+- Use `config.get_demo_company_priority_sql()` for demo companies (priorities 1-4)
+- Use `config.safe_sql_tuple()` for IN clauses (handles empty lists)
+- Leverage data model: `AssetClass`, `CountryOfIncorporation` (not regex)
+- Filter by priority threshold (e.g., `priority <= 7`)
+
+## Step 3: Market Data and Configuration
+
+### 3.1 Real SEC Data Integration (MARKET_DATA Schema)
+**Implementation**: See `python/generate_market_data.py`
+
+**Data Source**: `SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE`
+
+**Real Data Tables Created:**
+- `FACT_STOCK_PRICES` (5.2M+ records): Real daily stock prices (OHLCV) from Nasdaq
+- `FACT_FINANCIAL_DATA_SEC` (9,400+ records): Real SEC financial metrics from 10-K/10-Q
+- `FACT_SEC_FILING_TEXT` (6,300+ records): Real SEC filing text (MD&A, Risk Factors)
+- `COMPANY_EVENT_TRANSCRIPTS_CORPUS` (500+ chunks): Real company event transcripts with speaker attribution
+
+**Key Functions:**
+```python
+# Build real stock prices from STOCK_PRICE_TIMESERIES
+build_real_stock_prices(session, test_mode)
+
+# Build real SEC financial data from SEC_METRICS_TIMESERIES
+build_real_sec_financial_data(session, test_mode)
+
+# Build real SEC filing text from SEC_REPORT_TEXT_ATTRIBUTES
+build_real_sec_filing_text(session, test_mode)
+
+# Build real company event transcripts (see python/generate_real_transcripts.py)
+# Uses AI_COMPLETE for speaker identification and SPLIT_TEXT_RECURSIVE_CHARACTER for chunking
+build_real_transcripts(session, test_mode)
+```
+
+**CIK Linkage Pattern:**
+- Real data is joined to demo data via CIK (SEC Central Index Key)
+- CIK is stored in `DIM_ISSUER` and `DIM_COMPANY` tables
+- ~50 companies have CIK linkage enabling real data integration
+
+### 3.2 Synthetic Market Data (Fallback)
+**Implementation**: See `python/generate_market_data.py`
+
+**Synthetic Tables (always created for broader coverage):**
+- `FACT_FINANCIAL_DATA` (90K records): Synthetic quarterly financial metrics
+- `FACT_ESTIMATE_CONSENSUS` (24K records): Synthetic analyst estimates
+
+**Key Principle:** Synthetic data is always built to ensure downstream dependencies work. Real data supplements the synthetic data for enhanced capabilities.
+
+### 3.3 Configuration Control
+**Implementation**: See `python/config.py`
+
+**Key Config Groups:**
+```python
+DATA_MODEL = {
+    'use_transaction_based': True,
+    'transaction_months': 12
+}
+
+SECURITIES = {
+    'counts': {'equities': 10000, 'bonds': 3000, 'etfs': 1000},
+    'real_assets_view': 'V_REAL_ASSETS'
+}
+
+# All external data sources consolidated in REAL_DATA_SOURCES
+REAL_DATA_SOURCES = {
+    'database': 'SNOWFLAKE_PUBLIC_DATA_FREE',
+    'schema': 'PUBLIC_DATA_FREE',
+    'enabled': True,  # Toggle real data integration
+    'tables': {
+        # OpenFIGI tables (for V_REAL_ASSETS)
+        'openfigi_security_index': {'table': 'OPENFIGI_SECURITY_INDEX', ...},
+        'company_security_relationships': {'table': 'COMPANY_SECURITY_RELATIONSHIPS', ...},
+        'company_index': {'table': 'COMPANY_INDEX', ...},
+        'company_characteristics': {'table': 'COMPANY_CHARACTERISTICS', ...},
+        # Market Data tables
+        'stock_prices': {'table': 'STOCK_PRICE_TIMESERIES', ...},
+        'sec_metrics': {'table': 'SEC_METRICS_TIMESERIES', ...},
+        'sec_filing_text': {'table': 'SEC_REPORT_TEXT_ATTRIBUTES', ...},
+        # ... additional tables
+    }
+}
+```
+
+### 3.4 Schema Cleanup (CURATED Deprecations)
+**Implementation**: See `python/generate_structured.py`
+
+**Deprecated CURATED Tables** (replaced by MARKET_DATA equivalents):
+- ~~`FACT_MARKETDATA_TIMESERIES`~~ → Use `MARKET_DATA.FACT_STOCK_PRICES`
+- ~~`FACT_FUNDAMENTALS`~~ → Use `MARKET_DATA.FACT_FINANCIAL_DATA` or `FACT_FINANCIAL_DATA_SEC`
+- ~~`FACT_ESTIMATES`~~ → Use `MARKET_DATA.FACT_ESTIMATE_CONSENSUS`
+
+**Build Process Logic:**
+```python
+# Check if MARKET_DATA table exists before creating CURATED table
+if not check_market_data_table_exists(session, 'FACT_STOCK_PRICES'):
+    build_fact_marketdata_timeseries(session, test_mode)
+else:
+    print("Skipping CURATED.FACT_MARKETDATA_TIMESERIES (MARKET_DATA.FACT_STOCK_PRICES exists)")
+```
+
+## Step 4: Document Integration
+
+**Complete patterns**: See @unstructured-data-generation.mdc
+
+**Key Principles:**
+- Security-level documents (template-based): Link via SecurityID + IssuerID (broker research, press releases)
+- Security-level documents (real data): Link via PRIMARY_TICKER + CIK (company event transcripts)
+- Issuer-level documents: Link via IssuerID only (NGO reports, engagement notes)
+- Global documents: No linkage (policy docs, sales templates)
+- Template-based hydration for most documents, real data for company event transcripts
+
+**Real Company Event Transcripts:**
+- **Source**: `SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.COMPANY_EVENT_TRANSCRIPT_ATTRIBUTES`
+- **Event Types**: Earnings Calls, AGMs, M&A Announcements, Investor Days, Special Calls
+- **Processing**: AI_COMPLETE for speaker ID → chunking with SPLIT_TEXT_RECURSIVE_CHARACTER
+- **Target**: `CURATED.COMPANY_EVENT_TRANSCRIPTS_CORPUS` for Cortex Search
+- **Implementation**: See `python/generate_real_transcripts.py`
+
+## Step 5: Validation and Performance
+
+### 5.1 Required Validations
+**Implementation**: See `python/generate_structured.py` - validation functions
+
+**Critical Checks:**
+- Portfolio weights sum to 100% (±0.1% tolerance)
+- Transaction log balances match position snapshots
+- Security identifiers populated (TICKER and FIGI)
+- Issuer hierarchy relationships valid
+- No negative prices or market values
+- All foreign key relationships valid
+
+### 5.2 Performance Best Practices
+**Key Principles:**
+- **SQL-first**: Use SQL for transformations, Snowpark for data movement only
+- **Avoid Pandas**: No large DataFrames in memory
+- **Overwrite mode**: Use `.write.mode("overwrite")` for deterministic builds
+- **Extract config**: Get dictionary values before f-strings to avoid nested brackets
+
+## Summary
+
+This guide provides the patterns and procedures for generating industry-standard asset management data with immutable SecurityID, transaction audit trails, issuer hierarchies, and real data integration capabilities.
+
+**Enhanced Model Benefits:**
+- Professional asset management data architecture
+- Corporate action resilience and temporal integrity  
+- Complete transaction audit trail for compliance
+- Issuer-level risk analysis and corporate hierarchies
+- Real SEC data integration (stock prices, financials, filing text)
+- Real company event transcripts with speaker attribution
+- Synthetic data fallback for complete coverage
+
+**Data Architecture:**
+- **CURATED Schema**: Core dimension/fact tables (transactions, positions, ESG, factors)
+- **MARKET_DATA Schema**: Real and synthetic market data (stock prices, financials, estimates)
+- **AI Schema**: Semantic views and Cortex Search services
+
+**Related Rules**: 
+- @real-assets.mdc - For real data integration patterns
+- @naming-conventions.mdc - For database naming standards
+- @development-patterns.mdc - For extending data model
+
+**Related Documentation**:
+- `docs/data_lineage.md` - Complete data flow, dependencies, and impact analysis
+- `docs/data_model.md` - Data model architecture and schema documentation
+- `docs/real_data_integration_analysis.md` - Real SEC data integration details

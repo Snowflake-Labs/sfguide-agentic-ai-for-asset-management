@@ -1,0 +1,202 @@
+---
+alwaysApply: true
+---
+
+# SAM Demo - Snowflake I/O Performance Standards
+
+This rule establishes mandatory patterns for efficient Snowflake data access. Following these patterns prevents performance regressions from row-by-row operations.
+
+## Core Principles
+
+1. **No row-by-row inserts** - Use batched writes via `write_pandas` or set-based SQL
+2. **No collect-in-loop** - Prefetch all needed data before iterating
+3. **Set-based operations** - Prefer SQL `CREATE TABLE AS SELECT` for large datasets
+
+## Utility Module
+
+All batched I/O operations should use the helpers in `python/snowflake_io_utils.py`:
+
+- `write_pandas_overwrite(session, table_fqn, rows)` - Batch write with overwrite
+- `write_pandas_append(session, table_fqn, rows)` - Batch append
+- `fetch_as_map(session, sql, key_column, value_columns)` - Batch lookup → dict
+- `batch_lookup_security_ids(session, database_name, tickers, figis)` - Security ID lookup
+- `prefetch_security_contexts(session, database_name, security_ids)` - Prefetch security data
+- `prefetch_issuer_contexts(session, database_name, issuer_ids)` - Prefetch issuer data
+- `prefetch_fiscal_calendars(session, database, schema, ciks)` - Prefetch fiscal calendar
+
+## Anti-Pattern 1: Row-by-Row Inserts
+
+### ❌ WRONG - Per-row INSERT in loop
+```python
+# This creates N round-trips to Snowflake - very slow!
+for name, rating in counterparties:
+    session.sql(f"""
+        INSERT INTO DIM_COUNTERPARTY (Name, Rating)
+        VALUES ('{name}', '{rating}')
+    """).collect()
+```
+
+### ✅ CORRECT - Batched write_pandas
+```python
+import snowflake_io_utils
+
+# Build all rows locally, write once
+rows = [
+    {'CounterpartyID': 1, 'Name': 'Goldman Sachs', 'Rating': 'A'},
+    {'CounterpartyID': 2, 'Name': 'Morgan Stanley', 'Rating': 'A'},
+    # ... more rows
+]
+
+# Single batch write (uses quote_identifiers=False, overwrite=True)
+snowflake_io_utils.write_pandas_overwrite(
+    session,
+    f"{database_name}.CURATED.DIM_COUNTERPARTY",
+    rows
+)
+```
+
+### ✅ ALSO CORRECT - Multi-row INSERT for < 100 rows
+```python
+# For very small reference tables, a single multi-row INSERT is acceptable
+session.sql(f"""
+    INSERT INTO DIM_RATING (RatingID, RatingCode, Description)
+    VALUES 
+        (1, 'AAA', 'Prime'),
+        (2, 'AA', 'High Grade'),
+        (3, 'A', 'Upper Medium'),
+        (4, 'BBB', 'Lower Medium')
+""").collect()
+```
+
+## Anti-Pattern 2: Collect-in-Loop (Per-Entity SELECT)
+
+### ❌ WRONG - Query inside loop
+```python
+# This creates N round-trips to Snowflake - very slow!
+for entity in entities:
+    # BAD: One query per entity
+    result = session.sql(f"""
+        SELECT * FROM DIM_SECURITY 
+        WHERE SecurityID = {entity['id']}
+    """).collect()
+    
+    context = build_context(result[0])
+    # ... process
+```
+
+### ✅ CORRECT - Prefetch all data before loop
+```python
+import snowflake_io_utils
+
+# Step 1: Get all entity IDs
+entities = get_entities_for_doc_type(session, doc_type)
+security_ids = [e['id'] for e in entities]
+
+# Step 2: Prefetch ALL data in ONE query
+prefetched = snowflake_io_utils.prefetch_security_contexts(
+    session, database_name, security_ids
+)
+
+# Step 3: Use prefetched data in loop (no queries)
+for entity in entities:
+    row = prefetched.get(entity['id'])
+    context = build_context_from_prefetch(row)
+    # ... process - no database round-trip!
+```
+
+### ✅ CORRECT - fetch_as_map for lookup tables
+```python
+import snowflake_io_utils
+
+# Batch fetch SecurityIDs for multiple tickers
+tickers = ['AAPL', 'MSFT', 'NVDA', 'GOOGL']
+figis = ['BBG001S5N8V8', 'BBG000BPH459']
+
+security_map = snowflake_io_utils.batch_lookup_security_ids(
+    session, database_name, tickers=tickers, figis=figis
+)
+
+# Use local map in loop - no queries
+for ticker in tickers:
+    security_id = security_map.get(ticker)
+    if security_id:
+        # process...
+```
+
+## When to Use Each Pattern
+
+| Data Size | Pattern | Example |
+|-----------|---------|---------|
+| < 100 rows | `write_pandas_overwrite()` or multi-row INSERT | DIM_COUNTERPARTY, DIM_CUSTODIAN |
+| 100-10,000 rows | `write_pandas_overwrite()` | DIM_PORTFOLIO, demo data tables |
+| > 10,000 rows | `CREATE TABLE AS SELECT` (pure SQL) | FACT_TRANSACTION, FACT_POSITION |
+| Lookups in loops | `fetch_as_map()` or `prefetch_*()` | Entity context building |
+
+## write_pandas Parameters
+
+Always use these parameters for consistency:
+
+```python
+session.write_pandas(
+    df,
+    table_name,
+    database=database,
+    schema=schema,
+    quote_identifiers=False,  # REQUIRED - prevents double-quoting
+    overwrite=True,           # REQUIRED for clean rebuilds
+    auto_create_table=True    # Optional - creates table if missing
+)
+```
+
+**Why `quote_identifiers=False`?**
+- Snowflake column names are case-insensitive when unquoted
+- `quote_identifiers=True` (default) creates `"COLUMNNAME"` which must be referenced with quotes
+- `False` creates `COLUMNNAME` which works naturally with SQL
+
+**Why `overwrite=True`?**
+- Ensures deterministic, idempotent builds
+- Prevents accumulating duplicate rows across runs
+- Use `overwrite=False` only when intentionally appending
+
+## Large Dataset Pattern (Pure SQL)
+
+For tables with many thousands of rows, use pure SQL with `CREATE TABLE AS SELECT`:
+
+```python
+# ✅ CORRECT for large datasets - pure SQL, no Python data movement
+session.sql(f"""
+    CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_ESG_SCORES AS
+    WITH base_securities AS (
+        SELECT SecurityID, SIC_DESCRIPTION, CountryOfIncorporation
+        FROM DIM_SECURITY s
+        JOIN DIM_ISSUER i ON s.IssuerID = i.IssuerID
+    ),
+    scoring_dates AS (
+        SELECT DATEADD(quarter, seq4(), ...) as SCORE_DATE
+        FROM TABLE(GENERATOR(rowcount => ...))
+    )
+    SELECT 
+        SecurityID,
+        SCORE_DATE,
+        -- Generate scores with SQL expressions
+        CASE WHEN SIC_DESCRIPTION = 'Technology' THEN ... END as E_Score
+    FROM base_securities
+    CROSS JOIN scoring_dates
+""").collect()
+```
+
+## Validation Checklist
+
+Before submitting code changes, verify:
+
+- [ ] No `INSERT INTO ... VALUES` inside a `for` loop
+- [ ] No `session.sql(...).collect()` inside a `for` loop for lookups
+- [ ] All dimension tables < 10K rows use `write_pandas_overwrite()`
+- [ ] All entity iteration uses prefetched data
+- [ ] Large fact tables use `CREATE TABLE AS SELECT`
+
+## Related Documentation
+
+- `python/snowflake_io_utils.py` - Utility functions for batched I/O
+- @development-patterns.mdc - Data generation function templates
+- @data-generation.mdc - Data model and generation patterns
