@@ -14,10 +14,10 @@
 | Capability | Description |
 |------------|-------------|
 | **100% Real Securities** | All 14,000+ securities are authentic from SEC Filings (OpenFIGI), not synthetic |
-| **Multi-Tool Orchestration** | Agents dynamically combine 3-9 tools (Cortex Analyst + Cortex Search) per query |
+| **Multi-Tool Orchestration** | Agents dynamically combine 3-14 tools (Cortex Analyst + Cortex Search) per query |
 | **Industry-Standard Model** | Dimension/fact architecture with transaction audit trails and corporate hierarchies |
 | **Complete Workflow Coverage** | 9 agents covering front office, middle office, compliance, and executive functions |
-| **Template-Based Documents** | 69 curated templates generate realistic research, policies, and client reports |
+| **Template-Based Documents** | 76 curated templates generate realistic research, policies, and client reports |
 
 ### Business Context
 
@@ -34,25 +34,31 @@ sfguide-agentic-ai-for-asset-management/
 ├── README.md                           # This file
 ├── scripts/
 │   └── setup.sql                       # One-click automated setup (~15-20 min)
-├── notebooks/
-│   ├── environment.yml                 # Python dependencies
-│   └── 0_start_here.ipynb              # Setup notebook (auto-executed via Git)
-├── python/                             # am_ai_demo Python modules
-│   ├── config.py                       # Configuration settings
-│   ├── generate_structured.py          # Data model generation
-│   ├── generate_unstructured.py        # Document generation
-│   ├── hydration_engine.py             # Template hydration
-│   ├── build_ai.py                     # Cortex Search/Analyst builder
-│   ├── create_agents.py                # Agent creation
-│   ├── create_semantic_views.py        # Semantic view definitions
-│   ├── create_cortex_search.py         # Search service definitions
-│   └── extract_real_assets.py          # Real asset extraction
-├── content_library/                    # 69 document templates
-│   ├── security/                       # Broker research, earnings, press releases
+├── python/                             # 20 Python modules
+│   ├── config.py                       # Central configuration (companies, scenarios, AI models)
+│   ├── generate_structured.py          # Dimension/fact table generation
+│   ├── generate_unstructured.py        # Document generation from templates
+│   ├── generate_market_data.py         # Real market data from Marketplace
+│   ├── generate_real_transcripts.py    # Real SEC earnings transcripts
+│   ├── hydration_engine.py             # Template placeholder hydration
+│   ├── build_ai.py                     # AI component orchestration
+│   ├── create_agents.py                # Cortex Agent definitions (9 agents)
+│   ├── create_semantic_views.py        # Semantic view definitions (10 views)
+│   ├── create_cortex_search.py         # Search service definitions (16 services)
+│   ├── rules_loader.py                 # YAML configuration loader
+│   └── ...                             # 9 more utility modules
+├── content_library/                    # 76 document templates
+│   ├── _rules/                         # YAML config (numeric bounds, providers)
+│   ├── security/                       # Broker research, press releases
 │   ├── issuer/                         # NGO reports, engagement notes
 │   ├── portfolio/                      # IPS, portfolio reviews
-│   ├── global/                         # Policy docs, sales templates
-│   └── regulatory/                     # Form ADV, CRS, updates
+│   ├── global/                         # Policy docs, sales templates, procedures
+│   └── regulatory/                     # Form ADV, CRS, regulatory updates
+├── docs/                               # 14 documentation files
+│   ├── demo_scenarios.md               # Scenario overview by role
+│   ├── demo_scenarios_*.md             # Detailed role-specific scenarios
+│   ├── data_model.md                   # Data architecture documentation
+│   └── implementation_status.md        # Build status tracking
 ├── LICENSE
 └── LEGAL.md
 ```
@@ -210,16 +216,16 @@ What is my indirect exposure through supply chain dependencies? Show me which US
 ```
 
 #### Scenario 3: AI-Assisted Mandate Compliance & Security Replacement
-*David Chen receives a compliance alert that META has been downgraded to ESG grade CCC due to governance concerns, violating the fund's minimum BBB ESG requirement. He needs to identify a suitable replacement.*
+*David Chen receives a compliance alert that META has been downgraded to ESG grade CCC due to governance concerns, violating the ESG-labelled fund's minimum BBB ESG requirement. He needs to identify a suitable replacement.*
 
 **Mandate Compliance - ESG Breach**:
 ```
-I've received an alert that META has been downgraded to ESG grade CCC. Can you verify this breach for the SAM AI & Digital Innovation portfolio and show me our current exposure?
+I've received an alert that META has been downgraded to ESG grade CCC. Can you verify this breach for the SAM ESG Leaders Global Equity portfolio and show me our current exposure?
 ```
 
 **Mandate Compliance - Replacements**:
 ```
-Based on that breach, what are our pre-screened replacement candidates that meet the mandate requirements and maintain our AI growth focus?
+Based on that breach, what are our pre-screened replacement candidates that meet the mandate requirements and maintain our technology/growth focus?
 ```
 
 **Mandate Compliance - Company Analysis**:

@@ -708,6 +708,178 @@ def generate_pdf(session: Session, markdown_content: str, portfolio_name: str, s
         return f"[Investment Committee Decision - {portfolio_name} - {security_ticker}]({presigned_url})"
 $$;
 
+-- ============================================================================
+-- PDF Report Generator (used by all agents with pdf_generator tool)
+-- ============================================================================
+CREATE OR REPLACE PROCEDURE SAM_DEMO.AI.GENERATE_PDF_REPORT(
+    MARKDOWN_CONTENT VARCHAR,
+    REPORT_TITLE VARCHAR,
+    DOCUMENT_AUDIENCE VARCHAR DEFAULT 'internal'
+)
+RETURNS VARCHAR
+LANGUAGE PYTHON
+RUNTIME_VERSION = '3.11'
+PACKAGES = ('snowflake-snowpark-python', 'markdown', 'fpdf2')
+HANDLER = 'generate_pdf_report'
+EXECUTE AS CALLER
+AS
+$$
+from snowflake.snowpark import Session
+from datetime import datetime
+import re
+import markdown
+import tempfile
+import os
+
+def generate_pdf_report(session: Session, markdown_content: str, report_title: str, document_audience: str = 'internal'):
+    """
+    Generate professional branded PDF report from markdown content.
+    
+    Args:
+        markdown_content: Complete markdown document
+        report_title: Title for the document header
+        document_audience: 'internal', 'external_client', or 'external_regulatory'
+    
+    Returns:
+        Markdown link to presigned URL for PDF download
+    """
+    from fpdf import FPDF
+    import html
+    
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    safe_title = re.sub(r'[^a-zA-Z0-9_]', '_', report_title)[:40]
+    pdf_filename = f'{safe_title}_{timestamp}.pdf'
+    
+    # Audience-specific config
+    audience_configs = {
+        'internal': {'badge': 'INTERNAL DOCUMENT', 'color': (31, 78, 121)},
+        'external_client': {'badge': 'CLIENT REPORT', 'color': (44, 62, 80)},
+        'external_regulatory': {'badge': 'REGULATORY SUBMISSION', 'color': (52, 73, 94)}
+    }
+    config = audience_configs.get(document_audience, audience_configs['internal'])
+    
+    class PDFReport(FPDF):
+        def __init__(self, title, badge, color):
+            super().__init__()
+            self.title_text = title
+            self.badge_text = badge
+            self.header_color = color
+            
+        def header(self):
+            # Header background
+            self.set_fill_color(*self.header_color)
+            self.rect(0, 0, 210, 35, 'F')
+            
+            # Company name
+            self.set_text_color(255, 255, 255)
+            self.set_font('Helvetica', 'B', 16)
+            self.set_xy(10, 8)
+            self.cell(0, 8, 'SNOWCREST ASSET MANAGEMENT', align='C')
+            
+            # Report title
+            self.set_font('Helvetica', '', 11)
+            self.set_xy(10, 18)
+            self.cell(0, 6, self.title_text[:60], align='C')
+            
+            # Badge
+            self.set_font('Helvetica', 'B', 8)
+            self.set_xy(10, 26)
+            self.cell(0, 6, self.badge_text, align='C')
+            
+            self.set_text_color(0, 0, 0)
+            self.ln(40)
+            
+        def footer(self):
+            self.set_y(-20)
+            self.set_font('Helvetica', 'I', 8)
+            self.set_text_color(128, 128, 128)
+            self.cell(0, 5, f'Generated: {datetime.now().strftime("%B %d, %Y")} | Snowflake Intelligence', align='C')
+            self.ln(4)
+            self.cell(0, 5, f'Page {self.page_no()}', align='C')
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create PDF
+        pdf = PDFReport(report_title, config['badge'], config['color'])
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=25)
+        
+        # Demo disclaimer
+        pdf.set_fill_color(255, 243, 205)
+        pdf.set_font('Helvetica', 'B', 9)
+        pdf.multi_cell(0, 6, 'DEMO DISCLAIMER: This document uses synthetic data for demonstration only.', fill=True, align='C')
+        pdf.ln(8)
+        
+        # Process markdown content
+        lines = markdown_content.split('\\n')
+        pdf.set_font('Helvetica', '', 10)
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                pdf.ln(3)
+                continue
+                
+            # Headers
+            if line.startswith('# '):
+                pdf.set_font('Helvetica', 'B', 14)
+                pdf.set_text_color(*config['color'])
+                pdf.ln(5)
+                pdf.multi_cell(0, 7, line[2:])
+                pdf.set_text_color(0, 0, 0)
+                pdf.ln(3)
+            elif line.startswith('## '):
+                pdf.set_font('Helvetica', 'B', 12)
+                pdf.set_text_color(*config['color'])
+                pdf.ln(4)
+                pdf.multi_cell(0, 6, line[3:])
+                pdf.set_text_color(0, 0, 0)
+                pdf.ln(2)
+            elif line.startswith('### '):
+                pdf.set_font('Helvetica', 'B', 11)
+                pdf.ln(3)
+                pdf.multi_cell(0, 6, line[4:])
+                pdf.ln(2)
+            elif line.startswith('**') and line.endswith('**'):
+                pdf.set_font('Helvetica', 'B', 10)
+                pdf.multi_cell(0, 5, line.replace('**', ''))
+                pdf.set_font('Helvetica', '', 10)
+            elif line.startswith('- ') or line.startswith('* '):
+                pdf.set_font('Helvetica', '', 10)
+                pdf.cell(5, 5, chr(149))  # Bullet
+                pdf.multi_cell(0, 5, line[2:])
+            elif line.startswith('|'):
+                # Simple table row handling
+                pdf.set_font('Helvetica', '', 9)
+                cells = [c.strip() for c in line.split('|') if c.strip() and c.strip() != '---']
+                if cells and not all(c.startswith('-') for c in cells):
+                    col_width = 180 / max(len(cells), 1)
+                    for cell in cells:
+                        pdf.cell(col_width, 6, cell[:25], border=1)
+                    pdf.ln()
+            else:
+                pdf.set_font('Helvetica', '', 10)
+                # Clean markdown formatting
+                clean_line = re.sub(r'\\*\\*(.+?)\\*\\*', r'\\1', line)
+                clean_line = re.sub(r'\\*(.+?)\\*', r'\\1', clean_line)
+                clean_line = re.sub(r'`(.+?)`', r'\\1', clean_line)
+                pdf.multi_cell(0, 5, clean_line)
+        
+        # Save PDF
+        pdf_path = os.path.join(tmpdir, pdf_filename)
+        pdf.output(pdf_path)
+        
+        # Upload to stage
+        stage_path = '@SAM_DEMO.CURATED.SAM_REPORTS_STAGE'
+        session.file.put(pdf_path, stage_path, overwrite=True, auto_compress=False)
+        
+        # Get presigned URL
+        presigned_url = session.sql(
+            f"SELECT GET_PRESIGNED_URL('{stage_path}', '{pdf_filename}') AS url"
+        ).collect()[0]['URL']
+        
+        return f"📄 **Report Generated Successfully**\\n\\n[📥 Download: {report_title}]({presigned_url})\\n\\n*Document Type: {document_audience.replace('_', ' ').title()}*"
+$$;
+
 -- M&A Simulation Tool for Executive Scenario
 CREATE OR REPLACE FUNCTION SAM_DEMO.AI.MA_SIMULATION_TOOL(
     target_aum FLOAT,
