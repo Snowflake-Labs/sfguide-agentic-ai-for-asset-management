@@ -18,21 +18,11 @@ placeholders:
 
 # {{NGO_NAME}} Assessment: Labour Practices at {{ISSUER_NAME}}
 
-### Organisation
-
-{{NGO_NAME}}
-### Publication Date
-
-{{PUBLISH_DATE}}
-### Company
-
-{{ISSUER_NAME}} ({{TICKER}})
-### Category
-
-Social — Labour Rights
-### Severity
-
-**{{SEVERITY_LEVEL}}**
+**Organisation**: {{NGO_NAME}}  
+**Publication Date**: {{PUBLISH_DATE}}  
+**Company**: {{ISSUER_NAME}} ({{TICKER}})  
+**Category**: Social — Labour Rights  
+**Severity**: **{{SEVERITY_LEVEL}}**
 
 ---
 
@@ -54,21 +44,13 @@ International frameworks including the UN Guiding Principles on Business and Hum
 
 ## Key Findings
 
-### Direct Operations
+**Direct Operations**: {{ISSUER_NAME}}'s directly operated facilities generally demonstrate adequate labour standards, with appropriate health and safety protocols, reasonable working conditions, and compliance with local labour laws. Employee satisfaction surveys indicate generally positive workplace culture, and turnover rates are consistent with industry norms.
 
-{{ISSUER_NAME}}'s directly operated facilities generally demonstrate adequate labour standards, with appropriate health and safety protocols, reasonable working conditions, and compliance with local labour laws. Employee satisfaction surveys indicate generally positive workplace culture, and turnover rates are consistent with industry norms.
+**Supply Chain Oversight**: The company's supply chain audit programme has identified labour practice concerns at several tier-one supplier facilities. Issues include excessive overtime beyond local legal limits, inadequate grievance mechanisms for worker complaints, and gaps in health and safety training. Whilst the company has initiated corrective action plans, progress toward full remediation appears slower than optimal.
 
-### Supply Chain Oversight
+**Worker Voice and Freedom of Association**: Mechanisms for workers to raise concerns remain underdeveloped in certain supplier facilities. Whilst the company's supplier code of conduct includes freedom of association provisions, practical implementation and worker awareness of these rights show inconsistencies across the supply base.
 
-The company's supply chain audit programme has identified labour practice concerns at several tier-one supplier facilities. Issues include excessive overtime beyond local legal limits, inadequate grievance mechanisms for worker complaints, and gaps in health and safety training. Whilst the company has initiated corrective action plans, progress toward full remediation appears slower than optimal.
-
-### Worker Voice and Freedom of Association
-
-Mechanisms for workers to raise concerns remain underdeveloped in certain supplier facilities. Whilst the company's supplier code of conduct includes freedom of association provisions, practical implementation and worker awareness of these rights show inconsistencies across the supply base.
-
-### Living Wage Assessment
-
-Current wage levels at supplier facilities meet local minimum wage requirements but fall short of living wage benchmarks in several geographies. {{ISSUER_NAME}} has not yet committed to ensuring living wages throughout its supply chain, though some pilot programmes are exploring wage improvement initiatives.
+**Living Wage Assessment**: Current wage levels at supplier facilities meet local minimum wage requirements but fall short of living wage benchmarks in several geographies. {{ISSUER_NAME}} has not yet committed to ensuring living wages throughout its supply chain, though some pilot programmes are exploring wage improvement initiatives.
 
 ---
 
@@ -99,8 +81,7 @@ Leading companies in the {{SIC_DESCRIPTION}} sector have implemented comprehensi
 3. Implement supplier capacity-building programmes on labour standards
 4. Enhance disclosure on labour practices and audit outcomes in sustainability reporting
 
-### Governance Enhancements
-
+**Governance Enhancements**:
 1. Establish board-level oversight of supply chain labour standards
 2. Incorporate labour practice metrics into executive compensation
 3. Engage proactively with labour rights organizations and multi-stakeholder initiatives
@@ -123,9 +104,7 @@ We will continue monitoring {{ISSUER_NAME}}'s labour practices and update our as
 
 ---
 
-### About {{NGO_NAME}}
-
-{{NGO_NAME}} promotes fair labour practices and workers' rights globally through research, advocacy, and corporate engagement.
+**About {{NGO_NAME}}**: {{NGO_NAME}} promotes fair labour practices and workers' rights globally through research, advocacy, and corporate engagement.
 
 *SAM Demo. {{NGO_NAME}} is fictional. Assessment illustrative.*
 

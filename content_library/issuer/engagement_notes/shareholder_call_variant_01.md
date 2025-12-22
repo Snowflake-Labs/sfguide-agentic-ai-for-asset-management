@@ -14,24 +14,12 @@ placeholders:
 
 # ESG Engagement: {{ISSUER_NAME}} Shareholder Call
 
-### Date
-
-{{PUBLISH_DATE}}
-### Format
-
-{{MEETING_TYPE}}
-### Company
-
-{{ISSUER_NAME}} ({{TICKER}})
-### Duration
-
-45 minutes
-### SAM Participants
-
-Head of ESG, Senior Analyst
-### Company Participants
-
-VP Sustainability, Investor Relations
+**Date**: {{PUBLISH_DATE}}  
+**Format**: {{MEETING_TYPE}}  
+**Company**: {{ISSUER_NAME}} ({{TICKER}})  
+**Duration**: 45 minutes  
+**SAM Participants**: Head of ESG, Senior Analyst  
+**Company Participants**: VP Sustainability, Investor Relations
 
 ---
 
@@ -43,17 +31,11 @@ Quarterly shareholder call with {{ISSUER_NAME}} ESG and investor relations teams
 
 ## Discussion Points
 
-### Climate Progress
+**Climate Progress**: Company reported {{EMISSIONS_REDUCTION}}% reduction in Scope 1 and 2 emissions year-to-date, tracking ahead of annual targets. Renewable energy procurement now covers {{RENEWABLE_PCT}}% of electricity consumption. Management confirmed commitment to science-based targets with SBTi validation expected by year-end.
 
-Company reported {{EMISSIONS_REDUCTION}}% reduction in Scope 1 and 2 emissions year-to-date, tracking ahead of annual targets. Renewable energy procurement now covers {{RENEWABLE_PCT}}% of electricity consumption. Management confirmed commitment to science-based targets with SBTi validation expected by year-end.
+**Social Metrics**: Workforce diversity initiatives showing measurable progress with {{DIVERSITY_METRIC}} improvement in representation metrics. Employee engagement scores increased {{ENGAGEMENT_INCREASE}} points. New training programmes on inclusion launched globally.
 
-### Social Metrics
-
-Workforce diversity initiatives showing measurable progress with {{DIVERSITY_METRIC}} improvement in representation metrics. Employee engagement scores increased {{ENGAGEMENT_INCREASE}} points. New training programmes on inclusion launched globally.
-
-### Supply Chain
-
-Enhanced supplier ESG assessments now covering {{SUPPLIER_COVERAGE}}% of spend. Identified {{SUPPLIER_ISSUES}} suppliers requiring improvement plans. Remediation timelines established with quarterly monitoring.
+**Supply Chain**: Enhanced supplier ESG assessments now covering {{SUPPLIER_COVERAGE}}% of spend. Identified {{SUPPLIER_ISSUES}} suppliers requiring improvement plans. Remediation timelines established with quarterly monitoring.
 
 ---
 
@@ -73,9 +55,7 @@ Enhanced supplier ESG assessments now covering {{SUPPLIER_COVERAGE}}% of spend. 
 - Track diversity metrics in annual reporting
 - Follow up on supplier programme expansion
 
-### Next Engagement
-
-Q{{NEXT_QUARTER}} {{NEXT_YEAR}}
+**Next Engagement**: Q{{NEXT_QUARTER}} {{NEXT_YEAR}}
 
 ---
 

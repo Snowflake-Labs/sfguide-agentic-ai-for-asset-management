@@ -28,41 +28,21 @@ disclosure:
 
 # Internal Research Report: {{COMPANY_NAME}} ({{TICKER}})
 
-### Classification
-
-Internal Use Only — Snowcrest Asset Management
-### Analyst
-
-{{ANALYST_NAME}}, Healthcare Sector Team
-### Date
-
-{{PUBLISH_DATE}}
-### Sector
-
-{{SIC_DESCRIPTION}}
+**Classification**: Internal Use Only — Snowcrest Asset Management  
+**Analyst**: {{ANALYST_NAME}}, Healthcare Sector Team  
+**Date**: {{PUBLISH_DATE}}  
+**Sector**: {{SIC_DESCRIPTION}}
 
 ---
 
 ## Executive Summary and Recommendation
 
-### Investment Recommendation
-
-**{{RATING}}**
-### Price Target
-
-${{TARGET_PRICE_USD}} (12-18 month horizon)
-### Current Price
-
-${{CURRENT_PRICE}}
-### Upside Potential
-
-{{UPSIDE_POTENTIAL_PCT}}%
-### Risk Rating
-
-Medium-High
-### Proposed Position Size
-
-{{POSITION_SIZE_PCT}}% of relevant portfolios
+**Investment Recommendation**: **{{RATING}}**  
+**Price Target**: ${{TARGET_PRICE_USD}} (12-18 month horizon)  
+**Current Price**: ${{CURRENT_PRICE}}  
+**Upside Potential**: {{UPSIDE_POTENTIAL_PCT}}%  
+**Risk Rating**: Medium-High  
+**Proposed Position Size**: {{POSITION_SIZE_PCT}}% of relevant portfolios
 
 ### Core Investment Thesis
 
@@ -91,21 +71,13 @@ Key sector themes include:
 
 {{COMPANY_NAME}} operates within a moderately concentrated market structure characterized by significant barriers to entry through regulatory requirements, intellectual property protection, and established distribution relationships. The company's competitive position benefits from:
 
-### Clinical differentiation
+**Clinical differentiation**: Superior efficacy or safety profiles relative to standard of care, enabling premium pricing and favourable formulary positioning.
 
-Superior efficacy or safety profiles relative to standard of care, enabling premium pricing and favourable formulary positioning.
+**Commercial capabilities**: Established relationships with key opinion leaders, healthcare systems, and payers facilitate rapid market adoption and sustained market share.
 
-### Commercial capabilities
+**Pipeline depth**: Multiple late-stage assets across therapeutic areas diversify commercial risk and provide visibility into medium-term growth.
 
-Established relationships with key opinion leaders, healthcare systems, and payers facilitate rapid market adoption and sustained market share.
-
-### Pipeline depth
-
-Multiple late-stage assets across therapeutic areas diversify commercial risk and provide visibility into medium-term growth.
-
-### Manufacturing expertise
-
-Proprietary manufacturing processes or biologics capabilities create competitive moats and margin advantages.
+**Manufacturing expertise**: Proprietary manufacturing processes or biologics capabilities create competitive moats and margin advantages.
 
 Competitive threats include biosimilar or generic entry for mature products, clinical failures for pipeline assets, and pricing pressure from government initiatives and payer consolidation.
 
@@ -117,16 +89,13 @@ Competitive threats include biosimilar or generic entry for mature products, cli
 
 Our financial analysis indicates {{COMPANY_NAME}} is positioned for {{YOY_REVENUE_GROWTH_PCT}}% year-over-year revenue growth, driven primarily by volume expansion in key franchises and new product launches offsetting pricing pressure and loss of exclusivity for mature products.
 
-### Revenue drivers
-
+**Revenue drivers**:
 - Core product portfolio maintaining or gaining market share
 - New product launches with favourable reception from prescribers
 - Geographic expansion into emerging markets with favourable demographics
 - Label expansions broadening addressable patient populations
 
-### Profitability trajectory
-
-Operating margins of approximately {{EBIT_MARGIN_PCT}}% reflect the favourable economics of intellectual property-driven business models. We anticipate margin expansion as new products achieve scale and manufacturing efficiencies offset inflationary cost pressures.
+**Profitability trajectory**: Operating margins of approximately {{EBIT_MARGIN_PCT}}% reflect the favourable economics of intellectual property-driven business models. We anticipate margin expansion as new products achieve scale and manufacturing efficiencies offset inflationary cost pressures.
 
 Research and development investment represents {{R_AND_D_INTENSITY_PCT}}% of revenues, aligned with industry norms and necessary to sustain pipeline development. Commercial investments remain elevated but should moderate as recent launches mature.
 
@@ -139,12 +108,8 @@ Our target price of ${{TARGET_PRICE_USD}} reflects a {{PE_RATIO}}x price-to-earn
 3. Defensive characteristics attractive during economic uncertainty
 4. Strong balance sheet supporting capital returns to shareholders
 
-### Fair value range
-
-${{FAIR_VALUE_LOW}} - ${{FAIR_VALUE_HIGH}}
-### Implied upside
-
-{{UPSIDE_POTENTIAL_PCT}}% from current levels
+**Fair value range**: ${{FAIR_VALUE_LOW}} - ${{FAIR_VALUE_HIGH}}
+**Implied upside**: {{UPSIDE_POTENTIAL_PCT}}% from current levels
 
 Key valuation sensitivities include clinical trial outcomes for late-stage pipeline assets, regulatory approval timelines, and market share dynamics for newly launched products. Downside risks centre on unexpected safety findings, competitive launches, or adverse regulatory decisions.
 
@@ -154,41 +119,25 @@ Key valuation sensitivities include clinical trial outcomes for late-stage pipel
 
 ### Clinical and Regulatory Risks
 
-### Pipeline execution
+**Pipeline execution**: Clinical trial failures or delays represent principal downside risks, particularly for assets contributing meaningfully to long-term growth assumptions. We monitor ongoing trials closely and adjust valuations based on interim data releases and competitive trial readouts.
 
-Clinical trial failures or delays represent principal downside risks, particularly for assets contributing meaningfully to long-term growth assumptions. We monitor ongoing trials closely and adjust valuations based on interim data releases and competitive trial readouts.
+**Regulatory environment**: Evolving regulatory standards for approval and reimbursement create uncertainty around product launches and pricing assumptions. Recent government initiatives targeting drug pricing could materially impact profit pools across the industry.
 
-### Regulatory environment
-
-Evolving regulatory standards for approval and reimbursement create uncertainty around product launches and pricing assumptions. Recent government initiatives targeting drug pricing could materially impact profit pools across the industry.
-
-### Patent expiry
-
-Loss of exclusivity for key products exposes revenues to generic or biosimilar competition, typically resulting in rapid market share erosion and price declines. The company's patent cliff appears manageable given pipeline progression and diversified revenue base.
+**Patent expiry**: Loss of exclusivity for key products exposes revenues to generic or biosimilar competition, typically resulting in rapid market share erosion and price declines. The company's patent cliff appears manageable given pipeline progression and diversified revenue base.
 
 ### Commercial and Competitive Risks
 
-### Market access
+**Market access**: Payer restrictions through formulary exclusions or prior authorization requirements could limit market penetration for new products. Strong clinical differentiation and health economic value propositions mitigate these concerns.
 
-Payer restrictions through formulary exclusions or prior authorization requirements could limit market penetration for new products. Strong clinical differentiation and health economic value propositions mitigate these concerns.
+**Competitive dynamics**: Novel mechanisms of action or superior clinical profiles from competitors could displace the company's products from treatment algorithms. We assess competitive threats as moderate given the company's first-mover advantages and switching costs.
 
-### Competitive dynamics
-
-Novel mechanisms of action or superior clinical profiles from competitors could displace the company's products from treatment algorithms. We assess competitive threats as moderate given the company's first-mover advantages and switching costs.
-
-### Pricing pressure
-
-Government initiatives and payer consolidation continue to pressure pharmaceutical pricing, particularly in mature markets. The company's focus on innovation and clinical value provides some insulation from commodity-like pricing dynamics.
+**Pricing pressure**: Government initiatives and payer consolidation continue to pressure pharmaceutical pricing, particularly in mature markets. The company's focus on innovation and clinical value provides some insulation from commodity-like pricing dynamics.
 
 ### Financial and Operational Risks
 
-### Execution risk
+**Execution risk**: Manufacturing challenges, supply chain disruptions, or quality issues could impact product availability and damage brand reputation. The company's track record suggests strong operational capabilities, but complexity of biologics manufacturing creates inherent risks.
 
-Manufacturing challenges, supply chain disruptions, or quality issues could impact product availability and damage brand reputation. The company's track record suggests strong operational capabilities, but complexity of biologics manufacturing creates inherent risks.
-
-### Capital allocation
-
-Acquisitions or business development activities introduce integration risk and potential for value destruction. Management's disciplined approach to M&A provides some confidence, but large transactions warrant close scrutiny.
+**Capital allocation**: Acquisitions or business development activities introduce integration risk and potential for value destruction. Management's disciplined approach to M&A provides some confidence, but large transactions warrant close scrutiny.
 
 ---
 
@@ -202,8 +151,7 @@ We recommend including {{COMPANY_NAME}} within healthcare sector allocations at 
 - **Quality portfolios**: Strong balance sheet and free cash flow generation
 - **Defensive portfolios**: Resilient demand and low economic sensitivity
 
-### Typical allocation parameters
-
+**Typical allocation parameters**:
 - Growth strategies: 1.5-2.5% position size
 - Balanced strategies: 1.0-1.5% position size  
 - Defensive strategies: 0.5-1.0% position size
@@ -259,13 +207,9 @@ We will reassess our **{{RATING}}** rating if:
 
 The stock merits inclusion in growth and balanced portfolios at recommended weights, with close monitoring of clinical and regulatory catalysts to ensure investment thesis progression.
 
-### Next Review Date
-
-Quarterly earnings announcement or material pipeline developments
+**Next Review Date**: Quarterly earnings announcement or material pipeline developments
 
 ---
 
-### Disclaimer
-
-This report is for internal use only and should not be distributed to external parties. All estimates and opinions represent the analyst's assessment based on publicly available information and proprietary research. Past performance is not indicative of future results.
+**Disclaimer**: This report is for internal use only and should not be distributed to external parties. All estimates and opinions represent the analyst's assessment based on publicly available information and proprietary research. Past performance is not indicative of future results.
 

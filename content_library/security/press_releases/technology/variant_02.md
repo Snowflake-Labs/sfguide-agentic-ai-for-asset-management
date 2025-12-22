@@ -37,9 +37,8 @@ Under the terms of the agreement, both companies will contribute technology reso
 
 This release contains forward-looking statements about future products, partnerships, and business opportunities. Actual results may differ due to various factors. See company SEC filings for risk factors.
 
-### Contact
-
-Investor Relations: ir@company.com
+**Contact**:  
+Investor Relations: ir@company.com  
 Media: media@company.com
 
 ---

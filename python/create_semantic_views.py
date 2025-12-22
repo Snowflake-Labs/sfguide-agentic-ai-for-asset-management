@@ -9,6 +9,7 @@ and middle office operations.
 from snowflake.snowpark import Session
 from typing import List
 import config
+from logging_utils import log_detail, log_warning, log_error
 
 def create_semantic_views(session: Session, scenarios: List[str] = None):
     """Create semantic views required for the specified scenarios."""
@@ -17,94 +18,80 @@ def create_semantic_views(session: Session, scenarios: List[str] = None):
     try:
         create_analyst_semantic_view(session)
     except Exception as e:
-        config.log_error(f" Failed to create SAM_ANALYST_VIEW: {e}")
+        log_error(f" Failed to create SAM_ANALYST_VIEW: {e}")
         raise
-    
-    # Create scenario-specific semantic views
-    if scenarios and 'research_copilot' in scenarios:
-        try:
-            create_research_semantic_view(session)
-        except Exception as e:
-            config.log_error(f" CRITICAL FAILURE: Could not create research semantic view: {e}")
-            raise Exception(f"Failed to create research semantic view: {e}")
-    
-    # Create quantitative semantic view for factor analysis
-    if scenarios and 'quant_analyst' in scenarios:
-        try:
-            create_quantitative_semantic_view(session)
-        except Exception as e:
-            config.log_error(f" CRITICAL FAILURE: Could not create quantitative semantic view: {e}")
-            raise Exception(f"Failed to create quantitative semantic view: {e}")
     
     # Create implementation semantic view for portfolio management
     if scenarios and ('portfolio_copilot' in scenarios or 'sales_advisor' in scenarios):
         try:
             create_implementation_semantic_view(session)
         except Exception as e:
-            config.log_warning(f"  Warning: Could not create implementation semantic view: {e}")
-    
-    # Create SEC filings semantic view for financial analysis
-    try:
-        create_sec_filings_semantic_view(session)
-    except Exception as e:
-        config.log_warning(f"  Warning: Could not create SEC filings semantic view: {e}")
+            log_warning(f"  Warning: Could not create implementation semantic view: {e}")
     
     # Create supply chain semantic view for risk verification
     if scenarios and 'portfolio_copilot' in scenarios:
         try:
             create_supply_chain_semantic_view(session)
         except Exception as e:
-            config.log_warning(f"  Warning: Could not create supply chain semantic view: {e}")
+            log_warning(f"  Warning: Could not create supply chain semantic view: {e}")
     
     # Create middle office semantic view for operations monitoring
     if scenarios and 'middle_office_copilot' in scenarios:
         try:
             create_middle_office_semantic_view(session)
         except Exception as e:
-            config.log_warning(f"  Warning: Could not create middle office semantic view: {e}")
+            log_warning(f"  Warning: Could not create middle office semantic view: {e}")
+    
+    # Create compliance semantic view for breach tracking and monitoring
+    if scenarios and 'compliance_advisor' in scenarios:
+        try:
+            create_compliance_semantic_view(session)
+        except Exception as e:
+            log_warning(f"  Warning: Could not create compliance semantic view: {e}")
     
     # Create executive semantic view for firm-wide KPIs and client analytics
     if scenarios and 'executive_copilot' in scenarios:
         try:
             create_executive_semantic_view(session)
         except Exception as e:
-            config.log_warning(f"  Warning: Could not create executive semantic view: {e}")
+            log_warning(f"  Warning: Could not create executive semantic view: {e}")
     
     # Create fundamentals semantic view for MARKET_DATA financial analysis
     if scenarios and 'research_copilot' in scenarios:
         try:
             create_fundamentals_semantic_view(session)
         except Exception as e:
-            config.log_warning(f"  Warning: Could not create fundamentals semantic view: {e}")
-            config.log_warning(f"Run with --scope structured first to generate MARKET_DATA tables")
+            log_warning(f"  Warning: Could not create fundamentals semantic view: {e}")
+            log_warning(f"Run with --scope structured first to generate MARKET_DATA tables")
     
-    # Create real SEC data semantic views (if real data is enabled and available)
-    if config.REAL_DATA_SOURCES.get('enabled', False):
-        try:
-            create_real_sec_semantic_view(session)
-        except Exception as e:
-            config.log_warning(f"  Warning: Could not create real SEC semantic view: {e}")
-        
-        try:
-            create_real_stock_prices_semantic_view(session)
-        except Exception as e:
-            config.log_warning(f"  Warning: Could not create real stock prices semantic view: {e}")
-        
-        try:
-            create_sec_financials_semantic_view(session)
-        except Exception as e:
-            config.log_warning(f"  Warning: Could not create SEC financials semantic view: {e}")
+    # Create real SEC data semantic views (required)
+    try:
+        create_real_stock_prices_semantic_view(session)
+    except Exception as e:
+        log_warning(f"  Warning: Could not create real stock prices semantic view: {e}")
+    
+    try:
+        create_sec_financials_semantic_view(session)
+    except Exception as e:
+        log_warning(f"  Warning: Could not create SEC financials semantic view: {e}")
 
 def create_analyst_semantic_view(session: Session):
-    """Create main portfolio analytics semantic view (SAM_ANALYST_VIEW)."""
+    """Create main portfolio analytics semantic view (SAM_ANALYST_VIEW).
+    
+    This is the primary semantic view for portfolio analytics, now including:
+    - Portfolio holdings with ESG scores and performance returns
+    - Factor exposures (Value, Growth, Quality, Momentum, etc.) - consolidated from SAM_QUANT_VIEW
+    - Benchmark holdings - consolidated from SAM_QUANT_VIEW
+    - Benchmark performance returns (MTD, QTD, YTD) for portfolio vs benchmark comparison
+    """
     
     session.sql(f"""
 CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_ANALYST_VIEW
 	TABLES (
-		HOLDINGS AS {config.DATABASE['name']}.CURATED.FACT_POSITION_DAILY_ABOR
+		HOLDINGS AS {config.DATABASE['name']}.CURATED.V_HOLDINGS_WITH_ESG
 			PRIMARY KEY (HOLDINGDATE, PORTFOLIOID, SECURITYID) 
 			WITH SYNONYMS=('positions','investments','allocations','holdings') 
-			COMMENT='Daily portfolio holdings and positions. Each portfolio holding has multiple rows. When no time period is provided always get the latest value by date.',
+			COMMENT='Daily portfolio holdings with ESG scores. Each holding includes latest Overall ESG grade and score. When no time period is provided always get the latest value by date.',
 		PORTFOLIOS AS {config.DATABASE['name']}.CURATED.DIM_PORTFOLIO
 			PRIMARY KEY (PORTFOLIOID) 
 			WITH SYNONYMS=('funds','strategies','mandates','portfolios') 
@@ -116,12 +103,36 @@ CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_ANALYST_VIEW
 		ISSUERS AS {config.DATABASE['name']}.CURATED.DIM_ISSUER
 			PRIMARY KEY (ISSUERID) 
 			WITH SYNONYMS=('issuers','entities','corporates') 
-			COMMENT='Issuer and corporate hierarchy data'
+			COMMENT='Issuer and corporate hierarchy data',
+		FACTOR_EXPOSURES AS {config.DATABASE['name']}.CURATED.FACT_FACTOR_EXPOSURES
+			PRIMARY KEY (SECURITYID, EXPOSURE_DATE, FACTOR_NAME)
+			WITH SYNONYMS=('factors','loadings','exposures','factor_data')
+			COMMENT='Factor exposures and loadings (Value, Growth, Quality, Momentum, etc.)',
+		BENCHMARK_HOLDINGS AS {config.DATABASE['name']}.CURATED.FACT_BENCHMARK_HOLDINGS
+			PRIMARY KEY (HOLDING_DATE, BENCHMARKID, SECURITYID)
+			WITH SYNONYMS=('benchmark_positions','index_holdings','benchmark_weights')
+			COMMENT='Benchmark constituent holdings and weights',
+		BENCHMARK_PERFORMANCE AS {config.DATABASE['name']}.CURATED.FACT_BENCHMARK_PERFORMANCE
+			PRIMARY KEY (BENCHMARKPERFID)
+			WITH SYNONYMS=('benchmark_returns','benchmark_performance','index_returns','index_performance')
+			COMMENT='Benchmark-level performance returns (MTD, QTD, YTD) for comparison with portfolio returns',
+		BENCHMARKS AS {config.DATABASE['name']}.CURATED.DIM_BENCHMARK
+			PRIMARY KEY (BENCHMARKID)
+			WITH SYNONYMS=('indices','indexes','benchmark_master')
+			COMMENT='Benchmark/index master data',
+		PORTFOLIO_BENCHMARK AS {config.DATABASE['name']}.CURATED.V_PORTFOLIO_BENCHMARK_COMPARISON
+			PRIMARY KEY (PORTFOLIOID, PERFORMANCEDATE)
+			WITH SYNONYMS=('portfolio_vs_benchmark','performance_comparison','relative_performance','active_returns')
+			COMMENT='Pre-joined portfolio returns with benchmark returns for side-by-side comparison. Includes active returns (portfolio - benchmark).'
 	)
 	RELATIONSHIPS (
 		HOLDINGS_TO_PORTFOLIOS AS HOLDINGS(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID),
 		HOLDINGS_TO_SECURITIES AS HOLDINGS(SECURITYID) REFERENCES SECURITIES(SECURITYID),
-		SECURITIES_TO_ISSUERS AS SECURITIES(ISSUERID) REFERENCES ISSUERS(ISSUERID)
+		SECURITIES_TO_ISSUERS AS SECURITIES(ISSUERID) REFERENCES ISSUERS(ISSUERID),
+		FACTORS_TO_SECURITIES AS FACTOR_EXPOSURES(SECURITYID) REFERENCES SECURITIES(SECURITYID),
+		BENCHMARK_TO_SECURITIES AS BENCHMARK_HOLDINGS(SECURITYID) REFERENCES SECURITIES(SECURITYID),
+		BENCHMARK_PERF_TO_BENCHMARKS AS BENCHMARK_PERFORMANCE(BENCHMARKID) REFERENCES BENCHMARKS(BENCHMARKID),
+		PORTFOLIOS_TO_BENCHMARKS AS PORTFOLIOS(BENCHMARKID) REFERENCES BENCHMARKS(BENCHMARKID)
 	)
 	DIMENSIONS (
 		-- Portfolio dimensions
@@ -135,11 +146,30 @@ CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_ANALYST_VIEW
 		
 		-- Issuer dimensions (for enhanced analysis)
 		ISSUERS.LegalName AS LEGALNAME WITH SYNONYMS=('issuer_name','legal_name','company_name') COMMENT='Legal issuer name',
-		ISSUERS.Industry AS SIC_DESCRIPTION WITH SYNONYMS=('industry','sector','industry_type','sic_industry','business_type','industry_description','industry_classification') COMMENT='SIC industry classification with granular descriptions (e.g., Semiconductors and related devices, Computer programming services, Motor vehicles and car bodies). Use this for industry-level filtering and analysis.',
+		ISSUERS.Industry AS SIC_DESCRIPTION WITH SYNONYMS=('industry','industry_type','sic_industry','business_type','industry_description','industry_classification') COMMENT='SIC industry classification with granular descriptions (e.g., Semiconductors and related devices, Computer programming services, Motor vehicles and car bodies). Use this for industry-level filtering and analysis.',
+		ISSUERS.GICS_Sector AS GICS_SECTOR WITH SYNONYMS=('gics','gics_sector','sector','sector_classification','sector_allocation') COMMENT='GICS Level 1 sector classification (e.g., Information Technology, Health Care, Financials, Consumer Discretionary). Use for sector allocation analysis and concentration risk.',
 		ISSUERS.CountryOfIncorporation AS COUNTRYOFINCORPORATION WITH SYNONYMS=('domicile','country_of_risk','country') COMMENT='Country of incorporation using 2-letter ISO codes (e.g., TW for Taiwan, US for United States, GB for United Kingdom)',
 		
 		-- Time dimensions
-		HOLDINGS.HOLDINGDATE AS HoldingDate WITH SYNONYMS=('position_date','as_of_date','date') COMMENT='Holdings as-of date'
+		HOLDINGS.HOLDINGDATE AS HoldingDate WITH SYNONYMS=('position_date','as_of_date','date') COMMENT='Holdings as-of date',
+		HOLDINGS.HOLDING_MONTH AS DATE_TRUNC('MONTH', HOLDINGDATE) WITH SYNONYMS=('month','monthly','month_end') COMMENT='Monthly aggregation of holding dates for trend analysis',
+		HOLDINGS.HOLDING_QUARTER AS DATE_TRUNC('QUARTER', HOLDINGDATE) WITH SYNONYMS=('quarter','quarterly','quarter_end') COMMENT='Quarterly aggregation for quarterly reporting',
+		
+		-- ESG dimension (from enriched holdings view)
+		HOLDINGS.ESGGrade AS ESG_GRADE WITH SYNONYMS=('esg_rating','sustainability_grade','esg_grade','overall_esg_grade') COMMENT='Overall ESG grade on MSCI scale: AAA/AA/A (leader), BBB/BB/B (average), CCC (laggard). ESG-labelled portfolios require minimum BBB.',
+		
+		-- Factor dimensions (consolidated from SAM_QUANT_VIEW)
+		FACTOR_EXPOSURES.FactorName AS FACTOR_NAME WITH SYNONYMS=('factor','factor_type','loading_type') COMMENT='Factor name: Market, Size, Value, Momentum, Growth, Quality, Volatility',
+		FACTOR_EXPOSURES.ExposureDate AS EXPOSURE_DATE WITH SYNONYMS=('factor_date','loading_date','exposure_date') COMMENT='Factor exposure measurement date',
+		
+		-- Benchmark dimensions
+		BENCHMARKS.BenchmarkName AS BENCHMARKNAME WITH SYNONYMS=('benchmark','index_name','index','benchmark_name') COMMENT='Benchmark/index name: S&P 500, MSCI ACWI, Nasdaq 100',
+		BENCHMARK_PERFORMANCE.BENCHMARK_PERF_DATE AS PerformanceDate WITH SYNONYMS=('benchmark_date','index_date','benchmark_performance_date') COMMENT='Benchmark performance measurement date',
+		
+		-- Portfolio vs Benchmark comparison dimensions (from pre-joined view)
+		PORTFOLIO_BENCHMARK.COMPARISON_PORTFOLIO AS PortfolioName WITH SYNONYMS=('compared_portfolio','performance_portfolio') COMMENT='Portfolio name in comparison view',
+		PORTFOLIO_BENCHMARK.COMPARISON_BENCHMARK AS BenchmarkName WITH SYNONYMS=('compared_benchmark','performance_benchmark') COMMENT='Benchmark name in comparison view',
+		PORTFOLIO_BENCHMARK.COMPARISON_DATE AS PerformanceDate WITH SYNONYMS=('comparison_date','performance_date') COMMENT='Date for portfolio vs benchmark comparison'
 	)
 	METRICS (
 		-- Core position metrics
@@ -156,270 +186,46 @@ CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_ANALYST_VIEW
 		-- Concentration metrics
 		HOLDINGS.MAX_POSITION_WEIGHT AS MAX(PortfolioWeight) WITH SYNONYMS=('largest_position','max_weight','concentration') COMMENT='Largest single position weight',
 		
-		-- Mandate compliance metrics (for Scenario 3.2)
-		HOLDINGS.AI_GROWTH_SCORE AS AVG(CASE 
-			WHEN SECURITIES.Ticker IN ('NVDA', 'MSFT', 'GOOGL', 'META', 'AMZN', 'AAPL') THEN 
-				CASE SECURITIES.Ticker
-					WHEN 'NVDA' THEN 92
-					WHEN 'MSFT' THEN 89
-					WHEN 'GOOGL' THEN 85
-					WHEN 'META' THEN 82
-					WHEN 'AMZN' THEN 88
-					WHEN 'AAPL' THEN 87
-					ELSE 75
-				END
-			ELSE 75
-		END) WITH SYNONYMS=('ai_score','innovation_score','ai_growth','ai_potential','technology_score') COMMENT='Proprietary AI Growth Score (0-100) measuring AI/ML innovation potential and market positioning. Higher scores indicate stronger AI capabilities, patent portfolios, and growth potential in artificial intelligence.'
-	)
-	COMMENT='Multi-asset semantic view for portfolio analytics with issuer hierarchy support and mandate compliance metrics'
-	WITH EXTENSION (CA='{{"tables":[{{"name":"HOLDINGS","metrics":[{{"name":"AI_GROWTH_SCORE"}},{{"name":"HOLDING_COUNT"}},{{"name":"ISSUER_EXPOSURE"}},{{"name":"MAX_POSITION_WEIGHT"}},{{"name":"PORTFOLIO_WEIGHT"}},{{"name":"PORTFOLIO_WEIGHT_PCT"}},{{"name":"TOTAL_MARKET_VALUE"}}],"time_dimensions":[{{"name":"HoldingDate","expr":"HOLDINGDATE","data_type":"DATE","synonyms":["position_date","as_of_date","portfolio_date","valuation_date"],"description":"The date when portfolio holdings were valued and recorded. Use this for historical analysis and period comparisons."}},{{"name":"holding_month","expr":"DATE_TRUNC(\\'MONTH\\', HOLDINGDATE)","data_type":"DATE","synonyms":["month","monthly","month_end"],"description":"Monthly aggregation of holding dates for trend analysis and month-over-month comparisons."}},{{"name":"holding_quarter","expr":"DATE_TRUNC(\\'QUARTER\\', HOLDINGDATE)","data_type":"DATE","synonyms":["quarter","quarterly","quarter_end"],"description":"Quarterly aggregation for quarterly reporting and period-over-period analysis."}}]}},{{"name":"ISSUERS","dimensions":[{{"name":"COUNTRYOFINCORPORATION"}},{{"name":"SIC_DESCRIPTION"}},{{"name":"LEGALNAME"}}]}},{{"name":"PORTFOLIOS","dimensions":[{{"name":"PortfolioName"}},{{"name":"Strategy"}}]}},{{"name":"SECURITIES","dimensions":[{{"name":"AssetClass"}},{{"name":"Description"}},{{"name":"Ticker"}}]}}],"relationships":[{{"name":"HOLDINGS_TO_PORTFOLIOS"}},{{"name":"HOLDINGS_TO_SECURITIES"}},{{"name":"SECURITIES_TO_ISSUERS"}}],"verified_queries":[{{"name":"top_holdings_by_portfolio","question":"What are the top 10 holdings by market value in the SAM Technology & Infrastructure portfolio?","sql":"SELECT __SECURITIES.DESCRIPTION, __SECURITIES.TICKER, __HOLDINGS.MARKETVALUE_BASE, (__HOLDINGS.MARKETVALUE_BASE / SUM(__HOLDINGS.MARKETVALUE_BASE) OVER (PARTITION BY __HOLDINGS.PORTFOLIOID)) * 100 AS WEIGHT_PCT FROM __HOLDINGS JOIN __SECURITIES ON __HOLDINGS.SECURITYID = __SECURITIES.SECURITYID JOIN __PORTFOLIOS ON __HOLDINGS.PORTFOLIOID = __PORTFOLIOS.PORTFOLIOID WHERE __PORTFOLIOS.PORTFOLIONAME = \\'SAM Technology & Infrastructure\\' AND __HOLDINGS.HOLDINGDATE = (SELECT MAX(HOLDINGDATE) FROM __HOLDINGS) ORDER BY __HOLDINGS.MARKETVALUE_BASE DESC LIMIT 10","use_as_onboarding_question":true}},{{"name":"sector_allocation_by_portfolio","question":"What is the sector allocation for the SAM Technology & Infrastructure portfolio?","sql":"SELECT __ISSUERS.Industry, SUM(__HOLDINGS.MARKETVALUE_BASE) AS SECTOR_VALUE, (SUM(__HOLDINGS.MARKETVALUE_BASE) / SUM(SUM(__HOLDINGS.MARKETVALUE_BASE)) OVER ()) * 100 AS SECTOR_WEIGHT_PCT FROM __HOLDINGS JOIN __SECURITIES ON __HOLDINGS.SECURITYID = __SECURITIES.SECURITYID JOIN __ISSUERS ON __SECURITIES.ISSUERID = __ISSUERS.ISSUERID JOIN __PORTFOLIOS ON __HOLDINGS.PORTFOLIOID = __PORTFOLIOS.PORTFOLIOID WHERE __PORTFOLIOS.PORTFOLIONAME = \\'SAM Technology & Infrastructure\\' AND __HOLDINGS.HOLDINGDATE = (SELECT MAX(HOLDINGDATE) FROM __HOLDINGS) GROUP BY __ISSUERS.Industry ORDER BY SECTOR_VALUE DESC","use_as_onboarding_question":true}},{{"name":"concentration_warnings","question":"Which portfolios have positions above the 6.5% concentration warning threshold?","sql":"WITH position_weights AS (SELECT __HOLDINGS.PORTFOLIOID, __HOLDINGS.SECURITYID, __HOLDINGS.MARKETVALUE_BASE, (__HOLDINGS.MARKETVALUE_BASE / SUM(__HOLDINGS.MARKETVALUE_BASE) OVER (PARTITION BY __HOLDINGS.PORTFOLIOID)) * 100 AS POSITION_WEIGHT_PCT FROM __HOLDINGS WHERE __HOLDINGS.HOLDINGDATE = (SELECT MAX(HOLDINGDATE) FROM __HOLDINGS)) SELECT __PORTFOLIOS.PORTFOLIONAME, __SECURITIES.DESCRIPTION, __SECURITIES.TICKER, pw.POSITION_WEIGHT_PCT FROM position_weights pw JOIN __SECURITIES ON pw.SECURITYID = __SECURITIES.SECURITYID JOIN __PORTFOLIOS ON pw.PORTFOLIOID = __PORTFOLIOS.PORTFOLIOID WHERE pw.POSITION_WEIGHT_PCT > 6.5 ORDER BY pw.POSITION_WEIGHT_PCT DESC","use_as_onboarding_question":false}},{{"name":"issuer_exposure_analysis","question":"What is the total exposure to Apple and Microsoft across all portfolios?","sql":"SELECT __ISSUERS.LegalName, __ISSUERS.Industry, SUM(__HOLDINGS.MARKETVALUE_BASE) AS TOTAL_ISSUER_EXPOSURE, COUNT(DISTINCT __PORTFOLIOS.PORTFOLIOID) AS PORTFOLIOS_EXPOSED FROM __HOLDINGS JOIN __SECURITIES ON __HOLDINGS.SECURITYID = __SECURITIES.SECURITYID JOIN __ISSUERS ON __SECURITIES.ISSUERID = __ISSUERS.ISSUERID JOIN __PORTFOLIOS ON __HOLDINGS.PORTFOLIOID = __PORTFOLIOS.PORTFOLIOID WHERE __HOLDINGS.HOLDINGDATE = (SELECT MAX(HOLDINGDATE) FROM __HOLDINGS) AND __SECURITIES.TICKER IN (\\'AAPL\\', \\'MSFT\\') GROUP BY __ISSUERS.ISSUERID, __ISSUERS.LegalName, __ISSUERS.Industry ORDER BY TOTAL_ISSUER_EXPOSURE DESC","use_as_onboarding_question":false}}],"module_custom_instructions":{{"sql_generation":"For portfolio weight calculations, always multiply by 100 to show percentages. For current holdings queries, automatically filter to the most recent holding date using WHERE HOLDINGDATE = (SELECT MAX(HOLDINGDATE) FROM HOLDINGS). When calculating issuer exposure, aggregate MARKETVALUE_BASE across all securities of the same issuer. Always round market values to 2 decimal places and portfolio weights to 1 decimal place.","question_categorization":"If users ask about \\'funds\\' or \\'portfolios\\', treat these as the same concept referring to investment portfolios. If users ask about current holdings without specifying a date, assume they want the most recent data."}}}}');
-    """).collect()
-    
-
-def create_research_semantic_view(session: Session):
-    """Create semantic view for research with fundamentals and estimates data."""
-    
-    # First check if the fundamentals tables exist
-    # Prefer MARKET_DATA tables if available (real data), fallback to CURATED (synthetic)
-    curated_exists = True
-    try:
-        session.sql(f"SELECT 1 FROM {config.DATABASE['name']}.CURATED.FACT_FUNDAMENTALS LIMIT 1").collect()
-        session.sql(f"SELECT 1 FROM {config.DATABASE['name']}.CURATED.FACT_ESTIMATES LIMIT 1").collect()
-    except:
-        curated_exists = False
-    
-    # Check if MARKET_DATA has real financial data (which supersedes CURATED)
-    market_data_exists = False
-    try:
-        result = session.sql(f"SELECT COUNT(*) as cnt FROM {config.DATABASE['name']}.MARKET_DATA.FACT_FINANCIAL_DATA").collect()
-        market_data_exists = result[0]['CNT'] > 0
-    except:
-        pass
-    
-    if not curated_exists and not market_data_exists:
-        config.log_warning("  Fundamentals tables not found in CURATED or MARKET_DATA, skipping research view creation")
-        return
-    
-    # Note: SAM_RESEARCH_VIEW uses CURATED tables; for real data use SAM_REAL_SEC_VIEW and SAM_FUNDAMENTALS_VIEW
-    
-    # Create the research-focused semantic view
-    session.sql(f"""
-CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_RESEARCH_VIEW
-	TABLES (
-		SECURITIES AS {config.DATABASE['name']}.CURATED.DIM_SECURITY
-			PRIMARY KEY (SECURITYID) 
-			WITH SYNONYMS=('companies','stocks','equities','securities') 
-			COMMENT='Security master data',
-		ISSUERS AS {config.DATABASE['name']}.CURATED.DIM_ISSUER
-			PRIMARY KEY (ISSUERID) 
-			WITH SYNONYMS=('issuers','entities','corporates') 
-			COMMENT='Issuer and corporate data',
-		FUNDAMENTALS AS {config.DATABASE['name']}.CURATED.FACT_FUNDAMENTALS
-			PRIMARY KEY (SECURITY_ID, REPORTING_DATE, METRIC_NAME)
-			WITH SYNONYMS=('financials','earnings','results','fundamentals')
-			COMMENT='Company financial fundamentals',
-		ESTIMATES AS {config.DATABASE['name']}.CURATED.FACT_ESTIMATES
-			PRIMARY KEY (SECURITY_ID, ESTIMATE_DATE, FISCAL_PERIOD, METRIC_NAME) 
-			WITH SYNONYMS=('forecasts','estimates','guidance','consensus') 
-			COMMENT='Analyst estimates and guidance'
-	)
-	RELATIONSHIPS (
-		SECURITIES_TO_ISSUERS AS SECURITIES(ISSUERID) REFERENCES ISSUERS(ISSUERID),
-		FUNDAMENTALS_TO_SECURITIES AS FUNDAMENTALS(SECURITY_ID) REFERENCES SECURITIES(SECURITYID),
-		ESTIMATES_TO_SECURITIES AS ESTIMATES(SECURITY_ID) REFERENCES SECURITIES(SECURITYID)
-	)
-	DIMENSIONS (
-		-- Security dimensions  
-		SECURITIES.TICKER AS Ticker WITH SYNONYMS=('ticker','symbol','ticker_symbol') COMMENT='Trading ticker symbol',
-		SECURITIES.DESCRIPTION AS Description WITH SYNONYMS=('company','name','security_name') COMMENT='Company name',
-		SECURITIES.ASSETCLASS AS AssetClass WITH SYNONYMS=('type','security_type','asset_class') COMMENT='Asset class',
+		-- ESG metric (from enriched holdings view)
+		HOLDINGS.ESG_SCORE AS AVG(ESG_SCORE) WITH SYNONYMS=('esg_score','sustainability_score','esg_rating_value','overall_esg_score') COMMENT='Overall ESG score (0-100 scale)',
 		
-		-- Issuer dimensions
-		ISSUERS.LegalName AS LEGALNAME WITH SYNONYMS=('issuer','legal_name','entity_name') COMMENT='Legal entity name',
-		ISSUERS.Industry AS SIC_DESCRIPTION WITH SYNONYMS=('industry','sector','industry_type','sic_industry','business_type','industry_description') COMMENT='SIC industry classification with granular descriptions (e.g., Semiconductors and related devices, Computer programming services). Use for industry-level filtering.',
-		ISSUERS.CountryOfIncorporation AS COUNTRYOFINCORPORATION WITH SYNONYMS=('domicile','country','headquarters') COMMENT='Country of incorporation using 2-letter ISO codes (e.g., TW for Taiwan, US for United States, GB for United Kingdom)',
+		-- Performance metrics (from enriched holdings view with returns)
+		HOLDINGS.QTD_RETURN AS AVG(QTD_RETURN_PCT) WITH SYNONYMS=('quarterly_return','qtd_performance','quarter_to_date_return','quarterly_performance') COMMENT='Quarter-to-date return percentage for positions',
+		HOLDINGS.YTD_RETURN AS AVG(YTD_RETURN_PCT) WITH SYNONYMS=('ytd_return','ytd_performance','year_to_date_return','annual_performance') COMMENT='Year-to-date return percentage for positions',
+		HOLDINGS.MTD_RETURN AS AVG(MTD_RETURN_PCT) WITH SYNONYMS=('monthly_return','mtd_performance','month_to_date_return','monthly_performance') COMMENT='Month-to-date return percentage for positions',
 		
-		-- Fundamentals dimensions
-		FUNDAMENTALS.REPORTING_DATE AS REPORTING_DATE WITH SYNONYMS=('report_date','earnings_date','date') COMMENT='Financial reporting date',
-		FUNDAMENTALS.FISCAL_QUARTER AS FISCAL_QUARTER WITH SYNONYMS=('quarter','period','fiscal_period') COMMENT='Fiscal quarter',
-		FUNDAMENTALS.METRIC_NAME AS METRIC_NAME WITH SYNONYMS=('metric','measure','financial_metric') COMMENT='Financial metric name',
-		
-		-- Estimates dimensions
-		ESTIMATES.FISCAL_PERIOD AS FISCAL_PERIOD WITH SYNONYMS=('forecast_period','estimate_quarter') COMMENT='Estimate fiscal period'
-	)
-	METRICS (
-		-- Actual financial metrics
-		FUNDAMENTALS.ACTUAL_VALUE AS SUM(METRIC_VALUE) WITH SYNONYMS=('actual','reported','result') COMMENT='Actual reported value',
-		
-		-- Estimate metrics
-		ESTIMATES.ESTIMATE_VALUE AS SUM(ESTIMATE_VALUE) WITH SYNONYMS=('estimate','forecast','consensus') COMMENT='Consensus estimate value',
-		ESTIMATES.GUIDANCE_LOW AS MIN(GUIDANCE_LOW) WITH SYNONYMS=('guidance_low','low_guidance') COMMENT='Low end of guidance',
-		ESTIMATES.GUIDANCE_HIGH AS MAX(GUIDANCE_HIGH) WITH SYNONYMS=('guidance_high','high_guidance') COMMENT='High end of guidance',
-		
-		-- Count metrics
-		FUNDAMENTALS.METRIC_COUNT AS COUNT(DISTINCT FUNDAMENTALS.METRIC_NAME) WITH SYNONYMS=('metric_count','measures_count') COMMENT='Count of financial metrics',
-		ESTIMATES.ESTIMATE_COUNT AS COUNT(DISTINCT ESTIMATES.METRIC_NAME) WITH SYNONYMS=('estimate_count','forecasts_count') COMMENT='Count of estimate metrics'
-	)
-	COMMENT='Research semantic view with fundamentals and estimates for earnings analysis';
-    """).collect()
-    
-
-def create_quantitative_semantic_view(session: Session):
-    """Create semantic view for quantitative analysis with factors and attribution."""
-    
-    # Required tables - check CURATED first, some may be replaced by MARKET_DATA
-    required_tables = ['FACT_FACTOR_EXPOSURES', 'FACT_BENCHMARK_HOLDINGS']
-    optional_tables = ['FACT_FUNDAMENTALS', 'FACT_ESTIMATES', 'FACT_MARKETDATA_TIMESERIES']  # May be in MARKET_DATA
-    
-    missing_required = []
-    for table in required_tables:
-        try:
-            session.sql(f"SELECT 1 FROM {config.DATABASE['name']}.CURATED.{table} LIMIT 1").collect()
-        except:
-            missing_required.append(table)
-    
-    if missing_required:
-        config.log_warning(f"  Required quantitative tables not found, skipping quant view creation: {missing_required}")
-        return
-    
-    # Check optional tables - may be in CURATED or MARKET_DATA
-    missing_optional = []
-    for table in optional_tables:
-        curated_ok = False
-        market_data_ok = False
-        try:
-            session.sql(f"SELECT 1 FROM {config.DATABASE['name']}.CURATED.{table} LIMIT 1").collect()
-            curated_ok = True
-        except:
-            pass
-        # Check MARKET_DATA equivalents
-        market_data_map = {
-            'FACT_FUNDAMENTALS': 'FACT_FINANCIAL_DATA',
-            'FACT_ESTIMATES': 'FACT_ESTIMATE_CONSENSUS',
-            'FACT_MARKETDATA_TIMESERIES': 'FACT_STOCK_PRICES'
-        }
-        if table in market_data_map:
-            try:
-                session.sql(f"SELECT 1 FROM {config.DATABASE['name']}.MARKET_DATA.{market_data_map[table]} LIMIT 1").collect()
-                market_data_ok = True
-            except:
-                pass
-        if not curated_ok and not market_data_ok:
-            missing_optional.append(table)
-    
-    if missing_optional:
-        config.log_warning(f"  Optional quantitative tables not found, quant view may have limited functionality: {missing_optional}")
-    
-    # Create the quantitative analysis semantic view
-    session.sql(f"""
-CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_QUANT_VIEW
-	TABLES (
-		HOLDINGS AS {config.DATABASE['name']}.CURATED.FACT_POSITION_DAILY_ABOR
-			PRIMARY KEY (HoldingDate, PORTFOLIOID, SECURITYID) 
-			WITH SYNONYMS=('quant_positions','factor_holdings','quantitative_holdings','quant_allocations') 
-			COMMENT='Portfolio holdings for factor analysis',
-		PORTFOLIOS AS {config.DATABASE['name']}.CURATED.DIM_PORTFOLIO
-			PRIMARY KEY (PORTFOLIOID) 
-			WITH SYNONYMS=('quant_funds','factor_strategies','quantitative_mandates','quant_portfolios') 
-			COMMENT='Portfolio information',
-		SECURITIES AS {config.DATABASE['name']}.CURATED.DIM_SECURITY
-			PRIMARY KEY (SECURITYID) 
-			WITH SYNONYMS=('factor_companies','quant_stocks','quantitative_instruments','factor_securities') 
-			COMMENT='Security reference data',
-		ISSUERS AS {config.DATABASE['name']}.CURATED.DIM_ISSUER
-			PRIMARY KEY (ISSUERID) 
-			WITH SYNONYMS=('factor_issuers','quantitative_entities','quant_corporates') 
-			COMMENT='Issuer data',
-		FACTOR_EXPOSURES AS {config.DATABASE['name']}.CURATED.FACT_FACTOR_EXPOSURES
-			PRIMARY KEY (SECURITYID, EXPOSURE_DATE, FACTOR_NAME)
-			WITH SYNONYMS=('factors','loadings','exposures','factor_data')
-			COMMENT='Factor exposures and loadings',
-		FUNDAMENTALS AS {config.DATABASE['name']}.CURATED.FACT_FUNDAMENTALS
-			PRIMARY KEY (SECURITY_ID, REPORTING_DATE, METRIC_NAME)
-			WITH SYNONYMS=('financials','earnings','fundamentals','metrics')
-			COMMENT='Financial fundamentals data',
-		ESTIMATES AS {config.DATABASE['name']}.CURATED.FACT_ESTIMATES
-			PRIMARY KEY (SECURITY_ID, ESTIMATE_DATE, FISCAL_PERIOD, METRIC_NAME)
-			WITH SYNONYMS=('forecasts','estimates','consensus','guidance')
-			COMMENT='Analyst estimates and guidance',
-		MARKET_DATA AS {config.DATABASE['name']}.CURATED.FACT_MARKETDATA_TIMESERIES
-			PRIMARY KEY (PriceDate, SECURITYID)
-			WITH SYNONYMS=('prices','returns','market_data','performance')
-			COMMENT='Market data and returns',
-		BENCHMARK_HOLDINGS AS {config.DATABASE['name']}.CURATED.FACT_BENCHMARK_HOLDINGS
-			PRIMARY KEY (HOLDING_DATE, BENCHMARKID, SECURITYID)
-			WITH SYNONYMS=('benchmark_positions','index_holdings','benchmark_weights')
-			COMMENT='Benchmark constituent holdings and weights'
-	)
-	RELATIONSHIPS (
-		HOLDINGS_TO_PORTFOLIOS AS HOLDINGS(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID),
-		HOLDINGS_TO_SECURITIES AS HOLDINGS(SECURITYID) REFERENCES SECURITIES(SECURITYID),
-		SECURITIES_TO_ISSUERS AS SECURITIES(ISSUERID) REFERENCES ISSUERS(ISSUERID),
-		FACTORS_TO_SECURITIES AS FACTOR_EXPOSURES(SECURITYID) REFERENCES SECURITIES(SECURITYID),
-		HOLDINGS_TO_FACTORS AS HOLDINGS(SECURITYID, HOLDINGDATE) REFERENCES FACTOR_EXPOSURES(SECURITYID, ASOF EXPOSURE_DATE),
-		FUNDAMENTALS_TO_SECURITIES AS FUNDAMENTALS(SECURITY_ID) REFERENCES SECURITIES(SECURITYID),
-		ESTIMATES_TO_SECURITIES AS ESTIMATES(SECURITY_ID) REFERENCES SECURITIES(SECURITYID),
-		MARKET_DATA_TO_SECURITIES AS MARKET_DATA(SECURITYID) REFERENCES SECURITIES(SECURITYID),
-		BENCHMARK_TO_SECURITIES AS BENCHMARK_HOLDINGS(SECURITYID) REFERENCES SECURITIES(SECURITYID)
-	)
-	DIMENSIONS (
-		-- Portfolio dimensions
-		PORTFOLIOS.PORTFOLIONAME AS PortfolioName WITH SYNONYMS=('quant_fund_name','factor_strategy_name','quantitative_portfolio_name') COMMENT='Portfolio or fund name',
-		PORTFOLIOS.STRATEGY AS Strategy WITH SYNONYMS=('quant_investment_strategy','factor_portfolio_strategy','value_strategy','growth_strategy','strategy_type') COMMENT='Investment strategy: Value, Growth, ESG, Core, Multi-Asset, Income',
-		
-		-- Security dimensions  
-		SECURITIES.TICKER AS Ticker WITH SYNONYMS=('quant_ticker','factor_symbol','quantitative_ticker_symbol') COMMENT='Trading ticker symbol',
-		SECURITIES.DESCRIPTION AS Description WITH SYNONYMS=('factor_company','quant_name','quantitative_security_name') COMMENT='Company name',
-		SECURITIES.ASSETCLASS AS AssetClass WITH SYNONYMS=('quant_type','factor_security_type','quantitative_asset_class') COMMENT='Asset class',
-		
-		-- Issuer dimensions
-		ISSUERS.LegalName AS LEGALNAME WITH SYNONYMS=('factor_issuer','quant_legal_name','quantitative_entity_name') COMMENT='Legal entity name',
-		ISSUERS.Industry AS SIC_DESCRIPTION WITH SYNONYMS=('industry','sector','factor_sector','quant_industry','business_type','industry_classification') COMMENT='SIC industry classification with granular descriptions. Use for industry-level factor analysis and screening.',
-		ISSUERS.CountryOfIncorporation AS COUNTRYOFINCORPORATION WITH SYNONYMS=('factor_domicile','quant_country','quantitative_headquarters') COMMENT='Country of incorporation using 2-letter ISO codes (e.g., TW for Taiwan, US for United States, GB for United Kingdom)',
-		
-		-- Factor dimensions
-		FACTOR_EXPOSURES.FactorName AS FACTOR_NAME WITH SYNONYMS=('factor','factor_type','loading_type') COMMENT='Factor name (Value, Growth, Quality, etc.)',
-		FACTOR_EXPOSURES.ExposureDate AS EXPOSURE_DATE WITH SYNONYMS=('factor_date','loading_date','exposure_date') COMMENT='Factor exposure date',
-		
-		-- Fundamental dimensions
-		FUNDAMENTALS.ReportingDate AS REPORTING_DATE WITH SYNONYMS=('quant_report_date','factor_earnings_date','quantitative_fiscal_date') COMMENT='Financial reporting date',
-		FUNDAMENTALS.FiscalQuarter AS FISCAL_QUARTER WITH SYNONYMS=('quant_quarter','factor_period','quantitative_fiscal_period') COMMENT='Fiscal quarter',
-		FUNDAMENTALS.MetricName AS METRIC_NAME WITH SYNONYMS=('quant_metric','factor_measure','quantitative_financial_metric') COMMENT='Financial metric name',
-		
-		-- Time dimensions
-		HOLDINGS.HoldingDate AS HOLDINGDATE WITH SYNONYMS=('quant_position_date','factor_as_of_date','quantitative_holding_date') COMMENT='Holdings as-of date',
-		MARKET_DATA.PriceDate AS PRICEDATE WITH SYNONYMS=('quant_market_date','factor_price_date','quantitative_trading_date') COMMENT='Market data date'
-	)
-	METRICS (
-		-- Portfolio metrics
-		HOLDINGS.TOTAL_MARKET_VALUE AS SUM(MarketValue_Base) WITH SYNONYMS=('quant_exposure','factor_total_exposure','quantitative_market_value','quant_position_value') COMMENT='Total market value in base currency',
-		HOLDINGS.PORTFOLIO_WEIGHT AS SUM(PortfolioWeight) WITH SYNONYMS=('quant_weight','factor_allocation','quantitative_portfolio_weight') COMMENT='Portfolio weight as decimal',
-		HOLDINGS.PORTFOLIO_WEIGHT_PCT AS SUM(PortfolioWeight) * 100 WITH SYNONYMS=('quant_weight_percent','factor_allocation_percent','quantitative_percentage_weight') COMMENT='Portfolio weight as percentage',
-		
-		-- Factor metrics (enhanced for trend analysis)
-		FACTOR_EXPOSURES.FACTOR_EXPOSURE AS SUM(EXPOSURE_VALUE) WITH SYNONYMS=('factor_loading','loading','factor_score','exposure') COMMENT='Factor exposure value',
+		-- Factor metrics (consolidated from SAM_QUANT_VIEW)
+		FACTOR_EXPOSURES.FACTOR_EXPOSURE AS SUM(EXPOSURE_VALUE) WITH SYNONYMS=('factor_loading','loading','factor_score') COMMENT='Factor exposure value',
 		FACTOR_EXPOSURES.FACTOR_R_SQUARED AS AVG(R_SQUARED) WITH SYNONYMS=('r_squared','model_fit','factor_rsq') COMMENT='Factor model R-squared',
 		FACTOR_EXPOSURES.MOMENTUM_SCORE AS AVG(CASE WHEN FACTOR_NAME = 'Momentum' THEN EXPOSURE_VALUE ELSE NULL END) WITH SYNONYMS=('momentum','momentum_factor','momentum_loading') COMMENT='Momentum factor exposure',
 		FACTOR_EXPOSURES.QUALITY_SCORE AS AVG(CASE WHEN FACTOR_NAME = 'Quality' THEN EXPOSURE_VALUE ELSE NULL END) WITH SYNONYMS=('quality','quality_factor','quality_loading') COMMENT='Quality factor exposure',
 		FACTOR_EXPOSURES.VALUE_SCORE AS AVG(CASE WHEN FACTOR_NAME = 'Value' THEN EXPOSURE_VALUE ELSE NULL END) WITH SYNONYMS=('value','value_factor','value_loading') COMMENT='Value factor exposure',
 		FACTOR_EXPOSURES.GROWTH_SCORE AS AVG(CASE WHEN FACTOR_NAME = 'Growth' THEN EXPOSURE_VALUE ELSE NULL END) WITH SYNONYMS=('growth','growth_factor','growth_loading') COMMENT='Growth factor exposure',
 		
-		-- Performance metrics
-		MARKET_DATA.TOTAL_RETURN AS SUM(TotalReturnFactor_Daily) WITH SYNONYMS=('quant_return','factor_performance','quantitative_total_return') COMMENT='Total return factor',
-		MARKET_DATA.PRICE_RETURN AS AVG(Price_Close) WITH SYNONYMS=('quant_price','factor_closing_price','quantitative_market_price') COMMENT='Closing price',
-		MARKET_DATA.VOLUME_TRADED AS SUM(Volume) WITH SYNONYMS=('quant_volume','factor_trading_volume','quantitative_daily_volume') COMMENT='Trading volume',
+		-- Benchmark metrics (consolidated from SAM_QUANT_VIEW)
+		BENCHMARK_HOLDINGS.BenchmarkWeight AS SUM(BENCHMARK_WEIGHT) WITH SYNONYMS=('benchmark_allocation','index_weight','benchmark_percentage') COMMENT='Benchmark constituent weight',
 		
-		-- Fundamental metrics
-		FUNDAMENTALS.FUNDAMENTAL_VALUE AS SUM(METRIC_VALUE) WITH SYNONYMS=('quant_fundamental','factor_financial_value','quantitative_metric_value') COMMENT='Fundamental metric value',
-		ESTIMATES.ESTIMATE_VALUE AS AVG(ESTIMATE_VALUE) WITH SYNONYMS=('quant_estimate','factor_forecast','quantitative_consensus') COMMENT='Consensus estimate value',
+		-- Benchmark performance metrics (for portfolio vs benchmark comparison)
+		BENCHMARK_PERFORMANCE.BENCHMARK_MTD_RETURN AS AVG(MTD_RETURN_PCT) WITH SYNONYMS=('benchmark_mtd','index_mtd','benchmark_monthly_return','index_monthly_return') COMMENT='Benchmark month-to-date return percentage',
+		BENCHMARK_PERFORMANCE.BENCHMARK_QTD_RETURN AS AVG(QTD_RETURN_PCT) WITH SYNONYMS=('benchmark_qtd','index_qtd','benchmark_quarterly_return','index_quarterly_return') COMMENT='Benchmark quarter-to-date return percentage',
+		BENCHMARK_PERFORMANCE.BENCHMARK_YTD_RETURN AS AVG(YTD_RETURN_PCT) WITH SYNONYMS=('benchmark_ytd','index_ytd','benchmark_annual_return','index_annual_return') COMMENT='Benchmark year-to-date return percentage',
+		BENCHMARK_PERFORMANCE.BENCHMARK_ANNUALIZED_RETURN AS AVG(ANNUALIZED_RETURN_PCT) WITH SYNONYMS=('benchmark_annualized','index_annualized','benchmark_1y_return') COMMENT='Benchmark annualized return percentage',
 		
-		-- Benchmark metrics
-		BENCHMARK_HOLDINGS.BenchmarkWeight AS SUM(BENCHMARK_WEIGHT) WITH SYNONYMS=('quant_benchmark_allocation','factor_index_weight','quantitative_benchmark_percentage') COMMENT='Benchmark constituent weight'
+		-- Portfolio vs Benchmark comparison metrics (from pre-joined view - all in one row)
+		PORTFOLIO_BENCHMARK.COMPARISON_PORTFOLIO_QTD AS AVG(PORTFOLIO_QTD_RETURN) WITH SYNONYMS=('portfolio_qtd_vs_benchmark','compared_portfolio_qtd') COMMENT='Portfolio QTD return in comparison view',
+		PORTFOLIO_BENCHMARK.COMPARISON_PORTFOLIO_YTD AS AVG(PORTFOLIO_YTD_RETURN) WITH SYNONYMS=('portfolio_ytd_vs_benchmark','compared_portfolio_ytd') COMMENT='Portfolio YTD return in comparison view',
+		PORTFOLIO_BENCHMARK.COMPARISON_BENCHMARK_QTD AS AVG(BENCHMARK_QTD_RETURN) WITH SYNONYMS=('benchmark_qtd_vs_portfolio','compared_benchmark_qtd') COMMENT='Benchmark QTD return in comparison view',
+		PORTFOLIO_BENCHMARK.COMPARISON_BENCHMARK_YTD AS AVG(BENCHMARK_YTD_RETURN) WITH SYNONYMS=('benchmark_ytd_vs_portfolio','compared_benchmark_ytd') COMMENT='Benchmark YTD return in comparison view',
+		PORTFOLIO_BENCHMARK.ACTIVE_QTD AS AVG(ACTIVE_QTD_RETURN) WITH SYNONYMS=('active_qtd_return','relative_qtd','outperformance_qtd','alpha_qtd') COMMENT='Active QTD return (portfolio - benchmark)',
+		PORTFOLIO_BENCHMARK.ACTIVE_YTD AS AVG(ACTIVE_YTD_RETURN) WITH SYNONYMS=('active_ytd_return','relative_ytd','outperformance_ytd','alpha_ytd') COMMENT='Active YTD return (portfolio - benchmark)',
+		PORTFOLIO_BENCHMARK.COMPARISON_AUM AS SUM(PORTFOLIO_AUM) WITH SYNONYMS=('compared_aum','performance_aum') COMMENT='Portfolio AUM in comparison view'
 	)
-	COMMENT='Quantitative analysis semantic view with factor exposures, performance attribution, and systematic analysis capabilities'
-	WITH EXTENSION (CA='{{"tables":[{{"name":"HOLDINGS","metrics":[{{"name":"PORTFOLIO_WEIGHT"}},{{"name":"PORTFOLIO_WEIGHT_PCT"}},{{"name":"TOTAL_MARKET_VALUE"}}],"time_dimensions":[{{"name":"holding_date","expr":"HOLDINGDATE","data_type":"DATE","synonyms":["position_date","holding_date","portfolio_date"],"description":"The date when portfolio holdings were valued. Use for current portfolio factor exposures."}},{{"name":"holding_month","expr":"DATE_TRUNC(\\'MONTH\\', HOLDINGDATE)","data_type":"DATE","synonyms":["month","monthly"],"description":"Monthly aggregation for holdings."}}]}},{{"name":"FACTOR_EXPOSURES","metrics":[{{"name":"FACTOR_EXPOSURE"}},{{"name":"FACTOR_R_SQUARED"}},{{"name":"GROWTH_SCORE"}},{{"name":"MOMENTUM_SCORE"}},{{"name":"QUALITY_SCORE"}},{{"name":"VALUE_SCORE"}}],"time_dimensions":[{{"name":"exposure_date","expr":"EXPOSURE_DATE","data_type":"DATE","synonyms":["factor_date","exposure_date","measurement_date"],"description":"The date when factor exposures were calculated. Use for factor evolution analysis."}},{{"name":"exposure_month","expr":"DATE_TRUNC(\\'MONTH\\', EXPOSURE_DATE)","data_type":"DATE","synonyms":["factor_month"],"description":"Monthly aggregation for factor trend analysis."}}]}},{{"name":"ISSUERS","dimensions":[{{"name":"COUNTRYOFINCORPORATION"}},{{"name":"LEGALNAME"}},{{"name":"SIC_DESCRIPTION"}}]}},{{"name":"PORTFOLIOS","dimensions":[{{"name":"PortfolioName"}},{{"name":"Strategy"}}]}},{{"name":"SECURITIES","dimensions":[{{"name":"AssetClass"}},{{"name":"Description"}},{{"name":"Ticker"}}]}},{{"name":"MARKET_DATA","metrics":[{{"name":"PRICE_RETURN"}},{{"name":"TOTAL_RETURN"}},{{"name":"VOLUME_TRADED"}}]}},{{"name":"FUNDAMENTALS","metrics":[{{"name":"FUNDAMENTAL_VALUE"}}]}},{{"name":"ESTIMATES","metrics":[{{"name":"ESTIMATE_VALUE"}}]}},{{"name":"BENCHMARK_HOLDINGS","metrics":[{{"name":"BenchmarkWeight"}}]}}],"relationships":[{{"name":"HOLDINGS_TO_PORTFOLIOS"}},{{"name":"HOLDINGS_TO_SECURITIES"}},{{"name":"SECURITIES_TO_ISSUERS"}},{{"name":"FACTORS_TO_SECURITIES"}},{{"name":"HOLDINGS_TO_FACTORS"}},{{"name":"FUNDAMENTALS_TO_SECURITIES"}},{{"name":"ESTIMATES_TO_SECURITIES"}},{{"name":"MARKET_DATA_TO_SECURITIES"}},{{"name":"BENCHMARK_TO_SECURITIES"}}],"verified_queries":[{{"name":"portfolio_factor_exposures","question":"Show the most recent factor exposures for Value strategy portfolio","sql":"SELECT __PORTFOLIOS.PortfolioName, __SECURITIES.Ticker, __SECURITIES.Description, __FACTOR_EXPOSURES.FACTOR_NAME, __FACTOR_EXPOSURES.EXPOSURE_VALUE FROM __HOLDINGS JOIN __PORTFOLIOS ON __HOLDINGS.PORTFOLIOID = __PORTFOLIOS.PORTFOLIOID JOIN __SECURITIES ON __HOLDINGS.SECURITYID = __SECURITIES.SECURITYID JOIN __FACTOR_EXPOSURES ON __HOLDINGS.SECURITYID = __FACTOR_EXPOSURES.SECURITYID AND __HOLDINGS.HOLDINGDATE >= __FACTOR_EXPOSURES.EXPOSURE_DATE WHERE __PORTFOLIOS.Strategy = \\'Value\\' AND __HOLDINGS.HOLDINGDATE = (SELECT MAX(HOLDINGDATE) FROM __HOLDINGS) QUALIFY ROW_NUMBER() OVER (PARTITION BY __HOLDINGS.SECURITYID, __FACTOR_EXPOSURES.FACTOR_NAME ORDER BY __FACTOR_EXPOSURES.EXPOSURE_DATE DESC) = 1 ORDER BY __SECURITIES.Ticker, __FACTOR_EXPOSURES.FACTOR_NAME","use_as_onboarding_question":true}},{{"name":"compare_portfolio_factors","question":"Compare factor exposures between Value and Growth strategy portfolios","sql":"WITH latest_factors AS (SELECT __HOLDINGS.PORTFOLIOID, __HOLDINGS.SECURITYID, __FACTOR_EXPOSURES.FACTOR_NAME, __FACTOR_EXPOSURES.EXPOSURE_VALUE FROM __HOLDINGS JOIN __FACTOR_EXPOSURES ON __HOLDINGS.SECURITYID = __FACTOR_EXPOSURES.SECURITYID AND __HOLDINGS.HOLDINGDATE >= __FACTOR_EXPOSURES.EXPOSURE_DATE WHERE __HOLDINGS.HOLDINGDATE = (SELECT MAX(HOLDINGDATE) FROM __HOLDINGS) QUALIFY ROW_NUMBER() OVER (PARTITION BY __HOLDINGS.PORTFOLIOID, __HOLDINGS.SECURITYID, __FACTOR_EXPOSURES.FACTOR_NAME ORDER BY __FACTOR_EXPOSURES.EXPOSURE_DATE DESC) = 1) SELECT __PORTFOLIOS.Strategy, lf.FACTOR_NAME, AVG(lf.EXPOSURE_VALUE) AS AVG_FACTOR_EXPOSURE FROM latest_factors lf JOIN __PORTFOLIOS ON lf.PORTFOLIOID = __PORTFOLIOS.PORTFOLIOID WHERE __PORTFOLIOS.Strategy IN (\\'Value\\', \\'Growth\\') GROUP BY __PORTFOLIOS.Strategy, lf.FACTOR_NAME ORDER BY __PORTFOLIOS.Strategy, lf.FACTOR_NAME","use_as_onboarding_question":true}},{{"name":"improving_factor_stocks","question":"Show stocks with improving momentum and quality factors over the last 6 months","sql":"WITH recent_factors AS (SELECT __FACTOR_EXPOSURES.SECURITYID, __FACTOR_EXPOSURES.FACTOR_NAME, AVG(__FACTOR_EXPOSURES.EXPOSURE_VALUE) AS recent_exposure FROM __FACTOR_EXPOSURES WHERE __FACTOR_EXPOSURES.EXPOSURE_DATE >= DATEADD(month, -1, (SELECT MAX(EXPOSURE_DATE) FROM __FACTOR_EXPOSURES)) AND __FACTOR_EXPOSURES.FACTOR_NAME IN (\\'Momentum\\', \\'Quality\\') GROUP BY __FACTOR_EXPOSURES.SECURITYID, __FACTOR_EXPOSURES.FACTOR_NAME), older_factors AS (SELECT __FACTOR_EXPOSURES.SECURITYID, __FACTOR_EXPOSURES.FACTOR_NAME, AVG(__FACTOR_EXPOSURES.EXPOSURE_VALUE) AS older_exposure FROM __FACTOR_EXPOSURES WHERE __FACTOR_EXPOSURES.EXPOSURE_DATE BETWEEN DATEADD(month, -7, (SELECT MAX(EXPOSURE_DATE) FROM __FACTOR_EXPOSURES)) AND DATEADD(month, -6, (SELECT MAX(EXPOSURE_DATE) FROM __FACTOR_EXPOSURES)) AND __FACTOR_EXPOSURES.FACTOR_NAME IN (\\'Momentum\\', \\'Quality\\') GROUP BY __FACTOR_EXPOSURES.SECURITYID, __FACTOR_EXPOSURES.FACTOR_NAME), factor_changes AS (SELECT r.SECURITYID, r.FACTOR_NAME, r.recent_exposure, o.older_exposure, r.recent_exposure - o.older_exposure AS exposure_change FROM recent_factors r JOIN older_factors o ON r.SECURITYID = o.SECURITYID AND r.FACTOR_NAME = o.FACTOR_NAME WHERE r.recent_exposure > o.older_exposure) SELECT __SECURITIES.Ticker, __SECURITIES.Description, fc.FACTOR_NAME, ROUND(fc.older_exposure, 2) AS factor_6mo_ago, ROUND(fc.recent_exposure, 2) AS factor_current, ROUND(fc.exposure_change, 2) AS factor_improvement FROM factor_changes fc JOIN __SECURITIES ON fc.SECURITYID = __SECURITIES.SECURITYID WHERE fc.SECURITYID IN (SELECT SECURITYID FROM factor_changes WHERE FACTOR_NAME = \\'Momentum\\' INTERSECT SELECT SECURITYID FROM factor_changes WHERE FACTOR_NAME = \\'Quality\\') ORDER BY fc.exposure_change DESC, __SECURITIES.Ticker, fc.FACTOR_NAME","use_as_onboarding_question":true}}],"module_custom_instructions":{{"sql_generation":"For portfolio factor exposure queries, use the HOLDINGS_TO_FACTORS ASOF relationship to join current portfolio holdings with their most recent factor exposures. The ASOF join matches each holding to the factor exposure where EXPOSURE_DATE is on or before HOLDINGDATE (closest prior factor data). For current portfolio factor exposures, filter HOLDINGS to most recent HoldingDate, then use ASOF join with QUALIFY to get the most recent factor per security. For factor trend analysis (e.g., improving factors over time), use CTE pattern: create separate CTEs for different time periods, join them on SecurityID and FACTOR_NAME, calculate changes as (recent - older). Use INTERSECT to find securities improving in multiple factors simultaneously. Always show factor exposures with 2 decimal places. When comparing factors across portfolios, use CTE to get latest factors with QUALIFY, then join to portfolios and aggregate."}}}}');
+	COMMENT='Multi-asset semantic view for portfolio analytics with issuer hierarchy, ESG scores, performance returns, factor exposures, benchmark weights, and benchmark performance returns for portfolio vs benchmark comparison'
+	WITH EXTENSION (CA='{{"tables":[{{"name":"HOLDINGS","dimensions":[{{"name":"ESGGrade"}}],"metrics":[{{"name":"ESG_SCORE"}},{{"name":"HOLDING_COUNT"}},{{"name":"ISSUER_EXPOSURE"}},{{"name":"MAX_POSITION_WEIGHT"}},{{"name":"PORTFOLIO_WEIGHT"}},{{"name":"PORTFOLIO_WEIGHT_PCT"}},{{"name":"TOTAL_MARKET_VALUE"}},{{"name":"QTD_RETURN"}},{{"name":"YTD_RETURN"}},{{"name":"MTD_RETURN"}}],"time_dimensions":[{{"name":"HOLDINGDATE"}},{{"name":"HOLDING_MONTH"}},{{"name":"HOLDING_QUARTER"}}]}},{{"name":"ISSUERS","dimensions":[{{"name":"CountryOfIncorporation"}},{{"name":"Industry"}},{{"name":"LegalName"}}]}},{{"name":"PORTFOLIOS","dimensions":[{{"name":"PORTFOLIONAME"}},{{"name":"STRATEGY"}}]}},{{"name":"SECURITIES","dimensions":[{{"name":"ASSETCLASS"}},{{"name":"DESCRIPTION"}},{{"name":"TICKER"}}]}},{{"name":"FACTOR_EXPOSURES","dimensions":[{{"name":"FactorName"}},{{"name":"ExposureDate"}}],"metrics":[{{"name":"FACTOR_EXPOSURE"}},{{"name":"FACTOR_R_SQUARED"}},{{"name":"MOMENTUM_SCORE"}},{{"name":"QUALITY_SCORE"}},{{"name":"VALUE_SCORE"}},{{"name":"GROWTH_SCORE"}}],"time_dimensions":[{{"name":"ExposureDate"}}]}},{{"name":"BENCHMARK_HOLDINGS","metrics":[{{"name":"BenchmarkWeight"}}]}},{{"name":"BENCHMARK_PERFORMANCE","dimensions":[{{"name":"BenchmarkDate"}}],"metrics":[{{"name":"BENCHMARK_MTD_RETURN"}},{{"name":"BENCHMARK_QTD_RETURN"}},{{"name":"BENCHMARK_YTD_RETURN"}},{{"name":"BENCHMARK_ANNUALIZED_RETURN"}}],"time_dimensions":[{{"name":"BenchmarkDate"}}]}},{{"name":"BENCHMARKS","dimensions":[{{"name":"BenchmarkName"}}]}},{{"name":"PORTFOLIO_BENCHMARK","dimensions":[{{"name":"COMPARISON_PORTFOLIO"}},{{"name":"COMPARISON_BENCHMARK"}}],"metrics":[{{"name":"COMPARISON_PORTFOLIO_QTD"}},{{"name":"COMPARISON_PORTFOLIO_YTD"}},{{"name":"COMPARISON_BENCHMARK_QTD"}},{{"name":"COMPARISON_BENCHMARK_YTD"}},{{"name":"ACTIVE_QTD"}},{{"name":"ACTIVE_YTD"}},{{"name":"COMPARISON_AUM"}}],"time_dimensions":[{{"name":"COMPARISON_DATE"}}]}}],"relationships":[{{"name":"HOLDINGS_TO_PORTFOLIOS"}},{{"name":"HOLDINGS_TO_SECURITIES"}},{{"name":"SECURITIES_TO_ISSUERS"}},{{"name":"FACTORS_TO_SECURITIES"}},{{"name":"BENCHMARK_TO_SECURITIES"}},{{"name":"BENCHMARK_PERF_TO_BENCHMARKS"}},{{"name":"PORTFOLIOS_TO_BENCHMARKS"}}],"verified_queries":[{{"name":"portfolio_holdings","question":"What are the portfolio holdings?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_ANALYST_VIEW METRICS TOTAL_MARKET_VALUE, PORTFOLIO_WEIGHT_PCT, HOLDING_COUNT)","use_as_onboarding_question":true}},{{"name":"esg_scores","question":"What are the ESG scores?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_ANALYST_VIEW METRICS ESG_SCORE DIMENSIONS ESGGrade)","use_as_onboarding_question":true}},{{"name":"portfolio_returns","question":"What are the portfolio returns?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_ANALYST_VIEW METRICS QTD_RETURN, YTD_RETURN, MTD_RETURN)","use_as_onboarding_question":false}},{{"name":"factor_exposures","question":"What are the factor exposures?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_ANALYST_VIEW METRICS VALUE_SCORE, GROWTH_SCORE, MOMENTUM_SCORE, QUALITY_SCORE DIMENSIONS FactorName)","use_as_onboarding_question":false}},{{"name":"benchmark_performance","question":"What is the benchmark performance?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_ANALYST_VIEW METRICS BENCHMARK_QTD_RETURN, BENCHMARK_YTD_RETURN DIMENSIONS BenchmarkName)","use_as_onboarding_question":true}},{{"name":"portfolio_vs_benchmark","question":"How does portfolio performance compare to benchmark?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_ANALYST_VIEW METRICS COMPARISON_PORTFOLIO_QTD, COMPARISON_PORTFOLIO_YTD, COMPARISON_BENCHMARK_QTD, COMPARISON_BENCHMARK_YTD, ACTIVE_QTD, ACTIVE_YTD DIMENSIONS COMPARISON_PORTFOLIO, COMPARISON_BENCHMARK)","use_as_onboarding_question":true}}],"module_custom_instructions":{{"sql_generation":"CRITICAL: Always filter holdings to the latest date unless the user explicitly requests historical data or trends. Use WHERE HOLDINGDATE = (SELECT MAX(HOLDINGDATE) FROM HOLDINGS) in EVERY query that does not have an explicit date filter or date dimension. This prevents aggregation across multiple months which causes incorrect totals. For portfolio weight calculations, always multiply by 100 to show percentages. When calculating issuer exposure, aggregate MARKETVALUE_BASE across all securities of the same issuer. Always round market values to 2 decimal places and portfolio weights to 1 decimal place. ESG_SCORE and ESG_GRADE columns are directly available on the HOLDINGS table for each position. Performance metrics (QTD_RETURN_PCT, YTD_RETURN_PCT, MTD_RETURN_PCT) are also directly available on HOLDINGS for return calculations. NEVER use UNION ALL to combine different report sections with different columns - this causes type mismatch errors. For multi-section reports like client reports, pick ONE primary section (e.g., top holdings) as the main result set. For factor analysis, use the FACTOR_EXPOSURES table with FACTOR_NAME dimension to filter specific factors. For portfolio factor exposure queries, join current portfolio holdings with their most recent factor exposures using WHERE EXPOSURE_DATE = (SELECT MAX(EXPOSURE_DATE) FROM FACTOR_EXPOSURES). For benchmark performance queries, use BENCHMARK_PERFORMANCE table with BENCHMARK_QTD_RETURN, BENCHMARK_YTD_RETURN, BENCHMARK_MTD_RETURN metrics. Filter by BenchmarkName dimension for specific benchmarks (S&P 500, MSCI ACWI, Nasdaq 100). For portfolio vs benchmark comparison, use the PORTFOLIO_BENCHMARK table which has pre-joined portfolio and benchmark returns in the same row. Use COMPARISON_PORTFOLIO_QTD, COMPARISON_BENCHMARK_QTD, ACTIVE_QTD metrics with COMPARISON_PORTFOLIO and COMPARISON_BENCHMARK dimensions.","question_categorization":"IMPORTANT: Unless the user explicitly asks for historical trends or time series data, always assume they want current holdings (latest date only). If users ask about \\'funds\\' or \\'portfolios\\', treat these as the same concept referring to investment portfolios. ESG data and performance returns are included directly in holdings. For performance questions, use the QTD_RETURN, YTD_RETURN, or MTD_RETURN metrics. For multi-section report requests, focus on the most important section (typically top holdings with performance metrics) rather than trying to combine incompatible result sets. For factor analysis questions (value, growth, momentum, quality), use the FACTOR_EXPOSURES metrics. Factor data is available for all equity securities. For benchmark performance questions (benchmark returns, index performance, how did the benchmark do), use BENCHMARK_QTD_RETURN, BENCHMARK_YTD_RETURN, BENCHMARK_MTD_RETURN metrics from BENCHMARK_PERFORMANCE table. For portfolio vs benchmark comparison questions, use the PORTFOLIO_BENCHMARK table metrics: COMPARISON_PORTFOLIO_QTD, COMPARISON_PORTFOLIO_YTD, COMPARISON_BENCHMARK_QTD, COMPARISON_BENCHMARK_YTD, ACTIVE_QTD, ACTIVE_YTD. These provide side-by-side comparison in a single row with active return calculation."}}}}');
     """).collect()
     
+    log_detail(" Created semantic view: SAM_ANALYST_VIEW")
+
 
 def create_implementation_semantic_view(session: Session):
     """Create semantic view for portfolio implementation with trading, risk, and execution data."""
@@ -438,7 +244,7 @@ def create_implementation_semantic_view(session: Session):
         try:
             session.sql(f"SELECT 1 FROM {config.DATABASE['name']}.CURATED.{table} LIMIT 1").collect()
         except:
-            config.log_warning(f"  Implementation table {table} not found, skipping implementation view creation")
+            log_warning(f"  Implementation table {table} not found, skipping implementation view creation")
             return
     # Create the implementation-focused semantic view
     session.sql(f"""
@@ -558,94 +364,7 @@ CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_IMPLEMENTATION_
 	COMMENT='Implementation semantic view with trading costs, liquidity, risk limits, settlement, and execution planning data';
     """).collect()
 
-    #config.log_detail(" Created semantic view: SAM_IMPLEMENTATION_VIEW")
-
-def create_sec_filings_semantic_view(session: Session):
-    """Create semantic view for SEC filings using MARKET_DATA schema (S&P Capital IQ pattern)."""
-    
-    database_name = config.DATABASE['name']
-    market_data_schema = config.DATABASE['schemas']['market_data']
-    
-    # Check if new MARKET_DATA filing tables exist
-    try:
-        session.sql(f"SELECT 1 FROM {database_name}.{market_data_schema}.FACT_FILING_REF LIMIT 1").collect()
-    except:
-        config.log_detail("  Skipping SAM_FILINGS_VIEW - MARKET_DATA filing tables not found")
-        return
-    
-    session.sql(f"""
-CREATE OR REPLACE SEMANTIC VIEW {database_name}.AI.SAM_FILINGS_VIEW
-	TABLES (
-		FILING_REF AS {database_name}.{market_data_schema}.FACT_FILING_REF
-			PRIMARY KEY (FILE_VERSION_ID) 
-			WITH SYNONYMS=('filings','sec_filings','company_filings','regulatory_filings') 
-			COMMENT='Master filing reference with metadata for all SEC and regulatory filings',
-		FILING_DATA AS {database_name}.{market_data_schema}.FACT_FILING_DATA
-			PRIMARY KEY (FILE_VERSION_ID, HEADING_ID) 
-			WITH SYNONYMS=('filing_content','filing_sections','filing_text','sec_content') 
-			COMMENT='Textual content from SEC filings organized by section',
-		FILING_TYPES AS {database_name}.{market_data_schema}.REF_FILING_TYPE
-			PRIMARY KEY (FILING_TYPE_ID) 
-			WITH SYNONYMS=('form_types','sec_forms','filing_forms') 
-			COMMENT='Filing type reference (10-K, 10-Q, 8-K, etc.)',
-		FILING_SOURCES AS {database_name}.{market_data_schema}.REF_FILING_SOURCE
-			PRIMARY KEY (FILING_SOURCE_ID) 
-			WITH SYNONYMS=('filing_sources','data_sources') 
-			COMMENT='Filing source reference (SEC EDGAR, Company Website, etc.)',
-		COMPANIES AS {database_name}.{market_data_schema}.DIM_COMPANY
-			PRIMARY KEY (COMPANY_ID) 
-			WITH SYNONYMS=('companies','issuers','filers') 
-			COMMENT='Company master data'
-	)
-	RELATIONSHIPS (
-		FILING_REF_TO_COMPANIES AS FILING_REF(COMPANY_ID) REFERENCES COMPANIES(COMPANY_ID),
-		FILING_REF_TO_TYPES AS FILING_REF(FILING_TYPE_ID) REFERENCES FILING_TYPES(FILING_TYPE_ID),
-		FILING_REF_TO_SOURCES AS FILING_REF(FILING_SOURCE_ID) REFERENCES FILING_SOURCES(FILING_SOURCE_ID),
-		FILING_DATA_TO_REF AS FILING_DATA(FILE_VERSION_ID) REFERENCES FILING_REF(FILE_VERSION_ID)
-	)
-	DIMENSIONS (
-		-- Company dimensions
-		COMPANIES.CompanyName AS COMPANY_NAME WITH SYNONYMS=('company','issuer_name','filer_name','company_name') COMMENT='Company legal name',
-		COMPANIES.IndustryDescription AS INDUSTRY_DESCRIPTION WITH SYNONYMS=('industry','sector','business_type') COMMENT='Industry classification',
-		COMPANIES.CIK AS CIK WITH SYNONYMS=('cik','sec_cik','company_cik') COMMENT='SEC Central Index Key',
-		COMPANIES.CountryCode AS COUNTRY_CODE WITH SYNONYMS=('country','domicile') COMMENT='Country of incorporation',
-		
-		-- Filing type dimensions
-		FILING_TYPES.FilingType AS FILING_TYPE WITH SYNONYMS=('form_type','sec_form','form','filing_form') COMMENT='SEC form type (10-K, 10-Q, 8-K, etc.)',
-		FILING_TYPES.FilingTypeDefinition AS FILING_TYPE_DEFINITION WITH SYNONYMS=('form_description','filing_description') COMMENT='Description of the filing type',
-		FILING_TYPES.IsAnnual AS IS_ANNUAL WITH SYNONYMS=('annual_filing','yearly_filing') COMMENT='Whether this is an annual filing',
-		FILING_TYPES.IsQuarterly AS IS_QUARTERLY WITH SYNONYMS=('quarterly_filing','quarter_filing') COMMENT='Whether this is a quarterly filing',
-		
-		-- Filing source dimensions
-		FILING_SOURCES.FilingSource AS FILING_SOURCE WITH SYNONYMS=('source','data_source') COMMENT='Source of the filing (SEC EDGAR, etc.)',
-		
-		-- Filing content dimensions
-		FILING_DATA.SECTION_HEADING AS HEADING WITH SYNONYMS=('heading','section','item') COMMENT='Section heading from the filing',
-		FILING_DATA.STANDARDIZED_SECTION AS STANDARDIZED_HEADING WITH SYNONYMS=('standardized_heading','normalized_section','item_name') COMMENT='Standardized section name (Business, Risk Factors, MD&A, etc.)',
-		FILING_DATA.SECTION_CONTENT AS SECTION_TEXT WITH SYNONYMS=('content','text','section_text','filing_text') COMMENT='Full text content of the section',
-		
-		-- Time dimensions
-		FILING_REF.FilingDate AS FILING_DATE WITH SYNONYMS=('filing_date','submission_date','report_date','date') COMMENT='Date the filing was submitted to SEC',
-		FILING_REF.PeriodDate AS PERIOD_DATE WITH SYNONYMS=('period_end','period_date','quarter_end') COMMENT='Period end date covered by the filing',
-		FILING_REF.FiscalYear AS FISCAL_YEAR WITH SYNONYMS=('year','fiscal_year','fy') COMMENT='Fiscal year of the filing',
-		FILING_REF.FiscalQuarter AS FISCAL_QUARTER WITH SYNONYMS=('quarter','q','fiscal_quarter') COMMENT='Fiscal quarter (1-4)',
-		FILING_REF.AccessionNumber AS ACCESSION_NUMBER WITH SYNONYMS=('accession','sec_accession','filing_id') COMMENT='SEC accession number (unique filing identifier)'
-	)
-	METRICS (
-		-- Filing count metrics
-		FILING_REF.FILING_COUNT AS COUNT(DISTINCT FILE_VERSION_ID) WITH SYNONYMS=('filing_count','number_of_filings','total_filings','count') COMMENT='Count of filings',
-		FILING_REF.ANNUAL_FILING_COUNT AS COUNT(DISTINCT CASE WHEN FILING_TYPE_ID = 1 THEN FILE_VERSION_ID END) WITH SYNONYMS=('annual_count','10k_count','yearly_filings') COMMENT='Count of annual (10-K) filings',
-		FILING_REF.QUARTERLY_FILING_COUNT AS COUNT(DISTINCT CASE WHEN FILING_TYPE_ID = 2 THEN FILE_VERSION_ID END) WITH SYNONYMS=('quarterly_count','10q_count','quarter_filings') COMMENT='Count of quarterly (10-Q) filings',
-		
-		-- Section metrics
-		FILING_DATA.SECTION_COUNT AS COUNT(DISTINCT HEADING_ID) WITH SYNONYMS=('section_count','number_of_sections') COMMENT='Count of sections in filings',
-		FILING_DATA.CONTENT_LENGTH AS SUM(LENGTH(SECTION_TEXT)) WITH SYNONYMS=('text_length','content_size','document_size') COMMENT='Total length of filing content'
-	)
-	COMMENT='SEC filing semantic view using S&P Capital IQ pattern - includes filing metadata, textual content, and company linkages'
-	WITH EXTENSION (CA='{{"tables":[{{"name":"FILING_REF","metrics":[{{"name":"FILING_COUNT"}},{{"name":"ANNUAL_FILING_COUNT"}},{{"name":"QUARTERLY_FILING_COUNT"}}],"time_dimensions":[{{"name":"filing_date","expr":"FILING_DATE","data_type":"DATE","synonyms":["report_date","submission_date"],"description":"Date the filing was submitted to SEC"}},{{"name":"filing_quarter","expr":"DATE_TRUNC(\\'QUARTER\\', FILING_DATE)","data_type":"DATE","synonyms":["quarter","quarterly"],"description":"Quarterly aggregation for filing analysis"}}]}},{{"name":"FILING_DATA","metrics":[{{"name":"SECTION_COUNT"}},{{"name":"CONTENT_LENGTH"}}]}},{{"name":"COMPANIES","dimensions":[{{"name":"COMPANY_NAME"}},{{"name":"CIK"}},{{"name":"INDUSTRY_DESCRIPTION"}}]}},{{"name":"FILING_TYPES","dimensions":[{{"name":"FILING_TYPE"}},{{"name":"IS_ANNUAL"}},{{"name":"IS_QUARTERLY"}}]}}],"relationships":[{{"name":"FILING_REF_TO_COMPANIES"}},{{"name":"FILING_REF_TO_TYPES"}},{{"name":"FILING_DATA_TO_REF"}}],"verified_queries":[{{"name":"recent_10k_filings","question":"Show me recent 10-K annual filings","sql":"SELECT __COMPANIES.COMPANY_NAME, __FILING_REF.FILING_DATE, __FILING_REF.FISCAL_YEAR FROM __FILING_REF JOIN __COMPANIES ON __FILING_REF.COMPANY_ID = __COMPANIES.COMPANY_ID JOIN __FILING_TYPES ON __FILING_REF.FILING_TYPE_ID = __FILING_TYPES.FILING_TYPE_ID WHERE __FILING_TYPES.FILING_TYPE = \\'10-K\\' ORDER BY __FILING_REF.FILING_DATE DESC LIMIT 20","use_as_onboarding_question":true}},{{"name":"company_filings","question":"What filings has a specific company submitted?","sql":"SELECT __FILING_TYPES.FILING_TYPE, __FILING_REF.FILING_DATE, __FILING_REF.FISCAL_YEAR, __FILING_REF.FISCAL_QUARTER FROM __FILING_REF JOIN __FILING_TYPES ON __FILING_REF.FILING_TYPE_ID = __FILING_TYPES.FILING_TYPE_ID JOIN __COMPANIES ON __FILING_REF.COMPANY_ID = __COMPANIES.COMPANY_ID WHERE __COMPANIES.COMPANY_NAME ILIKE \\'%COMPANY_NAME%\\' ORDER BY __FILING_REF.FILING_DATE DESC","use_as_onboarding_question":false}}],"module_custom_instructions":{{"sql_generation":"For filing analysis, default to the most recent fiscal year when not specified. Use FILING_TYPE dimension to filter by form type (10-K for annual, 10-Q for quarterly). Join FILING_DATA for textual content analysis. Use STANDARDIZED_SECTION for consistent section filtering across filings."}}}}');
-    """).collect()
-    
-    config.log_detail(" Created semantic view: SAM_FILINGS_VIEW")
+    log_detail(" Created semantic view: SAM_IMPLEMENTATION_VIEW")
 
 def create_supply_chain_semantic_view(session: Session):
     """Create semantic view for supply chain risk analysis."""
@@ -654,7 +373,7 @@ def create_supply_chain_semantic_view(session: Session):
     try:
         session.sql(f"SELECT 1 FROM {config.DATABASE['name']}.CURATED.DIM_SUPPLY_CHAIN_RELATIONSHIPS LIMIT 1").collect()
     except:
-        config.log_detail("  Skipping SAM_SUPPLY_CHAIN_VIEW - tables not found")
+        log_detail("  Skipping SAM_SUPPLY_CHAIN_VIEW - tables not found")
         return
     
     session.sql(f"""
@@ -696,11 +415,13 @@ CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_SUPPLY_CHAIN_VI
 		-- Company dimensions (US companies in portfolio)
 		COMPANY_ISSUERS.CompanyName AS LEGALNAME WITH SYNONYMS=('company','company_name','us_company','portfolio_company','customer_company') COMMENT='US company legal name (the company with portfolio holdings)',
 		COMPANY_ISSUERS.CompanyIndustry AS SIC_DESCRIPTION WITH SYNONYMS=('company_industry','customer_industry','us_industry') COMMENT='US company SIC industry classification',
+		COMPANY_ISSUERS.CompanySector AS GICS_SECTOR WITH SYNONYMS=('company_sector','customer_sector','us_sector') COMMENT='US company GICS sector classification',
 		COMPANY_ISSUERS.CompanyCountry AS COUNTRYOFINCORPORATION WITH SYNONYMS=('company_country','customer_country') COMMENT='US company country of incorporation using 2-letter ISO codes (e.g., US for United States)',
 		
 		-- Counterparty dimensions (Taiwan suppliers)
 		COUNTERPARTY_ISSUERS.CounterpartyName AS LEGALNAME WITH SYNONYMS=('counterparty','supplier','supplier_name','taiwan_supplier','supplier_company') COMMENT='Supplier/counterparty legal name (e.g., Taiwan semiconductor suppliers like TSMC)',
 		COUNTERPARTY_ISSUERS.CounterpartyIndustry AS SIC_DESCRIPTION WITH SYNONYMS=('counterparty_industry','supplier_industry','taiwan_industry','semiconductor_industry') COMMENT='Supplier SIC industry classification (e.g., Semiconductors and related devices)',
+		COUNTERPARTY_ISSUERS.CounterpartySector AS GICS_SECTOR WITH SYNONYMS=('counterparty_sector','supplier_sector','taiwan_sector') COMMENT='Supplier GICS sector classification',
 		COUNTERPARTY_ISSUERS.CounterpartyCountry AS COUNTRYOFINCORPORATION WITH SYNONYMS=('counterparty_country','supplier_country','taiwan') COMMENT='Supplier country of incorporation using 2-letter ISO codes (use TW for Taiwan, not Taiwan)',
 		
 		-- Relationship dimensions
@@ -744,7 +465,7 @@ CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_SUPPLY_CHAIN_VI
 	COMMENT='Supply chain semantic view for multi-hop dependency and second-order risk analysis';
     """).collect()
     
-    config.log_detail(" Created semantic view: SAM_SUPPLY_CHAIN_VIEW")
+    log_detail(" Created semantic view: SAM_SUPPLY_CHAIN_VIEW")
 
 def create_middle_office_semantic_view(session: Session):
     """Create semantic view for middle office operations analytics."""
@@ -755,7 +476,7 @@ def create_middle_office_semantic_view(session: Session):
         session.sql(f"SELECT 1 FROM {config.DATABASE['name']}.CURATED.FACT_RECONCILIATION LIMIT 1").collect()
         session.sql(f"SELECT 1 FROM {config.DATABASE['name']}.CURATED.FACT_NAV_CALCULATION LIMIT 1").collect()
     except:
-        config.log_detail("  Skipping SAM_MIDDLE_OFFICE_VIEW - tables not found")
+        log_detail("  Skipping SAM_MIDDLE_OFFICE_VIEW - tables not found")
         return
     
     session.sql(f"""
@@ -784,7 +505,23 @@ CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_MIDDLE_OFFICE_V
 		CUSTODIANS AS {config.DATABASE['name']}.CURATED.DIM_CUSTODIAN
 			PRIMARY KEY (CUSTODIANID)
 			WITH SYNONYMS=('custodians','banks','depositories')
-			COMMENT='Custodian information'
+			COMMENT='Custodian information',
+		COUNTERPARTIES AS {config.DATABASE['name']}.CURATED.DIM_COUNTERPARTY
+			PRIMARY KEY (COUNTERPARTYID)
+			WITH SYNONYMS=('counterparties','brokers','trading_partners')
+			COMMENT='Counterparty information for settlements',
+		CORPORATE_ACTIONS AS {config.DATABASE['name']}.CURATED.FACT_CORPORATE_ACTIONS
+			PRIMARY KEY (ACTIONID)
+			WITH SYNONYMS=('corporate_actions','dividends','splits','mergers')
+			COMMENT='Corporate action events',
+		CASH_MOVEMENTS AS {config.DATABASE['name']}.CURATED.FACT_CASH_MOVEMENTS
+			PRIMARY KEY (CASHMOVEMENTID)
+			WITH SYNONYMS=('cash_flows','cash_movements','payments')
+			COMMENT='Cash movement transactions',
+		CASH_POSITIONS AS {config.DATABASE['name']}.CURATED.FACT_CASH_POSITIONS
+			PRIMARY KEY (CASHPOSITIONID)
+			WITH SYNONYMS=('cash_balances','cash_positions','liquidity')
+			COMMENT='Daily cash position snapshots'
 	)
 	RELATIONSHIPS (
 		SETTLEMENTS_TO_PORTFOLIOS AS SETTLEMENTS(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID),
@@ -792,7 +529,13 @@ CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_MIDDLE_OFFICE_V
 		SETTLEMENTS_TO_CUSTODIANS AS SETTLEMENTS(CUSTODIANID) REFERENCES CUSTODIANS(CUSTODIANID),
 		RECON_TO_PORTFOLIOS AS RECONCILIATIONS(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID),
 		RECON_TO_SECURITIES AS RECONCILIATIONS(SECURITYID) REFERENCES SECURITIES(SECURITYID),
-		NAV_TO_PORTFOLIOS AS NAV(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID)
+		NAV_TO_PORTFOLIOS AS NAV(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID),
+		SETTLEMENTS_TO_COUNTERPARTIES AS SETTLEMENTS(COUNTERPARTYID) REFERENCES COUNTERPARTIES(COUNTERPARTYID),
+		CORPORATE_ACTIONS_TO_SECURITIES AS CORPORATE_ACTIONS(SECURITYID) REFERENCES SECURITIES(SECURITYID),
+		CASH_MOVEMENTS_TO_PORTFOLIOS AS CASH_MOVEMENTS(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID),
+		CASH_MOVEMENTS_TO_COUNTERPARTIES AS CASH_MOVEMENTS(COUNTERPARTYID) REFERENCES COUNTERPARTIES(COUNTERPARTYID),
+		CASH_POSITIONS_TO_PORTFOLIOS AS CASH_POSITIONS(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID),
+		CASH_POSITIONS_TO_CUSTODIANS AS CASH_POSITIONS(CUSTODIANID) REFERENCES CUSTODIANS(CUSTODIANID)
 	)
 	DIMENSIONS (
 		-- Portfolio dimensions
@@ -807,15 +550,37 @@ CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_MIDDLE_OFFICE_V
 		
 		-- Settlement dimensions
 		SETTLEMENTS.SettlementDate AS SETTLEMENTDATE WITH SYNONYMS=('settlement_date','date') COMMENT='Settlement date',
+		SETTLEMENTS.SETTLEMENT_MONTH AS DATE_TRUNC('MONTH', SETTLEMENTDATE) WITH SYNONYMS=('settlement_month','monthly') COMMENT='Monthly aggregation for settlement trend analysis',
 		SETTLEMENTS.SettlementStatus AS STATUS WITH SYNONYMS=('status','settlement_status') COMMENT='Settlement status (Settled, Pending, Failed)',
 		
 		-- Reconciliation dimensions
 		RECONCILIATIONS.ReconciliationDate AS RECONCILIATIONDATE WITH SYNONYMS=('recon_date','date') COMMENT='Reconciliation date',
+		RECONCILIATIONS.RECON_MONTH AS DATE_TRUNC('MONTH', RECONCILIATIONDATE) WITH SYNONYMS=('recon_month','monthly') COMMENT='Monthly aggregation for reconciliation break trends',
 		RECONCILIATIONS.BreakType AS BREAKTYPE WITH SYNONYMS=('break_type','exception_type') COMMENT='Break type',
 		RECONCILIATIONS.ReconStatus AS STATUS WITH SYNONYMS=('resolution_status','recon_status') COMMENT='Reconciliation status (Open, Investigating, Resolved)',
 		
 		-- NAV dimensions
-		NAV.CALCULATIONDATE AS CalculationDate WITH SYNONYMS=('nav_date','valuation_date') COMMENT='NAV calculation date'
+		NAV.CALCULATIONDATE AS CalculationDate WITH SYNONYMS=('nav_date','valuation_date') COMMENT='NAV calculation date',
+		NAV.NAV_MONTH AS DATE_TRUNC('MONTH', CALCULATIONDATE) WITH SYNONYMS=('nav_month','monthly') COMMENT='Monthly aggregation for NAV performance trends',
+		
+		-- Counterparty dimensions
+		COUNTERPARTIES.COUNTERPARTYNAME AS CounterpartyName WITH SYNONYMS=('broker_name','trading_partner') COMMENT='Counterparty name',
+		COUNTERPARTIES.COUNTERPARTYTYPE AS CounterpartyType WITH SYNONYMS=('broker_type','partner_type') COMMENT='Counterparty type (Broker, Custodian, Prime)',
+		COUNTERPARTIES.RISKRATING AS RiskRating WITH SYNONYMS=('rating','credit_rating') COMMENT='Counterparty risk rating',
+		
+		-- Corporate action dimensions
+		CORPORATE_ACTIONS.ACTIONTYPE AS ActionType WITH SYNONYMS=('action_type','event_type') COMMENT='Corporate action type (Dividend, Split, Merger)',
+		CORPORATE_ACTIONS.EXDATE AS ExDate WITH SYNONYMS=('ex_date','ex_dividend_date') COMMENT='Ex-dividend/action date',
+		CORPORATE_ACTIONS.PAYMENTDATE AS PaymentDate WITH SYNONYMS=('payment_date','pay_date') COMMENT='Payment date',
+		
+		-- Cash movement dimensions
+		CASH_MOVEMENTS.MOVEMENTTYPE AS MovementType WITH SYNONYMS=('cash_type','flow_type') COMMENT='Cash movement type (Trade Settlement, Dividend, Fee)',
+		CASH_MOVEMENTS.MOVEMENTDATE AS MovementDate WITH SYNONYMS=('cash_date','flow_date') COMMENT='Cash movement date',
+		CASH_MOVEMENTS.MOVEMENTCURRENCY AS CURRENCY WITH SYNONYMS=('ccy','currency_code') COMMENT='Cash movement currency',
+		
+		-- Cash position dimensions
+		CASH_POSITIONS.POSITIONDATE AS PositionDate WITH SYNONYMS=('balance_date','position_balance_date') COMMENT='Cash position date',
+		CASH_POSITIONS.POSITIONCURRENCY AS CURRENCY WITH SYNONYMS=('cash_currency','balance_currency') COMMENT='Cash position currency'
 	)
 	METRICS (
 		-- Settlement metrics
@@ -830,23 +595,124 @@ CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_MIDDLE_OFFICE_V
 		
 		-- NAV metrics
 		NAV.NAV_PER_SHARE AS AVG(NAVPerShare) WITH SYNONYMS=('nav','nav_per_share','unit_nav') COMMENT='NAV per share',
-		NAV.TOTAL_ASSETS AS SUM(TotalAssets) WITH SYNONYMS=('assets','total_assets','aum') COMMENT='Total assets'
+		NAV.TOTAL_ASSETS AS SUM(TotalAssets) WITH SYNONYMS=('assets','total_assets','aum') COMMENT='Total assets',
+		
+		-- Corporate action metrics
+		CORPORATE_ACTIONS.ACTION_COUNT AS COUNT(DISTINCT ACTIONID) WITH SYNONYMS=('actions','event_count') COMMENT='Corporate action count',
+		
+		-- Cash movement metrics
+		CASH_MOVEMENTS.CASH_INFLOW AS SUM(CASE WHEN Amount > 0 THEN Amount ELSE 0 END) WITH SYNONYMS=('inflows','receipts') COMMENT='Total cash inflows',
+		CASH_MOVEMENTS.CASH_OUTFLOW AS SUM(CASE WHEN Amount < 0 THEN ABS(Amount) ELSE 0 END) WITH SYNONYMS=('outflows','payments') COMMENT='Total cash outflows',
+		CASH_MOVEMENTS.NET_CASH_FLOW AS SUM(Amount) WITH SYNONYMS=('net_flow','net_cash') COMMENT='Net cash flow',
+		
+		-- Cash position metrics
+		CASH_POSITIONS.CLOSING_BALANCE AS SUM(ClosingBalance) WITH SYNONYMS=('cash_balance','ending_balance') COMMENT='Closing cash balance',
+		CASH_POSITIONS.OPENING_BALANCE AS SUM(OpeningBalance) WITH SYNONYMS=('starting_balance','beginning_balance') COMMENT='Opening cash balance'
 	)
-	COMMENT='Middle office semantic view for operations, reconciliation, and NAV analytics'
-	WITH EXTENSION (CA='{{"tables":[{{"name":"SETTLEMENTS","metrics":[{{"name":"FAILED_SETTLEMENT_COUNT"}},{{"name":"SETTLEMENT_COUNT"}},{{"name":"SETTLEMENT_VALUE"}}],"time_dimensions":[{{"name":"settlement_date","expr":"SETTLEMENTDATE","data_type":"DATE","synonyms":["settlement_date","settle_date","trade_settle_date"],"description":"The date when trade settlement occurs (typically T+2 for equities). Use for settlement tracking and analysis."}},{{"name":"settlement_month","expr":"DATE_TRUNC(\\'MONTH\\', SETTLEMENTDATE)","data_type":"DATE","synonyms":["month","monthly","settlement_month"],"description":"Monthly aggregation for settlement trend analysis."}}]}},{{"name":"RECONCILIATIONS","metrics":[{{"name":"BREAK_COUNT"}},{{"name":"BREAK_VALUE"}},{{"name":"UNRESOLVED_BREAKS"}}],"time_dimensions":[{{"name":"reconciliation_date","expr":"RECONCILIATIONDATE","data_type":"DATE","synonyms":["recon_date","reconciliation_date","break_date"],"description":"The date when reconciliation was performed. Use for tracking reconciliation breaks over time."}},{{"name":"recon_month","expr":"DATE_TRUNC(\\'MONTH\\', RECONCILIATIONDATE)","data_type":"DATE","synonyms":["month","monthly","recon_month"],"description":"Monthly aggregation for reconciliation break trends."}}]}},{{"name":"NAV","metrics":[{{"name":"NAV_PER_SHARE"}},{{"name":"TOTAL_ASSETS"}}],"time_dimensions":[{{"name":"calculation_date","expr":"CALCULATIONDATE","data_type":"DATE","synonyms":["nav_date","valuation_date","calc_date"],"description":"The date of NAV calculation (typically end-of-day). Use for NAV history and trend analysis."}},{{"name":"nav_month","expr":"DATE_TRUNC(\\'MONTH\\', CALCULATIONDATE)","data_type":"DATE","synonyms":["month","monthly","nav_month"],"description":"Monthly aggregation for NAV performance trends."}}]}},{{"name":"PORTFOLIOS","dimensions":[{{"name":"PORTFOLIONAME"}}]}},{{"name":"SECURITIES","dimensions":[{{"name":"TICKER"}},{{"name":"DESCRIPTION"}}]}},{{"name":"CUSTODIANS","dimensions":[{{"name":"CUSTODIANNAME"}}]}}],"relationships":[{{"name":"SETTLEMENTS_TO_PORTFOLIOS"}},{{"name":"SETTLEMENTS_TO_SECURITIES"}},{{"name":"SETTLEMENTS_TO_CUSTODIANS"}},{{"name":"RECON_TO_PORTFOLIOS"}},{{"name":"RECON_TO_SECURITIES"}},{{"name":"NAV_TO_PORTFOLIOS"}}],"verified_queries":[{{"name":"failed_settlements","question":"Show me failed settlements in the last 30 days","sql":"SELECT __SETTLEMENTS.SETTLEMENTDATE, __PORTFOLIOS.PORTFOLIONAME, __SECURITIES.TICKER, __SETTLEMENTS.SETTLEMENT_VALUE FROM __SETTLEMENTS JOIN __PORTFOLIOS ON __SETTLEMENTS.PORTFOLIOID = __PORTFOLIOS.PORTFOLIOID JOIN __SECURITIES ON __SETTLEMENTS.SECURITYID = __SECURITIES.SECURITYID WHERE __SETTLEMENTS.SETTLEMENTSTATUS = \\'Failed\\' AND __SETTLEMENTS.SETTLEMENTDATE >= DATEADD(day, -30, CURRENT_DATE()) ORDER BY __SETTLEMENTS.SETTLEMENTDATE DESC","use_as_onboarding_question":true}},{{"name":"unresolved_breaks","question":"What are the unresolved reconciliation breaks?","sql":"SELECT __RECONCILIATIONS.RECONCILIATIONDATE, __PORTFOLIOS.PORTFOLIONAME, __RECONCILIATIONS.BREAKTYPE, __RECONCILIATIONS.BREAK_VALUE FROM __RECONCILIATIONS JOIN __PORTFOLIOS ON __RECONCILIATIONS.PORTFOLIOID = __PORTFOLIOS.PORTFOLIOID WHERE __RECONCILIATIONS.STATUS = \\'Open\\' ORDER BY __RECONCILIATIONS.BREAK_VALUE DESC","use_as_onboarding_question":true}},{{"name":"nav_calculation","question":"Show me the latest NAV for all portfolios","sql":"SELECT __NAV.CALCULATIONDATE, __PORTFOLIOS.PORTFOLIONAME, __NAV.NAV_PER_SHARE, __NAV.TOTAL_ASSETS FROM __NAV JOIN __PORTFOLIOS ON __NAV.PORTFOLIOID = __PORTFOLIOS.PORTFOLIOID WHERE __NAV.CALCULATIONDATE = (SELECT MAX(__NAV.CALCULATIONDATE) FROM __NAV) ORDER BY __PORTFOLIOS.PORTFOLIONAME","use_as_onboarding_question":false}}],"module_custom_instructions":{{"sql_generation":"For settlement queries, filter to most recent 30 days by default unless specified. When showing reconciliation breaks, always order by difference amount descending to show largest breaks first. For NAV queries, use the most recent calculation date when current NAV is requested. Round settlement values and break differences to 2 decimal places, NAV per share to 4 decimal places. Settlement status values: Settled, Pending, Failed. Reconciliation status values: Open, Investigating, Resolved.","question_categorization":"If users ask about \\'fails\\' or \\'failed trades\\', treat as settlement status queries. If users ask about \\'breaks\\' or \\'exceptions\\', treat as reconciliation queries. If users ask about \\'NAV\\' or \\'unit value\\', treat as NAV calculation queries."}}}}');
+	COMMENT='Middle office semantic view for operations, reconciliation, NAV, corporate actions, and cash management'
+	WITH EXTENSION (CA='{{"tables":[{{"name":"SETTLEMENTS","metrics":[{{"name":"FAILED_SETTLEMENT_COUNT"}},{{"name":"SETTLEMENT_COUNT"}},{{"name":"SETTLEMENT_VALUE"}}],"time_dimensions":[{{"name":"SettlementDate"}},{{"name":"SETTLEMENT_MONTH"}}]}},{{"name":"RECONCILIATIONS","metrics":[{{"name":"BREAK_COUNT"}},{{"name":"BREAK_VALUE"}},{{"name":"UNRESOLVED_BREAKS"}}],"time_dimensions":[{{"name":"ReconciliationDate"}},{{"name":"RECON_MONTH"}}]}},{{"name":"NAV","metrics":[{{"name":"NAV_PER_SHARE"}},{{"name":"TOTAL_ASSETS"}}],"time_dimensions":[{{"name":"CALCULATIONDATE"}},{{"name":"NAV_MONTH"}}]}},{{"name":"PORTFOLIOS","dimensions":[{{"name":"PORTFOLIONAME"}}]}},{{"name":"SECURITIES","dimensions":[{{"name":"TICKER"}},{{"name":"DESCRIPTION"}}]}},{{"name":"CUSTODIANS","dimensions":[{{"name":"CUSTODIANNAME"}}]}},{{"name":"COUNTERPARTIES","dimensions":[{{"name":"COUNTERPARTYNAME"}},{{"name":"COUNTERPARTYTYPE"}},{{"name":"RISKRATING"}}]}},{{"name":"CORPORATE_ACTIONS","metrics":[{{"name":"ACTION_COUNT"}}],"time_dimensions":[{{"name":"EXDATE"}},{{"name":"PAYMENTDATE"}}],"dimensions":[{{"name":"ACTIONTYPE"}}]}},{{"name":"CASH_MOVEMENTS","metrics":[{{"name":"CASH_INFLOW"}},{{"name":"CASH_OUTFLOW"}},{{"name":"NET_CASH_FLOW"}}],"time_dimensions":[{{"name":"MOVEMENTDATE"}}],"dimensions":[{{"name":"MOVEMENTTYPE"}},{{"name":"MOVEMENTCURRENCY"}}]}},{{"name":"CASH_POSITIONS","metrics":[{{"name":"CLOSING_BALANCE"}},{{"name":"OPENING_BALANCE"}}],"time_dimensions":[{{"name":"POSITIONDATE"}}],"dimensions":[{{"name":"POSITIONCURRENCY"}}]}}],"relationships":[{{"name":"SETTLEMENTS_TO_PORTFOLIOS"}},{{"name":"SETTLEMENTS_TO_SECURITIES"}},{{"name":"SETTLEMENTS_TO_CUSTODIANS"}},{{"name":"RECON_TO_PORTFOLIOS"}},{{"name":"RECON_TO_SECURITIES"}},{{"name":"NAV_TO_PORTFOLIOS"}},{{"name":"SETTLEMENTS_TO_COUNTERPARTIES"}},{{"name":"CORPORATE_ACTIONS_TO_SECURITIES"}},{{"name":"CASH_MOVEMENTS_TO_PORTFOLIOS"}},{{"name":"CASH_MOVEMENTS_TO_COUNTERPARTIES"}},{{"name":"CASH_POSITIONS_TO_PORTFOLIOS"}},{{"name":"CASH_POSITIONS_TO_CUSTODIANS"}}],"verified_queries":[{{"name":"settlement_summary","question":"What is the settlement summary?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_MIDDLE_OFFICE_VIEW METRICS SETTLEMENT_COUNT, SETTLEMENT_VALUE, FAILED_SETTLEMENT_COUNT)","use_as_onboarding_question":true}},{{"name":"break_summary","question":"What are the reconciliation breaks?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_MIDDLE_OFFICE_VIEW METRICS BREAK_COUNT, BREAK_VALUE, UNRESOLVED_BREAKS)","use_as_onboarding_question":true}},{{"name":"nav_summary","question":"What is the NAV?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_MIDDLE_OFFICE_VIEW METRICS NAV_PER_SHARE, TOTAL_ASSETS)","use_as_onboarding_question":false}},{{"name":"cash_summary","question":"What is the current cash position?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_MIDDLE_OFFICE_VIEW METRICS CLOSING_BALANCE)","use_as_onboarding_question":true}},{{"name":"corporate_actions","question":"What corporate actions are pending?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_MIDDLE_OFFICE_VIEW METRICS ACTION_COUNT DIMENSIONS ACTIONTYPE)","use_as_onboarding_question":false}}],"module_custom_instructions":{{"sql_generation":"IMPORTANT DATE HANDLING: The data is anchored to the latest available market data date, NOT CURRENT_DATE. When users ask about today, current, or recent data, use the maximum available date in each table as the reference point. For past N days queries, calculate relative to the maximum date: e.g., for settlements use (SELECT MAX(SettlementDate) FROM SETTLEMENTS) as the anchor, then filter SettlementDate >= DATEADD(day, -N, anchor_date). For future or upcoming queries (like pending corporate actions), filter where ExDate > (SELECT MAX(SettlementDate) FROM SETTLEMENTS). Never use CURRENT_DATE() directly - always derive dates from the data. For settlement queries, filter to most recent 30 days relative to MAX(SettlementDate) by default. When showing reconciliation breaks, always order by difference amount descending to show largest breaks first. For NAV queries, use the most recent calculation date when current NAV is requested. Round settlement values and break differences to 2 decimal places, NAV per share to 4 decimal places. Settlement status values: Settled, Pending, Failed. Reconciliation status values: Open, Investigating, Resolved. For cash queries, show closing balance by default using MAX(PositionDate). For corporate actions, filter ExDate > MAX(SettlementDate) from settlements when asking about pending/upcoming actions.","question_categorization":"If users ask about \\'fails\\' or \\'failed trades\\', treat as settlement status queries. If users ask about \\'breaks\\' or \\'exceptions\\', treat as reconciliation queries. If users ask about \\'NAV\\' or \\'unit value\\', treat as NAV calculation queries. If users ask about \\'cash\\' or \\'liquidity\\', treat as cash position queries. If users ask about \\'dividends\\', \\'splits\\', or \\'corporate actions\\', treat as corporate action queries. If users ask about \\'counterparty\\' or \\'broker\\', include counterparty dimension in response. When users say \\'today\\' or \\'current\\', interpret as the maximum available date in the relevant table, not the actual current date."}}}}');
     """).collect()
     
-    config.log_detail(" Created semantic view: SAM_MIDDLE_OFFICE_VIEW")
+    log_detail(" Created semantic view: SAM_MIDDLE_OFFICE_VIEW")
+
+
+def create_compliance_semantic_view(session: Session):
+    """
+    Create semantic view for compliance monitoring and breach tracking.
+    
+    Used by: Compliance Advisor for breach queries and remediation tracking
+    Supports: Concentration breaches, ESG violations, alert history, remediation status
+    """
+    
+    # Check if compliance alerts table exists
+    try:
+        session.sql(f"SELECT 1 FROM {config.DATABASE['name']}.CURATED.FACT_COMPLIANCE_ALERTS LIMIT 1").collect()
+    except:
+        log_detail("  Skipping SAM_COMPLIANCE_VIEW - FACT_COMPLIANCE_ALERTS table not found")
+        return
+    
+    session.sql(f"""
+CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_COMPLIANCE_VIEW
+    TABLES (
+        ALERTS AS {config.DATABASE['name']}.CURATED.FACT_COMPLIANCE_ALERTS
+            PRIMARY KEY (ALERTID)
+            WITH SYNONYMS=('breaches','violations','compliance_alerts','warnings','alerts')
+            COMMENT='Compliance alerts including concentration breaches, ESG violations, and mandate compliance issues',
+        PORTFOLIOS AS {config.DATABASE['name']}.CURATED.DIM_PORTFOLIO
+            PRIMARY KEY (PORTFOLIOID)
+            WITH SYNONYMS=('funds','portfolios','strategies')
+            COMMENT='Portfolio information',
+        SECURITIES AS {config.DATABASE['name']}.CURATED.DIM_SECURITY
+            PRIMARY KEY (SECURITYID)
+            WITH SYNONYMS=('securities','stocks','instruments','holdings')
+            COMMENT='Security master data'
+    )
+    RELATIONSHIPS (
+        ALERTS_TO_PORTFOLIOS AS ALERTS(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID),
+        ALERTS_TO_SECURITIES AS ALERTS(SECURITYID) REFERENCES SECURITIES(SECURITYID)
+    )
+    DIMENSIONS (
+        -- Portfolio dimensions (SemanticName AS DatabaseColumn)
+        PORTFOLIOS.PortfolioName AS PORTFOLIONAME WITH SYNONYMS=('fund_name','portfolio_name','fund') COMMENT='Portfolio name',
+        PORTFOLIOS.Strategy AS STRATEGY WITH SYNONYMS=('investment_strategy','portfolio_strategy') COMMENT='Investment strategy',
+        
+        -- Security dimensions (SemanticName AS DatabaseColumn)
+        SECURITIES.Ticker AS TICKER WITH SYNONYMS=('ticker_symbol','symbol','stock') COMMENT='Trading ticker',
+        SECURITIES.SecurityName AS DESCRIPTION WITH SYNONYMS=('company_name','security_name','company') COMMENT='Security/company name',
+        
+        -- Alert dimensions (SemanticName AS DatabaseColumn)
+        ALERTS.AlertDate AS ALERTDATE WITH SYNONYMS=('breach_date','violation_date','detection_date','date') COMMENT='Date the alert/breach was detected',
+        ALERTS.ALERT_MONTH AS DATE_TRUNC('MONTH', ALERTDATE) WITH SYNONYMS=('month','monthly') COMMENT='Monthly aggregation for breach trend analysis',
+        ALERTS.AlertType AS ALERTTYPE WITH SYNONYMS=('breach_type','violation_type','issue_type') COMMENT='Type of compliance alert: CONCENTRATION_BREACH, CONCENTRATION_WARNING, ESG_DOWNGRADE',
+        ALERTS.Severity AS ALERTSEVERITY WITH SYNONYMS=('alert_severity','breach_severity','priority','level') COMMENT='Alert severity: WARNING or BREACH',
+        ALERTS.ThresholdValue AS ORIGINALVALUE WITH SYNONYMS=('limit','threshold','original_value','limit_value') COMMENT='The policy threshold or original value that was breached',
+        ALERTS.CurrentValue AS CURRENTVALUE WITH SYNONYMS=('actual_value','current_level','position_weight') COMMENT='The current value that triggered the breach',
+        ALERTS.RequiresAction AS REQUIRESACTION WITH SYNONYMS=('needs_action','action_required','pending_action') COMMENT='Whether this alert requires remediation action',
+        ALERTS.ActionDeadline AS ACTIONDEADLINE WITH SYNONYMS=('deadline','due_date','remediation_deadline') COMMENT='Deadline for remediation action (typically 30 days from alert)',
+        ALERTS.Description AS ALERTDESCRIPTION WITH SYNONYMS=('alert_description','breach_description','details') COMMENT='Detailed description of the compliance alert',
+        ALERTS.ResolvedDate AS RESOLVEDDATE WITH SYNONYMS=('resolution_date','closed_date','remediated_date') COMMENT='Date the alert was resolved (NULL if still active)',
+        ALERTS.ResolvedBy AS RESOLVEDBY WITH SYNONYMS=('resolved_by','remediated_by','closed_by') COMMENT='Person who resolved the alert',
+        ALERTS.ResolutionNotes AS RESOLUTIONNOTES WITH SYNONYMS=('resolution_notes','remediation_notes','action_taken') COMMENT='Notes on how the alert was resolved'
+    )
+    METRICS (
+        -- Alert counts
+        ALERTS.TOTAL_ALERTS AS COUNT(DISTINCT ALERTID) WITH SYNONYMS=('alert_count','total_breaches','issue_count') COMMENT='Total count of compliance alerts',
+        ALERTS.ACTIVE_ALERTS AS COUNT(CASE WHEN RESOLVEDDATE IS NULL THEN 1 END) WITH SYNONYMS=('open_alerts','unresolved_alerts','active_breaches','pending_alerts') COMMENT='Count of active/unresolved alerts',
+        ALERTS.RESOLVED_ALERTS AS COUNT(CASE WHEN RESOLVEDDATE IS NOT NULL THEN 1 END) WITH SYNONYMS=('closed_alerts','resolved_breaches','remediated_alerts') COMMENT='Count of resolved alerts',
+        ALERTS.BREACH_COUNT AS COUNT(CASE WHEN ALERTSEVERITY = 'BREACH' THEN 1 END) WITH SYNONYMS=('breaches','breach_count','violations') COMMENT='Count of breaches (severity = BREACH)',
+        ALERTS.WARNING_COUNT AS COUNT(CASE WHEN ALERTSEVERITY = 'WARNING' THEN 1 END) WITH SYNONYMS=('warnings','warning_count') COMMENT='Count of warnings (severity = WARNING)',
+        
+        -- Concentration-specific metrics
+        ALERTS.CONCENTRATION_BREACHES AS COUNT(CASE WHEN ALERTTYPE = 'CONCENTRATION_BREACH' THEN 1 END) WITH SYNONYMS=('position_breaches','concentration_violations') COMMENT='Count of concentration breach alerts',
+        ALERTS.CONCENTRATION_WARNINGS AS COUNT(CASE WHEN ALERTTYPE = 'CONCENTRATION_WARNING' THEN 1 END) WITH SYNONYMS=('position_warnings') COMMENT='Count of concentration warning alerts',
+        
+        -- ESG-specific metrics  
+        ALERTS.ESG_VIOLATIONS AS COUNT(CASE WHEN ALERTTYPE = 'ESG_DOWNGRADE' THEN 1 END) WITH SYNONYMS=('esg_breaches','esg_downgrades') COMMENT='Count of ESG-related violations',
+        
+        -- Time-based metrics
+        ALERTS.DAYS_SINCE_ALERT AS DATEDIFF(day, MIN(ALERTDATE), CURRENT_DATE()) WITH SYNONYMS=('alert_age','days_outstanding','time_open') COMMENT='Days since earliest alert in selection',
+        ALERTS.DAYS_TO_DEADLINE AS DATEDIFF(day, CURRENT_DATE(), MIN(ACTIONDEADLINE)) WITH SYNONYMS=('days_remaining','time_to_deadline') COMMENT='Days until earliest action deadline'
+    )
+    COMMENT='Compliance semantic view for monitoring concentration breaches, ESG violations, and mandate compliance tracking'
+    WITH EXTENSION (CA='{{"tables":[{{"name":"ALERTS","metrics":[{{"name":"TOTAL_ALERTS"}},{{"name":"ACTIVE_ALERTS"}},{{"name":"BREACH_COUNT"}},{{"name":"WARNING_COUNT"}}],"time_dimensions":[{{"name":"AlertDate"}},{{"name":"ALERT_MONTH"}}]}},{{"name":"PORTFOLIOS","dimensions":[{{"name":"PortfolioName"}},{{"name":"Strategy"}}]}},{{"name":"SECURITIES","dimensions":[{{"name":"Ticker"}},{{"name":"SecurityName"}}]}}],"relationships":[{{"name":"ALERTS_TO_PORTFOLIOS"}},{{"name":"ALERTS_TO_SECURITIES"}}],"verified_queries":[{{"name":"alert_summary","question":"What are the compliance alerts?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_COMPLIANCE_VIEW METRICS TOTAL_ALERTS, ACTIVE_ALERTS, BREACH_COUNT, WARNING_COUNT)","use_as_onboarding_question":true}}],"module_custom_instructions":{{"sql_generation":"For breach queries, filter to last 30 days by default unless a specific time period is requested. Always show both active and resolved breaches unless the user specifically asks for one. When showing breaches, include the threshold value and current value to show the extent of the breach. Order by alert date descending (most recent first) unless otherwise specified. Alert severity values: WARNING, BREACH. Alert types: CONCENTRATION_BREACH, CONCENTRATION_WARNING, ESG_DOWNGRADE. Active alerts have RESOLVEDDATE IS NULL.","question_categorization":"If users ask about \\'breaches\\' or \\'violations\\', treat as compliance alert queries. If users mention \\'concentration\\', filter to CONCENTRATION_BREACH or CONCENTRATION_WARNING alert types. If users mention \\'ESG\\', filter to ESG_DOWNGRADE alert type. If users ask about \\'active\\' or \\'pending\\' alerts, filter where RESOLVEDDATE IS NULL."}}}}');
+    """).collect()
+    
+    log_detail(" Created semantic view: SAM_COMPLIANCE_VIEW")
+
 
 def create_executive_semantic_view(session: Session):
     """
-    Create semantic view for executive KPIs, client analytics, and firm-wide performance.
+    Create semantic view for executive KPIs, client analytics, strategy performance, and firm-wide metrics.
     
     Used by: Executive Copilot for C-suite queries
-    Supports: Firm-wide AUM, net flows, client flow drill-down, strategy performance
+    Supports: Firm-wide AUM (from holdings), net flows, client flow drill-down, strategy performance (QTD/YTD)
+    
+    Key Distinction:
+    - FIRM_AUM: Calculated from actual portfolio holdings (authoritative for board reporting)
+    - TOTAL_CLIENT_AUM: Sum of client-reported AUM (may differ due to reporting timing)
     
     Reuses: DIM_PORTFOLIO (existing), DIM_CLIENT_MANDATES (existing)
-    New: DIM_CLIENT, FACT_CLIENT_FLOWS, FACT_FUND_FLOWS
+    New: DIM_CLIENT, FACT_CLIENT_FLOWS, FACT_FUND_FLOWS, FACT_STRATEGY_PERFORMANCE
     """
     
     # Check if required tables exist
@@ -854,16 +720,18 @@ def create_executive_semantic_view(session: Session):
         'DIM_CLIENT',
         'FACT_CLIENT_FLOWS',
         'FACT_FUND_FLOWS',
-        'DIM_PORTFOLIO'
+        'DIM_PORTFOLIO',
+        'FACT_STRATEGY_PERFORMANCE'
     ]
     
     for table in required_tables:
         try:
             session.sql(f"SELECT 1 FROM {config.DATABASE['name']}.CURATED.{table} LIMIT 1").collect()
         except:
-            config.log_warning(f" Executive table {table} not found, skipping executive view creation")
+            log_warning(f" Executive table {table} not found, skipping executive view creation")
             return
     
+    # Build the semantic view using the same inline f-string pattern as other views
     session.sql(f"""
 CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_EXECUTIVE_VIEW
     TABLES (
@@ -882,12 +750,17 @@ CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_EXECUTIVE_VIEW
         PORTFOLIOS AS {config.DATABASE['name']}.CURATED.DIM_PORTFOLIO
             PRIMARY KEY (PORTFOLIOID) 
             WITH SYNONYMS=('funds','strategies','mandates','portfolios') 
-            COMMENT='Investment portfolios and fund information'
+            COMMENT='Investment portfolios and fund information',
+        STRATEGY_PERF AS {config.DATABASE['name']}.CURATED.FACT_STRATEGY_PERFORMANCE
+            PRIMARY KEY (STRATEGYPERFID)
+            WITH SYNONYMS=('strategy_performance','performance','returns','strategy_returns')
+            COMMENT='Strategy-level performance metrics including AUM, MTD/QTD/YTD returns calculated from portfolio holdings'
     )
     RELATIONSHIPS (
         CLIENT_FLOWS_TO_CLIENTS AS CLIENT_FLOWS(CLIENTID) REFERENCES CLIENTS(CLIENTID),
         CLIENT_FLOWS_TO_PORTFOLIOS AS CLIENT_FLOWS(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID),
-        FUND_FLOWS_TO_PORTFOLIOS AS FUND_FLOWS(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID)
+        FUND_FLOWS_TO_PORTFOLIOS AS FUND_FLOWS(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID),
+        STRATEGY_PERF_TO_PORTFOLIOS AS STRATEGY_PERF(PORTFOLIOID) REFERENCES PORTFOLIOS(PORTFOLIOID)
     )
     DIMENSIONS (
         -- Client dimensions
@@ -905,76 +778,90 @@ CREATE OR REPLACE SEMANTIC VIEW {config.DATABASE['name']}.AI.SAM_EXECUTIVE_VIEW
         
         -- Time dimensions
         CLIENT_FLOWS.ClientFlowDate AS FlowDate WITH SYNONYMS=('flow_date','transaction_date') COMMENT='Date of client flow transaction',
-        FUND_FLOWS.FundFlowDate AS FlowDate WITH SYNONYMS=('fund_flow_date','aggregated_date') COMMENT='Date of aggregated fund flows'
+        CLIENT_FLOWS.FLOW_MONTH AS DATE_TRUNC('MONTH', FlowDate) WITH SYNONYMS=('monthly','flow_month') COMMENT='Monthly aggregation for flow trend analysis',
+        FUND_FLOWS.FundFlowDate AS FlowDate WITH SYNONYMS=('fund_flow_date','aggregated_date') COMMENT='Date of aggregated fund flows',
+        FUND_FLOWS.FUND_FLOW_MONTH AS DATE_TRUNC('MONTH', FlowDate) WITH SYNONYMS=('fund_month','monthly') COMMENT='Monthly aggregation for fund flow trends',
+        STRATEGY_PERF.PerformanceDate AS HoldingDate WITH SYNONYMS=('performance_date','valuation_date','as_of_date') COMMENT='Date of strategy performance valuation',
+        STRATEGY_PERF.PERF_MONTH AS DATE_TRUNC('MONTH', HoldingDate) WITH SYNONYMS=('perf_month','monthly') COMMENT='Monthly aggregation for performance trends'
     )
     METRICS (
         -- Client AUM metrics
-        CLIENTS.TOTAL_CLIENT_AUM AS SUM(AUM_with_SAM) WITH SYNONYMS=('client_aum','total_client_assets','assets_under_management') COMMENT='Total AUM from clients',
+        CLIENTS.TOTAL_CLIENT_AUM AS SUM(AUM_with_SAM) WITH SYNONYMS=('client_aum','total_client_assets','reported_aum') COMMENT='Total AUM from client reports. Note: Use FIRM_AUM for authoritative holdings-based AUM.',
         CLIENTS.CLIENT_COUNT AS COUNT(DISTINCT ClientID) WITH SYNONYMS=('number_of_clients','client_count','investor_count') COMMENT='Count of institutional clients',
-        CLIENTS.AVG_CLIENT_SIZE AS AVG(AUM_with_SAM) WITH SYNONYMS=('average_client_size','avg_aum','typical_client_size') COMMENT='Average client AUM',
+        CLIENTS.AVG_CLIENT_SIZE AS AVG(AUM_with_SAM) WITH SYNONYMS=('average_client_size','avg_client_aum','typical_client_size') COMMENT='Average client AUM',
         
-        -- Client flow metrics (detailed)
-        CLIENT_FLOWS.TOTAL_FLOW_AMOUNT AS SUM(FlowAmount) WITH SYNONYMS=('net_flows','total_flows','flow_amount') COMMENT='Net flow amount (positive = inflow, negative = outflow)',
+        -- Client flow metrics
+        CLIENT_FLOWS.TOTAL_FLOW_AMOUNT AS SUM(FlowAmount) WITH SYNONYMS=('net_flows','total_flows','flow_amount','position','position_value','invested_amount','cumulative_position','allocation','client_allocation') COMMENT='Net flow amount representing cumulative client position (positive = inflow/position, negative = outflow)',
         CLIENT_FLOWS.GROSS_INFLOWS AS SUM(CASE WHEN FlowAmount > 0 THEN FlowAmount ELSE 0 END) WITH SYNONYMS=('inflows','subscriptions','gross_inflows') COMMENT='Gross subscription inflows',
         CLIENT_FLOWS.GROSS_OUTFLOWS AS SUM(CASE WHEN FlowAmount < 0 THEN ABS(FlowAmount) ELSE 0 END) WITH SYNONYMS=('outflows','redemptions','gross_outflows') COMMENT='Gross redemption outflows',
         CLIENT_FLOWS.FLOW_TRANSACTION_COUNT AS COUNT(FlowID) WITH SYNONYMS=('flow_count','transaction_count','number_of_flows') COMMENT='Number of flow transactions',
+        CLIENT_FLOWS.MAX_SINGLE_CLIENT_FLOW AS MAX(ABS(FlowAmount)) WITH SYNONYMS=('largest_flow','max_flow','biggest_transaction') COMMENT='Largest single client flow',
         
-        -- Fund flow metrics (aggregated for KPIs)
+        -- Fund flow metrics
         FUND_FLOWS.FUND_NET_FLOWS AS SUM(NetFlows) WITH SYNONYMS=('net_fund_flows','strategy_net_flows','portfolio_net_flows') COMMENT='Net flows at fund/strategy level',
         FUND_FLOWS.FUND_GROSS_INFLOWS AS SUM(GrossInflows) WITH SYNONYMS=('fund_inflows','strategy_inflows') COMMENT='Gross inflows at fund level',
         FUND_FLOWS.FUND_GROSS_OUTFLOWS AS SUM(GrossOutflows) WITH SYNONYMS=('fund_outflows','strategy_outflows') COMMENT='Gross outflows at fund level',
         FUND_FLOWS.FUND_CLIENT_COUNT AS SUM(ClientCount) WITH SYNONYMS=('active_clients','contributing_clients') COMMENT='Number of clients with flows',
         
-        -- Flow concentration metrics
-        CLIENT_FLOWS.MAX_SINGLE_CLIENT_FLOW AS MAX(ABS(FlowAmount)) WITH SYNONYMS=('largest_flow','max_flow','biggest_transaction') COMMENT='Largest single client flow'
+        -- Strategy AUM metrics
+        STRATEGY_PERF.STRATEGY_AUM AS SUM(Strategy_AUM) WITH SYNONYMS=('strategy_aum','portfolio_aum','fund_aum','strategy_assets','firm_aum','total_aum','assets_under_management','firm_assets','aum') COMMENT='AUM by strategy/portfolio calculated from holdings. When not grouped by strategy, gives total firm AUM.',
+        STRATEGY_PERF.STRATEGY_MTD_RETURN AS AVG(Strategy_MTD_Return) WITH SYNONYMS=('mtd_return','monthly_return','month_to_date_return','mtd_performance') COMMENT='Strategy month-to-date return percentage (weighted average from holdings)',
+        STRATEGY_PERF.STRATEGY_QTD_RETURN AS AVG(Strategy_QTD_Return) WITH SYNONYMS=('qtd_return','quarterly_return','quarter_to_date_return','qtd_performance') COMMENT='Strategy quarter-to-date return percentage (weighted average from holdings)',
+        STRATEGY_PERF.STRATEGY_YTD_RETURN AS AVG(Strategy_YTD_Return) WITH SYNONYMS=('ytd_return','annual_return','year_to_date_return','ytd_performance') COMMENT='Strategy year-to-date return percentage (weighted average from holdings)',
+        STRATEGY_PERF.STRATEGY_HOLDING_COUNT AS SUM(Holding_Count) WITH SYNONYMS=('holdings','position_count','number_of_holdings') COMMENT='Total holdings count by strategy'
     )
-    COMMENT='Executive semantic view for firm-wide KPIs, client analytics, and flow analysis. Use for C-suite performance reviews and strategic planning.'
-    WITH EXTENSION (CA='{{"tables":[{{"name":"CLIENTS","metrics":[{{"name":"AVG_CLIENT_SIZE"}},{{"name":"CLIENT_COUNT"}},{{"name":"TOTAL_CLIENT_AUM"}}]}},{{"name":"CLIENT_FLOWS","metrics":[{{"name":"FLOW_TRANSACTION_COUNT"}},{{"name":"GROSS_INFLOWS"}},{{"name":"GROSS_OUTFLOWS"}},{{"name":"MAX_SINGLE_CLIENT_FLOW"}},{{"name":"TOTAL_FLOW_AMOUNT"}}],"time_dimensions":[{{"name":"ClientFlowDate","expr":"FlowDate","data_type":"DATE","synonyms":["flow_date","transaction_date","subscription_date"],"description":"Date of client flow transaction. Use for flow trend analysis."}},{{"name":"flow_month","expr":"DATE_TRUNC(\\'MONTH\\', FlowDate)","data_type":"DATE","synonyms":["month","monthly","flow_month"],"description":"Monthly aggregation for flow trend analysis."}}]}},{{"name":"FUND_FLOWS","metrics":[{{"name":"FUND_CLIENT_COUNT"}},{{"name":"FUND_GROSS_INFLOWS"}},{{"name":"FUND_GROSS_OUTFLOWS"}},{{"name":"FUND_NET_FLOWS"}}],"time_dimensions":[{{"name":"FundFlowDate","expr":"FlowDate","data_type":"DATE","synonyms":["fund_date","aggregated_date"],"description":"Date of aggregated fund flows."}},{{"name":"fund_flow_month","expr":"DATE_TRUNC(\\'MONTH\\', FlowDate)","data_type":"DATE","synonyms":["month","monthly"],"description":"Monthly aggregation for fund flow trends."}}]}},{{"name":"PORTFOLIOS","dimensions":[{{"name":"PortfolioName"}},{{"name":"Strategy"}}]}}],"relationships":[{{"name":"CLIENT_FLOWS_TO_CLIENTS"}},{{"name":"CLIENT_FLOWS_TO_PORTFOLIOS"}},{{"name":"FUND_FLOWS_TO_PORTFOLIOS"}}],"verified_queries":[{{"name":"firm_kpis_mtd","question":"What are the key performance highlights for the firm month-to-date?","sql":"SELECT SUM(__FUND_FLOWS.NetFlows) as NET_FLOWS_MTD, SUM(__FUND_FLOWS.GrossInflows) as GROSS_INFLOWS_MTD, SUM(__FUND_FLOWS.GrossOutflows) as GROSS_OUTFLOWS_MTD, SUM(__FUND_FLOWS.ClientCount) as ACTIVE_CLIENTS FROM __FUND_FLOWS WHERE __FUND_FLOWS.FlowDate >= DATE_TRUNC(\\'MONTH\\', CURRENT_DATE())","use_as_onboarding_question":true}},{{"name":"flows_by_strategy","question":"Which strategies are seeing the strongest inflows?","sql":"SELECT __FUND_FLOWS.Strategy, SUM(__FUND_FLOWS.NetFlows) as NET_FLOWS, SUM(__FUND_FLOWS.GrossInflows) as GROSS_INFLOWS FROM __FUND_FLOWS WHERE __FUND_FLOWS.FlowDate >= DATE_TRUNC(\\'MONTH\\', CURRENT_DATE()) GROUP BY __FUND_FLOWS.Strategy ORDER BY NET_FLOWS DESC","use_as_onboarding_question":true}},{{"name":"client_flow_drilldown","question":"What clients are driving the inflows for a specific strategy?","sql":"SELECT __CLIENTS.ClientName, __CLIENTS.ClientType, SUM(__CLIENT_FLOWS.FlowAmount) as TOTAL_FLOW FROM __CLIENT_FLOWS JOIN __CLIENTS ON __CLIENT_FLOWS.ClientID = __CLIENTS.ClientID JOIN __PORTFOLIOS ON __CLIENT_FLOWS.PortfolioID = __PORTFOLIOS.PortfolioID WHERE __PORTFOLIOS.Strategy = \\'ESG\\' AND __CLIENT_FLOWS.FlowDate >= DATE_TRUNC(\\'MONTH\\', CURRENT_DATE()) GROUP BY __CLIENTS.ClientName, __CLIENTS.ClientType ORDER BY TOTAL_FLOW DESC","use_as_onboarding_question":false}},{{"name":"client_concentration","question":"Is the flow from one large client or broad-based demand?","sql":"SELECT __CLIENTS.ClientName, __CLIENTS.ClientType, SUM(__CLIENT_FLOWS.FlowAmount) as FLOW_AMOUNT, COUNT(*) as TRANSACTION_COUNT FROM __CLIENT_FLOWS JOIN __CLIENTS ON __CLIENT_FLOWS.ClientID = __CLIENTS.ClientID WHERE __CLIENT_FLOWS.FlowDate >= DATE_TRUNC(\\'MONTH\\', CURRENT_DATE()) AND __CLIENT_FLOWS.FlowAmount > 0 GROUP BY __CLIENTS.ClientName, __CLIENTS.ClientType ORDER BY FLOW_AMOUNT DESC","use_as_onboarding_question":false}}],"module_custom_instructions":{{"sql_generation":"For month-to-date queries, filter to current month using DATE_TRUNC(\\'MONTH\\', CURRENT_DATE()). When showing flows, always display both gross inflows and outflows alongside net flows for context. For client concentration analysis, show the count of distinct clients alongside flow amounts. Round flow amounts to nearest thousand for readability. When asked about \\'driving\\' flows, drill down to client level using CLIENT_FLOWS table.","question_categorization":"If users ask about \\'firm performance\\' or \\'KPIs\\', use FUND_FLOWS for aggregated metrics. If users ask about \\'what\\'s driving\\' or \\'client concentration\\', drill down to CLIENT_FLOWS. If users ask about \\'broad-based\\' demand, count distinct clients."}}}}');
-    """).collect()
+    COMMENT='Executive semantic view for firm-wide KPIs, client analytics, strategy performance, and flow analysis. Use for C-suite performance reviews and board reporting. FIRM_AUM is the authoritative AUM from holdings; TOTAL_CLIENT_AUM is client-reported.'
+    WITH EXTENSION (CA='{{"tables":[{{"name":"CLIENTS","metrics":[{{"name":"AVG_CLIENT_SIZE"}},{{"name":"CLIENT_COUNT"}},{{"name":"TOTAL_CLIENT_AUM"}}]}},{{"name":"CLIENT_FLOWS","metrics":[{{"name":"FLOW_TRANSACTION_COUNT"}},{{"name":"GROSS_INFLOWS"}},{{"name":"GROSS_OUTFLOWS"}},{{"name":"MAX_SINGLE_CLIENT_FLOW"}},{{"name":"TOTAL_FLOW_AMOUNT"}}],"time_dimensions":[{{"name":"ClientFlowDate"}},{{"name":"FLOW_MONTH"}}]}},{{"name":"FUND_FLOWS","metrics":[{{"name":"FUND_CLIENT_COUNT"}},{{"name":"FUND_GROSS_INFLOWS"}},{{"name":"FUND_GROSS_OUTFLOWS"}},{{"name":"FUND_NET_FLOWS"}}],"time_dimensions":[{{"name":"FundFlowDate"}},{{"name":"FUND_FLOW_MONTH"}}]}},{{"name":"PORTFOLIOS","dimensions":[{{"name":"PortfolioName"}},{{"name":"Strategy"}}]}},{{"name":"STRATEGY_PERF","metrics":[{{"name":"STRATEGY_AUM"}},{{"name":"STRATEGY_MTD_RETURN"}},{{"name":"STRATEGY_QTD_RETURN"}},{{"name":"STRATEGY_YTD_RETURN"}},{{"name":"STRATEGY_HOLDING_COUNT"}}],"time_dimensions":[{{"name":"PerformanceDate"}},{{"name":"PERF_MONTH"}}]}}],"relationships":[{{"name":"CLIENT_FLOWS_TO_CLIENTS"}},{{"name":"CLIENT_FLOWS_TO_PORTFOLIOS"}},{{"name":"FUND_FLOWS_TO_PORTFOLIOS"}},{{"name":"STRATEGY_PERF_TO_PORTFOLIOS"}}],"verified_queries":[{{"name":"total_fund_flows","question":"What are the total fund flows?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_EXECUTIVE_VIEW METRICS FUND_NET_FLOWS, FUND_GROSS_INFLOWS, FUND_GROSS_OUTFLOWS)","use_as_onboarding_question":true}},{{"name":"client_aum","question":"What is the total client AUM?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_EXECUTIVE_VIEW METRICS TOTAL_CLIENT_AUM, CLIENT_COUNT)","use_as_onboarding_question":true}},{{"name":"client_flows","question":"What are the client flow totals?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_EXECUTIVE_VIEW METRICS TOTAL_FLOW_AMOUNT, GROSS_INFLOWS, GROSS_OUTFLOWS)","use_as_onboarding_question":false}},{{"name":"firm_aum","question":"What is the firm AUM?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_EXECUTIVE_VIEW METRICS STRATEGY_AUM DIMENSIONS Strategy)","use_as_onboarding_question":true}},{{"name":"strategy_performance","question":"What is the performance by strategy?","sql":"SELECT * FROM SEMANTIC_VIEW({config.DATABASE['name']}.AI.SAM_EXECUTIVE_VIEW METRICS STRATEGY_AUM, STRATEGY_QTD_RETURN, STRATEGY_YTD_RETURN DIMENSIONS Strategy)","use_as_onboarding_question":true}}],"module_custom_instructions":{{"sql_generation":"For month-to-date queries, filter to current month using DATE_TRUNC(\\'MONTH\\', CURRENT_DATE()). When showing flows, always display both gross inflows and outflows alongside net flows for context. For client concentration analysis, show the count of distinct clients alongside flow amounts. Round flow amounts to nearest thousand for readability. When asked about \\'driving\\' flows, drill down to client level using CLIENT_FLOWS table. For client allocation or position questions, TOTAL_FLOW_AMOUNT represents the client invested position in each portfolio. Group by PortfolioName to show which portfolios a client invests in. For current holdings queries, filter to positive positions (TOTAL_FLOW_AMOUNT > 0). EXCEPTION for at-risk clients or redemption analysis: When analyzing clients with redemption patterns, declining flows, or at-risk status, do NOT filter to positive positions - show full flow history including zero or negative cumulative positions, as these clients may have fully or partially redeemed. Include GROSS_INFLOWS and GROSS_OUTFLOWS to show complete transaction history. IMPORTANT AUM DISTINCTION: STRATEGY_AUM (from STRATEGY_PERF) when summed across all strategies gives the authoritative firm AUM calculated from actual portfolio holdings - use this for board and executive reporting. TOTAL_CLIENT_AUM (from CLIENTS) is the sum of client-reported AUM which may differ due to reporting timing. For strategy performance queries, filter STRATEGY_PERF to the latest HoldingDate. When asked about top/bottom performing strategies, order by STRATEGY_QTD_RETURN or STRATEGY_YTD_RETURN.","question_categorization":"If users ask about \\'firm performance\\' or \\'KPIs\\', use FUND_FLOWS for aggregated metrics. If users ask about \\'what is driving\\' or \\'client concentration\\', drill down to CLIENT_FLOWS. If users ask about \\'broad-based\\' demand, count distinct clients. If users ask about client allocation, portfolio distribution, or which portfolios a client invests in, use CLIENT_FLOWS grouped by portfolio with positive position filter. For \\'firm AUM\\' or \\'total AUM\\' questions, use STRATEGY_AUM from STRATEGY_PERF summed across all strategies (not TOTAL_CLIENT_AUM). For \\'strategy performance\\', \\'top performing\\', or \\'returns by strategy\\' questions, use STRATEGY_QTD_RETURN and STRATEGY_YTD_RETURN from STRATEGY_PERF."}}}}');
+        """).collect()
     
-    config.log_detail(" Created semantic view: SAM_EXECUTIVE_VIEW")
+    log_detail(" Created semantic view: SAM_EXECUTIVE_VIEW")
 
 
 def create_fundamentals_semantic_view(session: Session):
     """Create fundamentals semantic view for MARKET_DATA financial analysis (SAM_FUNDAMENTALS_VIEW).
     
     This semantic view provides access to:
-    - Company financial statements (revenue, margins, earnings)
+    - Real SEC company financial statements (revenue, margins, earnings) from FACT_SEC_FINANCIALS
     - Analyst estimates and consensus data
     - Price targets and ratings
     - Historical financial trends
+    - Investment memo metrics (TAM, Customer Count, NRR) calculated heuristically from real data
+    
+    NOTE: Now uses FACT_SEC_FINANCIALS (real SEC data) instead of synthetic FACT_FINANCIAL_DATA.
     """
     
     database_name = config.DATABASE['name']
     market_data_schema = config.DATABASE['schemas'].get('market_data', 'MARKET_DATA')
     
-    # First check if MARKET_DATA tables exist
+    curated_schema = config.DATABASE['schemas'].get('curated', 'CURATED')
+    
+    # First check if DIM_ISSUER exists (used as company master)
     try:
-        session.sql(f"SELECT 1 FROM {database_name}.{market_data_schema}.DIM_COMPANY LIMIT 1").collect()
+        session.sql(f"SELECT 1 FROM {database_name}.{curated_schema}.DIM_ISSUER LIMIT 1").collect()
     except Exception as e:
-        config.log_warning(f"  MARKET_DATA tables not found, skipping SAM_FUNDAMENTALS_VIEW")
-        config.log_warning(f"Run with --scope structured to generate MARKET_DATA tables first")
+        log_warning(f"  DIM_ISSUER not found, skipping SAM_FUNDAMENTALS_VIEW")
+        log_warning(f"Run with --scope structured to generate CURATED tables first")
+        return
+    
+    # Check if FACT_SEC_FINANCIALS exists (required for this view)
+    try:
+        session.sql(f"SELECT 1 FROM {database_name}.{market_data_schema}.FACT_SEC_FINANCIALS LIMIT 1").collect()
+    except Exception as e:
+        log_warning(f"  FACT_SEC_FINANCIALS not found, skipping SAM_FUNDAMENTALS_VIEW")
+        log_warning(f"Run with --scope real-data to generate real SEC data first")
         return
     
     session.sql(f"""
 CREATE OR REPLACE SEMANTIC VIEW {database_name}.AI.SAM_FUNDAMENTALS_VIEW
     TABLES (
-        COMPANIES AS {database_name}.{market_data_schema}.DIM_COMPANY
-            PRIMARY KEY (COMPANY_ID) 
+        ISSUERS AS {database_name}.{curated_schema}.DIM_ISSUER
+            PRIMARY KEY (IssuerID) 
             WITH SYNONYMS=('companies','firms','corporations','issuers') 
-            COMMENT='Company master data from market data provider',
-        FINANCIAL_PERIODS AS {database_name}.{market_data_schema}.FACT_FINANCIAL_PERIOD
-            PRIMARY KEY (PERIOD_ID)
-            WITH SYNONYMS=('periods','quarters','fiscal_periods')
-            COMMENT='Fiscal period reference for financial statements',
-        FINANCIALS AS {database_name}.{market_data_schema}.FACT_FINANCIAL_DATA
-            PRIMARY KEY (FINANCIAL_DATA_ID)
-            WITH SYNONYMS=('financial_data','statements','fundamentals')
-            COMMENT='Financial statement data including income statement, balance sheet, and cash flow metrics',
-        DATA_ITEMS AS {database_name}.{market_data_schema}.REF_DATA_ITEM
-            PRIMARY KEY (DATA_ITEM_ID)
-            WITH SYNONYMS=('metrics','data_items','financial_metrics')
-            COMMENT='Reference table for financial data item definitions',
+            COMMENT='Company/issuer master data (single source of truth for company information)',
+        FINANCIALS AS {database_name}.{market_data_schema}.FACT_SEC_FINANCIALS
+            PRIMARY KEY (FINANCIAL_ID)
+            WITH SYNONYMS=('financial_data','statements','fundamentals','sec_financials')
+            COMMENT='Real SEC financial statement data from 10-K and 10-Q filings including income statement, balance sheet, and cash flow metrics',
         CONSENSUS AS {database_name}.{market_data_schema}.FACT_ESTIMATE_CONSENSUS
             PRIMARY KEY (CONSENSUS_ID)
             WITH SYNONYMS=('estimates','consensus','forecasts')
@@ -993,48 +880,79 @@ CREATE OR REPLACE SEMANTIC VIEW {database_name}.AI.SAM_FUNDAMENTALS_VIEW
             COMMENT='Broker/research firm information'
     )
     RELATIONSHIPS (
-        FINANCIALS_TO_PERIODS AS FINANCIALS(PERIOD_ID) REFERENCES FINANCIAL_PERIODS(PERIOD_ID),
-        FINANCIALS_TO_COMPANIES AS FINANCIALS(COMPANY_ID) REFERENCES COMPANIES(COMPANY_ID),
-        FINANCIALS_TO_DATA_ITEMS AS FINANCIALS(DATA_ITEM_ID) REFERENCES DATA_ITEMS(DATA_ITEM_ID),
-        PERIODS_TO_COMPANIES AS FINANCIAL_PERIODS(COMPANY_ID) REFERENCES COMPANIES(COMPANY_ID),
-        CONSENSUS_TO_COMPANIES AS CONSENSUS(COMPANY_ID) REFERENCES COMPANIES(COMPANY_ID),
-        ESTIMATES_TO_COMPANIES AS ANALYST_ESTIMATES(COMPANY_ID) REFERENCES COMPANIES(COMPANY_ID),
+        FINANCIALS_TO_ISSUERS AS FINANCIALS(IssuerID) REFERENCES ISSUERS(IssuerID),
+        CONSENSUS_TO_ISSUERS AS CONSENSUS(IssuerID) REFERENCES ISSUERS(IssuerID),
+        ESTIMATES_TO_ISSUERS AS ANALYST_ESTIMATES(IssuerID) REFERENCES ISSUERS(IssuerID),
         ESTIMATES_TO_ANALYSTS AS ANALYST_ESTIMATES(ANALYST_ID) REFERENCES ANALYSTS(ANALYST_ID),
         ESTIMATES_TO_BROKERS AS ANALYST_ESTIMATES(BROKER_ID) REFERENCES BROKERS(BROKER_ID),
         ANALYSTS_TO_BROKERS AS ANALYSTS(BROKER_ID) REFERENCES BROKERS(BROKER_ID)
     )
     DIMENSIONS (
-        -- Company dimensions
-        COMPANIES.CompanyName AS COMPANY_NAME WITH SYNONYMS=('company_name','firm_name','corporation_name','issuer_name') COMMENT='Company legal name',
-        COMPANIES.CountryCode AS COUNTRY_CODE WITH SYNONYMS=('country','domicile','country_of_incorporation') COMMENT='Country of incorporation (2-letter ISO code)',
-        COMPANIES.IndustryDescription AS INDUSTRY_DESCRIPTION WITH SYNONYMS=('industry','sector','business_description') COMMENT='Industry classification description',
-        COMPANIES.CIK AS CIK WITH SYNONYMS=('cik_number','sec_id','edgar_id') COMMENT='SEC Central Index Key for EDGAR filings',
+        -- Company/Issuer dimensions (using DIM_ISSUER as single source of truth)
+        -- Syntax: <semantic_name> AS <database_column> - "Call it X, it's really Y"
+        ISSUERS.CompanyName AS LegalName WITH SYNONYMS=('company','company_name','firm_name','corporation','issuer','entity','name') COMMENT='Company legal name for filtering (e.g., MICROSOFT CORP, APPLE INC., NVIDIA CORP)',
+        ISSUERS.Ticker AS PrimaryTicker WITH SYNONYMS=('ticker','symbol','stock_symbol','stock') COMMENT='Stock ticker symbol for filtering (e.g., MSFT, AAPL, NVDA)',
+        ISSUERS.Country AS CountryOfIncorporation WITH SYNONYMS=('country','domicile','country_of_incorporation') COMMENT='Country of incorporation (2-letter ISO code)',
+        ISSUERS.Industry AS SIC_DESCRIPTION WITH SYNONYMS=('industry','business_description') COMMENT='Industry classification description (SIC)',
+        ISSUERS.Sector AS GICS_SECTOR WITH SYNONYMS=('gics','gics_sector','sector','sector_classification') COMMENT='GICS Level 1 sector classification (e.g., Information Technology, Health Care, Financials)',
+        ISSUERS.CIK AS CIK WITH SYNONYMS=('cik_number','sec_id','edgar_id') COMMENT='SEC Central Index Key for EDGAR filings',
         
-        -- Period dimensions
-        FINANCIAL_PERIODS.FiscalYear AS FISCAL_YEAR WITH SYNONYMS=('year','fiscal_year','fy') COMMENT='Fiscal year',
-        FINANCIAL_PERIODS.FiscalQuarter AS FISCAL_QUARTER WITH SYNONYMS=('quarter','fiscal_quarter','q') COMMENT='Fiscal quarter (1-4)',
-        FINANCIAL_PERIODS.PeriodCode AS PERIOD_CODE WITH SYNONYMS=('period','period_code','fiscal_period') COMMENT='Period code (e.g., 2024Q1)',
-        FINANCIAL_PERIODS.PeriodEndDate AS PERIOD_END_DATE WITH SYNONYMS=('period_end','quarter_end','reporting_date') COMMENT='Period end date',
+        -- Period dimensions (from FINANCIALS - real SEC data, columns are UPPER_CASE)
+        FINANCIALS.FiscalYear AS FISCAL_YEAR WITH SYNONYMS=('year','fiscal_year','fy') COMMENT='Fiscal year from SEC filing',
+        FINANCIALS.FiscalPeriod AS FISCAL_PERIOD WITH SYNONYMS=('quarter','fiscal_quarter','period','q') COMMENT='Fiscal period (FY, Q1, Q2, Q3, Q4)',
+        FINANCIALS.PeriodEndDate AS PERIOD_END_DATE WITH SYNONYMS=('period_end','quarter_end','reporting_date') COMMENT='Period end date from SEC filing',
+        FINANCIALS.Currency AS CURRENCY WITH SYNONYMS=('reporting_currency','currency_code') COMMENT='Reporting currency',
         
-        -- Data item dimensions
-        DATA_ITEMS.DataItemName AS DATA_ITEM_NAME WITH SYNONYMS=('metric_name','item_name','financial_metric') COMMENT='Name of the financial data item',
-        DATA_ITEMS.DataCategory AS CATEGORY WITH SYNONYMS=('category','statement_type','financial_category') COMMENT='Category: income_statement, balance_sheet, cash_flow, ratios',
-        
-        -- Broker/Analyst dimensions
+        -- Broker/Analyst dimensions (columns are UPPER_CASE in DIM_BROKER/DIM_ANALYST)
         BROKERS.BrokerName AS BROKER_NAME WITH SYNONYMS=('broker','research_firm','sell_side_firm') COMMENT='Broker/research firm name',
         ANALYSTS.AnalystName AS ANALYST_NAME WITH SYNONYMS=('analyst','research_analyst') COMMENT='Analyst name',
         ANALYSTS.SectorCoverage AS SECTOR_COVERAGE WITH SYNONYMS=('sector','coverage_sector') COMMENT='Analyst sector coverage'
     )
     METRICS (
-        -- Financial statement metrics
-        FINANCIALS.FINANCIAL_VALUE AS SUM(DATA_VALUE) WITH SYNONYMS=('value','amount','financial_amount') COMMENT='Financial data value (revenue, earnings, etc.)',
-        FINANCIALS.AVG_FINANCIAL_VALUE AS AVG(DATA_VALUE) WITH SYNONYMS=('average_value','avg_amount') COMMENT='Average financial data value',
-        FINANCIALS.FINANCIAL_RECORD_COUNT AS COUNT(FINANCIAL_DATA_ID) WITH SYNONYMS=('record_count','data_points') COMMENT='Count of financial data records',
+        -- Income Statement metrics (direct from real SEC data)
+        FINANCIALS.TOTAL_REVENUE AS SUM(REVENUE) WITH SYNONYMS=('revenue','sales','top_line','total_revenue') COMMENT='Total revenue from SEC filings',
+        FINANCIALS.TOTAL_NET_INCOME AS SUM(NET_INCOME) WITH SYNONYMS=('net_income','earnings','profit','bottom_line') COMMENT='Net income from SEC filings',
+        FINANCIALS.BASIC_EPS AS AVG(EPS_BASIC) WITH SYNONYMS=('eps','earnings_per_share','eps_basic') COMMENT='Basic earnings per share from SEC filings',
+        FINANCIALS.DILUTED_EPS AS AVG(EPS_DILUTED) WITH SYNONYMS=('diluted_eps','eps_diluted') COMMENT='Diluted earnings per share from SEC filings',
+        FINANCIALS.TOTAL_GROSS_PROFIT AS SUM(GROSS_PROFIT) WITH SYNONYMS=('gross_profit','gross_margin_dollars') COMMENT='Gross profit from SEC filings',
+        FINANCIALS.TOTAL_OPERATING_INCOME AS SUM(OPERATING_INCOME) WITH SYNONYMS=('operating_income','ebit','operating_profit') COMMENT='Operating income from SEC filings',
+        FINANCIALS.TOTAL_EBITDA AS SUM(EBITDA) WITH SYNONYMS=('ebitda','operating_ebitda') COMMENT='EBITDA (Operating Income + D&A)',
+        FINANCIALS.TOTAL_RD_EXPENSE AS SUM(RD_EXPENSE) WITH SYNONYMS=('rd','research_development','rd_expense') COMMENT='R&D expense from SEC filings',
         
-        -- Investment memo metrics (TAM, NRR, Customer Count)
-        FINANCIALS.TAM_VALUE AS SUM(CASE WHEN DATA_ITEM_ID = 1011 THEN DATA_VALUE END) WITH SYNONYMS=('tam','total_addressable_market','market_size','addressable_market') COMMENT='Total Addressable Market in USD',
-        FINANCIALS.CUSTOMER_COUNT AS SUM(CASE WHEN DATA_ITEM_ID = 1012 THEN DATA_VALUE END) WITH SYNONYMS=('customers','total_customers','customer_base','customer_count') COMMENT='Total customer count',
-        FINANCIALS.NRR_PCT AS AVG(CASE WHEN DATA_ITEM_ID = 4009 THEN DATA_VALUE END) WITH SYNONYMS=('nrr','net_revenue_retention','dollar_retention','revenue_retention') COMMENT='Net Revenue Retention percentage',
+        -- Balance Sheet metrics
+        FINANCIALS.TOTAL_ASSETS_AMT AS SUM(TOTAL_ASSETS) WITH SYNONYMS=('total_assets','assets') COMMENT='Total assets from SEC filings',
+        FINANCIALS.TOTAL_LIABILITIES_AMT AS SUM(TOTAL_LIABILITIES) WITH SYNONYMS=('total_liabilities','liabilities') COMMENT='Total liabilities from SEC filings',
+        FINANCIALS.TOTAL_EQUITY_AMT AS SUM(TOTAL_EQUITY) WITH SYNONYMS=('stockholders_equity','equity','book_value') COMMENT='Total stockholders equity from SEC filings',
+        FINANCIALS.TOTAL_CASH AS SUM(CASH_AND_EQUIVALENTS) WITH SYNONYMS=('cash','cash_equivalents','liquidity') COMMENT='Cash and cash equivalents from SEC filings',
+        FINANCIALS.TOTAL_DEBT AS SUM(LONG_TERM_DEBT) WITH SYNONYMS=('long_term_debt','debt') COMMENT='Long-term debt from SEC filings',
+        
+        -- Cash Flow metrics
+        FINANCIALS.TOTAL_OPERATING_CF AS SUM(OPERATING_CASH_FLOW) WITH SYNONYMS=('operating_cash_flow','cfo','ocf') COMMENT='Cash from operations from SEC filings',
+        FINANCIALS.TOTAL_FCF AS SUM(FREE_CASH_FLOW) WITH SYNONYMS=('free_cash_flow','fcf') COMMENT='Free cash flow (OCF - CapEx)',
+        FINANCIALS.TOTAL_CAPEX AS SUM(CAPEX) WITH SYNONYMS=('capital_expenditure','capex') COMMENT='Capital expenditure from SEC filings',
+        
+        -- Profitability ratios
+        FINANCIALS.AVG_GROSS_MARGIN AS AVG(GROSS_MARGIN_PCT) WITH SYNONYMS=('gross_margin','gross_margin_pct') COMMENT='Gross margin percentage',
+        FINANCIALS.AVG_OPERATING_MARGIN AS AVG(OPERATING_MARGIN_PCT) WITH SYNONYMS=('operating_margin','op_margin') COMMENT='Operating margin percentage',
+        FINANCIALS.AVG_NET_MARGIN AS AVG(NET_MARGIN_PCT) WITH SYNONYMS=('net_margin','profit_margin') COMMENT='Net profit margin percentage',
+        FINANCIALS.AVG_ROE AS AVG(ROE_PCT) WITH SYNONYMS=('roe','return_on_equity') COMMENT='Return on equity percentage',
+        FINANCIALS.AVG_ROA AS AVG(ROA_PCT) WITH SYNONYMS=('roa','return_on_assets') COMMENT='Return on assets percentage',
+        
+        -- Financial health ratios
+        FINANCIALS.AVG_DEBT_EQUITY AS AVG(DEBT_TO_EQUITY) WITH SYNONYMS=('debt_to_equity','leverage','d_e_ratio') COMMENT='Debt to equity ratio',
+        FINANCIALS.AVG_CURRENT_RATIO AS AVG(CURRENT_RATIO) WITH SYNONYMS=('current_ratio','liquidity_ratio') COMMENT='Current ratio',
+        
+        -- Growth metric
+        FINANCIALS.AVG_REVENUE_GROWTH AS AVG(REVENUE_GROWTH_PCT) WITH SYNONYMS=('revenue_growth','growth_rate','yoy_growth') COMMENT='Year-over-year revenue growth percentage',
+        
+        -- Investment memo metrics (heuristically calculated from real data)
+        FINANCIALS.TAM_VALUE AS SUM(TAM) WITH SYNONYMS=('tam','total_addressable_market','market_size','addressable_market') COMMENT='Total Addressable Market (estimated as Revenue x Industry Multiplier)',
+        FINANCIALS.CUSTOMER_COUNT AS SUM(ESTIMATED_CUSTOMER_COUNT) WITH SYNONYMS=('customers','total_customers','customer_base','customer_count') COMMENT='Estimated customer count (Revenue / Average Revenue Per Customer by industry)',
+        FINANCIALS.NRR_PCT AS AVG(ESTIMATED_NRR_PCT) WITH SYNONYMS=('nrr','net_revenue_retention','dollar_retention','revenue_retention') COMMENT='Estimated Net Revenue Retention percentage (based on revenue growth)',
+        
+        -- Record counts
+        FINANCIALS.PERIOD_COUNT AS COUNT(DISTINCT FINANCIAL_ID) WITH SYNONYMS=('periods','fiscal_periods','record_count') COMMENT='Number of fiscal periods',
+        FINANCIALS.ISSUER_COUNT AS COUNT(DISTINCT IssuerID) WITH SYNONYMS=('issuers','companies','num_companies') COMMENT='Number of issuers/companies',
         
         -- Consensus estimate metrics
         CONSENSUS.CONSENSUS_MEAN_VALUE AS AVG(CONSENSUS_MEAN) WITH SYNONYMS=('consensus','mean_estimate','average_estimate') COMMENT='Consensus mean estimate value',
@@ -1049,77 +967,11 @@ CREATE OR REPLACE SEMANTIC VIEW {database_name}.AI.SAM_FUNDAMENTALS_VIEW
         ANALYST_ESTIMATES.AVG_RATING AS AVG(CASE WHEN DATA_ITEM_ID = 5006 THEN DATA_VALUE END) WITH SYNONYMS=('rating','analyst_rating','average_rating') COMMENT='Average analyst rating (1=Buy, 2=Outperform, 3=Hold, 4=Underperform, 5=Sell)',
         ANALYST_ESTIMATES.ESTIMATE_COUNT AS COUNT(ESTIMATE_ID) WITH SYNONYMS=('estimate_count','analyst_count') COMMENT='Count of analyst estimates'
     )
-    COMMENT='Fundamentals semantic view for company financial analysis. Provides access to financial statements, analyst estimates, price targets, and ratings from market data provider.'
-    WITH EXTENSION (CA='{{"tables":[{{"name":"COMPANIES","dimensions":[{{"name":"CompanyName"}},{{"name":"CountryCode"}},{{"name":"IndustryDescription"}},{{"name":"CIK"}}]}},{{"name":"FINANCIAL_PERIODS","dimensions":[{{"name":"FiscalYear"}},{{"name":"FiscalQuarter"}},{{"name":"PeriodCode"}},{{"name":"PeriodEndDate"}}]}},{{"name":"FINANCIALS","metrics":[{{"name":"FINANCIAL_VALUE"}},{{"name":"AVG_FINANCIAL_VALUE"}},{{"name":"FINANCIAL_RECORD_COUNT"}},{{"name":"TAM_VALUE"}},{{"name":"CUSTOMER_COUNT"}},{{"name":"NRR_PCT"}}]}},{{"name":"DATA_ITEMS","dimensions":[{{"name":"DataItemName"}},{{"name":"DataCategory"}}]}},{{"name":"CONSENSUS","metrics":[{{"name":"CONSENSUS_MEAN_VALUE"}},{{"name":"CONSENSUS_HIGH_VALUE"}},{{"name":"CONSENSUS_LOW_VALUE"}},{{"name":"AVG_NUM_ESTIMATES"}}]}},{{"name":"ANALYST_ESTIMATES","metrics":[{{"name":"AVG_PRICE_TARGET"}},{{"name":"MAX_PRICE_TARGET"}},{{"name":"MIN_PRICE_TARGET"}},{{"name":"AVG_RATING"}},{{"name":"ESTIMATE_COUNT"}}]}},{{"name":"BROKERS","dimensions":[{{"name":"BrokerName"}}]}},{{"name":"ANALYSTS","dimensions":[{{"name":"AnalystName"}},{{"name":"SectorCoverage"}}]}}],"relationships":[{{"name":"FINANCIALS_TO_PERIODS"}},{{"name":"FINANCIALS_TO_COMPANIES"}},{{"name":"FINANCIALS_TO_DATA_ITEMS"}},{{"name":"CONSENSUS_TO_COMPANIES"}},{{"name":"ESTIMATES_TO_COMPANIES"}},{{"name":"ESTIMATES_TO_ANALYSTS"}},{{"name":"ESTIMATES_TO_BROKERS"}}],"verified_queries":[{{"name":"company_revenue","question":"What is the revenue for a company?","sql":"SELECT __COMPANIES.COMPANY_NAME, __FINANCIAL_PERIODS.FISCAL_YEAR, __FINANCIAL_PERIODS.FISCAL_QUARTER, __FINANCIALS.DATA_VALUE as REVENUE FROM __FINANCIALS JOIN __COMPANIES ON __FINANCIALS.COMPANY_ID = __COMPANIES.COMPANY_ID JOIN __FINANCIAL_PERIODS ON __FINANCIALS.PERIOD_ID = __FINANCIAL_PERIODS.PERIOD_ID JOIN __DATA_ITEMS ON __FINANCIALS.DATA_ITEM_ID = __DATA_ITEMS.DATA_ITEM_ID WHERE __DATA_ITEMS.DATA_ITEM_CODE = \\'REVENUE\\' ORDER BY __FINANCIAL_PERIODS.FISCAL_YEAR DESC, __FINANCIAL_PERIODS.FISCAL_QUARTER DESC","use_as_onboarding_question":true}},{{"name":"analyst_consensus","question":"What is the analyst consensus for a company?","sql":"SELECT __COMPANIES.COMPANY_NAME, __CONSENSUS.ESTIMATE_YEAR, __CONSENSUS.FISCAL_QUARTER, AVG(__CONSENSUS.CONSENSUS_MEAN) as CONSENSUS_ESTIMATE, AVG(__CONSENSUS.NUM_ESTIMATES) as NUM_ANALYSTS FROM __CONSENSUS JOIN __COMPANIES ON __CONSENSUS.COMPANY_ID = __COMPANIES.COMPANY_ID GROUP BY __COMPANIES.COMPANY_NAME, __CONSENSUS.ESTIMATE_YEAR, __CONSENSUS.FISCAL_QUARTER ORDER BY __CONSENSUS.ESTIMATE_YEAR, __CONSENSUS.FISCAL_QUARTER","use_as_onboarding_question":true}},{{"name":"price_targets","question":"What are the analyst price targets for a company?","sql":"SELECT __COMPANIES.COMPANY_NAME, __BROKERS.BROKER_NAME, __ANALYST_ESTIMATES.DATA_VALUE as PRICE_TARGET, __ANALYST_ESTIMATES.ESTIMATE_DATE FROM __ANALYST_ESTIMATES JOIN __COMPANIES ON __ANALYST_ESTIMATES.COMPANY_ID = __COMPANIES.COMPANY_ID JOIN __BROKERS ON __ANALYST_ESTIMATES.BROKER_ID = __BROKERS.BROKER_ID WHERE __ANALYST_ESTIMATES.DATA_ITEM_ID = 5005 ORDER BY __ANALYST_ESTIMATES.ESTIMATE_DATE DESC","use_as_onboarding_question":true}},{{"name":"tam_analysis","question":"What is the total addressable market for a company?","sql":"SELECT __COMPANIES.COMPANY_NAME, __FINANCIAL_PERIODS.FISCAL_YEAR, __FINANCIAL_PERIODS.FISCAL_QUARTER, __FINANCIALS.DATA_VALUE as TAM FROM __FINANCIALS JOIN __COMPANIES ON __FINANCIALS.COMPANY_ID = __COMPANIES.COMPANY_ID JOIN __FINANCIAL_PERIODS ON __FINANCIALS.PERIOD_ID = __FINANCIAL_PERIODS.PERIOD_ID WHERE __FINANCIALS.DATA_ITEM_ID = 1011 ORDER BY __FINANCIAL_PERIODS.FISCAL_YEAR DESC, __FINANCIAL_PERIODS.FISCAL_QUARTER DESC","use_as_onboarding_question":false}},{{"name":"customer_metrics","question":"What is the customer count and retention for a company?","sql":"SELECT __COMPANIES.COMPANY_NAME, __FINANCIAL_PERIODS.FISCAL_YEAR, __FINANCIAL_PERIODS.FISCAL_QUARTER, MAX(CASE WHEN __FINANCIALS.DATA_ITEM_ID = 1012 THEN __FINANCIALS.DATA_VALUE END) as CUSTOMER_COUNT, MAX(CASE WHEN __FINANCIALS.DATA_ITEM_ID = 4009 THEN __FINANCIALS.DATA_VALUE END) as NRR_PCT FROM __FINANCIALS JOIN __COMPANIES ON __FINANCIALS.COMPANY_ID = __COMPANIES.COMPANY_ID JOIN __FINANCIAL_PERIODS ON __FINANCIALS.PERIOD_ID = __FINANCIAL_PERIODS.PERIOD_ID WHERE __FINANCIALS.DATA_ITEM_ID IN (1012, 4009) GROUP BY __COMPANIES.COMPANY_NAME, __FINANCIAL_PERIODS.FISCAL_YEAR, __FINANCIAL_PERIODS.FISCAL_QUARTER ORDER BY __FINANCIAL_PERIODS.FISCAL_YEAR DESC, __FINANCIAL_PERIODS.FISCAL_QUARTER DESC","use_as_onboarding_question":false}}],"module_custom_instructions":{{"sql_generation":"When querying financial data, always join with DATA_ITEMS to get readable metric names. For revenue queries, filter to DATA_ITEM_CODE = \\'REVENUE\\'. For earnings, use \\'NET_INCOME\\' or \\'EPS_DILUTED\\'. For margin analysis, use ratio metrics. For TAM queries, use DATA_ITEM_ID = 1011. For customer count, use DATA_ITEM_ID = 1012. For NRR (Net Revenue Retention), use DATA_ITEM_ID = 4009. Always order by fiscal year and quarter descending to show most recent first. For consensus estimates, show the number of analysts covering alongside the estimate values.","question_categorization":"If users ask about \\'financials\\' or \\'fundamentals\\', use FINANCIALS table with DATA_ITEMS join. If users ask about \\'estimates\\' or \\'consensus\\', use CONSENSUS table. If users ask about \\'price targets\\' or \\'ratings\\', use ANALYST_ESTIMATES table. If users ask about \\'analysts\\' or \\'brokers\\', include ANALYSTS and BROKERS dimensions. If users ask about \\'TAM\\', \\'market size\\', \\'addressable market\\', use TAM_VALUE metric. If users ask about \\'customers\\', \\'customer count\\', use CUSTOMER_COUNT metric. If users ask about \\'retention\\', \\'NRR\\', \\'net revenue retention\\', use NRR_PCT metric."}}}}');
+    COMMENT='Fundamentals semantic view for company financial analysis. Provides access to real SEC financial statements (FACT_SEC_FINANCIALS), analyst estimates, price targets, and ratings. Financial data sourced from SEC 10-K and 10-Q filings via SNOWFLAKE_PUBLIC_DATA_FREE. Investment memo metrics (TAM, Customer Count, NRR) are calculated heuristically from real revenue data.'
+    WITH EXTENSION (CA='{{"tables":[{{"name":"COMPANIES","dimensions":[{{"name":"CompanyName"}},{{"name":"CountryCode"}},{{"name":"IndustryDescription"}},{{"name":"CIK"}}]}},{{"name":"FINANCIALS","dimensions":[{{"name":"FiscalYear"}},{{"name":"FiscalPeriod"}},{{"name":"PeriodEndDate"}},{{"name":"Currency"}}],"metrics":[{{"name":"TOTAL_REVENUE"}},{{"name":"TOTAL_NET_INCOME"}},{{"name":"TOTAL_GROSS_PROFIT"}},{{"name":"TOTAL_OPERATING_INCOME"}},{{"name":"TOTAL_EBITDA"}},{{"name":"TOTAL_RD_EXPENSE"}},{{"name":"TOTAL_ASSETS_AMT"}},{{"name":"TOTAL_LIABILITIES_AMT"}},{{"name":"TOTAL_EQUITY_AMT"}},{{"name":"TOTAL_CASH"}},{{"name":"TOTAL_DEBT"}},{{"name":"TOTAL_OPERATING_CF"}},{{"name":"TOTAL_FCF"}},{{"name":"TOTAL_CAPEX"}},{{"name":"AVG_GROSS_MARGIN"}},{{"name":"AVG_OPERATING_MARGIN"}},{{"name":"AVG_NET_MARGIN"}},{{"name":"AVG_ROE"}},{{"name":"AVG_ROA"}},{{"name":"AVG_DEBT_EQUITY"}},{{"name":"AVG_CURRENT_RATIO"}},{{"name":"AVG_REVENUE_GROWTH"}},{{"name":"TAM_VALUE"}},{{"name":"CUSTOMER_COUNT"}},{{"name":"NRR_PCT"}},{{"name":"PERIOD_COUNT"}},{{"name":"COMPANY_COUNT"}}]}},{{"name":"CONSENSUS","metrics":[{{"name":"CONSENSUS_MEAN_VALUE"}},{{"name":"CONSENSUS_HIGH_VALUE"}},{{"name":"CONSENSUS_LOW_VALUE"}},{{"name":"AVG_NUM_ESTIMATES"}}]}},{{"name":"ANALYST_ESTIMATES","metrics":[{{"name":"AVG_PRICE_TARGET"}},{{"name":"MAX_PRICE_TARGET"}},{{"name":"MIN_PRICE_TARGET"}},{{"name":"AVG_RATING"}},{{"name":"ESTIMATE_COUNT"}}]}},{{"name":"BROKERS","dimensions":[{{"name":"BrokerName"}}]}},{{"name":"ANALYSTS","dimensions":[{{"name":"AnalystName"}},{{"name":"SectorCoverage"}}]}}],"relationships":[{{"name":"FINANCIALS_TO_COMPANIES"}},{{"name":"CONSENSUS_TO_COMPANIES"}},{{"name":"ESTIMATES_TO_COMPANIES"}},{{"name":"ESTIMATES_TO_ANALYSTS"}},{{"name":"ESTIMATES_TO_BROKERS"}}],"verified_queries":[{{"name":"revenue_summary","question":"What is the revenue for each company?","sql":"SELECT * FROM SEMANTIC_VIEW({database_name}.AI.SAM_FUNDAMENTALS_VIEW METRICS TOTAL_REVENUE, TOTAL_NET_INCOME, AVG_GROSS_MARGIN DIMENSIONS CompanyName, FiscalYear)","use_as_onboarding_question":true}},{{"name":"profitability_analysis","question":"What are the profitability margins?","sql":"SELECT * FROM SEMANTIC_VIEW({database_name}.AI.SAM_FUNDAMENTALS_VIEW METRICS AVG_GROSS_MARGIN, AVG_OPERATING_MARGIN, AVG_NET_MARGIN, AVG_ROE DIMENSIONS CompanyName)","use_as_onboarding_question":true}},{{"name":"investment_memo_metrics","question":"What is the TAM and customer count?","sql":"SELECT * FROM SEMANTIC_VIEW({database_name}.AI.SAM_FUNDAMENTALS_VIEW METRICS TAM_VALUE, CUSTOMER_COUNT, NRR_PCT, AVG_REVENUE_GROWTH DIMENSIONS CompanyName)","use_as_onboarding_question":true}},{{"name":"consensus_summary","question":"What is the analyst consensus?","sql":"SELECT * FROM SEMANTIC_VIEW({database_name}.AI.SAM_FUNDAMENTALS_VIEW METRICS CONSENSUS_MEAN_VALUE, CONSENSUS_HIGH_VALUE, CONSENSUS_LOW_VALUE, AVG_NUM_ESTIMATES)","use_as_onboarding_question":true}},{{"name":"price_targets","question":"What are the analyst price targets?","sql":"SELECT * FROM SEMANTIC_VIEW({database_name}.AI.SAM_FUNDAMENTALS_VIEW METRICS AVG_PRICE_TARGET, MAX_PRICE_TARGET, MIN_PRICE_TARGET, AVG_RATING)","use_as_onboarding_question":false}}],"module_custom_instructions":{{"sql_generation":"This view uses real SEC financial data from FACT_SEC_FINANCIALS. Use TOTAL_REVENUE for revenue queries. Use TOTAL_NET_INCOME for earnings. Use AVG_GROSS_MARGIN, AVG_OPERATING_MARGIN, AVG_NET_MARGIN for margin analysis. Use TOTAL_EBITDA for EBITDA queries. Use TAM_VALUE for TAM/market size queries. Use CUSTOMER_COUNT for customer count (note: estimated from revenue). Use NRR_PCT for Net Revenue Retention (note: estimated from revenue growth). Use AVG_REVENUE_GROWTH for growth analysis. Always order by FiscalYear descending to show most recent first. Currency dimension shows reporting currency. For consensus estimates, show the number of analysts covering alongside the estimate values.","question_categorization":"If users ask about \\'financials\\', \\'fundamentals\\', \\'revenue\\', \\'earnings\\', \\'margins\\', use FINANCIALS metrics. If users ask about \\'estimates\\' or \\'consensus\\', use CONSENSUS table. If users ask about \\'price targets\\' or \\'ratings\\', use ANALYST_ESTIMATES table. If users ask about \\'analysts\\' or \\'brokers\\', include ANALYSTS and BROKERS dimensions. If users ask about \\'TAM\\', \\'market size\\', \\'addressable market\\', use TAM_VALUE metric (note: estimated). If users ask about \\'customers\\', \\'customer count\\', use CUSTOMER_COUNT metric (note: estimated from revenue). If users ask about \\'retention\\', \\'NRR\\', \\'net revenue retention\\', use NRR_PCT metric (note: estimated from growth)."}}}}');
     """).collect()
     
-    config.log_detail(" Created semantic view: SAM_FUNDAMENTALS_VIEW")
-
-
-def create_real_sec_semantic_view(session: Session):
-    """
-    Create semantic view for REAL SEC financial data from SNOWFLAKE_PUBLIC_DATA_FREE.
-    
-    This view provides access to:
-    - Real SEC financial metrics (revenue, earnings, etc.) from SEC_METRICS_TIMESERIES
-    - Real stock prices from STOCK_PRICE_TIMESERIES
-    - Real SEC filing text (MD&A, Risk Factors) from SEC_REPORT_TEXT_ATTRIBUTES
-    
-    All data is linked to our DIM_ISSUER via CIK.
-    """
-    database_name = config.DATABASE['name']
-    market_data_schema = config.DATABASE['schemas']['market_data']
-    curated_schema = config.DATABASE['schemas']['curated']
-    
-    # Check if real data tables exist
-    try:
-        session.sql(f"SELECT 1 FROM {database_name}.{market_data_schema}.FACT_FINANCIAL_DATA_SEC LIMIT 1").collect()
-    except Exception:
-        config.log_warning("  FACT_FINANCIAL_DATA_SEC not found - skipping SAM_REAL_SEC_VIEW creation")
-        return
-    
-    config.log_detail("Creating SAM_REAL_SEC_VIEW for real SEC data...")
-    
-    session.sql(f"""
-CREATE OR REPLACE SEMANTIC VIEW {database_name}.AI.SAM_REAL_SEC_VIEW
-    TABLES (
-        SEC_FINANCIALS AS {database_name}.{market_data_schema}.FACT_FINANCIAL_DATA_SEC
-            PRIMARY KEY (FINANCIAL_DATA_ID)
-            WITH SYNONYMS=('sec_financials','real_financials','sec_metrics','financial_data')
-            COMMENT='Real SEC financial metrics from 10-K and 10-Q filings.',
-        COMPANIES AS {database_name}.{market_data_schema}.DIM_COMPANY
-            PRIMARY KEY (COMPANY_ID)
-            WITH SYNONYMS=('companies','firms','corporations')
-            COMMENT='Company master data with CIK linkage',
-        ISSUERS AS {database_name}.{curated_schema}.DIM_ISSUER
-            PRIMARY KEY (ISSUERID)
-            WITH SYNONYMS=('issuers','entities')
-            COMMENT='Issuer dimension with CIK for SEC data linkage'
-    )
-    RELATIONSHIPS (
-        FINANCIALS_TO_COMPANIES AS SEC_FINANCIALS(COMPANY_ID) REFERENCES COMPANIES(COMPANY_ID),
-        FINANCIALS_TO_ISSUERS AS SEC_FINANCIALS(ISSUERID) REFERENCES ISSUERS(ISSUERID)
-    )
-    DIMENSIONS (
-        COMPANIES.COMPANY_NAME AS COMPANY_NAME WITH SYNONYMS=('company_name','company','firm_name') COMMENT='Company name',
-        SEC_FINANCIALS.SEC_COMPANY_NAME AS SEC_COMPANY_NAME WITH SYNONYMS=('sec_name','edgar_name') COMMENT='Company name as filed with SEC',
-        COMPANIES.CIK AS CIK WITH SYNONYMS=('cik_number','sec_id') COMMENT='SEC Central Index Key',
-        SEC_FINANCIALS.METRIC_NAME AS VARIABLE_NAME WITH SYNONYMS=('metric','variable','data_item') COMMENT='Name of the financial metric',
-        SEC_FINANCIALS.SEGMENT AS BUSINESS_SEGMENT WITH SYNONYMS=('segment','business_segment') COMMENT='Business segment',
-        SEC_FINANCIALS.GEOGRAPHY AS GEO_NAME WITH SYNONYMS=('geography','region') COMMENT='Geographic region',
-        SEC_FINANCIALS.FISCAL_YEAR AS FISCAL_YEAR WITH SYNONYMS=('year','fy') COMMENT='Fiscal year',
-        SEC_FINANCIALS.FISCAL_PERIOD AS FISCAL_PERIOD WITH SYNONYMS=('quarter','period') COMMENT='Fiscal period',
-        SEC_FINANCIALS.PERIOD_END AS PERIOD_END_DATE WITH SYNONYMS=('period_end','end_date') COMMENT='Period end date'
-    )
-    METRICS (
-        SEC_FINANCIALS.METRIC_VALUE AS SUM(VALUE) WITH SYNONYMS=('value','amount','total') COMMENT='Financial metric value',
-        SEC_FINANCIALS.RECORD_COUNT AS COUNT(FINANCIAL_DATA_ID) WITH SYNONYMS=('count','records') COMMENT='Count of records',
-        COMPANIES.COMPANY_COUNT AS COUNT(DISTINCT COMPANY_ID) WITH SYNONYMS=('companies','num_companies') COMMENT='Number of companies'
-    )
-    COMMENT='Real SEC financial data semantic view from SNOWFLAKE_PUBLIC_DATA_FREE'
-    """).collect()
-    
-    config.log_detail(" Created semantic view: SAM_REAL_SEC_VIEW")
+    log_detail(" Created semantic view: SAM_FUNDAMENTALS_VIEW (using real SEC data)")
 
 
 def create_real_stock_prices_semantic_view(session: Session):
@@ -1136,10 +988,10 @@ def create_real_stock_prices_semantic_view(session: Session):
     try:
         session.sql(f"SELECT 1 FROM {database_name}.{market_data_schema}.FACT_STOCK_PRICES LIMIT 1").collect()
     except Exception:
-        config.log_warning("  FACT_STOCK_PRICES not found - skipping SAM_STOCK_PRICES_VIEW creation")
+        log_warning("  FACT_STOCK_PRICES not found - skipping SAM_STOCK_PRICES_VIEW creation")
         return
     
-    config.log_detail("Creating SAM_STOCK_PRICES_VIEW for real stock price data...")
+    log_detail("Creating SAM_STOCK_PRICES_VIEW for real stock price data...")
     
     session.sql(f"""
 CREATE OR REPLACE SEMANTIC VIEW {database_name}.AI.SAM_STOCK_PRICES_VIEW
@@ -1163,11 +1015,14 @@ CREATE OR REPLACE SEMANTIC VIEW {database_name}.AI.SAM_STOCK_PRICES_VIEW
         SECURITIES_TO_ISSUERS AS SECURITIES(ISSUERID) REFERENCES ISSUERS(ISSUERID)
     )
     DIMENSIONS (
-        PRICES.TICKER AS TICKER WITH SYNONYMS=('ticker','symbol','stock_symbol') COMMENT='Stock ticker symbol',
-        SECURITIES.DESCRIPTION AS Description WITH SYNONYMS=('security_name','company_name','name') COMMENT='Security/company name',
+        -- Syntax: <semantic_name> AS <database_column> - "Call it X, it's really Y"
+        -- Note: TICKER available via PRICES(SecurityID) -> SECURITIES(SecurityID) relationship
+        SECURITIES.Ticker AS Ticker WITH SYNONYMS=('ticker','symbol','stock_symbol') COMMENT='Stock ticker symbol (from DIM_SECURITY)',
+        SECURITIES.Description AS Description WITH SYNONYMS=('security_name','company_name','name') COMMENT='Security/company name',
         SECURITIES.ASSETCLASS AS AssetClass WITH SYNONYMS=('asset_class','type') COMMENT='Asset class',
-        ISSUERS.LEGALNAME AS LegalName WITH SYNONYMS=('issuer_name','legal_name') COMMENT='Legal issuer name',
-        ISSUERS.INDUSTRY AS SIC_DESCRIPTION WITH SYNONYMS=('industry','sector') COMMENT='Industry classification',
+        ISSUERS.LegalName AS LegalName WITH SYNONYMS=('issuer_name','legal_name') COMMENT='Legal issuer name',
+        ISSUERS.Industry AS SIC_DESCRIPTION WITH SYNONYMS=('industry') COMMENT='Industry classification (SIC)',
+        ISSUERS.GICS_Sector AS GICS_SECTOR WITH SYNONYMS=('gics','gics_sector','sector','sector_classification') COMMENT='GICS Level 1 sector classification',
         PRICES.EXCHANGE AS PRIMARY_EXCHANGE_CODE WITH SYNONYMS=('exchange','exchange_code') COMMENT='Primary exchange code',
         PRICES.TRADE_DATE AS PRICE_DATE WITH SYNONYMS=('date','trading_date','as_of_date') COMMENT='Trading date'
     )
@@ -1182,15 +1037,17 @@ CREATE OR REPLACE SEMANTIC VIEW {database_name}.AI.SAM_STOCK_PRICES_VIEW
     COMMENT='Real stock price semantic view from SNOWFLAKE_PUBLIC_DATA_FREE'
     """).collect()
     
-    config.log_detail(" Created semantic view: SAM_STOCK_PRICES_VIEW")
+    log_detail(" Created semantic view: SAM_STOCK_PRICES_VIEW")
 
 
 def create_sec_financials_semantic_view(session: Session):
     """
-    Create semantic view for comprehensive SEC financial statements from FACT_SEC_FINANCIALS.
+    Create semantic view for comprehensive SEC financial statements from FACT_SEC_FINANCIALS
+    and revenue segment breakdowns from FACT_SEC_SEGMENTS.
     
-    This view provides access to real Income Statement, Balance Sheet, and Cash Flow data
-    with standardized metrics pivoted from SEC XBRL filings.
+    This view provides access to:
+    - Real Income Statement, Balance Sheet, and Cash Flow data (FACT_SEC_FINANCIALS)
+    - Revenue segments by geography, business unit, customer, legal entity (FACT_SEC_SEGMENTS)
     """
     database_name = config.DATABASE['name']
     market_data_schema = config.DATABASE['schemas']['market_data']
@@ -1200,11 +1057,21 @@ def create_sec_financials_semantic_view(session: Session):
     try:
         session.sql(f"SELECT 1 FROM {database_name}.{market_data_schema}.FACT_SEC_FINANCIALS LIMIT 1").collect()
     except Exception:
-        config.log_warning("  FACT_SEC_FINANCIALS not found - skipping SAM_SEC_FINANCIALS_VIEW creation")
+        log_warning("  FACT_SEC_FINANCIALS not found - skipping SAM_SEC_FINANCIALS_VIEW creation")
         return
     
-    config.log_detail("Creating SAM_SEC_FINANCIALS_VIEW for comprehensive SEC financial statements...")
+    # Check if segments table exists (optional - view works without it)
+    segments_table_exists = False
+    try:
+        session.sql(f"SELECT 1 FROM {database_name}.{market_data_schema}.FACT_SEC_SEGMENTS LIMIT 1").collect()
+        segments_table_exists = True
+        log_detail("  FACT_SEC_SEGMENTS found - including segment dimensions")
+    except Exception:
+        log_warning("  FACT_SEC_SEGMENTS not found - creating view without segment data")
     
+    log_detail("Creating SAM_SEC_FINANCIALS_VIEW for comprehensive SEC financial statements...")
+    
+    # Always create SAM_SEC_FINANCIALS_VIEW for consolidated financials
     session.sql(f"""
 CREATE OR REPLACE SEMANTIC VIEW {database_name}.AI.SAM_SEC_FINANCIALS_VIEW
     TABLES (
@@ -1212,37 +1079,36 @@ CREATE OR REPLACE SEMANTIC VIEW {database_name}.AI.SAM_SEC_FINANCIALS_VIEW
             PRIMARY KEY (FINANCIAL_ID)
             WITH SYNONYMS=('financials','financial_statements','sec_financials','company_financials')
             COMMENT='Comprehensive SEC financial statements including Income Statement, Balance Sheet, and Cash Flow.',
-        COMPANIES AS {database_name}.{market_data_schema}.DIM_COMPANY
-            PRIMARY KEY (COMPANY_ID)
-            WITH SYNONYMS=('companies','firms','corporations')
-            COMMENT='Company master data with CIK linkage',
         ISSUERS AS {database_name}.{curated_schema}.DIM_ISSUER
-            PRIMARY KEY (ISSUERID)
-            WITH SYNONYMS=('issuers','entities')
-            COMMENT='Issuer dimension with CIK for SEC data linkage'
+            PRIMARY KEY (IssuerID)
+            WITH SYNONYMS=('issuers','companies','firms','corporations','entities')
+            COMMENT='Company/issuer master data (single source of truth for company information)'
     )
     RELATIONSHIPS (
-        FINANCIALS_TO_COMPANIES AS FINANCIALS(COMPANY_ID) REFERENCES COMPANIES(COMPANY_ID),
-        FINANCIALS_TO_ISSUERS AS FINANCIALS(ISSUERID) REFERENCES ISSUERS(ISSUERID)
+        FINANCIALS_TO_ISSUERS AS FINANCIALS(IssuerID) REFERENCES ISSUERS(IssuerID)
     )
     DIMENSIONS (
-        -- Company dimensions
-        FINANCIALS.COMPANY_NAME AS COMPANY_NAME WITH SYNONYMS=('company','company_name','firm_name') COMMENT='Company name',
-        FINANCIALS.CIK AS CIK WITH SYNONYMS=('cik_number','sec_id','central_index_key') COMMENT='SEC Central Index Key',
-        COMPANIES.INDUSTRY_DESCRIPTION AS INDUSTRY_DESCRIPTION WITH SYNONYMS=('industry','sector','business_type') COMMENT='Industry classification',
+        -- Company dimensions (using DIM_ISSUER as single source of truth via FK relationship)
+        ISSUERS.CompanyName AS LEGALNAME WITH SYNONYMS=('company','company_name','firm_name','corporation','issuer','entity','name') COMMENT='Company legal name for filtering (e.g., MICROSOFT CORP, APPLE INC., NVIDIA CORP)',
+        ISSUERS.Ticker AS PrimaryTicker WITH SYNONYMS=('ticker','symbol','stock_symbol','stock') COMMENT='Stock ticker symbol for filtering (e.g., MSFT, AAPL, NVDA)',
+        ISSUERS.CIK AS CIK WITH SYNONYMS=('cik_number','sec_id','central_index_key') COMMENT='SEC Central Index Key (from DIM_ISSUER)',
+        ISSUERS.Industry AS SIC_DESCRIPTION WITH SYNONYMS=('industry','business_type') COMMENT='Industry classification (SIC)',
+        ISSUERS.GICS_Sector AS GICS_SECTOR WITH SYNONYMS=('gics','gics_sector','sector','sector_classification') COMMENT='GICS Level 1 sector classification',
         
         -- Currency dimension
-        FINANCIALS.CURRENCY AS CURRENCY WITH SYNONYMS=('reporting_currency','currency_code','unit') COMMENT='Reporting currency (e.g., USD, EUR, CAD). Values are in actual units, not thousands or millions.',
+        FINANCIALS.Currency AS CURRENCY WITH SYNONYMS=('reporting_currency','currency_code','unit') COMMENT='Reporting currency (e.g., USD, EUR, CAD). Values are in actual units, not thousands or millions.',
         
         -- Time dimensions
-        FINANCIALS.FISCAL_YEAR AS FISCAL_YEAR WITH SYNONYMS=('year','fy','fiscal') COMMENT='Fiscal year',
-        FINANCIALS.FISCAL_PERIOD AS FISCAL_PERIOD WITH SYNONYMS=('quarter','period','q') COMMENT='Fiscal period (FY, Q1, Q2, Q3, Q4)',
-        FINANCIALS.PERIOD_END_DATE AS PERIOD_END_DATE WITH SYNONYMS=('period_end','end_date','as_of_date') COMMENT='Period end date'
+        FINANCIALS.FiscalYear AS FISCAL_YEAR WITH SYNONYMS=('year','fy','fiscal') COMMENT='Fiscal year',
+        FINANCIALS.FiscalPeriod AS FISCAL_PERIOD WITH SYNONYMS=('quarter','period','q') COMMENT='Fiscal period (FY, Q1, Q2, Q3, Q4)',
+        FINANCIALS.PeriodEndDate AS PERIOD_END_DATE WITH SYNONYMS=('period_end','end_date','as_of_date') COMMENT='Period end date'
     )
     METRICS (
         -- Income Statement metrics
         FINANCIALS.TOTAL_REVENUE AS SUM(REVENUE) WITH SYNONYMS=('revenue','sales','total_revenue','top_line') COMMENT='Total revenue/sales',
         FINANCIALS.NET_INCOME_TOTAL AS SUM(NET_INCOME) WITH SYNONYMS=('net_income','earnings','profit','bottom_line') COMMENT='Net income',
+        FINANCIALS.BASIC_EPS AS AVG(EPS_BASIC) WITH SYNONYMS=('eps','earnings_per_share','eps_basic') COMMENT='Basic earnings per share',
+        FINANCIALS.DILUTED_EPS AS AVG(EPS_DILUTED) WITH SYNONYMS=('diluted_eps','eps_diluted') COMMENT='Diluted earnings per share',
         FINANCIALS.GROSS_PROFIT_TOTAL AS SUM(GROSS_PROFIT) WITH SYNONYMS=('gross_profit','gross_margin_dollars') COMMENT='Gross profit',
         FINANCIALS.OPERATING_INCOME_TOTAL AS SUM(OPERATING_INCOME) WITH SYNONYMS=('operating_income','ebit','operating_profit') COMMENT='Operating income',
         FINANCIALS.RD_EXPENSE_TOTAL AS SUM(RD_EXPENSE) WITH SYNONYMS=('rd','research_development','rd_expense') COMMENT='Research and development expense',
@@ -1274,9 +1140,53 @@ CREATE OR REPLACE SEMANTIC VIEW {database_name}.AI.SAM_SEC_FINANCIALS_VIEW
         
         -- Counts
         FINANCIALS.PERIOD_COUNT AS COUNT(DISTINCT CONCAT(CIK, '-', FISCAL_YEAR, '-', FISCAL_PERIOD)) WITH SYNONYMS=('periods','fiscal_periods') COMMENT='Number of fiscal periods',
-        FINANCIALS.COMPANY_COUNT AS COUNT(DISTINCT COMPANY_ID) WITH SYNONYMS=('companies','num_companies') COMMENT='Number of companies'
+        FINANCIALS.ISSUER_COUNT AS COUNT(DISTINCT IssuerID) WITH SYNONYMS=('issuers','companies','num_companies') COMMENT='Number of issuers/companies'
     )
-    COMMENT='Comprehensive SEC financial statements semantic view with Income Statement, Balance Sheet, and Cash Flow metrics from SEC XBRL filings. All monetary values are in actual units (not thousands or millions). CURRENCY dimension indicates reporting currency.'
+    COMMENT='Comprehensive SEC financial statements semantic view with Income Statement, Balance Sheet, and Cash Flow metrics from SEC XBRL filings. All monetary values are in actual units (not thousands or millions). For geographic/segment revenue breakdowns, use SAM_SEC_SEGMENTS_VIEW.'
     """).collect()
+    log_detail("  Created semantic view: SAM_SEC_FINANCIALS_VIEW (consolidated financials)")
     
-    config.log_detail(" Created semantic view: SAM_SEC_FINANCIALS_VIEW")
+    # Create separate SAM_SEC_SEGMENTS_VIEW if segments table exists
+    if segments_table_exists:
+        session.sql(f"""
+CREATE OR REPLACE SEMANTIC VIEW {database_name}.AI.SAM_SEC_SEGMENTS_VIEW
+    TABLES (
+        SEGMENTS AS {database_name}.{market_data_schema}.FACT_SEC_SEGMENTS
+            PRIMARY KEY (SEGMENT_ID)
+            WITH SYNONYMS=('segments','revenue_segments','geographic_segments','business_segments','regional_revenue')
+            COMMENT='Revenue segment breakdowns by geography, business unit, customer, and legal entity from SEC filings',
+        ISSUERS AS {database_name}.{curated_schema}.DIM_ISSUER
+            PRIMARY KEY (IssuerID)
+            WITH SYNONYMS=('issuers','companies','firms','corporations','entities')
+            COMMENT='Company/issuer master data'
+    )
+    RELATIONSHIPS (
+        SEGMENTS_TO_ISSUERS AS SEGMENTS(IssuerID) REFERENCES ISSUERS(IssuerID)
+    )
+    DIMENSIONS (
+        -- Company dimensions
+        ISSUERS.CompanyName AS LEGALNAME WITH SYNONYMS=('company','company_name','firm_name') COMMENT='Company name',
+        ISSUERS.CIK AS CIK WITH SYNONYMS=('cik_number','sec_id') COMMENT='SEC Central Index Key',
+        ISSUERS.Industry AS SIC_DESCRIPTION WITH SYNONYMS=('industry') COMMENT='Industry classification (SIC)',
+        ISSUERS.GICS_Sector AS GICS_SECTOR WITH SYNONYMS=('gics','gics_sector','sector','sector_classification') COMMENT='GICS Level 1 sector classification',
+        
+        -- Time dimensions
+        SEGMENTS.FiscalYear AS FISCAL_YEAR WITH SYNONYMS=('year','fy','fiscal') COMMENT='Fiscal year',
+        SEGMENTS.FiscalPeriod AS FISCAL_PERIOD WITH SYNONYMS=('quarter','period','q') COMMENT='Fiscal period (FY, Q1, Q2, Q3, Q4)',
+        SEGMENTS.PeriodEndDate AS PERIOD_END_DATE WITH SYNONYMS=('period_end','end_date') COMMENT='Period end date',
+        
+        -- Segment dimensions
+        SEGMENTS.Geography AS GEOGRAPHY WITH SYNONYMS=('geography','region','geo','location','geographic_region','europe','americas','asia') COMMENT='Geographic segment (Europe, Americas, Asia Pacific, etc.)',
+        SEGMENTS.BusinessSegment AS BUSINESS_SEGMENT WITH SYNONYMS=('segment','business_unit','division','product_line') COMMENT='Business segment (product, service, brand)',
+        SEGMENTS.BusinessSubsegment AS BUSINESS_SUBSEGMENT WITH SYNONYMS=('subsegment','sub_segment') COMMENT='Business sub-segment',
+        SEGMENTS.Customer AS CUSTOMER WITH SYNONYMS=('major_customer','key_customer') COMMENT='Major customer name if reported',
+        SEGMENTS.LegalEntity AS LEGAL_ENTITY WITH SYNONYMS=('subsidiary','legal_entity') COMMENT='Legal entity or subsidiary'
+    )
+    METRICS (
+        -- Segment revenue
+        SEGMENTS.SEGMENT_REVENUE_TOTAL AS SUM(SEGMENT_REVENUE) WITH SYNONYMS=('segment_revenue','geographic_revenue','regional_revenue','division_revenue','european_revenue','americas_revenue') COMMENT='Revenue by segment (geography, business unit, etc.)',
+        SEGMENTS.SEGMENT_COUNT AS COUNT(DISTINCT SEGMENT_ID) WITH SYNONYMS=('segment_count','number_of_segments') COMMENT='Number of segment records'
+    )
+    COMMENT='SEC revenue segment breakdowns by geography (Europe, Americas, Asia Pacific), business unit, customer, and legal entity. Use GEOGRAPHY dimension to analyze regional revenue (e.g., BlackRock European division revenue). Use CompanyName to filter by company.'
+        """).collect()
+        log_detail("  Created semantic view: SAM_SEC_SEGMENTS_VIEW (geographic/business segments)")

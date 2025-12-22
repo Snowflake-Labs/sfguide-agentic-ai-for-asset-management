@@ -39,6 +39,12 @@ TEST_MODE_MULTIPLIER = 0.1
 # Options: 'claude-haiku-4-5', 'claude-sonnet-4', 'llama3.1-8b', etc.
 AI_SPEAKER_IDENTIFICATION_MODEL = 'claude-haiku-4-5'
 
+# Model used for agent orchestration (Snowflake Intelligence agents)
+AGENT_ORCHESTRATION_MODEL = 'claude-sonnet-4-5'
+
+# Model used for text embeddings (Cortex Search, token counting)
+AI_EMBEDDING_MODEL = 'snowflake-arctic-embed-m-v1.5'
+
 # =============================================================================
 # DATABASE & WAREHOUSE CONFIGURATION
 # =============================================================================
@@ -79,95 +85,750 @@ REAL_DATA_SOURCES = {
     # Change these two values to match your Snowflake Marketplace data share
     # -------------------------------------------------------------------------
     'database': 'SNOWFLAKE_PUBLIC_DATA_FREE',  # e.g. 'SNOWFLAKE_PUBLIC_DATA_FREE'
-    'schema': 'PUBLIC_DATA_FREE',                           # e.g. 'PUBLIC_DATA_FREE'
-
-    # Enable/disable use of external real data (set False to use synthetic only)
-    'enabled': True,
+    'schema': 'PUBLIC_DATA_FREE',              # e.g. 'PUBLIC_DATA_FREE'
 
     # Key into REAL_DATA_SOURCES['tables'] to probe for share access (must exist in share)
+    # IMPORTANT: This data source is REQUIRED. The build will fail if not accessible.
     'access_probe_table_key': 'sec_metrics'
 }
 
 # =============================================================================
-# SECURITY & DOCUMENT VOLUME KNOBS
+# DEMO COMPANIES - Single Source of Truth for Company Data
 # =============================================================================
-
-# Securities configuration - number of each asset type to include
-SECURITIES = {
-    'counts': {
-        'equities': 10000,
-        'bonds': 3000,
-        'etfs': 1000
-    },
-    'real_assets_view': 'V_REAL_ASSETS'
-}
-
-# =============================================================================
-# DEMO SCENARIO COMPANIES (top priority for holdings & document coverage)
-# =============================================================================
+#
+# This is the authoritative list of companies used in the demo. All data generation
+# (DIM_ISSUER, DIM_SECURITY, transcripts, market data, documents) flows from this list.
+#
+# Structure:
+#   - provider_company_id: COMPANY_ID from SNOWFLAKE_PUBLIC_DATA_FREE.COMPANY_INDEX
+#   - cik: SEC Central Index Key for SEC filings and transcripts
+#   - tier: 'core' (demo scenarios), 'major' (well-known), 'additional' (variety)
+#
+# Total: ~76 companies (8 core + 36 major + 32 additional)
+#
 
 DEMO_COMPANIES = {
+    # =========================================================================
+    # CORE DEMO COMPANIES (featured in demo scenarios)
+    # =========================================================================
     'AAPL': {
-        'openfigi_id': 'BBG001S5N8V8',
-        'ticker': 'AAPL',
-        'company_name': 'Apple Inc.',
-        'country': 'US',
+        'company_name': 'APPLE INC.',
+        'provider_company_id': 'a1823f6c7cd49c0be0bb8c43bcf49060',
+        'cik': '0000320193',
         'sector': 'Information Technology',
-        'priority': 1
+        'tier': 'core',
+        'demo_order': 1,           # Priority order in demo portfolios
+        'position_size': 'large'   # Large position for prominent display
     },
     'CMC': {
-        'openfigi_id': 'BBG001S5PXG8',
-        'ticker': 'CMC',
-        'company_name': 'Commercial Metals Co',
-        'country': 'US',
+        'company_name': 'COMMERCIAL METALS CO',
+        'provider_company_id': '50b5c4a14b7d9817e50d66022153a149',
+        'cik': '0000022444',
         'sector': 'Materials',
-        'priority': 2
+        'tier': 'core',
+        'demo_order': 2,
+        'position_size': 'large'
     },
     'RBBN': {
-        'openfigi_id': 'BBG00HW4CSH5',
-        'ticker': 'RBBN',
-        'company_name': 'Ribbon Communications Inc.',
-        'country': 'US',
+        'company_name': 'RIBBON COMMUNICATIONS INC.',
+        'provider_company_id': '2ce2d9e86f2421124050cb4e862f3be7',
+        'cik': '0001708055',
         'sector': 'Information Technology',
-        'priority': 3
+        'tier': 'core',
+        'demo_order': 3,
+        'position_size': 'large'
     },
     'MSFT': {
-        'openfigi_id': 'BBG001S5TD05',
-        'ticker': 'MSFT',
-        'company_name': 'Microsoft Corp',
-        'country': 'US',
+        'company_name': 'MICROSOFT CORP',
+        'provider_company_id': 'ac0b3684602d98a5f168564f3f3af882',
+        'cik': '0000789019',
         'sector': 'Information Technology',
-        'priority': 4
+        'tier': 'core',
+        'demo_order': 4            # Additional demo holding (no large position)
     },
     'NVDA': {
-        'openfigi_id': 'BBG001S5TZJ6',
-        'ticker': 'NVDA',
-        'company_name': 'NVIDIA Corp',
-        'country': 'US',
+        'company_name': 'NVIDIA CORP',
+        'provider_company_id': '59cf1797ff7546139b04473f612cbe0c',
+        'cik': '0001045810',
         'sector': 'Information Technology',
-        'priority': 4
+        'tier': 'core',
+        'demo_order': 5
     },
     'GOOGL': {
-        'openfigi_id': 'BBG009S39JY5',
-        'ticker': 'GOOGL',
-        'company_name': 'Alphabet Inc.',
-        'country': 'US',
+        'company_name': 'ALPHABET INC.',
+        'provider_company_id': 'bec137cd76d8c4d1440569461d7375bd',
+        'cik': '0001652044',
         'sector': 'Communication Services',
-        'priority': 4
+        'tier': 'core',
+        'demo_order': 6
     },
     'TSM': {
-        'openfigi_id': 'BBG001S5WWW4',  # Taiwan Semiconductor ADR
-        'ticker': 'TSM',
-        'company_name': 'Taiwan Semiconductor Manufacturing Company Ltd',
-        'country': 'TW',
+        'company_name': 'TAIWAN SEMICONDUCTOR MANUFACTURING CO LTD',
+        'provider_company_id': '71ae635a2d258f8bdb7c7c8bf06b3811',
+        'cik': '0001046179',
         'sector': 'Information Technology',
-        'priority': 4  # Same priority as NVDA/MSFT for demo scenarios
-    }
+        'tier': 'core'
+    },
+    'SNOW': {
+        'company_name': 'SNOWFLAKE INC.',
+        'provider_company_id': 'be66d09336f7d9b9b53c3e129f241a11',
+        'cik': '0001640147',
+        'sector': 'Information Technology',
+        'tier': 'core'
+    },
+    
+    # =========================================================================
+    # MAJOR US STOCKS (well-known companies for portfolio diversity)
+    # =========================================================================
+    'ABT': {
+        'company_name': 'ABBOTT LABORATORIES',
+        'provider_company_id': '2dcb8bc8661e611361f7c0254cb02ee7',
+        'cik': '0000001800',
+        'sector': 'Healthcare',
+        'tier': 'major'
+    },
+    'ADBE': {
+        'company_name': 'ADOBE INC.',
+        'provider_company_id': 'fe47832b8f820a17fd8d6308942390f9',
+        'cik': '0000796343',
+        'sector': 'Information Technology',
+        'tier': 'major'
+    },
+    'AMZN': {
+        'company_name': 'AMAZON COM INC',
+        'provider_company_id': '602fec4b30df7a598a17a09fa789cc48',
+        'cik': '0001018724',
+        'sector': 'Consumer Discretionary',
+        'tier': 'major'
+    },
+    'BA': {
+        'company_name': 'BOEING CO',
+        'provider_company_id': '68c9c4dd104ff90807898f9a7aa4e0d6',
+        'cik': '0000012927',
+        'sector': 'Industrials',
+        'tier': 'major'
+    },
+    'BAC': {
+        'company_name': 'BANK OF AMERICA CORP /DE/',
+        'provider_company_id': '9a845a21be69d75e3926bba3a30347fc',
+        'cik': '0000070858',
+        'sector': 'Financials',
+        'tier': 'major'
+    },
+    'CAT': {
+        'company_name': 'CATERPILLAR INC',
+        'provider_company_id': 'd7fbbcb4f157933eccffc75c755fab39',
+        'cik': '0000018230',
+        'sector': 'Industrials',
+        'tier': 'major'
+    },
+    'COST': {
+        'company_name': 'COSTCO WHOLESALE CORP /NEW',
+        'provider_company_id': 'ac487d6576dde56b4942173b146faf84',
+        'cik': '0000909832',
+        'sector': 'Consumer Staples',
+        'tier': 'major'
+    },
+    'CRM': {
+        'company_name': 'SALESFORCE, INC.',
+        'provider_company_id': 'bd894082fd352970647a92c1df99881c',
+        'cik': '0001108524',
+        'sector': 'Information Technology',
+        'tier': 'major'
+    },
+    'CVX': {
+        'company_name': 'CHEVRON CORP',
+        'provider_company_id': '08cbcbca1fc39748660d8d36bb626500',
+        'cik': '0000093410',
+        'sector': 'Energy',
+        'tier': 'major'
+    },
+    'DIS': {
+        'company_name': 'WALT DISNEY CO',
+        'provider_company_id': 'c78f2872321b60ff3fa49ada08125976',
+        'cik': '0001744489',
+        'sector': 'Communication Services',
+        'tier': 'major'
+    },
+    'GE': {
+        'company_name': 'GENERAL ELECTRIC CO',
+        'provider_company_id': '5477805a8d1d1a891997fdb23940dec4',
+        'cik': '0000040545',
+        'sector': 'Industrials',
+        'tier': 'major'
+    },
+    'GS': {
+        'company_name': 'GOLDMAN SACHS GROUP INC',
+        'provider_company_id': '16b8b3d1cf68327f043f2828a308bb2b',
+        'cik': '0000886982',
+        'sector': 'Financials',
+        'tier': 'major'
+    },
+    'HD': {
+        'company_name': 'HOME DEPOT, INC.',
+        'provider_company_id': '20d74b93038d934d279f5018dfeab566',
+        'cik': '0000354950',
+        'sector': 'Consumer Discretionary',
+        'tier': 'major'
+    },
+    'HON': {
+        'company_name': 'HONEYWELL INTERNATIONAL INC',
+        'provider_company_id': '065bb5fb539b0088c252b64eb3238b9a',
+        'cik': '0000773840',
+        'sector': 'Industrials',
+        'tier': 'major'
+    },
+    'IBM': {
+        'company_name': 'INTERNATIONAL BUSINESS MACHINES CORP',
+        'provider_company_id': '08391471747f5b9c97c4ec1b8b1cc389',
+        'cik': '0000051143',
+        'sector': 'Information Technology',
+        'tier': 'major'
+    },
+    'INTC': {
+        'company_name': 'INTEL CORP',
+        'provider_company_id': '33c4c5960af4e6eb8dd18d4ec982c0c2',
+        'cik': '0000050863',
+        'sector': 'Information Technology',
+        'tier': 'major'
+    },
+    'JNJ': {
+        'company_name': 'JOHNSON & JOHNSON',
+        'provider_company_id': 'bd9c926b9a88a238a0ff54be08a9ec7d',
+        'cik': '0000200406',
+        'sector': 'Healthcare',
+        'tier': 'major'
+    },
+    'JPM': {
+        'company_name': 'JPMORGAN CHASE & CO',
+        'provider_company_id': '23525aaf57004d0109af27c0476ed582',
+        'cik': '0000019617',
+        'sector': 'Financials',
+        'tier': 'major'
+    },
+    'KO': {
+        'company_name': 'COCA COLA CO',
+        'provider_company_id': 'cf56194869c92a1a3b1471e74eb596e6',
+        'cik': '0000021344',
+        'sector': 'Consumer Staples',
+        'tier': 'major'
+    },
+    'MA': {
+        'company_name': 'MASTERCARD INC',
+        'provider_company_id': '4b0db043c6fc123bbcff2427f592c1f7',
+        'cik': '0001141391',
+        'sector': 'Financials',
+        'tier': 'major'
+    },
+    'MCD': {
+        'company_name': 'MCDONALDS CORP',
+        'provider_company_id': 'd06d310eb441913b0e7491ea0ab7b7a7',
+        'cik': '0000063908',
+        'sector': 'Consumer Discretionary',
+        'tier': 'major'
+    },
+    'META': {
+        'company_name': 'META PLATFORMS, INC.',
+        'provider_company_id': 'ab379e8e0b5beed5fb6053e34e5c20f5',
+        'cik': '0001326801',
+        'sector': 'Communication Services',
+        'tier': 'major'
+    },
+    'MMM': {
+        'company_name': '3M CO',
+        'provider_company_id': 'd4b5a9265d9060a018829797de5e5b55',
+        'cik': '0000066740',
+        'sector': 'Industrials',
+        'tier': 'major'
+    },
+    'MRK': {
+        'company_name': 'MERCK & CO., INC.',
+        'provider_company_id': '6fdd33c17560666c2938b7fb60c6e1d1',
+        'cik': '0000310158',
+        'sector': 'Healthcare',
+        'tier': 'major'
+    },
+    'NFLX': {
+        'company_name': 'NETFLIX INC',
+        'provider_company_id': 'db2f01cb35f46c6be97dbf391a143572',
+        'cik': '0001065280',
+        'sector': 'Communication Services',
+        'tier': 'major'
+    },
+    'NKE': {
+        'company_name': 'NIKE, INC.',
+        'provider_company_id': '3894632f0ef9f020ea609701d68ee1a0',
+        'cik': '0000320187',
+        'sector': 'Consumer Discretionary',
+        'tier': 'major'
+    },
+    'PEP': {
+        'company_name': 'PEPSICO INC',
+        'provider_company_id': '1146156f378520a0c016c884431e8361',
+        'cik': '0000077476',
+        'sector': 'Consumer Staples',
+        'tier': 'major'
+    },
+    'PFE': {
+        'company_name': 'PFIZER INC',
+        'provider_company_id': '2504b4544c6fa9591220676dbd4800f3',
+        'cik': '0000078003',
+        'sector': 'Healthcare',
+        'tier': 'major'
+    },
+    'PG': {
+        'company_name': 'PROCTER & GAMBLE CO',
+        'provider_company_id': 'efff2e4e63cd1c6744b1b60544f1b08f',
+        'cik': '0000080424',
+        'sector': 'Consumer Staples',
+        'tier': 'major'
+    },
+    'RTX': {
+        'company_name': 'RTX CORP',
+        'provider_company_id': 'f2a507315f1e348ada4b39d295f787c6',
+        'cik': '0000101829',
+        'sector': 'Industrials',
+        'tier': 'major'
+    },
+    'TMO': {
+        'company_name': 'THERMO FISHER SCIENTIFIC INC.',
+        'provider_company_id': '003eb2b65f0d8ce5298bc1c4298a99f3',
+        'cik': '0000097745',
+        'sector': 'Healthcare',
+        'tier': 'major'
+    },
+    'TSLA': {
+        'company_name': 'TESLA, INC.',
+        'provider_company_id': 'b1e8d2d49d41f1e194dce9e2492553a2',
+        'cik': '0001318605',
+        'sector': 'Consumer Discretionary',
+        'tier': 'major'
+    },
+    'UPS': {
+        'company_name': 'UNITED PARCEL SERVICE INC',
+        'provider_company_id': 'd2d38a33a63c33a38a567435516efb40',
+        'cik': '0001090727',
+        'sector': 'Industrials',
+        'tier': 'major'
+    },
+    'V': {
+        'company_name': 'VISA INC.',
+        'provider_company_id': '2af6dd0f1722e0932d070172539035cb',
+        'cik': '0001403161',
+        'sector': 'Financials',
+        'tier': 'major'
+    },
+    'VZ': {
+        'company_name': 'VERIZON COMMUNICATIONS INC',
+        'provider_company_id': '5fdfa3a85e7855ee604954dc4555ca69',
+        'cik': '0000732712',
+        'sector': 'Communication Services',
+        'tier': 'major'
+    },
+    'WMT': {
+        'company_name': 'WALMART INC.',
+        'provider_company_id': '960989974008dcda4b78eed24a8dfd79',
+        'cik': '0000104169',
+        'sector': 'Consumer Staples',
+        'tier': 'major'
+    },
+    
+    # =========================================================================
+    # ADDITIONAL COMPANIES (for variety and sector coverage)
+    # =========================================================================
+    'ABBV': {
+        'company_name': 'ABBVIE INC.',
+        'provider_company_id': 'bed33a415019b73b323407510571b44b',
+        'cik': '0001551152',
+        'sector': 'Healthcare',
+        'tier': 'additional'
+    },
+    'ACN': {
+        'company_name': 'ACCENTURE PLC',
+        'provider_company_id': '6dd20bd08f395569ae637fb55d268e9a',
+        'cik': '0001467373',
+        'sector': 'Information Technology',
+        'tier': 'additional'
+    },
+    'AMD': {
+        'company_name': 'ADVANCED MICRO DEVICES INC',
+        'provider_company_id': '12c617b47081d343dc595256aa5bbb1d',
+        'cik': '0000002488',
+        'sector': 'Information Technology',
+        'tier': 'additional'
+    },
+    'AMGN': {
+        'company_name': 'AMGEN INC',
+        'provider_company_id': 'b8eb503baf67da0d656418f26d86a247',
+        'cik': '0000318154',
+        'sector': 'Healthcare',
+        'tier': 'additional'
+    },
+    'AVGO': {
+        'company_name': 'BROADCOM INC.',
+        'provider_company_id': '8f448325fadfc6891e19cbaddff9ca2f',
+        'cik': '0001730168',
+        'sector': 'Information Technology',
+        'tier': 'additional'
+    },
+    'AXP': {
+        'company_name': 'AMERICAN EXPRESS CO',
+        'provider_company_id': 'c215acdc7197fa4724d1f021fdd70b2e',
+        'cik': '0000004962',
+        'sector': 'Financials',
+        'tier': 'additional'
+    },
+    'BLK': {
+        'company_name': 'BLACKROCK, INC.',
+        'provider_company_id': 'aaa6fa94007b48fd4da6d273546b7cc5',
+        'cik': '0002012383',
+        'sector': 'Financials',
+        'tier': 'additional'
+    },
+    'BMY': {
+        'company_name': 'BRISTOL MYERS SQUIBB CO',
+        'provider_company_id': '1f067fb3fa6f230c4ed58948d667225a',
+        'cik': '0000014272',
+        'sector': 'Healthcare',
+        'tier': 'additional'
+    },
+    'C': {
+        'company_name': 'CITIGROUP INC',
+        'provider_company_id': '28603c252e64cb45a30b5c40efddba18',
+        'cik': '0000831001',
+        'sector': 'Financials',
+        'tier': 'additional'
+    },
+    'CMCSA': {
+        'company_name': 'COMCAST CORP',
+        'provider_company_id': 'cfa580e9411379ead0ee52747ab10f0f',
+        'cik': '0001166691',
+        'sector': 'Communication Services',
+        'tier': 'additional'
+    },
+    'COP': {
+        'company_name': 'CONOCOPHILLIPS',
+        'provider_company_id': 'e4678ce6da016a603d7646feb4473776',
+        'cik': '0001163165',
+        'sector': 'Energy',
+        'tier': 'additional'
+    },
+    'CSCO': {
+        'company_name': 'CISCO SYSTEMS INC',
+        'provider_company_id': 'f41bca735f7d5bb1632f38397a005040',
+        'cik': '0000858877',
+        'sector': 'Information Technology',
+        'tier': 'additional'
+    },
+    'DE': {
+        'company_name': 'DEERE & CO',
+        'provider_company_id': '13b9e4c3888fb26f28f7d66ddc2d3d71',
+        'cik': '0000315189',
+        'sector': 'Industrials',
+        'tier': 'additional'
+    },
+    'GILD': {
+        'company_name': 'GILEAD SCIENCES, INC.',
+        'provider_company_id': 'ed34f0e78d4ee741356045ac3f8939df',
+        'cik': '0000882095',
+        'sector': 'Healthcare',
+        'tier': 'additional'
+    },
+    'INTU': {
+        'company_name': 'INTUIT INC.',
+        'provider_company_id': '0cee4af2a74f2156d5c041655d171006',
+        'cik': '0000896878',
+        'sector': 'Information Technology',
+        'tier': 'additional'
+    },
+    'LLY': {
+        'company_name': 'ELI LILLY & CO',
+        'provider_company_id': 'a1f97674b098caf30e9b61b98e06ea49',
+        'cik': '0000059478',
+        'sector': 'Healthcare',
+        'tier': 'additional'
+    },
+    'LMT': {
+        'company_name': 'LOCKHEED MARTIN CORP',
+        'provider_company_id': 'a533e245225fe0c914004e378f369224',
+        'cik': '0000936468',
+        'sector': 'Industrials',
+        'tier': 'additional'
+    },
+    'LOW': {
+        'company_name': 'LOWES COMPANIES INC',
+        'provider_company_id': '9d39036436c25d64d45efc7a12a41ff9',
+        'cik': '0000060667',
+        'sector': 'Consumer Discretionary',
+        'tier': 'additional'
+    },
+    'MO': {
+        'company_name': 'ALTRIA GROUP, INC.',
+        'provider_company_id': '07a650ec3d64b0309afa6be95872f5be',
+        'cik': '0000764180',
+        'sector': 'Consumer Staples',
+        'tier': 'additional'
+    },
+    'NOW': {
+        'company_name': 'SERVICENOW, INC.',
+        'provider_company_id': '4e2ddb5d8358fd82e6b71be0dcf6f02e',
+        'cik': '0001373715',
+        'sector': 'Information Technology',
+        'tier': 'additional'
+    },
+    'ORCL': {
+        'company_name': 'ORACLE CORP',
+        'provider_company_id': '55e0983aa1cd07da5580c6c6069e6b67',
+        'cik': '0001341439',
+        'sector': 'Information Technology',
+        'tier': 'additional'
+    },
+    'PM': {
+        'company_name': 'PHILIP MORRIS INTERNATIONAL INC.',
+        'provider_company_id': 'f0b74ca7f8422c56abc878bbbfce8675',
+        'cik': '0001413329',
+        'sector': 'Consumer Staples',
+        'tier': 'additional'
+    },
+    'QCOM': {
+        'company_name': 'QUALCOMM INC/DE',
+        'provider_company_id': 'a66fa1ce7129d8898f49d981f90e2f29',
+        'cik': '0000804328',
+        'sector': 'Information Technology',
+        'tier': 'additional'
+    },
+    'SBUX': {
+        'company_name': 'STARBUCKS CORP',
+        'provider_company_id': '0977f0d1649a6eb6d1c1a95b6a967bde',
+        'cik': '0000829224',
+        'sector': 'Consumer Discretionary',
+        'tier': 'additional'
+    },
+    'SCHW': {
+        'company_name': 'SCHWAB CHARLES CORP',
+        'provider_company_id': '1d82f5e406753c1e980247597d8c0946',
+        'cik': '0000316709',
+        'sector': 'Financials',
+        'tier': 'additional'
+    },
+    'T': {
+        'company_name': 'AT&T INC.',
+        'provider_company_id': 'ec93708b0ebab2ca2cb98b43bfb695f4',
+        'cik': '0000732717',
+        'sector': 'Communication Services',
+        'tier': 'additional'
+    },
+    'TGT': {
+        'company_name': 'TARGET CORP',
+        'provider_company_id': 'e308587f750017801f5df278c74eae5a',
+        'cik': '0000027419',
+        'sector': 'Consumer Discretionary',
+        'tier': 'additional'
+    },
+    'TMUS': {
+        'company_name': 'T-MOBILE US, INC.',
+        'provider_company_id': '8db7e0f28fc9707b06afcba0c45b24f3',
+        'cik': '0001283699',
+        'sector': 'Communication Services',
+        'tier': 'additional'
+    },
+    'TXN': {
+        'company_name': 'TEXAS INSTRUMENTS INC',
+        'provider_company_id': '94b4acfb3b974d8a7a8d28b3c1b6458b',
+        'cik': '0000097476',
+        'sector': 'Information Technology',
+        'tier': 'additional'
+    },
+    'UNH': {
+        'company_name': 'UNITEDHEALTH GROUP INC',
+        'provider_company_id': 'd7327699823b42ebf25763acb8fe2205',
+        'cik': '0000731766',
+        'sector': 'Healthcare',
+        'tier': 'additional'
+    },
+    'UNP': {
+        'company_name': 'UNION PACIFIC CORP',
+        'provider_company_id': '8a47cbfea6e5eef94e50408174059610',
+        'cik': '0000100885',
+        'sector': 'Industrials',
+        'tier': 'additional'
+    },
+    'WFC': {
+        'company_name': 'WELLS FARGO & COMPANY/MN',
+        'provider_company_id': '5bea05cafd8529c8d75f5209f36ed393',
+        'cik': '0000072971',
+        'sector': 'Financials',
+        'tier': 'additional'
+    },
+    'XOM': {
+        'company_name': 'EXXON MOBIL CORP',
+        'provider_company_id': '1a8f6bfe3e62cee3474fa4b5c4e30c95',
+        'cik': '0000034088',
+        'sector': 'Energy',
+        'tier': 'additional'
+    },
+    
+    # =========================================================================
+    # SUPPLY CHAIN COMPANIES (for second-order risk scenarios)
+    # =========================================================================
+    'F': {
+        'company_name': 'FORD MOTOR CO',
+        'provider_company_id': 'f92ae9cf8d2cc81603f73a5ed8adcc09',
+        'cik': '0000037996',
+        'sector': 'Consumer Discretionary',
+        'tier': 'supply_chain'
+    },
+    'GM': {
+        'company_name': 'GENERAL MOTORS CO',
+        'provider_company_id': 'ac4dbec3bea72f9baee1526c93bf65e9',
+        'cik': '0001467858',
+        'sector': 'Consumer Discretionary',
+        'tier': 'supply_chain'
+    },
 }
 
-MAJOR_US_STOCKS = {
-    'tier1': ['AMZN', 'TSLA', 'META', 'NFLX', 'CRM', 'ORCL'],
-    'tier2': ['CSCO', 'IBM', 'INTC', 'AMD', 'ADBE', 'NOW', 'INTU', 'MU', 'QCOM', 'AVGO', 'TXN', 'LRCX', 'KLAC', 'AMAT', 'MRVL']
+# Helper functions for DEMO_COMPANIES (moved to demo_helpers.py)
+# Re-exported at end of file for backward compatibility
+
+# =============================================================================
+# DATE RANGE HELPERS (functions moved to db_helpers.py)
+# =============================================================================
+# Re-exported at end of file for backward compatibility
+
+# =============================================================================
+# DEMO CLIENTS (institutional clients for Sales Advisor & Executive scenarios)
+# =============================================================================
+# These clients are prioritized in DIM_CLIENT generation with their exact names.
+# Used by: Sales Advisor client-specific reporting, Executive Copilot client analytics
+
+# =============================================================================
+# DEMO CLIENTS (unified config with category field)
+# =============================================================================
+# All demo clients in one dictionary. Categories:
+#   - 'standard': Regular established clients
+#   - 'at_risk': Clients with declining flows (for retention scenarios)
+#   - 'new': Recently onboarded clients (for onboarding scenarios)
+
+DEMO_CLIENTS = {
+    # --- Standard Clients (established relationships) ---
+    'meridian': {
+        'client_name': 'Meridian Capital Partners',
+        'client_type': 'Pension',
+        'region': 'North America',
+        'aum_range': (400_000_000, 500_000_000),
+        'priority': 1,
+        'category': 'standard'
+    },
+    'blackrock_pension': {
+        'client_name': 'Blackrock Pension Trust',
+        'client_type': 'Pension',
+        'region': 'North America',
+        'aum_range': (350_000_000, 450_000_000),
+        'priority': 2,
+        'category': 'standard'
+    },
+    'yale_endowment': {
+        'client_name': 'Yale University Endowment',
+        'client_type': 'Endowment',
+        'region': 'North America',
+        'aum_range': (300_000_000, 400_000_000),
+        'priority': 3,
+        'category': 'standard'
+    },
+    'gates_foundation': {
+        'client_name': 'Gates Foundation Trust',
+        'client_type': 'Foundation',
+        'region': 'North America',
+        'aum_range': (250_000_000, 350_000_000),
+        'priority': 4,
+        'category': 'standard'
+    },
+    'axa_insurance': {
+        'client_name': 'AXA Insurance General Account',
+        'client_type': 'Insurance',
+        'region': 'Europe',
+        'aum_range': (200_000_000, 300_000_000),
+        'priority': 5,
+        'category': 'standard'
+    },
+    'toyota_pension': {
+        'client_name': 'Toyota Motor Pension Fund',
+        'client_type': 'Corporate',
+        'region': 'Asia Pacific',
+        'aum_range': (150_000_000, 250_000_000),
+        'priority': 6,
+        'category': 'standard'
+    },
+    'rockefeller_family': {
+        'client_name': 'Rockefeller Family Office',
+        'client_type': 'Family Office',
+        'region': 'North America',
+        'aum_range': (100_000_000, 200_000_000),
+        'priority': 7,
+        'category': 'standard'
+    },
+    'norway_sovereign': {
+        'client_name': 'Norwegian Sovereign Wealth Fund',
+        'client_type': 'Pension',
+        'region': 'Europe',
+        'aum_range': (450_000_000, 500_000_000),
+        'priority': 8,
+        'category': 'standard'
+    },
+    # --- At-Risk Clients (declining flows - for retention scenarios) ---
+    'pacific_pension': {
+        'client_name': 'Pacific Coast Pension Fund',
+        'client_type': 'Pension',
+        'region': 'North America',
+        'aum_range': (180_000_000, 220_000_000),
+        'priority': 9,
+        'category': 'at_risk',
+        'flow_pattern': 'declining',
+        'decline_reason': 'Manager consolidation initiative - reviewing all external relationships'
+    },
+    'alpine_endowment': {
+        'client_name': 'Alpine University Endowment',
+        'client_type': 'Endowment',
+        'region': 'North America',
+        'aum_range': (80_000_000, 120_000_000),
+        'priority': 10,
+        'category': 'at_risk',
+        'flow_pattern': 'declining',
+        'decline_reason': 'Board concerns about recent relative performance vs peers'
+    },
+    'metro_insurance': {
+        'client_name': 'Metropolitan Insurance Group',
+        'client_type': 'Insurance',
+        'region': 'Europe',
+        'aum_range': (120_000_000, 160_000_000),
+        'priority': 11,
+        'category': 'at_risk',
+        'flow_pattern': 'declining',
+        'decline_reason': 'New CIO conducting comprehensive manager review'
+    },
+    # --- New Clients (recently onboarded - for onboarding scenarios) ---
+    'midwest_foundation': {
+        'client_name': 'Midwest Community Foundation',
+        'client_type': 'Foundation',
+        'region': 'North America',
+        'aum_range': (50_000_000, 75_000_000),
+        'priority': 12,
+        'category': 'new',
+        'days_since_onboard': 45,
+        'onboard_status': 'in_progress',
+        'initial_allocation': 'SAM ESG Leaders Global Equity'
+    },
+    'nordic_family_office': {
+        'client_name': 'Nordic Heritage Family Office',
+        'client_type': 'Family Office',
+        'region': 'Europe',
+        'aum_range': (35_000_000, 50_000_000),
+        'priority': 13,
+        'category': 'new',
+        'days_since_onboard': 21,
+        'onboard_status': 'in_progress',
+        'initial_allocation': 'SAM Global Thematic Growth'
+    }
 }
 
 # #############################################################################
@@ -180,65 +841,9 @@ MAJOR_US_STOCKS = {
 # #############################################################################
 
 # =============================================================================
-# LOGGING & OUTPUT CONTROL
+# LOGGING & OUTPUT CONTROL (functions moved to logging_utils.py)
 # =============================================================================
-
-# Verbosity levels: 0=minimal (phases only), 1=normal (steps), 2=verbose (all details)
-VERBOSITY = 0  # Default to minimal output
-
-# Progress indicators for minimal output
-_current_phase = None
-_step_count = 0
-_last_step_name = None
-
-def set_verbosity(level: int):
-    """Set output verbosity level: 0=minimal, 1=normal, 2=verbose"""
-    global VERBOSITY
-    VERBOSITY = level
-
-def log_phase(phase_name: str):
-    """Log a major phase (always shown). E.g., 'Structured Data', 'AI Components'"""
-    global _current_phase, _step_count, _last_step_name
-    _current_phase = phase_name
-    _step_count = 0
-    _last_step_name = None
-    print(f"\n{'='*60}")
-    print(f"  {phase_name}")
-    print(f"{'='*60}")
-
-def log_step(step_name: str):
-    """Log a step within a phase - shows step name in minimal mode"""
-    global _step_count, _last_step_name
-    _step_count += 1
-    _last_step_name = step_name
-    if VERBOSITY >= 1:
-        print(f"  [{_step_count}] {step_name}")
-    else:
-        # Minimal mode: show step name with progress indicator
-        print(f"  → {step_name}...", flush=True)
-
-def log_detail(message: str):
-    """Log detailed info (shown at verbosity >= 2)"""
-    if VERBOSITY >= 2:
-        print(f"      {message}")
-
-def log_success(message: str):
-    """Log success message (shown at verbosity >= 1)"""
-    if VERBOSITY >= 1:
-        print(f"    ✅ {message}")
-
-def log_warning(message: str):
-    """Log warning message (always shown)"""
-    print(f"    ⚠️  {message}")
-
-def log_error(message: str):
-    """Log error message (always shown)"""
-    print(f"    ❌ {message}")
-
-def log_phase_complete(summary: str = None):
-    """Mark phase complete with optional summary"""
-    if summary:
-        print(f"  ✅ {summary}")
+# Re-exported at end of file for backward compatibility
 
 
 # =============================================================================
@@ -251,7 +856,7 @@ MARKET_DATA = {
     'enabled': True,
     'tables': {
         # Company & Security Master
-        'dim_company': 'DIM_COMPANY',
+        # Note: DIM_COMPANY has been eliminated - use CURATED.DIM_ISSUER directly
         'dim_security': 'DIM_SECURITY_PROVIDER',  # Provider's security master
         'dim_trading_item': 'DIM_TRADING_ITEM',
         'ref_exchange': 'REF_EXCHANGE',
@@ -282,9 +887,7 @@ MARKET_DATA = {
         'ref_filing_institution_rel_type': 'REF_FILING_INSTITUTION_REL_TYPE',
         'fact_filing_ref': 'FACT_FILING_REF',
         'fact_filing_institution_rel': 'FACT_FILING_INSTITUTION_REL',
-        'fact_filing_data': 'FACT_FILING_DATA',
-        'fact_filing_data_non_sec': 'FACT_FILING_DATA_NON_SEC',
-        'fact_filing_data_esg': 'FACT_FILING_DATA_ESG'
+        'fact_filing_data': 'FACT_FILING_DATA'
     },
     'semantic_views': {
         'fundamentals': 'SAM_FUNDAMENTALS_VIEW',  # Financial statements + estimates
@@ -299,70 +902,6 @@ MARKET_DATA = {
     }
 }
 
-# Financial data items for generation (maps to REF_DATA_ITEM)
-FINANCIAL_DATA_ITEMS = {
-    # Income Statement
-    'revenue': {'id': 1001, 'name': 'Total Revenue', 'category': 'income_statement', 'unit': 'USD'},
-    'cost_of_revenue': {'id': 1002, 'name': 'Cost of Revenue', 'category': 'income_statement', 'unit': 'USD'},
-    'gross_profit': {'id': 1003, 'name': 'Gross Profit', 'category': 'income_statement', 'unit': 'USD'},
-    'operating_income': {'id': 1004, 'name': 'Operating Income', 'category': 'income_statement', 'unit': 'USD'},
-    'net_income': {'id': 1005, 'name': 'Net Income', 'category': 'income_statement', 'unit': 'USD'},
-    'eps_basic': {'id': 1006, 'name': 'EPS (Basic)', 'category': 'income_statement', 'unit': 'USD'},
-    'eps_diluted': {'id': 1007, 'name': 'EPS (Diluted)', 'category': 'income_statement', 'unit': 'USD'},
-    'ebitda': {'id': 1008, 'name': 'EBITDA', 'category': 'income_statement', 'unit': 'USD'},
-    'rd_expense': {'id': 1009, 'name': 'R&D Expense', 'category': 'income_statement', 'unit': 'USD'},
-    'sga_expense': {'id': 1010, 'name': 'SG&A Expense', 'category': 'income_statement', 'unit': 'USD'},
-    
-    # Balance Sheet
-    'total_assets': {'id': 2001, 'name': 'Total Assets', 'category': 'balance_sheet', 'unit': 'USD'},
-    'total_liabilities': {'id': 2002, 'name': 'Total Liabilities', 'category': 'balance_sheet', 'unit': 'USD'},
-    'total_equity': {'id': 2003, 'name': 'Total Equity', 'category': 'balance_sheet', 'unit': 'USD'},
-    'cash_and_equivalents': {'id': 2004, 'name': 'Cash & Equivalents', 'category': 'balance_sheet', 'unit': 'USD'},
-    'total_debt': {'id': 2005, 'name': 'Total Debt', 'category': 'balance_sheet', 'unit': 'USD'},
-    'current_assets': {'id': 2006, 'name': 'Current Assets', 'category': 'balance_sheet', 'unit': 'USD'},
-    'current_liabilities': {'id': 2007, 'name': 'Current Liabilities', 'category': 'balance_sheet', 'unit': 'USD'},
-    'accounts_receivable': {'id': 2008, 'name': 'Accounts Receivable', 'category': 'balance_sheet', 'unit': 'USD'},
-    'inventory': {'id': 2009, 'name': 'Inventory', 'category': 'balance_sheet', 'unit': 'USD'},
-    'goodwill': {'id': 2010, 'name': 'Goodwill', 'category': 'balance_sheet', 'unit': 'USD'},
-    
-    # Cash Flow
-    'operating_cash_flow': {'id': 3001, 'name': 'Operating Cash Flow', 'category': 'cash_flow', 'unit': 'USD'},
-    'capex': {'id': 3002, 'name': 'Capital Expenditure', 'category': 'cash_flow', 'unit': 'USD'},
-    'free_cash_flow': {'id': 3003, 'name': 'Free Cash Flow', 'category': 'cash_flow', 'unit': 'USD'},
-    'dividends_paid': {'id': 3004, 'name': 'Dividends Paid', 'category': 'cash_flow', 'unit': 'USD'},
-    'share_repurchases': {'id': 3005, 'name': 'Share Repurchases', 'category': 'cash_flow', 'unit': 'USD'},
-    
-    # Ratios (calculated)
-    'gross_margin': {'id': 4001, 'name': 'Gross Margin', 'category': 'ratios', 'unit': 'PCT'},
-    'operating_margin': {'id': 4002, 'name': 'Operating Margin', 'category': 'ratios', 'unit': 'PCT'},
-    'net_margin': {'id': 4003, 'name': 'Net Margin', 'category': 'ratios', 'unit': 'PCT'},
-    'roe': {'id': 4004, 'name': 'Return on Equity', 'category': 'ratios', 'unit': 'PCT'},
-    'roa': {'id': 4005, 'name': 'Return on Assets', 'category': 'ratios', 'unit': 'PCT'},
-    'debt_to_equity': {'id': 4006, 'name': 'Debt to Equity', 'category': 'ratios', 'unit': 'RATIO'},
-    'current_ratio': {'id': 4007, 'name': 'Current Ratio', 'category': 'ratios', 'unit': 'RATIO'},
-    'quick_ratio': {'id': 4008, 'name': 'Quick Ratio', 'category': 'ratios', 'unit': 'RATIO'},
-    
-    # Rigorous Investment Memo Metrics
-    'tam': {'id': 1011, 'name': 'Total Addressable Market', 'category': 'income_statement', 'unit': 'USD'},
-    'customer_count': {'id': 1012, 'name': 'Total Customers', 'category': 'income_statement', 'unit': 'COUNT'},
-    'nrr': {'id': 4009, 'name': 'Net Revenue Retention', 'category': 'ratios', 'unit': 'PCT'}
-}
-
-# Estimate data items for consensus
-ESTIMATE_DATA_ITEMS = {
-    'revenue_est': {'id': 5001, 'name': 'Revenue Estimate', 'category': 'estimates', 'unit': 'USD'},
-    'eps_est': {'id': 5002, 'name': 'EPS Estimate', 'category': 'estimates', 'unit': 'USD'},
-    'ebitda_est': {'id': 5003, 'name': 'EBITDA Estimate', 'category': 'estimates', 'unit': 'USD'},
-    'net_income_est': {'id': 5004, 'name': 'Net Income Estimate', 'category': 'estimates', 'unit': 'USD'},
-    'price_target': {'id': 5005, 'name': 'Price Target', 'category': 'estimates', 'unit': 'USD'},
-    'rating': {'id': 5006, 'name': 'Analyst Rating', 'category': 'estimates', 'unit': 'RATING'},
-    
-    # Rigorous Investment Memo Estimates
-    'tam_est': {'id': 5007, 'name': 'TAM Estimate', 'category': 'estimates', 'unit': 'USD'},
-    'nrr_est': {'id': 5008, 'name': 'NRR Estimate', 'category': 'estimates', 'unit': 'PCT'},
-    'customer_count_est': {'id': 5009, 'name': 'Customer Count Estimate', 'category': 'estimates', 'unit': 'COUNT'}
-}
-
 # Broker names for synthetic data
 BROKER_NAMES = [
     'Goldman Sachs', 'Morgan Stanley', 'JPMorgan', 'Bank of America', 'Citigroup',
@@ -371,116 +910,10 @@ BROKER_NAMES = [
     'Raymond James', 'Cowen', 'Needham', 'Wedbush', 'Loop Capital'
 ]
 
-# Filing types (S&P Capital IQ pattern)
-FILING_TYPES = [
-    {'id': 1, 'type': '10-K', 'definition': 'Annual report filed with SEC', 'is_annual': True, 'is_quarterly': False},
-    {'id': 2, 'type': '10-Q', 'definition': 'Quarterly report filed with SEC', 'is_annual': False, 'is_quarterly': True},
-    {'id': 3, 'type': '8-K', 'definition': 'Current report for material events', 'is_annual': False, 'is_quarterly': False},
-    {'id': 4, 'type': 'DEF 14A', 'definition': 'Definitive proxy statement', 'is_annual': True, 'is_quarterly': False},
-    {'id': 5, 'type': '20-F', 'definition': 'Annual report for foreign private issuers', 'is_annual': True, 'is_quarterly': False},
-    {'id': 6, 'type': '6-K', 'definition': 'Current report for foreign private issuers', 'is_annual': False, 'is_quarterly': False},
-    {'id': 7, 'type': 'S-1', 'definition': 'Registration statement for IPO', 'is_annual': False, 'is_quarterly': False},
-    {'id': 8, 'type': '424B', 'definition': 'Prospectus supplement', 'is_annual': False, 'is_quarterly': False}
-]
-
-# Filing sources
-FILING_SOURCES = [
-    {'id': 1, 'source': 'SEC_EDGAR', 'description': 'US Securities and Exchange Commission EDGAR system'},
-    {'id': 2, 'source': 'COMPANY_WEBSITE', 'description': 'Company investor relations website'},
-    {'id': 3, 'source': 'ESG_REPORT', 'description': 'Corporate sustainability/ESG report'},
-    {'id': 4, 'source': 'ANNUAL_REPORT', 'description': 'Annual report (non-SEC filing)'},
-    {'id': 5, 'source': 'INVESTOR_PRESENTATION', 'description': 'Investor day or earnings presentation'}
-]
-
-# Filing languages
-FILING_LANGUAGES = [
-    {'id': 1, 'language': 'English', 'code': 'en'},
-    {'id': 2, 'language': 'Spanish', 'code': 'es'},
-    {'id': 3, 'language': 'German', 'code': 'de'},
-    {'id': 4, 'language': 'French', 'code': 'fr'},
-    {'id': 5, 'language': 'Japanese', 'code': 'ja'},
-    {'id': 6, 'language': 'Chinese', 'code': 'zh'}
-]
-
-# Institution relationship types for filings
-FILING_INSTITUTION_REL_TYPES = [
-    {'id': 1, 'type': 'FILER', 'description': 'Primary filing company'},
-    {'id': 2, 'type': 'AUDITOR', 'description': 'External auditor'},
-    {'id': 3, 'type': 'UNDERWRITER', 'description': 'Underwriter for offerings'},
-    {'id': 4, 'type': 'LEGAL_COUNSEL', 'description': 'Legal counsel'},
-    {'id': 5, 'type': 'SUBSIDIARY', 'description': 'Subsidiary mentioned in filing'}
-]
-
-# SEC filing section headings (standardized)
-SEC_FILING_SECTIONS = {
-    '10-K': [
-        {'heading_id': 1, 'heading': 'Item 1', 'standardized': 'Business', 'parent_id': None},
-        {'heading_id': 2, 'heading': 'Item 1A', 'standardized': 'Risk Factors', 'parent_id': None},
-        {'heading_id': 3, 'heading': 'Item 1B', 'standardized': 'Unresolved Staff Comments', 'parent_id': None},
-        {'heading_id': 4, 'heading': 'Item 2', 'standardized': 'Properties', 'parent_id': None},
-        {'heading_id': 5, 'heading': 'Item 3', 'standardized': 'Legal Proceedings', 'parent_id': None},
-        {'heading_id': 6, 'heading': 'Item 4', 'standardized': 'Mine Safety Disclosures', 'parent_id': None},
-        {'heading_id': 7, 'heading': 'Item 5', 'standardized': 'Market for Common Equity', 'parent_id': None},
-        {'heading_id': 8, 'heading': 'Item 6', 'standardized': 'Selected Financial Data', 'parent_id': None},
-        {'heading_id': 9, 'heading': 'Item 7', 'standardized': 'MD&A', 'parent_id': None},
-        {'heading_id': 10, 'heading': 'Item 7A', 'standardized': 'Quantitative and Qualitative Disclosures About Market Risk', 'parent_id': None},
-        {'heading_id': 11, 'heading': 'Item 8', 'standardized': 'Financial Statements and Supplementary Data', 'parent_id': None},
-        {'heading_id': 12, 'heading': 'Item 9', 'standardized': 'Changes in and Disagreements With Accountants', 'parent_id': None},
-        {'heading_id': 13, 'heading': 'Item 9A', 'standardized': 'Controls and Procedures', 'parent_id': None},
-        {'heading_id': 14, 'heading': 'Item 10', 'standardized': 'Directors and Executive Officers', 'parent_id': None},
-        {'heading_id': 15, 'heading': 'Item 11', 'standardized': 'Executive Compensation', 'parent_id': None},
-        {'heading_id': 16, 'heading': 'Item 12', 'standardized': 'Security Ownership', 'parent_id': None},
-        {'heading_id': 17, 'heading': 'Item 13', 'standardized': 'Certain Relationships and Related Transactions', 'parent_id': None},
-        {'heading_id': 18, 'heading': 'Item 14', 'standardized': 'Principal Accountant Fees', 'parent_id': None},
-        {'heading_id': 19, 'heading': 'Item 15', 'standardized': 'Exhibits and Financial Statement Schedules', 'parent_id': None}
-    ],
-    '10-Q': [
-        {'heading_id': 101, 'heading': 'Part I Item 1', 'standardized': 'Financial Statements', 'parent_id': None},
-        {'heading_id': 102, 'heading': 'Part I Item 2', 'standardized': 'MD&A', 'parent_id': None},
-        {'heading_id': 103, 'heading': 'Part I Item 3', 'standardized': 'Quantitative and Qualitative Disclosures About Market Risk', 'parent_id': None},
-        {'heading_id': 104, 'heading': 'Part I Item 4', 'standardized': 'Controls and Procedures', 'parent_id': None},
-        {'heading_id': 105, 'heading': 'Part II Item 1', 'standardized': 'Legal Proceedings', 'parent_id': None},
-        {'heading_id': 106, 'heading': 'Part II Item 1A', 'standardized': 'Risk Factors', 'parent_id': None},
-        {'heading_id': 107, 'heading': 'Part II Item 2', 'standardized': 'Unregistered Sales of Equity Securities', 'parent_id': None},
-        {'heading_id': 108, 'heading': 'Part II Item 6', 'standardized': 'Exhibits', 'parent_id': None}
-    ]
-}
-
 # =============================================================================
-# HELPER FUNCTIONS FOR DATABASE PATHS
+# HELPER FUNCTIONS FOR DATABASE PATHS (moved to db_helpers.py)
 # =============================================================================
-
-def get_database_name() -> str:
-    """Get the demo database name."""
-    return DATABASE['name']
-
-def get_schema_path(schema_key: str) -> str:
-    """Get fully qualified schema path: DATABASE.SCHEMA
-    
-    Args:
-        schema_key: Key from DATABASE['schemas'] dict (e.g., 'curated', 'market_data', 'ai')
-    
-    Returns:
-        Fully qualified schema path (e.g., 'SAM_DEMO.CURATED')
-    """
-    return f"{DATABASE['name']}.{DATABASE['schemas'][schema_key]}"
-
-def get_full_table_path(schema_key: str, table_name: str) -> str:
-    """Get fully qualified table path: DATABASE.SCHEMA.TABLE
-    
-    Args:
-        schema_key: Key from DATABASE['schemas'] dict (e.g., 'curated', 'market_data', 'ai')
-        table_name: Name of the table
-    
-    Returns:
-        Fully qualified table path (e.g., 'SAM_DEMO.CURATED.DIM_SECURITY')
-    """
-    return f"{DATABASE['name']}.{DATABASE['schemas'][schema_key]}.{table_name}"
-
-# Alias for backwards compatibility
-def get_table_path(schema: str, table: str) -> str:
-    """Get fully qualified table path. (Alias for get_full_table_path)"""
-    return get_full_table_path(schema, table)
+# Re-exported at end of file for backward compatibility
 
 # =============================================================================
 # DATA MODEL CONFIGURATION
@@ -494,7 +927,291 @@ DATA_MODEL = {
     'transaction_months': 12,
     'transaction_types': ['BUY', 'SELL', 'DIVIDEND', 'CORPORATE_ACTION'],
     'avg_monthly_transactions_per_security': 2.5,
-    'portfolio_code_prefix': 'SAM'
+    'portfolio_code_prefix': 'SAM',
+    
+    # =========================================================================
+    # SYNTHETIC DATA DISTRIBUTIONS
+    # Consolidated config for all data generation calibration parameters.
+    # Used by sql_case_builders.py and config_accessors.py.
+    # =========================================================================
+    'synthetic_distributions': {
+        # =====================================================================
+        # SECTOR-BASED DISTRIBUTIONS
+        # =====================================================================
+        'by_sector': {
+            'Information Technology': {
+                'esg': {'E': (60, 95)},
+                'factors': {
+                    'Market': (0.9, 1.6),
+                    'Value': (-1.0, 0.5),
+                    'Growth': (0.5, 2.5),
+                    'Quality': (0.5, 2.0),
+                    'Volatility': (-0.1, 0.4)
+                },
+                'transaction_costs': {
+                    'bid_ask_spread_bps': (3, 8),
+                    'daily_volume_m': (2.0, 15.0),
+                    'market_impact_bps_per_1m': (2, 6)
+                }
+            },
+            'Utilities': {
+                'esg': {'E': (20, 60)},
+                'factors': {
+                    'Market': (0.3, 0.7),
+                    'Volatility': (-0.3, 0.1)
+                },
+                'transaction_costs': {
+                    'bid_ask_spread_bps': (5, 12)
+                }
+            },
+            'Energy': {
+                'esg': {'E': (15, 50)},
+                'factors': {
+                    'Value': (0.5, 2.0),
+                    'Growth': (-1.5, 0.3)
+                },
+                'transaction_costs': {
+                    'bid_ask_spread_bps': (4, 10)
+                }
+            },
+            'Health Care': {
+                'factors': {
+                    'Market': (0.6, 1.1),
+                    'Growth': (0.3, 2.0),
+                    'Quality': (0.3, 1.8)
+                }
+            },
+            'Financials': {
+                'factors': {
+                    'Market': (0.8, 1.3),
+                    'Value': (1.0, 2.5),
+                    'Quality': (1.0, 2.5),
+                    'Growth': (-0.5, 0.5)
+                }
+            },
+            'Consumer Discretionary': {
+                'factors': {
+                    'Market': (0.9, 1.4),
+                    'Value': (0.8, 2.2),
+                    'Quality': (0.8, 2.2),
+                    'Growth': (0.0, 1.5)
+                }
+            },
+            'Industrials': {
+                'factors': {
+                    'Market': (0.8, 1.2),
+                    'Value': (0.8, 2.2),
+                    'Quality': (0.8, 2.2),
+                    'Growth': (-0.3, 0.8)
+                }
+            },
+            '_default': {
+                'esg': {'E': (40, 80)},
+                'factors': {
+                    'Market': (0.7, 1.2),
+                    'Value': (-0.5, 1.5),
+                    'Growth': (-0.8, 1.0),
+                    'Quality': (-0.5, 1.2),
+                    'Volatility': (-0.2, 0.2)
+                },
+                'transaction_costs': {
+                    'bid_ask_spread_bps': (4, 9),
+                    'daily_volume_m': (0.5, 8.0),
+                    'market_impact_bps_per_1m': (3, 8)
+                }
+            }
+        },
+        
+        # =====================================================================
+        # COUNTRY GROUP DISTRIBUTIONS
+        # =====================================================================
+        'country_groups': {
+            'developed_americas': {
+                'countries': ['US', 'CA'],
+                'esg': {'S': (50, 85), 'G': (65, 95)},
+                'settlement_days': 2
+            },
+            'developed_europe': {
+                'countries': ['GB', 'DE', 'FR', 'SE', 'DK'],
+                'esg': {'S': (60, 90), 'G': (65, 95)},
+                'settlement_days': 2
+            },
+            '_default': {
+                'esg': {'S': (45, 75), 'G': (40, 70)},
+                'settlement_days': 3
+            }
+        },
+        
+        # =====================================================================
+        # GLOBAL / STRATEGY / MISC DISTRIBUTIONS
+        # =====================================================================
+        'global': {
+            # Factor model globals
+            'factor_globals': {
+                'Size': (-1.0, 1.5),
+                'Momentum': (-1.5, 2.0)
+            },
+            'factor_r_squared': {
+                'Market': 0.95, 'Size': 0.75, 'Value': 0.65,
+                'Growth': 0.60, 'Momentum': 0.45, 'Quality': 0.55, 'Volatility': 0.35
+            },
+            
+            # Transaction cost globals
+            'transaction_cost_globals': {
+                'commission_bps': (1, 3),
+                'business_days_window': 66,
+                'business_months_window': 3
+            },
+            
+            # Strategy-based liquidity params
+            'liquidity_by_strategy': {
+                'Growth': {'liquidity_score': (7, 9), 'rebalancing_days': 90},
+                'ESG': {'liquidity_score': (6, 8), 'rebalancing_days': 90},
+                'Multi-Asset': {'liquidity_score': (5, 8), 'rebalancing_days': 30},
+                '_default': {'liquidity_score': (5, 8), 'rebalancing_days': 60}
+            },
+            
+            # Strategy-based risk limits
+            'risk_limits_by_strategy': {
+                'Growth': {'tracking_error_limit': (4.0, 6.0), 'max_sector_concentration': 0.50},
+                'Multi-Asset': {'tracking_error_limit': (3.0, 5.0), 'max_sector_concentration': 0.35},
+                '_default': {'tracking_error_limit': (2.0, 4.0), 'max_sector_concentration': 0.40}
+            },
+            
+            # Global risk ranges
+            'risk_globals': {
+                'current_tracking_error_pct': (2.5, 4.8),
+                'risk_budget_utilization_pct': (65, 85),
+                'var_limit_1day_pct': (1.5, 3.0)
+            },
+            
+            # Calendar/event frequencies
+            'calendar': {
+                'earnings_frequency_days': 90,
+                'monthly_review_frequency_days': 30,
+                'weekly_review_frequency_days': 7,
+                'vix_range': (12, 35),
+                'options_expiration_frequency_days': 21
+            },
+            
+            # Tax parameters
+            'tax': {
+                'cost_basis_multiplier_range': (0.70, 1.30),
+                'holding_period_days_range': (30, 1095),
+                'long_term_threshold_days': 365,
+                'long_term_rate': 0.20,
+                'short_term_rate': 0.37,
+                'tax_loss_harvest_threshold_usd': -10000
+            },
+            
+            # Corporate action parameters
+            'corporate_actions': {
+                'dividend_range_usd': (0.50, 2.00),
+                'action_type_weights': {'Dividend': 0.90, 'Split': 0.07, 'Merger': 0.03},
+                'quarterly_event_frequency_days': 90,
+                'ex_date_offset_days': 15,
+                'record_date_offset_days': 16,
+                'payment_date_offset_days': 30
+            },
+            
+            # Client mandate defaults
+            'client_mandates': {
+                'approval_thresholds': {
+                    'Flagship': 0.03,
+                    'ESG': 0.04,
+                    '_default': 0.05
+                },
+                'sector_allocation_defaults': {
+                    'Technology': {'Technology': [0.30, 0.50], 'Healthcare': [0.05, 0.15]},
+                    'ESG': {'Technology': [0.15, 0.35], 'Energy': [0.00, 0.05]},
+                    '_default': {'Technology': [0.10, 0.40], 'Healthcare': [0.05, 0.20]}
+                }
+            },
+            
+            # Cash/liquidity globals
+            'cash': {
+                'cash_position_range_usd': (1_000_000, 25_000_000),
+                'net_cashflow_30d_range_usd': (-5_000_000, 10_000_000)
+            },
+            
+            # Client generation parameters
+            'client': {
+                # Total clients to generate (demo clients + generated)
+                'total_count': 75,
+                'total_count_test_mode': 10,
+                
+                # Generated client AUM range
+                'aum_range_usd': (50_000_000, 500_000_000),
+                
+                # Relationship tenure for generated clients (days)
+                'tenure_days_range': (365, 2920),  # 1-8 years
+                
+                # Demo client tenure formula: base + (max_priority - priority) * multiplier
+                'demo_tenure_base_days': 365,
+                'demo_tenure_multiplier_days': 150,
+                
+                # Generated client distribution weights (for MOD-based assignment)
+                'client_types': ['Pension', 'Endowment', 'Foundation', 'Insurance', 'Corporate', 'Family Office'],
+                'regions': ['North America', 'Europe', 'Asia Pacific', 'Middle East', 'Latin America'],
+                
+                # Primary contacts for client assignments
+                'primary_contacts': [
+                    'Sarah Chen', "Michael O'Brien", 'Jennifer Martinez', 'David Kim',
+                    'Emma Thompson', 'Robert Singh', 'Lisa Anderson', 'James Wilson',
+                    'Thomas Wright', 'Rachel Green', 'Christopher Lee', 'Amanda Foster', 'Daniel Park'
+                ],
+                
+                # Generated client name patterns (for non-demo clients)
+                # Used with " NNN" suffix, e.g. "State Teachers Retirement System 014"
+                'generated_name_patterns': [
+                    'State Teachers Retirement System',
+                    'University Endowment Fund',
+                    'Corporate Pension Trust',
+                    'Healthcare Workers Pension',
+                    'Municipal Employees Retirement',
+                    'Private Foundation Trust',
+                    'Insurance General Account',
+                    'Family Office Holdings',
+                    'Sovereign Wealth Reserve',
+                    'Corporate Treasury Fund',
+                    'Public Employees Pension',
+                    'Charitable Foundation',
+                    'Life Insurance Portfolio',
+                    'Multi-Family Office',
+                    'Institutional Investor'
+                ]
+            },
+            
+            # Client flow generation parameters  
+            'client_flows': {
+                'months_of_history': 12,
+                
+                # Standard client flow pattern (net positive)
+                'standard_subscription_pct': 75,
+                'standard_redemption_pct': 20,  # Remaining 5% is transfers
+                
+                # At-risk client flow pattern (net negative)
+                'at_risk_redemption_pct': 80,
+                
+                # Client-portfolio allocation
+                'allocation_weight_range': (0.3, 1.0),
+                'single_product_pct': 20,   # ~20% have single portfolio
+                'dual_product_pct': 30,     # ~30% have two portfolios
+                # Remaining 50% have three portfolios
+                
+                # Flow amount as percentage of AUM
+                'flow_amount_pct_range': (0.01, 0.05),
+                
+                # Strategy-specific flow multipliers
+                'esg_recent_inflow_multiplier': 1.5,
+                'esg_recent_months': 6,
+                'growth_volatility_range': (0.8, 1.2),
+                
+                # Monthly flow probability (not every client has flow every month)
+                'monthly_flow_probability_pct': 40
+            }
+        }
+    }
 }
 
 # =============================================================================
@@ -506,15 +1223,15 @@ DATA_MODEL = {
 #
 REAL_DATA_SOURCES_TABLES = {
         # =============================================================================
-        # OPENFIGI SECURITY DATA (for V_REAL_ASSETS view)
+        # COMPANY DATA (reference only - not used for DIM_SECURITY with DEMO_COMPANIES approach)
         # =============================================================================
         'openfigi_security_index': {
             'table': 'OPENFIGI_SECURITY_INDEX',
             'description': 'Security master data with tickers, FIGI identifiers, and exchange info',
             'key_columns': ['TOP_LEVEL_OPENFIGI_ID', 'PRIMARY_TICKER', 'SECURITY_NAME', 'ASSET_CATEGORY'],
             'coverage': 'Global securities with OpenFIGI identifiers',
-            'replaces': None,  # Source for V_REAL_ASSETS view
-            'used_by': ['extract_real_assets.py', 'V_REAL_ASSETS']
+            'replaces': None,
+            'used_by': []  # No longer used - DIM_SECURITY derives from DIM_ISSUER directly
         },
         'company_security_relationships': {
             'table': 'COMPANY_SECURITY_RELATIONSHIPS',
@@ -522,7 +1239,7 @@ REAL_DATA_SOURCES_TABLES = {
             'key_columns': ['COMPANY_ID', 'SECURITY_ID', 'SECURITY_ID_TYPE'],
             'coverage': 'Company-security mappings',
             'replaces': None,
-            'used_by': ['extract_real_assets.py', 'V_REAL_ASSETS']
+            'used_by': []  # No longer used with DEMO_COMPANIES approach
         },
         'company_characteristics': {
             'table': 'COMPANY_CHARACTERISTICS',
@@ -530,7 +1247,7 @@ REAL_DATA_SOURCES_TABLES = {
             'key_columns': ['COMPANY_ID', 'RELATIONSHIP_TYPE', 'VALUE'],
             'coverage': 'Company metadata and characteristics',
             'replaces': None,
-            'used_by': ['extract_real_assets.py', 'generate_structured.py']
+            'used_by': ['generate_structured.py (DIM_ISSUER enrichment)']
         },
         # =============================================================================
         # COMPANY INDEX (shared by multiple modules)
@@ -540,8 +1257,8 @@ REAL_DATA_SOURCES_TABLES = {
             'description': 'Company master data with CIK, EIN, LEI identifiers',
             'key_columns': ['COMPANY_ID', 'COMPANY_NAME', 'CIK', 'EIN', 'LEI'],
             'coverage': 'US public companies',
-            'replaces': 'DIM_COMPANY',
-            'used_by': ['extract_real_assets.py', 'generate_structured.py']
+            'replaces': None,  # DIM_COMPANY has been eliminated - DIM_ISSUER is single source of truth
+            'used_by': ['generate_structured.py (DIM_ISSUER enrichment)']
         },
         # =============================================================================
         # STOCK PRICE DATA
@@ -559,11 +1276,11 @@ REAL_DATA_SOURCES_TABLES = {
         # =============================================================================
         'sec_metrics': {
             'table': 'SEC_METRICS_TIMESERIES',
-            'description': 'Quarterly and annual parsed revenue segments from 10-Qs and 10-Ks',
-            'key_columns': ['CIK', 'COMPANY_NAME', 'VARIABLE_NAME', 'PERIOD_END_DATE', 'VALUE', 'UNIT', 'BUSINESS_SEGMENT'],
-            'coverage': 'US public companies with SEC filings',
-            'replaces': 'FACT_FINANCIAL_DATA',
-            'used_by': ['generate_market_data.py']
+            'description': 'Quarterly and annual parsed revenue segments from 10-Qs and 10-Ks with geography and business segment breakdowns',
+            'key_columns': ['COMPANY_ID', 'CIK', 'GEO_NAME', 'BUSINESS_SEGMENT', 'BUSINESS_SUBSEGMENT', 'CUSTOMER', 'LEGAL_ENTITY', 'FISCAL_YEAR', 'FISCAL_PERIOD', 'VALUE'],
+            'coverage': 'US public companies with SEC filings - revenue segments only',
+            'replaces': None,
+            'used_by': ['generate_market_data.py (FACT_SEC_SEGMENTS)']
         },
         'sec_filing_text': {
             'table': 'SEC_REPORT_TEXT_ATTRIBUTES',
@@ -633,12 +1350,6 @@ REAL_DATA_SOURCES_TABLES = {
 REAL_DATA_SOURCES['tables'] = REAL_DATA_SOURCES_TABLES
 
 # Helper function for test mode counts
-def get_securities_count(test_mode: bool = False) -> dict:
-    """Get securities count based on mode."""
-    if test_mode:
-        return {k: int(v * TEST_MODE_MULTIPLIER) for k, v in SECURITIES['counts'].items()}
-    return SECURITIES['counts']
-
 # =============================================================================
 # COMPLIANCE & RISK CONFIGURATION
 # =============================================================================
@@ -657,7 +1368,12 @@ COMPLIANCE_RULES = {
     'esg': {
         'min_overall_rating': 'BBB',
         'exclude_high_controversy': True,
-        'applicable_portfolios': ['SAM ESG Leaders Global Equity', 'SAM Renewable & Climate Solutions']
+        'applicable_portfolios': ['SAM ESG Leaders Global Equity', 'SAM Renewable & Climate Solutions'],
+        # ESG grading configuration (for build_esg_scores)
+        'grade_thresholds': [(86, 'AAA'), (71, 'AA'), (57, 'A'), (43, 'BBB'), (29, 'BB'), (14, 'B')],
+        'default_grade': 'CCC',
+        'default_provider': 'MSCI',
+        'overall_weights': {'E': 1.0, 'S': 1.0, 'G': 1.0}  # Relative weights (1:1:1 = equal)
     }
 }
 
@@ -684,16 +1400,7 @@ PORTFOLIOS = {
         'inception_date': '2019-01-01',
         'base_currency': 'USD',
         'is_demo_portfolio': True,
-        'guaranteed_top_holdings': [
-            {'ticker': 'AAPL', 'openfigi_id': 'BBG001S5N8V8', 'order': 1, 'position_size': 'large'},
-            {'ticker': 'CMC', 'openfigi_id': 'BBG001S5PXG8', 'order': 2, 'position_size': 'large'},
-            {'ticker': 'RBBN', 'openfigi_id': 'BBG00HW4CSH5', 'order': 3, 'position_size': 'large'}
-        ],
-        'additional_holdings': [
-            {'ticker': 'MSFT', 'openfigi_id': 'BBG001S5TD05'},
-            {'ticker': 'NVDA', 'openfigi_id': 'BBG001S5TZJ6'},
-            {'ticker': 'GOOGL', 'openfigi_id': 'BBG009S39JY5'}
-        ],
+        # Priority holdings and position sizes now defined in DEMO_COMPANIES (demo_order, position_size)
         'filler_holdings': 'tech_stocks',
         'target_position_count': 45
     },
@@ -721,6 +1428,13 @@ PORTFOLIOS = {
     'SAM Renewable & Climate Solutions': {
         'benchmark': 'Nasdaq 100',
         'aum_usd': 1.0e9,
+        'strategy': 'ESG',
+        'inception_date': '2019-01-01',
+        'base_currency': 'USD'
+    },
+    'SAM Sustainable Global Equity': {
+        'benchmark': 'MSCI ACWI',
+        'aum_usd': 1.1e9,
         'strategy': 'ESG',
         'inception_date': '2019-01-01',
         'base_currency': 'USD'
@@ -771,17 +1485,15 @@ SCENARIO_3_2_MANDATE_COMPLIANCE = {
     'portfolio': 'SAM AI & Digital Innovation',
     'non_compliant_holding': {
         'ticker': 'META',
-        'openfigi_id': 'BBG00DQ6WPS6',  # Meta Platforms Inc. (Facebook)
         'issue': 'ESG_DOWNGRADE',
         'original_esg_grade': 'A',
-        'downgraded_esg_grade': 'BBB',
-        'reason': 'Governance concerns related to data privacy practices',
+        'downgraded_esg_grade': 'CCC',
+        'reason': 'Governance concerns related to data privacy practices and content moderation',
         'action_deadline_days': 30  # Days from alert to resolution deadline
     },
     'pre_screened_replacements': [
         {
             'ticker': 'NVDA',
-            'openfigi_id': 'BBG001S5TZJ6',
             'rank': 1,
             'ai_growth_score': 92,
             'esg_grade': 'A',
@@ -791,7 +1503,6 @@ SCENARIO_3_2_MANDATE_COMPLIANCE = {
         },
         {
             'ticker': 'MSFT',
-            'openfigi_id': 'BBG001S5TD05',
             'rank': 2,
             'ai_growth_score': 89,
             'esg_grade': 'A',
@@ -801,7 +1512,6 @@ SCENARIO_3_2_MANDATE_COMPLIANCE = {
         },
         {
             'ticker': 'GOOGL',
-            'openfigi_id': 'BBG009S39JY5',
             'rank': 3,
             'ai_growth_score': 85,
             'esg_grade': 'A',
@@ -821,71 +1531,48 @@ SCENARIO_3_2_MANDATE_COMPLIANCE = {
 }
 
 # =============================================================================
+# ESG DEMO OVERRIDES (for ESG Rating Monitor scenario)
+# =============================================================================
+
+# Securities with intentionally low ESG scores for demo scenarios
+# These create holdings below the BBB threshold in ESG-labelled portfolios
+# to demonstrate breach detection and remediation workflows
+ESG_DEMO_OVERRIDES = {
+    # Securities that should have BB grade (score 29-42) for demo scenarios
+    'INTC': {
+        'ticker': 'INTC',
+        'esg_grade': 'BB',
+        'esg_score': 35,  # Score in BB range (29-42)
+        'reason': 'Environmental concerns - manufacturing emissions'
+    },
+    'IBM': {
+        'ticker': 'IBM',
+        'esg_grade': 'BB',
+        'esg_score': 38,  # Score in BB range (29-42)
+        'reason': 'Governance concerns - board diversity'
+    },
+    # Securities that should have B grade (score 14-28) for demo scenarios
+    'CSCO': {
+        'ticker': 'CSCO',
+        'esg_grade': 'B',
+        'esg_score': 22,  # Score in B range (14-28)
+        'reason': 'Social concerns - supply chain labor practices'
+    },
+    # Securities that should have CCC grade (score 0-13) for demo scenarios
+    'META': {
+        'ticker': 'META',
+        'esg_grade': 'CCC',
+        'esg_score': 10,  # Score in CCC range (0-13)
+        'reason': 'Governance concerns - data privacy practices and content moderation'
+    },
+}
+
+# =============================================================================
 # SUPPLY CHAIN CONFIGURATION (for Risk Verification scenario)
 # =============================================================================
 
-# Supply chain demo companies for Taiwan earthquake scenario
-SUPPLY_CHAIN_DEMO_COMPANIES = {
-    # Taiwan semiconductor supplier (critical upstream)
-    'TSM': {
-        'openfigi_id': 'BBG001S5WWW4',  # Taiwan Semiconductor ADR (correct FIGI from real data)
-        'ticker': 'TSM',
-        'company_name': 'Taiwan Semiconductor Manufacturing Company Ltd',
-        'country': 'TW',
-        'sector': 'Information Technology',
-        'relationship_type': 'supplier',  # upstream supplier
-        'priority': 1
-    },
-    # US tech companies (downstream customers)
-    'NVDA': {
-        'openfigi_id': 'BBG001S5TZJ6',
-        'ticker': 'NVDA',
-        'company_name': 'NVIDIA Corp',
-        'country': 'US',
-        'sector': 'Information Technology',
-        'relationship_type': 'customer',  # downstream customer of TSM
-        'priority': 2
-    },
-    'AMD': {
-        'openfigi_id': 'BBG000BBQCY0',
-        'ticker': 'AMD',
-        'company_name': 'Advanced Micro Devices Inc',
-        'country': 'US',
-        'sector': 'Information Technology',
-        'relationship_type': 'customer',  # downstream customer of TSM
-        'priority': 2
-    },
-    'AAPL': {
-        'openfigi_id': 'BBG001S5N8V8',
-        'ticker': 'AAPL',
-        'company_name': 'Apple Inc.',
-        'country': 'US',
-        'sector': 'Information Technology',
-        'relationship_type': 'customer',  # downstream customer of TSM
-        'priority': 2
-    },
-    # Automotive companies (second-order downstream)
-    'GM': {
-        'openfigi_id': 'BBG000NDYB67',
-        'ticker': 'GM',
-        'company_name': 'General Motors Co',
-        'country': 'US',
-        'sector': 'Consumer Discretionary',
-        'relationship_type': 'customer',  # downstream customer of chip makers
-        'priority': 3
-    },
-    'F': {
-        'openfigi_id': 'BBG000BQPC32',
-        'ticker': 'F',
-        'company_name': 'Ford Motor Co',
-        'country': 'US',
-        'sector': 'Consumer Discretionary',
-        'relationship_type': 'customer',  # downstream customer of chip makers
-        'priority': 3
-    }
-}
-
 # Supply chain relationship patterns for demo scenario
+# NOTE: Companies (TSM, NVDA, AMD, AAPL, GM, F) are now in DEMO_COMPANIES
 # Format: (Company, Counterparty, RelationshipType, CostShare/RevenueShare, CriticalityTier)
 SUPPLY_CHAIN_DEMO_RELATIONSHIPS = [
     # Taiwan semiconductor → US tech companies (high dependency)
@@ -921,14 +1608,6 @@ SUPPLY_CHAIN_RELATIONSHIP_STRENGTHS = {
         'major_customers_share': (0.05, 0.12),
         'relationship_count_range': (1, 3)
     }
-}
-
-# Traversal settings for multi-hop exposure calculation
-SUPPLY_CHAIN_TRAVERSAL = {
-    'decay_rate': 0.50,        # 50% decay per hop
-    'max_depth': 2,            # Maximum 2 hops
-    'min_display_threshold': 0.05,  # Display if ≥5% post-decay exposure
-    'high_dependency_threshold': 0.20  # Flag as High if ≥20% post-decay exposure
 }
 
 # =============================================================================
@@ -1003,7 +1682,7 @@ SCENARIO_DATA_REQUIREMENTS = {
     'esg_guardian': ['ngo_reports', 'engagement_notes', 'policy_docs'],
     'sales_advisor': ['sales_templates', 'philosophy_docs', 'policy_docs'],
     'quant_analyst': ['broker_research', 'company_event_transcripts'],
-    'compliance_advisor': ['policy_docs', 'engagement_notes', 'form_adv', 'form_crs', 'regulatory_updates'],
+    'compliance_advisor': ['policy_docs', 'engagement_notes'],
     'middle_office_copilot': ['custodian_reports', 'reconciliation_notes', 'ssi_documents', 'ops_procedures'],
     'mandate_compliance': ['report_templates'],  # Alias for portfolio_copilot mandate compliance mode
     'executive_copilot': ['strategy_documents', 'press_releases', 'broker_research']  # Executive leadership scenario
@@ -1077,96 +1756,6 @@ SIC_TO_GICS_MAPPING = {
     ]
 }
 
-# =============================================================================
-# EXECUTIVE NAMES CONFIGURATION (for earnings transcripts)
-# =============================================================================
-
-# Realistic executive names for deterministic generation in earnings transcripts
-EXECUTIVE_NAMES = {
-    'ceo': {
-        'first_names': [
-            'Satya', 'Tim', 'Sundar', 'Lisa', 'Pat', 'Amy', 'Jensen', 'Mark', 'Andy', 'Mary',
-            'Brian', 'Shantanu', 'Arvind', 'Thomas', 'Daniel', 'Sarah', 'Michael', 'Karen', 'David', 'Jennifer',
-            'Robert', 'Susan', 'James', 'Patricia', 'John', 'Linda', 'William', 'Barbara', 'Richard', 'Elizabeth'
-        ],
-        'last_names': [
-            'Nadella', 'Cook', 'Pichai', 'Su', 'Gelsinger', 'Hood', 'Huang', 'Zuckerberg', 'Jassy', 'Barra',
-            'Chesky', 'Narayen', 'Krishna', 'Kurian', 'Ek', 'Friar', 'Rapino', 'Lynch', 'Solomon', 'Morgan',
-            'Anderson', 'Thompson', 'Martinez', 'Garcia', 'Rodriguez', 'Wilson', 'Taylor', 'Moore', 'Jackson', 'White'
-        ]
-    },
-    'cfo': {
-        'first_names': [
-            'Amy', 'Luca', 'Ruth', 'Dave', 'Safra', 'Brian', 'Colette', 'David', 'Kelly', 'Jason',
-            'Melissa', 'Peter', 'Christine', 'James', 'Rebecca', 'Frank', 'Kathleen', 'Martin', 'Susan', 'Robert',
-            'Matthew', 'Nancy', 'Christopher', 'Betty', 'Daniel', 'Helen', 'Paul', 'Sandra', 'Mark', 'Donna'
-        ],
-        'last_names': [
-            'Hood', 'Maestri', 'Porat', 'Wehner', 'Catz', 'Olsavsky', 'Kress', 'Bozeman', 'Kramer', 'Child',
-            'Fisher', 'Zaffino', 'McCarthy', 'Bell', 'Benzschawel', 'Milligan', 'Osberg', 'Whitehurst', 'Mahoney', 'Shanks',
-            'Harris', 'Clark', 'Lewis', 'Robinson', 'Walker', 'Young', 'Allen', 'King', 'Wright', 'Scott'
-        ]
-    }
-}
-
-# Document generation volumes
-DOCUMENT_GENERATION = {
-    'security_level': {
-        'demo_companies': 8,
-        'docs_per_company': {
-            'broker_research': 6,
-            'internal_research': 1,
-            'investment_memo': 1,
-            'earnings_transcripts': {'demo': 8, 'additional': 6},
-            'press_releases': 4
-        }
-    },
-    'issuer_level': {
-        'coverage': 8,
-        'docs_per_issuer': {
-            'ngo_reports': 2,
-            'engagement_notes': 1
-        }
-    },
-    'portfolio_level': {
-        'portfolios': DEMO_PORTFOLIOS_WITH_DOCS,
-        'docs_per_portfolio': {
-            'ips': 1,
-            'portfolio_review': 2
-        }
-    },
-    'global': {
-        'market_data': 1,
-        'policy_docs': 3,
-        'sales_templates': 2,
-        'philosophy_docs': 3,
-        'compliance_manual': 1,
-        'risk_framework': 1,
-        'form_adv': 1,
-        'form_crs': 1,
-        'regulatory_updates': 5,
-        'macro_events': 1
-    }
-}
-
-# Helper function for test mode document counts
-def get_document_count(doc_type: str, category: str, test_mode: bool = False) -> int:
-    """Get document count based on type and mode."""
-    if category == 'security_level':
-        base_count = DOCUMENT_GENERATION[category]['docs_per_company'].get(doc_type, 1)
-        if isinstance(base_count, dict):
-            base_count = base_count.get('demo', base_count.get('additional', 1))
-    elif category == 'issuer_level':
-        base_count = DOCUMENT_GENERATION[category]['docs_per_issuer'].get(doc_type, 1)
-    elif category == 'portfolio_level':
-        base_count = DOCUMENT_GENERATION[category]['docs_per_portfolio'].get(doc_type, 1)
-    else:  # global
-        base_count = DOCUMENT_GENERATION[category].get(doc_type, 1)
-    
-    if test_mode and base_count > 1:
-        return max(1, int(base_count * TEST_MODE_MULTIPLIER))
-    return base_count
-
 DOCUMENT_TYPES = {
     'broker_research': {
         'table_name': 'BROKER_RESEARCH_RAW',
@@ -1178,43 +1767,6 @@ DOCUMENT_TYPES = {
         'template_dir': 'security/broker_research',
         'variants_per_sector': 3,
         'coverage_count': 8
-    },
-    'internal_research': {
-        'table_name': 'INTERNAL_RESEARCH_RAW',
-        'corpus_name': 'INTERNAL_RESEARCH_CORPUS',
-        'search_service': 'SAM_INTERNAL_RESEARCH',
-        'word_count_range': (1500, 2500),
-        'applies_to': 'securities',
-        'linkage_level': 'security',
-        'template_dir': 'security/internal_research',
-        'variants_per_sector': 2,
-        'coverage_count': 8
-    },
-    'investment_memo': {
-        'table_name': 'INVESTMENT_MEMO_RAW',
-        'corpus_name': 'INVESTMENT_MEMO_CORPUS',
-        'search_service': 'SAM_INVESTMENT_MEMOS',
-        'word_count_range': (1000, 1800),
-        'applies_to': 'securities',
-        'linkage_level': 'security',
-        'template_dir': 'security/investment_memo',
-        'variants_per_sector': 2,
-        'coverage_count': 8
-    },
-    'earnings_transcripts': {
-        'table_name': 'EARNINGS_TRANSCRIPTS_RAW',
-        'corpus_name': 'EARNINGS_TRANSCRIPTS_CORPUS',
-        'search_service': 'SAM_EARNINGS_TRANSCRIPTS',
-        'word_count_range': (6000, 10000),
-        'applies_to': 'securities',
-        'linkage_level': 'security',
-        'template_dir': 'security/earnings_transcripts',
-        'masters_per_sector': 10,
-        'coverage_count': 8,
-        'transcripts_per_demo_company': 8,
-        'transcripts_per_additional_company': 6,
-        'deprecated': True,  # Replaced by company_event_transcripts (real data)
-        'replaced_by': 'company_event_transcripts'
     },
     'company_event_transcripts': {
         'table_name': 'COMPANY_EVENT_TRANSCRIPTS_RAW',
@@ -1263,33 +1815,9 @@ DOCUMENT_TYPES = {
         'applies_to': 'issuers',
         'linkage_level': 'issuer',
         'template_dir': 'issuer/engagement_notes',
-        'meeting_types': ['management_meeting', 'shareholder_call', 'site_visit'],
+        'meeting_types': ['management_meeting', 'shareholder_call', 'compliance_discussion'],
         'coverage_count': 8,
         'notes_per_company': 1
-    },
-    'ips': {
-        'table_name': 'IPS_RAW',
-        'corpus_name': 'IPS_CORPUS',
-        'search_service': 'SAM_IPS_DOCUMENTS',
-        'word_count_range': (1500, 2500),
-        'applies_to': 'portfolios',
-        'linkage_level': 'portfolio',
-        'template_dir': 'portfolio/ips',
-        'variants': ['conservative', 'moderate', 'aggressive'],
-        'portfolios': DEMO_PORTFOLIOS_WITH_DOCS,
-        'docs_per_portfolio': 1
-    },
-    'portfolio_review': {
-        'table_name': 'PORTFOLIO_REVIEW_RAW',
-        'corpus_name': 'PORTFOLIO_REVIEW_CORPUS',
-        'search_service': 'SAM_PORTFOLIO_REVIEWS',
-        'word_count_range': (1200, 2000),
-        'applies_to': 'portfolios',
-        'linkage_level': 'portfolio',
-        'template_dir': 'portfolio/portfolio_review',
-        'variants': ['positive_performance', 'negative_performance', 'mixed_performance'],
-        'portfolios': DEMO_PORTFOLIOS_WITH_DOCS,
-        'docs_per_portfolio': 2
     },
     'policy_docs': {
         'table_name': 'POLICY_DOCS_RAW',
@@ -1314,8 +1842,15 @@ DOCUMENT_TYPES = {
         'applies_to': None,
         'linkage_level': 'global',
         'template_dir': 'global/sales_templates',
-        'template_types': ['monthly_client_report', 'quarterly_client_letter'],
-        'docs_total': 2
+        'template_types': [
+            'monthly_client_report', 
+            'quarterly_client_letter',
+            'rfp_response_template',
+            'client_onboarding_welcome',
+            'client_retention_playbook',
+            'product_catalog'
+        ],
+        'docs_total': 6
     },
     'philosophy_docs': {
         'table_name': 'PHILOSOPHY_DOCS_RAW',
@@ -1338,68 +1873,6 @@ DOCUMENT_TYPES = {
         'template_dir': 'global/report_templates',
         'template_types': ['mandate_compliance', 'investment_decision', 'risk_assessment'],
         'docs_total': 1  # Start with just mandate compliance template
-    },
-    'market_data': {
-        'table_name': 'MARKET_DATA_RAW',
-        'corpus_name': 'MARKET_DATA_CORPUS',
-        'search_service': 'SAM_MARKET_DATA',
-        'word_count_range': (800, 1200),
-        'applies_to': None,
-        'linkage_level': 'global',
-        'template_dir': 'global/market_data',
-        'regimes': ['risk_on', 'risk_off', 'mixed'],
-        'docs_total': 1
-    },
-    'compliance_manual': {
-        'table_name': 'COMPLIANCE_MANUAL_RAW',
-        'corpus_name': 'COMPLIANCE_MANUAL_CORPUS',
-        'search_service': 'SAM_COMPLIANCE_DOCS',
-        'word_count_range': (3000, 5000),
-        'applies_to': None,
-        'linkage_level': 'global',
-        'template_dir': 'global/compliance_manual',
-        'docs_total': 1
-    },
-    'risk_framework': {
-        'table_name': 'RISK_FRAMEWORK_RAW',
-        'corpus_name': 'RISK_FRAMEWORK_CORPUS',
-        'search_service': 'SAM_RISK_DOCS',
-        'word_count_range': (2000, 3500),
-        'applies_to': None,
-        'linkage_level': 'global',
-        'template_dir': 'global/risk_framework',
-        'docs_total': 1
-    },
-    'form_adv': {
-        'table_name': 'FORM_ADV_RAW',
-        'corpus_name': 'FORM_ADV_CORPUS',
-        'search_service': 'SAM_REGULATORY_DOCS',
-        'word_count_range': (3000, 6000),
-        'applies_to': None,
-        'linkage_level': 'global',
-        'template_dir': 'regulatory/form_adv',
-        'docs_total': 1
-    },
-    'form_crs': {
-        'table_name': 'FORM_CRS_RAW',
-        'corpus_name': 'FORM_CRS_CORPUS',
-        'search_service': 'SAM_REGULATORY_DOCS',
-        'word_count_range': (500, 800),
-        'applies_to': None,
-        'linkage_level': 'global',
-        'template_dir': 'regulatory/form_crs',
-        'docs_total': 1
-    },
-    'regulatory_updates': {
-        'table_name': 'REGULATORY_UPDATES_RAW',
-        'corpus_name': 'REGULATORY_UPDATES_CORPUS',
-        'search_service': 'SAM_REGULATORY_DOCS',
-        'word_count_range': (600, 1000),
-        'applies_to': None,
-        'linkage_level': 'global',
-        'template_dir': 'regulatory/regulatory_updates',
-        'authorities': ['SEC', 'ESMA', 'FCA', 'IOSCO', 'MiFID_II'],
-        'docs_total': 5
     },
     'macro_events': {
         'table_name': 'MACRO_EVENTS_RAW',
@@ -1486,25 +1959,54 @@ DOCUMENT_TYPES = {
 # =============================================================================
 
 BENCHMARKS = [
-    {'id': 'SP500', 'name': 'S&P 500', 'currency': 'USD', 'provider': 'PLM'},
-    {'id': 'MSCI_ACWI', 'name': 'MSCI ACWI', 'currency': 'USD', 'provider': 'NSD'},
-    {'id': 'NASDAQ100', 'name': 'Nasdaq 100', 'currency': 'USD', 'provider': 'PLM'}
+    {
+        'id': 'SP500',
+        'name': 'S&P 500',
+        'currency': 'USD',
+        'provider': 'PLM',
+        'holdings_rules': {
+            'constituent_count': 500,
+            'filters': {'country': 'US'},
+            'raw_weight_range': (0.001, 0.07),
+            'min_weight': 0.0001,
+            'assumed_benchmark_mv_usd': 1_000_000_000
+        }
+    },
+    {
+        'id': 'MSCI_ACWI',
+        'name': 'MSCI ACWI',
+        'currency': 'USD',
+        'provider': 'NSD',
+        'holdings_rules': {
+            'constituent_count': 800,
+            'filters': {'all': True},  # No country filter
+            'weight_by_country': {     # Country-differentiated weights
+                'US': (0.001, 0.05),
+                '_default': (0.0001, 0.01)
+            },
+            'min_weight': 0.0001,
+            'assumed_benchmark_mv_usd': 1_000_000_000
+        }
+    },
+    {
+        'id': 'NASDAQ100',
+        'name': 'Nasdaq 100',
+        'currency': 'USD',
+        'provider': 'PLM',
+        'holdings_rules': {
+            'constituent_count': 100,
+            'filters': {'sector': 'Information Technology'},
+            'raw_weight_range': (0.005, 0.12),
+            'min_weight': 0.0001,
+            'assumed_benchmark_mv_usd': 1_000_000_000
+        }
+    }
 ]
-
-# Provider configuration
-PROVIDERS = ['NSD', 'PLM']  # NorthStar Data, PolarMetrics
-PROVIDER_MIX = {'NSD': 0.5, 'PLM': 0.5}
-
-# Factor definitions
-EQUITY_FACTORS = ['Value', 'Quality', 'Momentum', 'Size', 'Low_Volatility', 'Growth']
-FI_FACTORS = ['Duration', 'Credit_Spread', 'Carry']
 
 # Data distribution
 DATA_DISTRIBUTION = {
     'regions': {'US': 0.55, 'Europe': 0.30, 'APAC_EM': 0.15},
-    'asset_classes': {'equities': 0.70, 'bonds': 0.20, 'etfs': 0.10},
-    'bond_ratings': {'IG': 0.75, 'HY': 0.25},
-    'bond_maturity': {'1-3y': 0.25, '3-7y': 0.45, '7-12y': 0.25, '12y+': 0.05}
+    'asset_classes': {'equities': 1.0},  # Equities only with new DEMO_COMPANIES approach
 }
 
 # Currency & Calendar
@@ -1513,10 +2015,6 @@ SUPPORTED_CURRENCIES = ['USD', 'EUR', 'GBP']
 FX_HEDGING = 'FULLY_HEDGED'
 TRADING_CALENDAR = 'UTC_BUSINESS_DAYS'
 RETURNS_FREQUENCY = 'MONTHLY'
-
-# Language & Locale
-CONTENT_LANGUAGE = 'en'
-CONTENT_LOCALE = 'UK'
 
 # =============================================================================
 # CONTENT GENERATION CONFIGURATION
@@ -1565,170 +2063,6 @@ FICTIONAL_NGO_NAMES = {
         'Corporate Responsibility Institute', 'Ethical Governance Council'
     ]
 }
-
-# Numeric tier by document type
-NUMERIC_TIER_BY_DOC_TYPE = {
-    'broker_research': 'tier1',
-    'internal_research': 'tier1',
-    'investment_memo': 'tier1',
-    'earnings_transcripts': 'tier1',
-    'press_releases': 'tier1',
-    'ips': 'tier0',
-    'portfolio_review': 'tier2',
-    'ngo_reports': 'tier0',
-    'engagement_notes': 'tier0',
-    'market_data': 'tier1',
-    'policy_docs': 'tier0',
-    'sales_templates': 'tier0',
-    'philosophy_docs': 'tier0',
-    'compliance_manual': 'tier0',
-    'risk_framework': 'tier0',
-    'form_adv': 'tier0',
-    'form_crs': 'tier0',
-    'regulatory_updates': 'tier0'
-}
-
-# =============================================================================
-# THEME CONFIGURATION
-# =============================================================================
-
-THEMES = ['On-Device AI', 'Renewable Energy Transition', 'Cybersecurity']
-
-# =============================================================================
-# SIMPLIFIED HELPER FUNCTIONS
-# =============================================================================
-
-def safe_sql_tuple(items: list, default_value: str = "'__NONE__'") -> str:
-    """
-    Convert a list to a SQL-safe tuple string with proper quoting.
-    Returns a tuple with a dummy value if the list is empty to avoid SQL syntax errors.
-    
-    Args:
-        items: List of items to convert to tuple
-        default_value: Default value to use if list is empty (should be a SQL literal)
-    
-    Returns:
-        String representation of tuple for SQL IN clause
-    """
-    if not items or len(items) == 0:
-        return f"({default_value})"
-    
-    # Format items with SQL quotes
-    quoted_items = [f"'{item}'" for item in items]
-    # SQL doesn't use trailing comma for single items (unlike Python)
-    return f"({', '.join(quoted_items)})"
-
-def get_demo_company_figis(priority_group: str = 'all') -> list:
-    """Get list of OpenFIGI IDs for demo scenario companies."""
-    if priority_group == 'top3':
-        companies = [c for c in DEMO_COMPANIES.values() if c['priority'] <= 3]
-    elif priority_group == 'additional':
-        companies = [c for c in DEMO_COMPANIES.values() if c['priority'] == 4]
-    else:  # 'all'
-        companies = DEMO_COMPANIES.values()
-    return [company['openfigi_id'] for company in companies]
-
-def get_demo_company_tickers(priority_group: str = 'all') -> list:
-    """Get list of tickers for demo scenario companies."""
-    if priority_group == 'top3':
-        return [ticker for ticker, data in DEMO_COMPANIES.items() if data['priority'] <= 3]
-    elif priority_group == 'additional':
-        return [ticker for ticker, data in DEMO_COMPANIES.items() if data['priority'] == 4]
-    else:  # 'all'
-        return list(DEMO_COMPANIES.keys())
-
-def get_major_us_stocks(tier: str = 'all') -> list:
-    """Get list of major US stock tickers for portfolio diversification."""
-    if tier == 'tier1':
-        return MAJOR_US_STOCKS['tier1']
-    elif tier == 'tier2':
-        return MAJOR_US_STOCKS['tier2']
-    else:  # 'all'
-        return MAJOR_US_STOCKS['tier1'] + MAJOR_US_STOCKS['tier2']
-
-def is_demo_portfolio(portfolio_name: str) -> bool:
-    """Check if a portfolio is configured as a demo portfolio."""
-    return portfolio_name in PORTFOLIOS and PORTFOLIOS[portfolio_name].get('is_demo_portfolio', False)
-
-def get_demo_portfolio_names() -> list:
-    """Get list of demo portfolio names only."""
-    return [name for name, config in PORTFOLIOS.items() if config.get('is_demo_portfolio', False)]
-
-def get_portfolio_holding_figis(portfolio_name: str, holding_type: str = 'all') -> list:
-    """Get list of FIGIs for a portfolio's holdings."""
-    portfolio_config = PORTFOLIOS.get(portfolio_name, {})
-    if not portfolio_config.get('is_demo_portfolio', False):
-        return []
-    
-    if holding_type == 'guaranteed':
-        return [h['openfigi_id'] for h in portfolio_config.get('guaranteed_top_holdings', [])]
-    elif holding_type == 'additional':
-        return [h['openfigi_id'] for h in portfolio_config.get('additional_holdings', [])]
-    else:  # 'all'
-        guaranteed = [h['openfigi_id'] for h in portfolio_config.get('guaranteed_top_holdings', [])]
-        additional = [h['openfigi_id'] for h in portfolio_config.get('additional_holdings', [])]
-        return guaranteed + additional
-
-def get_demo_company_priority_sql() -> str:
-    """
-    Generate SQL CASE statement for demo company priorities from DEMO_COMPANIES config.
-    Returns SQL fragment that maps FIGI to priority value from config.
-    """
-    case_when_lines = []
-    
-    # Sort by priority to ensure consistent ordering
-    sorted_companies = sorted(DEMO_COMPANIES.items(), key=lambda x: x[1]['priority'])
-    
-    for ticker, company_data in sorted_companies:
-        figi = company_data['openfigi_id']
-        priority = company_data['priority']
-        case_when_lines.append(f"WHEN s.FIGI = '{figi}' THEN {priority}")
-    
-    if not case_when_lines:
-        return "WHEN 1=0 THEN 999"  # Fallback if no demo companies
-    
-    return " ".join(case_when_lines)
-
-def build_demo_portfolios_sql_mapping() -> dict:
-    """Build SQL fragments for all demo portfolios from configuration."""
-    all_guaranteed_figis = []
-    all_additional_figis = []
-    guaranteed_figis_to_order = {}
-    
-    for portfolio_name in get_demo_portfolio_names():
-        portfolio_config = PORTFOLIOS[portfolio_name]
-        
-        for holding in portfolio_config.get('guaranteed_top_holdings', []):
-            openfigi_id = holding['openfigi_id']
-            order = holding['order']
-            all_guaranteed_figis.append(openfigi_id)
-            guaranteed_figis_to_order[openfigi_id] = order
-        
-        for holding in portfolio_config.get('additional_holdings', []):
-            all_additional_figis.append(holding['openfigi_id'])
-    
-    guaranteed_case_when = []
-    for figi, order in sorted(guaranteed_figis_to_order.items(), key=lambda x: x[1]):
-        guaranteed_case_when.append(f"WHEN s.FIGI = '{figi}' THEN {order}")
-    
-    max_guaranteed_order = max(guaranteed_figis_to_order.values()) if guaranteed_figis_to_order else 0
-    additional_priority = max_guaranteed_order + 1
-    
-    # Build SQL-safe tuple strings
-    large_pos_figis = [
-        h['openfigi_id'] 
-        for name in get_demo_portfolio_names() 
-        for h in PORTFOLIOS[name].get('guaranteed_top_holdings', [])
-        if h.get('position_size') == 'large'
-    ]
-    
-    return {
-        'guaranteed_figis': safe_sql_tuple(list(set(all_guaranteed_figis))),
-        'additional_figis': safe_sql_tuple(list(set(all_additional_figis))),
-        'guaranteed_case_when_sql': " ".join(guaranteed_case_when) if guaranteed_case_when else "WHEN 1=0 THEN 1",
-        'additional_priority': additional_priority,
-        'large_position_figis': safe_sql_tuple(large_pos_figis)
-    }
 
 # =============================================================================
 # END OF CONFIGURATION

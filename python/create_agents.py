@@ -8,6 +8,7 @@ All agents are created in the SAM_DEMO.AI schema and registered with Snowflake I
 from snowflake.snowpark import Session
 from typing import List, Dict
 import config
+from logging_utils import log_detail, log_warning, log_error, log_phase_complete
 
 def create_all_agents(session: Session, scenarios: List[str] = None):
     """
@@ -17,7 +18,7 @@ def create_all_agents(session: Session, scenarios: List[str] = None):
         session: Active Snowpark session
         scenarios: List of scenario names (not used for filtering yet - creates all agents)
     """
-    config.log_detail("Creating Snowflake Intelligence agents...")
+    log_detail("Creating Snowflake Intelligence agents...")
     
     # Step 1: Verify Snowflake Intelligence exists
     if not verify_snowflake_intelligence(session):
@@ -46,7 +47,7 @@ def create_all_agents(session: Session, scenarios: List[str] = None):
     # Create each agent
     for agent_name, creator_func in agent_creators:
         try:
-            config.log_detail(f"Creating agent: {agent_name}...")
+            log_detail(f"Creating agent: {agent_name}...")
             creator_func(session)
             
             # Get the full agent name with AM_ prefix from config
@@ -55,22 +56,56 @@ def create_all_agents(session: Session, scenarios: List[str] = None):
             # Register with Snowflake Intelligence
             if register_agent_with_intelligence(session, database_name, ai_schema, full_agent_name):
                 created.append(agent_name)
-                config.log_detail(f"Created and registered agent: {full_agent_name}")
+                log_detail(f"Created and registered agent: {full_agent_name}")
             else:
                 created.append(agent_name)
-                config.log_warning(f"  Agent created but registration failed: {full_agent_name}")
+                log_warning(f"  Agent created but registration failed: {full_agent_name}")
                 
         except Exception as e:
             failed.append((agent_name, str(e)))
-            config.log_error(f" Failed to create agent {agent_name}: {e}")
+            log_error(f" Failed to create agent {agent_name}: {e}")
     
     # Summary
-    config.log_phase_complete(f"Agents: {len(created)} created" + (f", {len(failed)} failed" if failed else ""))
+    log_phase_complete(f"Agents: {len(created)} created" + (f", {len(failed)} failed" if failed else ""))
     if failed:
         for agent_name, error in failed:
-            config.log_error(f"{agent_name}: {error[:100]}...")
+            log_error(f"{agent_name}: {error[:100]}...")
     
     return len(created), len(failed)
+
+
+def cleanup_all_agents(session: Session):
+    """
+    Remove all SAM agents from Snowflake Intelligence before database drop.
+    
+    This function should be called before DROP DATABASE or CREATE OR REPLACE DATABASE
+    to cleanly unregister agents from SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT.
+    
+    Errors are suppressed since agents may not exist (first-time setup or already removed).
+    """
+    database_name = config.DATABASE['name']
+    ai_schema = config.DATABASE['schemas']['ai']
+    
+    log_detail("Cleaning up agents from Snowflake Intelligence...")
+    
+    removed_count = 0
+    for scenario_key, agent_info in config.SCENARIO_AGENTS.items():
+        agent_name = agent_info['agent_name']
+        full_agent_path = f"{database_name}.{ai_schema}.{agent_name}"
+        
+        try:
+            session.sql(f"""
+                ALTER SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT 
+                DROP AGENT {full_agent_path}
+            """).collect()
+            log_detail(f"  Removed agent: {agent_name}")
+            removed_count += 1
+        except Exception:
+            # Agent doesn't exist or already removed - continue silently
+            pass
+    
+    if removed_count > 0:
+        log_detail(f"  Cleaned up {removed_count} agents")
 
 
 def verify_snowflake_intelligence(session: Session) -> bool:
@@ -83,14 +118,14 @@ def verify_snowflake_intelligence(session: Session) -> bool:
     try:
         result = session.sql("SHOW SNOWFLAKE INTELLIGENCES").collect()
         if len(result) == 0:
-            config.log_error("No Snowflake Intelligence found")
-            config.log_warning("Before creating agents, you must first create a Snowflake Intelligence object.")
-            config.log_warning("Run: CREATE SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;")
-            config.log_warning("See: https://docs.snowflake.com/en/user-guide/snowflake-intelligence")
+            log_error("No Snowflake Intelligence found")
+            log_warning("Before creating agents, you must first create a Snowflake Intelligence object.")
+            log_warning("Run: CREATE SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;")
+            log_warning("See: https://docs.snowflake.com/en/user-guide/snowflake-intelligence")
             return False
         return True
     except Exception as e:
-        config.log_error(f" Failed to check for Snowflake Intelligence: {e}")
+        log_error(f" Failed to check for Snowflake Intelligence: {e}")
         return False
 
 
@@ -122,7 +157,7 @@ def register_agent_with_intelligence(session: Session, database_name: str, ai_sc
         error_msg = str(e).lower()
         if "was not found" not in error_msg and "does not exist" not in error_msg:
             # Some other error occurred - log it but continue
-            config.log_warning(f"  Note: Could not drop agent {agent_name} from Intelligence: {e}")
+            log_warning(f"  Note: Could not drop agent {agent_name} from Intelligence: {e}")
     
     # Step 2: Add the agent to Intelligence
     try:
@@ -132,7 +167,7 @@ def register_agent_with_intelligence(session: Session, database_name: str, ai_sc
         """).collect()
         return True
     except Exception as e:
-        config.log_warning(f"  Warning: Failed to register agent {agent_name} with Snowflake Intelligence: {e}")
+        log_warning(f"  Warning: Failed to register agent {agent_name} with Snowflake Intelligence: {e}")
         return False
 
 
@@ -167,7 +202,7 @@ def get_agent_instructions():
     This avoids duplicating the long instruction text in multiple functions.
     """
     # Note: The instructions are stored here as Python multi-line strings that match exactly
-    # what's in docs/agents_setup.md. They will be formatted for YAML using format_instructions_for_yaml().
+    # what's in agent configuration. They will be formatted for YAML using format_instructions_for_yaml().
     
     return {
         'portfolio_copilot': {
@@ -202,7 +237,7 @@ def get_agent_instructions():
 
 
 def get_portfolio_copilot_response_instructions():
-    """Get Portfolio Copilot response instructions from docs/agents_setup.md (lines 51-135)"""
+    """Get Portfolio Copilot response instructions."""
     return """Style:
 - Tone: Professional, data-driven, action-oriented for portfolio managers
 - Lead With: Direct answer with key metric, then supporting table/chart, then analysis
@@ -286,11 +321,15 @@ Goldman Sachs (15 Jan 2025): 'Azure AI services growing 150%+ YoY, expect contin
 
 Morgan Stanley (12 Jan 2025): 'Microsoft well-positioned in AI race with enterprise focus. Cloud margins expanding. Reiterate OVERWEIGHT.'
 
-Consensus: Analysts bullish on AI-driven growth, particularly Azure cloud services and enterprise AI adoption. 2/2 reports recommend BUY/OVERWEIGHT.\""""
+Consensus: Analysts bullish on AI-driven growth, particularly Azure cloud services and enterprise AI adoption. 2/2 reports recommend BUY/OVERWEIGHT."
+
+Demo Disclaimer (REQUIRED at end of every response):
+---
+*DEMO DISCLAIMER: This analysis uses synthetic data for demonstration purposes only. Not intended for actual investment decisions.*"""
 
 
 def get_portfolio_copilot_orchestration_instructions():
-    """Get Portfolio Copilot orchestration instructions from docs/agents_setup.md (lines 514-747)"""
+    """Get Portfolio Copilot orchestration instructions."""
     # This is the full orchestration instructions we added earlier
     return """Business Context:
 
@@ -443,9 +482,9 @@ Tool Selection Strategy:
 13. If user requests charts/visualizations, ensure quantitative_analyzer, implementation_analyzer, or financial_analyzer generates them"""
 
 
-# Full instructions for Research Copilot from docs/agents_setup.md
+# Full instructions for Research Copilot from agent configuration
 def get_research_copilot_response_instructions():
-    """Get Research Copilot response instructions from docs/agents_setup.md (lines 814-872)"""
+    """Get Research Copilot response instructions."""
     return """Style:
 - Tone: Technical, detail-rich, analytical for research analysts
 - Lead With: Financial data first, then qualitative context, then synthesis
@@ -503,11 +542,15 @@ Financial Validation (SEC 10-K/10-Q Data):
 
 Management Outlook: NVIDIA CEO Jensen Huang (Nov 2024 earnings): 'Data center demand exceeds supply. AI infrastructure buildout is multi-year opportunity with strong visibility into 2025.'
 
-Investment Opportunities: Prefer AI-focused leaders (NVIDIA, AMD) with strong financial validation. Traditional players (Intel) require execution improvement before investment consideration.\""""
+Investment Opportunities: Prefer AI-focused leaders (NVIDIA, AMD) with strong financial validation. Traditional players (Intel) require execution improvement before investment consideration."
+
+Demo Disclaimer (REQUIRED at end of every response):
+---
+*DEMO DISCLAIMER: This analysis uses synthetic data for demonstration purposes only. Not intended for actual investment decisions.*"""
 
 
 def get_research_copilot_orchestration_instructions():
-    """Get Research Copilot orchestration instructions from docs/agents_setup.md (lines 1059-1109)"""
+    """Get Research Copilot orchestration instructions."""
     return """Business Context:
 
 Organization Context:
@@ -562,7 +605,7 @@ Tool Selection Strategy:
 
 
 def get_thematic_macro_advisor_response_instructions():
-    """Get Thematic Macro Advisor response instructions from docs/agents_setup.md (lines 1263-1334)"""
+    """Get Thematic Macro Advisor response instructions."""
     return """Style:
 - Tone: Strategic, synthesis-driven, forward-looking for thematic strategists
 - Lead With: Thematic thesis first, then validation/evidence, then positioning recommendations
@@ -633,11 +676,15 @@ Positioning Analysis:
 Rebalancing Recommendations:
 - ESG Leaders: Add solar/wind generation leaders with strong ESG profiles
 - Consider energy storage pure-plays for long-term structural growth
-- Monitor grid modernization opportunities as infrastructure spending accelerates\""""
+- Monitor grid modernization opportunities as infrastructure spending accelerates"
+
+Demo Disclaimer (REQUIRED at end of every response):
+---
+*DEMO DISCLAIMER: This analysis uses synthetic data for demonstration purposes only. Not intended for actual investment decisions.*"""
 
 
 def get_thematic_macro_advisor_orchestration_instructions():
-    """Get Thematic Macro Advisor orchestration instructions from docs/agents_setup.md (lines 1520-1600)"""
+    """Get Thematic Macro Advisor orchestration instructions."""
     return """Business Context:
 
 Organization Context:
@@ -767,7 +814,11 @@ Engagement Recommendation:
 - Monitoring: Escalate to High severity if no audit report by March 2025
 
 Note: This is a supplier-level controversy, not direct TSMC operations. Engagement tracking recommended but no immediate divestment trigger.
-Controversy monitoring through 15 Jan 2025\""""
+Controversy monitoring through 15 Jan 2025"
+
+Demo Disclaimer (REQUIRED at end of every response):
+---
+*DEMO DISCLAIMER: This analysis uses synthetic data for demonstration purposes only. Not intended for actual investment decisions.*"""
 
 
 def get_esg_guardian_orchestration_instructions():
@@ -952,7 +1003,11 @@ Concentration: Position exceeds 7.0% limit (Apple: 8.2%)
 Policy: Concentration Risk Policy Section 3.2
 Action Required: Immediate Investment Committee review and remediation plan
 
-Timeline: Document remediation plan within 48 hours per FCA requirements\""""
+Timeline: Document remediation plan within 48 hours per FCA requirements"
+
+Demo Disclaimer (REQUIRED at end of every response):
+---
+*DEMO DISCLAIMER: This analysis uses synthetic data for demonstration purposes only. Not intended for actual investment decisions.*"""
 
 
 def get_compliance_advisor_orchestration_instructions():
@@ -979,6 +1034,13 @@ def get_sales_advisor_response_instructions():
 - Terminology: Client-friendly language avoiding technical jargon, UK English spelling
 - Precision: Performance figures to 1 decimal place, clear timeframes
 
+OUTPUT FORMAT - CRITICAL:
+- Always produce WRITTEN REPORTS in markdown format with sections and tables
+- NEVER produce slide-deck format (no "SLIDE 1", "SLIDE 2" headings)
+- Use proper markdown headers (##, ###), tables, and bullet points
+- "Client presentation" or "executive briefing" means a formatted written document, NOT PowerPoint slides
+- For annual reviews, follow the quarterly letter template structure with expanded content
+
 Presentation:
 - Tables: Use for performance summaries, portfolio positioning
 - Bar Charts: Use for asset allocation, sector positioning
@@ -998,7 +1060,11 @@ Outperformance: +5.6%
 
 Key Holdings: Positioned in AI infrastructure, cloud computing, cybersecurity leaders
 
-Why This Matters: Portfolio captures long-term technology transformation themes while managing concentration risk\""""
+Why This Matters: Portfolio captures long-term technology transformation themes while managing concentration risk"
+
+Demo Disclaimer (REQUIRED at end of every response):
+---
+*DEMO DISCLAIMER: This analysis uses synthetic data for demonstration purposes only. Not intended for actual investment decisions.*"""
 
 
 def get_sales_advisor_orchestration_instructions():
@@ -1010,6 +1076,22 @@ def get_sales_advisor_orchestration_instructions():
 3. Sales Materials: Use search_sales_templates for client presentation content
 4. Policy Explanations: Use search_policies for strategy guidelines
 5. Supporting Research: Use search_broker_research for market context
+
+OUTPUT FORMAT GUIDANCE:
+- All client reports should be formatted as written documents (markdown)
+- "Annual presentation" = comprehensive written annual review report
+- "Executive briefing" = concise written executive summary document
+- Reference search_sales_templates for proper report structure
+- NEVER generate slide-deck format output (no SLIDE 1, SLIDE 2, etc.)
+
+MULTI-SECTION REPORT HANDLING:
+- For client reports requesting multiple sections (performance, holdings, sector allocation):
+- Make SEPARATE quantitative_analyzer calls for each section
+- First call: Get portfolio performance metrics (QTD, YTD returns, AUM)
+- Second call: Get top 10 holdings by market value
+- Third call: Get sector allocation breakdown
+- Synthesize results into a formatted written report with clear section headers
+- NEVER try to combine different result types in a single SQL query
 
 Workflow:
 - Use quantitative_analyzer for performance and portfolio positioning
@@ -1044,7 +1126,11 @@ Factor Loadings (vs Benchmark):
 
 ** p<0.01, * p<0.05
 
-Interpretation: Both portfolios show significant growth factor tilt with strong statistical significance. Momentum exposure moderate but significant. Quality exposure present but not statistically significant.\""""
+Interpretation: Both portfolios show significant growth factor tilt with strong statistical significance. Momentum exposure moderate but significant. Quality exposure present but not statistically significant."
+
+Demo Disclaimer (REQUIRED at end of every response):
+---
+*DEMO DISCLAIMER: This analysis uses synthetic data for demonstration purposes only. Not intended for actual investment decisions.*"""
 
 
 def get_quant_analyst_orchestration_instructions():
@@ -1081,7 +1167,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
   FROM SPECIFICATION
   $$
   models:
-    orchestration: claude-sonnet-4-5
+    orchestration: {config.AGENT_ORCHESTRATION_MODEL}
   instructions:
     response: "{response_formatted}"
     orchestration: "{orchestration_formatted}"
@@ -1089,7 +1175,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "quantitative_analyzer"
-        description: "Analyzes portfolio holdings, position weights, sector allocations, and mandate compliance for \\nSAM investment portfolios.\\n\\nData Coverage:\\n- Historical: 12 months of position and transaction history\\n- Current: End-of-day holdings updated daily at 4 PM ET market close\\n- Sources: DIM_SECURITY, DIM_PORTFOLIO, FACT_POSITION_DAILY_ABOR, DIM_ISSUER\\n- Records: 14,000+ real securities (10K equities, 3K bonds, 1K ETFs), 10 portfolios, 27,000+ holdings\\n- Refresh: Daily at 4 PM ET with 2-hour processing lag (data available by 6 PM ET)\\n\\nSemantic Model Contents:\\n- Tables: Holdings, Securities, Portfolios, Issuers with full relationship mapping\\n- Key Metrics: TOTAL_MARKET_VALUE, PORTFOLIO_WEIGHT, HOLDING_COUNT, ISSUER_EXPOSURE, MAX_POSITION_WEIGHT\\n- Time Dimensions: HoldingDate (daily granularity from transaction history)\\n- Common Filters: PORTFOLIONAME, AssetClass, GICS_Sector, CountryOfIncorporation, Ticker\\n\\nWhen to Use:\\n- Questions about portfolio holdings, weights, and composition (\\"What are my top holdings?\\")\\n- Concentration analysis and position-level risk metrics (\\"Show positions above 6.5%\\")\\n- Sector/geographic allocation and benchmark comparisons (\\"Compare my sector allocation to benchmark\\")\\n- Mandate compliance and ESG grade checks (\\"Check ESG compliance for ESG portfolio\\")\\n- Questions like: \\"What are my top 10 holdings?\\", \\"Show technology sector allocation\\", \\"Which positions are concentrated?\\"\\n\\nWhen NOT to Use:\\n- Real-time intraday positions (data is end-of-day only, 2-hour lag from market close)\\n- Individual company financial analysis (use financial_analyzer for SEC filing data: revenue, margins, leverage)\\n- Document content questions (use search_broker_research, search_company_events for analyst views)\\n- Implementation costs and execution planning (use implementation_analyzer for trading costs, market impact)\\n- Supply chain risk analysis (use supply_chain_analyzer for upstream/downstream dependencies)\\n\\nQuery Best Practices:\\n1. Be specific about portfolio names:\\n	 ✅ \\"SAM Technology & Infrastructure portfolio\\" or \\"SAM Global Thematic Growth\\"\\n   ❌ \\"tech portfolio\\" (ambiguous - multiple portfolios may contain \\"tech\\")\\n\\n2. Filter to latest date for current holdings:\\n	 ✅ \\"most recent holding date\\" or \\"latest positions\\" or \\"current holdings\\"\\n	❌ Query all dates without filter (returns all historical snapshots, causes duplicates)\\n\\n3. Use semantic metric names:\\n	✅ \\"total market value\\", \\"portfolio weight\\", \\"concentration warnings\\"\\n   ❌ Raw SQL aggregations or column names (semantic model handles calculations)\\n\\n4. Leverage pre-defined metrics:\\n	✅ \\"Show me holdings with concentration warnings\\" (uses model''s concentration logic)\\n	  ❌ \\"Calculate positions over 6.5% weight\\" (reinventing existing metric)"
+        description: "Analyzes portfolio holdings, position weights, sector allocations, and mandate compliance for \\nSAM investment portfolios.\\n\\nData Coverage:\\n- Historical: 12 months of position and transaction history\\n- Current: End-of-day holdings updated daily at 4 PM ET market close\\n- Sources: DIM_SECURITY, DIM_PORTFOLIO, FACT_POSITION_DAILY_ABOR, DIM_ISSUER\\n- Records: 14,000+ real securities (10K equities, 3K bonds, 1K ETFs), 10 portfolios, 27,000+ holdings\\n- Refresh: Daily at 4 PM ET with 2-hour processing lag (data available by 6 PM ET)\\n\\nSemantic Model Contents:\\n- Tables: Holdings, Securities, Portfolios, Issuers with full relationship mapping\\n- Key Metrics: TOTAL_MARKET_VALUE, PORTFOLIO_WEIGHT, HOLDING_COUNT, ISSUER_EXPOSURE, MAX_POSITION_WEIGHT\\n- Time Dimensions: HoldingDate (daily granularity from transaction history)\\n- Common Filters: PORTFOLIONAME, AssetClass, GICS_SECTOR, SIC_DESCRIPTION, CountryOfIncorporation, Ticker\\n- Sector Classifications: GICS_SECTOR for sector allocation/concentration (Information Technology, Health Care, Financials, etc.), SIC_DESCRIPTION for granular industry (Semiconductors and related devices, Computer programming services, etc.)\\n\\nWhen to Use:\\n- Questions about portfolio holdings, weights, and composition (\\"What are my top holdings?\\")\\n- Concentration analysis and position-level risk metrics (\\"Show positions above 6.5%\\")\\n- Sector/geographic allocation and benchmark comparisons (\\"Compare my GICS sector allocation to benchmark\\")\\n- GICS sector concentration risk analysis (\\"What is our sector concentration in Information Technology?\\")\\n- Mandate compliance and ESG grade checks (\\"Check ESG compliance for ESG portfolio\\")\\n- Questions like: \\"What are my top 10 holdings?\\", \\"Show technology sector allocation\\", \\"Which positions are concentrated?\\"\\n\\nWhen NOT to Use:\\n- Real-time intraday positions (data is end-of-day only, 2-hour lag from market close)\\n- Individual company financial analysis (use financial_analyzer for SEC filing data: revenue, margins, leverage)\\n- Document content questions (use search_broker_research, search_company_events for analyst views)\\n- Implementation costs and execution planning (use implementation_analyzer for trading costs, market impact)\\n- Supply chain risk analysis (use supply_chain_analyzer for upstream/downstream dependencies)\\n\\nQuery Best Practices:\\n1. Be specific about portfolio names:\\n	 ✅ \\"SAM Technology & Infrastructure portfolio\\" or \\"SAM Global Thematic Growth\\"\\n   ❌ \\"tech portfolio\\" (ambiguous - multiple portfolios may contain \\"tech\\")\\n\\n2. Filter to latest date for current holdings:\\n	 ✅ \\"most recent holding date\\" or \\"latest positions\\" or \\"current holdings\\"\\n	❌ Query all dates without filter (returns all historical snapshots, causes duplicates)\\n\\n3. Use semantic metric names:\\n	✅ \\"total market value\\", \\"portfolio weight\\", \\"concentration warnings\\"\\n   ❌ Raw SQL aggregations or column names (semantic model handles calculations)\\n\\n4. For sector analysis, use GICS_SECTOR:\\n	✅ \\"sector allocation by GICS sector\\" or \\"GICS sector concentration\\"\\n	  ❌ \\"industry breakdown\\" (use SIC_DESCRIPTION for granular industry analysis)"
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "financial_analyzer"
@@ -1105,7 +1191,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
     - tool_spec:
         type: "cortex_search"
         name: "search_broker_research"
-        description: "Searches broker research reports and analyst notes for investment opinions, ratings, price targets, \\nand market commentary.\\n\\nData Sources:\\n- Document Types: Broker research reports, analyst initiations, sector updates\\n- Update Frequency: New reports added as generated (batch daily)\\n- Historical Range: Last 18 months of research coverage\\n- Typical Count: ~200 reports covering major securities\\n\\nWhen to Use:\\n- Analyst views and investment ratings (\\"What do analysts say about Microsoft?\\")\\n- Price targets and recommendations (\\"Find latest research ratings for technology stocks\\")\\n- Sector themes and investment thesis (\\"What are key themes in renewable energy research?\\")\\n\\nWhen NOT to Use:\\n- Portfolio holdings data (use quantitative_analyzer)\\n- Company financial metrics (use financial_analyzer)\\n- Management guidance (use search_company_events)\\n\\nSearch Query Best Practices:\\n1. Use specific company names + topics:\\n	  ✅ \\"NVIDIA artificial intelligence GPU data center growth analyst rating\\"\\n	 ❌ \\"tech growth\\" (too generic, returns too many results)\\n\\n2. Include investment-relevant keywords:\\n   ✅ \\"Apple iPhone revenue outlook analyst estimate rating recommendation\\"\\n	 ❌ \\"Apple news\\" (too broad, returns non-investment content)"
+        description: "Searches broker research reports and analyst notes for investment opinions, ratings, price targets, \\nand market commentary.\\n\\nData Sources:\\n- Document Types: Broker research reports, analyst initiations, sector updates\\n- Update Frequency: New reports added as generated (batch daily)\\n- Historical Range: Last 18 months of research coverage\\n- Typical Count: ~200 reports covering major securities\\n\\nSearchable Attributes (for filtering):\\n- TICKER, COMPANY_NAME: Filter by company (e.g., MSFT, Microsoft)\\n- BROKER_NAME: Filter by analyst firm (e.g., Goldman Sachs, Morgan Stanley)\\n- RATING: Filter by recommendation (Buy, Hold, Sell)\\n\\nWhen to Use:\\n- Analyst views and investment ratings (\\"What do analysts say about Microsoft?\\")\\n- Price targets and recommendations (\\"Find Goldman Sachs ratings for technology stocks\\")\\n- Sector themes and investment thesis (\\"What are key themes in renewable energy research?\\")\\n\\nWhen NOT to Use:\\n- Portfolio holdings data (use quantitative_analyzer)\\n- Company financial metrics (use financial_analyzer)\\n- Management guidance (use search_company_events)\\n\\nSearch Query Best Practices:\\n1. Use specific company names/tickers + topics:\\n   ✅ \\"NVIDIA artificial intelligence GPU data center growth analyst rating\\"\\n   ✅ \\"MSFT Goldman Sachs Buy recommendation\\"\\n   ❌ \\"tech growth\\" (too generic, returns too many results)\\n\\n2. Include investment-relevant keywords:\\n   ✅ \\"Apple iPhone revenue outlook analyst estimate rating recommendation\\"\\n   ❌ \\"Apple news\\" (too broad, returns non-investment content)"
     - tool_spec:
         type: "cortex_search"
         name: "search_company_events"
@@ -1113,7 +1199,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
     - tool_spec:
         type: "cortex_search"
         name: "search_press_releases"
-        description: "Searches company press releases for product announcements, corporate developments, and official \\ncompany communications.\\n\\nData Sources:\\n- Document Types: Official company press releases\\n- Update Frequency: Real-time as companies issue releases\\n- Historical Range: Last 18 months\\n- Typical Count: ~300 releases\\n\\nWhen to Use:\\n- Product announcements and launches\\n- Corporate developments (M&A, partnerships, leadership changes)\\n- Official company statements\\n\\nSearch Query Best Practices:\\n1. Company name + event type:\\n   ✅ \\"Apple product launch announcement iPhone\\"\\n	  ✅ \\"Microsoft acquisition partnership announcement\\""
+        description: "Searches company press releases for product announcements, corporate developments, and official \\ncompany communications.\\n\\nData Sources:\\n- Document Types: Official company press releases\\n- Update Frequency: Real-time as companies issue releases\\n- Historical Range: Last 18 months\\n- Typical Count: ~300 releases\\n\\nSearchable Attributes (for filtering):\\n- TICKER, COMPANY_NAME: Filter by company (e.g., AAPL, Apple)\\n\\nWhen to Use:\\n- Product announcements and launches\\n- Corporate developments (M&A, partnerships, leadership changes)\\n- Official company statements\\n- Supply chain updates and operational announcements\\n\\nSearch Query Best Practices:\\n1. Company name/ticker + event type:\\n   ✅ \\"Apple product launch announcement iPhone\\"\\n   ✅ \\"NVDA supply chain Taiwan update\\"\\n   ✅ \\"Microsoft acquisition partnership announcement\\""
     - tool_spec:
         type: "cortex_search"
         name: "search_macro_events"
@@ -1129,7 +1215,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
     - tool_spec:
         type: "cortex_search"
         name: "search_sec_filings"
-        description: "Searches SEC filing textual content including MD&A, Risk Factors, Business descriptions,\\nand other sections from 10-K and 10-Q filings.\\n\\nData Sources:\\n- Document Types: 10-K and 10-Q filing sections\\n- Content: MD&A, Risk Factors, Business Description, Legal Proceedings\\n- Companies: US public companies with SEC filings\\n- History: Last 3 years of filings\\n\\nWhen to Use:\\n- Management discussion and analysis (\\"What does management say about AI strategy?\\")\\n- Risk factor analysis (\\"What are key risks disclosed in SEC filings?\\")\\n- Business description details (\\"How does the company describe its business model?\\")\\n\\nWhen NOT to Use:\\n- Structured financial metrics (use financial_analyzer)\\n- Analyst opinions (use search_broker_research)\\n- Earnings call commentary (use search_company_events)\\n\\nSearch Query Best Practices:\\n1. Include company name and section type:\\n   ✅ \\"Microsoft risk factors artificial intelligence\\"\\n   ❌ \\"risk factors\\" (too generic)\\n\\n2. Use SEC terminology:\\n   ✅ \\"Apple MD&A management discussion revenue trends\\"\\n   ❌ \\"Apple management thoughts\\" (not SEC terminology)"
+        description: "Searches SEC filing textual content including MD&A, Risk Factors, Business descriptions,\\nand other sections from 10-K and 10-Q filings.\\n\\nData Sources:\\n- Document Types: 10-K and 10-Q filing sections\\n- Content: MD&A, Risk Factors, Business Description, Legal Proceedings\\n- Companies: US public companies with SEC filings\\n- History: Last 3 years of filings\\n\\nSearchable Attributes (for filtering):\\n- COMPANY_NAME, TICKER: Filter by company (e.g., Microsoft, MSFT)\\n- FILING_TYPE: 10-K, 10-Q, 8-K, DEF 14A\\n- FISCAL_YEAR, FISCAL_QUARTER: Filter by time period (e.g., 2024, Q3)\\n- VARIABLE_NAME: Section type (Risk Factors, MD&A, etc.)\\n\\nWhen to Use:\\n- Management discussion and analysis (\\"What does Microsoft say about AI strategy?\\")\\n- Risk factor analysis (\\"What are NVDA key risks in 10-K 2024?\\")\\n- Business description details (\\"How does Apple describe its business model?\\")\\n\\nWhen NOT to Use:\\n- Structured financial metrics (use financial_analyzer)\\n- Analyst opinions (use search_broker_research)\\n- Earnings call commentary (use search_company_events)\\n\\nSearch Query Best Practices:\\n1. Include company name/ticker and section type:\\n   ✅ \\"Microsoft risk factors artificial intelligence\\"\\n   ✅ \\"NVDA 10-K 2024 risk factors\\"\\n   ❌ \\"risk factors\\" (too generic)\\n\\n2. Use SEC terminology:\\n   ✅ \\"Apple MD&A management discussion revenue trends\\"\\n   ❌ \\"Apple management thoughts\\" (not SEC terminology)"
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "stock_prices"
@@ -1140,48 +1226,48 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
         description: "Analyzes SEC financial metrics from 10-K and 10-Q filings. Contains \\nrevenue segments, earnings breakdowns, and XBRL-tagged financial data from SEC EDGAR.\\n\\nData Coverage:\\n- Source: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.SEC_METRICS_TIMESERIES\\n- Companies: US public companies with SEC CIK linkage\\n- Metrics: Revenue segments, geographic breakdowns, XBRL-tagged financials\\n- Fiscal Years: Last 5+ years of SEC filing history\\n\\nWhen to Use:\\n- Segment revenue analysis (\\"Apple revenue by product segment\\")\\n- Geographic revenue breakdown (\\"NVIDIA revenue by region\\")\\n- SEC-filed metrics for detailed analysis\\n- Cross-company comparisons using filing data\\n\\nWhen NOT to Use:\\n- Analyst estimates (use fundamentals_analyzer if available)\\n- Qualitative content (use search tools)\\n\\nQuery Best Practices:\\n1. Use exact company names as filed with SEC\\n2. Specify fiscal year/quarter explicitly\\n3. Request specific metrics or segments"
     - tool_spec:
         type: "generic"
-        name: "generate_investment_committee_pdf"
-        description: "Generates professional PDF reports from markdown content for investment committee memos \\n	and decision documentation.\\n  \\n  Function Capabilities:\\n	 - Converts markdown-formatted content to professional PDF layout\\n	 - Adds SAM branding and standard report headers\\n	- Stores generated PDF in Snowflake stage (@SAM_DEMO_REPORTS)\\n	 - Returns stage file path for distribution\\n  \\n  When to Use:\\n  - After synthesizing complete investment committee memo from multiple tool outputs\\n	 - When user explicitly requests \\"generate PDF\\", \\"create report document\\", or \\"formalize recommendation\\"\\n  - Final step in concentration risk, mandate breach, or investment decision workflows\\n  - Queries like: \\"Generate PDF report for this analysis\\", \\"Create investment committee memo document\\"\\n  \\n  When NOT to Use:\\n  - For data analysis queries (PDF generation is final documentation step only)\\n  - When user just wants textual response without formal documentation\\n  - During exploratory analysis before final recommendations\\n	 \\n	 Input Requirements:\\n	1. markdown_content (TEXT): Complete markdown-formatted report with all sections:\\n		- Must include: Executive Summary, Analysis, Recommendations, Supporting Data\\n		- Format tables and charts in markdown syntax\\n		- Include proper section headers (##, ###)\\n  \\n  2. portfolio_name (TEXT): Full portfolio name for report header\\n		- Use exact name from portfolio dimension (e.g., \\"SAM Technology & Infrastructure\\")\\n	 \\n	 3. security_ticker (TEXT): Primary security ticker if report is security-specific\\n	 - Use empty string ('''') for portfolio-wide reports\\n  \\n  Output:\\n  - Stage path: @SAM_DEMO_REPORTS/IC_MEMO_{{portfolio}}_{{ticker}}_{{timestamp}}.pdf\\n  - Confirm generation success with file location"
+        name: "pdf_generator"
+        description: "Generates professional branded PDF reports from markdown content with SAM logo and audience-appropriate formatting.\\n\\nFunction Capabilities:\\n- Converts markdown to professional PDF with embedded Snowcrest logo\\n- Applies audience-specific headers/footers (internal, external_client, external_regulatory)\\n- Includes demo disclaimer in all documents\\n- Stores PDF in Snowflake stage for download\\n\\nWhen to Use:\\n- After synthesizing complete reports from templates and data\\n- When user requests 'generate PDF', 'create report', or 'formalize document'\\n- Final step in compliance, client reporting, or committee documentation workflows\\n\\nWhen NOT to Use:\\n- For data analysis queries (PDF is final documentation step only)\\n- During exploratory analysis before final recommendations\\n\\nDocument Audiences:\\n- 'internal': Investment committee memos, compliance reports (adds INTERNAL badge)\\n- 'external_client': Client reports and presentations (adds standard disclaimers)\\n- 'external_regulatory': FCA/regulatory submissions (adds regulatory badge and compliance contact)"
         input_schema:
           type: "object"
           properties:
             markdown_content:
-              description: "Complete markdown-formatted report with all sections:\\n		- Must include: Executive Summary, Analysis, Recommendations, Supporting Data\\n		- Format tables and charts in markdown syntax\\n		- Include proper section headers (##, ###)"
+              description: "Complete markdown document with all sections. Use templates from search tools. Include proper headers (##, ###), tables, and formatting."
               type: "string"
-            portfolio_name:
-              description: "Full portfolio name for report header\\n		- Use exact name from portfolio dimension (e.g., \\"SAM Technology & Infrastructure\\")"
+            report_title:
+              description: "Title for the document header (e.g., 'Q4 2024 Investment Committee Memo', 'Monthly Client Report')"
               type: "string"
-            security_ticker:
-              description: "Primary security ticker if report is security-specific\\n	 - Use empty string ('''') for portfolio-wide reports"
+            document_audience:
+              description: "Target audience: 'internal' for IC memos and internal reports, 'external_client' for client-facing documents, 'external_regulatory' for FCA/regulatory submissions"
               type: "string"
           required: 
             - markdown_content
-            - portfolio_name
-            - security_ticker
+            - report_title
+            - document_audience
   tool_resources:
     quantitative_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     financial_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_SEC_FINANCIALS_VIEW"
     implementation_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_IMPLEMENTATION_VIEW"
     supply_chain_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_SUPPLY_CHAIN_VIEW"
     search_broker_research:
       search_service: "{database_name}.AI.SAM_BROKER_RESEARCH"
@@ -1218,36 +1304,37 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
-    generate_investment_committee_pdf:
+    pdf_generator:
       execution_environment:
         query_timeout: 60
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
-      identifier: "{database_name}.AI.GENERATE_INVESTMENT_COMMITTEE_PDF"
-      name: "GENERATE_INVESTMENT_COMMITTEE_PDF(VARCHAR, VARCHAR, VARCHAR)"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
+      identifier: "{database_name}.AI.GENERATE_PDF_REPORT"
+      name: "GENERATE_PDF_REPORT(VARCHAR, VARCHAR, VARCHAR)"
       type: "procedure"
     stock_prices:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_STOCK_PRICES_VIEW"
     sec_financials:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
-      semantic_view: "{database_name}.AI.SAM_REAL_SEC_VIEW"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
+      semantic_view: "{database_name}.AI.SAM_SEC_FINANCIALS_VIEW"
   $$;
 """
     
     # Execute the SQL
     session.sql(sql).collect()
+    log_detail("  Created agent: AM_portfolio_copilot")
 
 
 def create_research_copilot(session: Session):
     """Create Research Copilot agent with investment memo generation capabilities."""
-    # NOTE: This is a simplified implementation based on the docs/agents_setup.md
+    # NOTE: This is a simplified implementation based on the agent configuration
     # Full configuration details are in that document
     database_name = config.DATABASE['name']
     ai_schema = config.DATABASE['schemas']['ai']
@@ -1335,7 +1422,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_research_copilot
   FROM SPECIFICATION
   $$
   models:
-    orchestration: claude-sonnet-4-5
+    orchestration: {config.AGENT_ORCHESTRATION_MODEL}
   instructions:
     response: "{response_instructions}"
     orchestration: "{orchestration_instructions}"
@@ -1351,15 +1438,15 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_research_copilot
     - tool_spec:
         type: "cortex_search"
         name: "search_broker_research"
-        description: "Searches broker research reports for investment opinions, analyst ratings, price targets, and market commentary on individual securities. Data Sources: Broker research reports, analyst initiations, ~200 documents covering major securities. When to Use: Analyst investment views ('what do analysts say about NVIDIA?'), price target and rating information, sector theme research, investment thesis analysis. When NOT to Use: Financial fundamentals (use financial_analyzer), company guidance (use search_company_events), portfolio holdings (redirect to portfolio_copilot). Search Best Practices: Combine company name with investment theme ('NVIDIA AI data center growth opportunity'), use ticker symbols when available, include 'analyst' or 'research' keywords."
+        description: "Searches broker research reports for investment opinions, analyst ratings, price targets, and market commentary. Data Sources: ~200 documents covering major securities. Searchable Attributes: TICKER, COMPANY_NAME (filter by company), BROKER_NAME (filter by analyst firm), RATING (Buy/Hold/Sell). When to Use: Analyst investment views, price targets, sector themes. When NOT to Use: Financial fundamentals (use financial_analyzer), company guidance (use search_company_events). Search Best Practices: Use ticker + broker name ('NVDA Goldman Sachs rating'), include 'analyst' keyword."
     - tool_spec:
         type: "cortex_search"
         name: "search_company_events"
-        description: "Searches earnings call transcripts for management guidance, financial commentary, and forward-looking company perspectives. Data Sources: Quarterly earnings transcripts, ~100 documents with Q&A sessions. When to Use: Management guidance and outlook ('Microsoft cloud growth guidance'), strategic initiative commentary, forward earnings expectations, company-specific narrative context. When NOT to Use: Historical financials (use financial_analyzer), analyst opinions (use search_broker_research), portfolio data (redirect to portfolio_copilot). Search Best Practices: Combine company name with topic ('Apple services revenue guidance'), include 'outlook' or 'guidance' keywords, specify quarter if relevant."
+        description: "Searches earnings call transcripts for management guidance, financial commentary, and forward-looking perspectives. Data Sources: ~100 documents with Q&A sessions. Searchable Attributes: EVENT_TYPE (Earnings Call, AGM, etc.). When to Use: Management guidance and outlook, strategic initiative commentary, forward earnings expectations. When NOT to Use: Historical financials (use financial_analyzer), analyst opinions (use search_broker_research). Search Best Practices: Company name + topic ('Apple services revenue guidance'), include 'outlook' or 'guidance' keywords."
     - tool_spec:
         type: "cortex_search"
         name: "search_press_releases"
-        description: "Searches company press releases for corporate developments, announcements, product launches, and strategic updates. Data Sources: Company press releases, ~200 documents covering major corporate events. When to Use: Corporate development tracking ('recent Microsoft acquisitions'), product announcement research, strategic partnership identification, merger/acquisition news. When NOT to Use: Financial metrics (use financial_analyzer), analyst views (use search_broker_research), detailed earnings data (use search_company_events). Search Best Practices: Include company name and event type ('Google AI product launch announcement'), use corporate action keywords ('acquisition', 'partnership', 'product')."
+        description: "Searches company press releases for corporate developments, announcements, and strategic updates. Data Sources: ~200 documents. Searchable Attributes: TICKER, COMPANY_NAME (filter by company). When to Use: Corporate developments, product announcements, M&A news, supply chain updates. When NOT to Use: Financial metrics (use financial_analyzer), analyst views (use search_broker_research). Search Best Practices: Ticker + event type ('AAPL product launch'), corporate action keywords."
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "sec_financials"
@@ -1367,19 +1454,39 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_research_copilot
     - tool_spec:
         type: "cortex_search"
         name: "search_sec_filings"
-        description: "Searches SEC filing text including 10-K, 10-Q, and 8-K disclosures from SEC EDGAR. Contains MD&A sections, risk factors, and regulatory disclosures. Data Sources: SEC filings (10-K annual reports, 10-Q quarterly reports, 8-K current reports), 6,000+ filing sections. When to Use: Risk factor analysis, MD&A narratives, regulatory disclosure research, footnote analysis, legal proceedings. When NOT to Use: Financial metrics (use sec_financials or fundamentals_analyzer), analyst opinions (use search_broker_research). Search Best Practices: Include company name and section type ('Microsoft risk factors artificial intelligence'), use SEC terminology ('MD&A', 'risk factors', '10-K')."
+        description: "Searches SEC filing text (10-K, 10-Q, 8-K) from SEC EDGAR. Contains MD&A, risk factors, and disclosures. Data Sources: 6,000+ filing sections. Searchable Attributes: COMPANY_NAME, TICKER (filter by company), FILING_TYPE (10-K/10-Q/8-K), FISCAL_YEAR, FISCAL_QUARTER, VARIABLE_NAME (section type). When to Use: Risk factor analysis, MD&A narratives, regulatory disclosures. When NOT to Use: Financial metrics (use sec_financials). Search Best Practices: Ticker + section ('MSFT 10-K 2024 risk factors'), use SEC terminology."
+    - tool_spec:
+        type: "generic"
+        name: "pdf_generator"
+        description: "Generates professional branded PDF reports for investment memos and research reports. Use for formal research documentation after completing analysis. Audiences: 'internal' for investment committee memos and internal research reports. When to Use: After completing comprehensive company analysis, when user requests 'generate PDF', 'create investment memo', or 'formalize research report'. When NOT to Use: During analysis or before recommendations are finalized."
+        input_schema:
+          type: "object"
+          properties:
+            markdown_content:
+              description: "Complete markdown investment memo or research report with all sections"
+              type: "string"
+            report_title:
+              description: "Title for the document header (e.g., 'NVIDIA Investment Memo', 'Q4 Earnings Analysis')"
+              type: "string"
+            document_audience:
+              description: "'internal' for investment committee memos and research reports"
+              type: "string"
+          required: 
+            - markdown_content
+            - report_title
+            - document_audience
   tool_resources:
     financial_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_SEC_FINANCIALS_VIEW"
     fundamentals_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_FUNDAMENTALS_VIEW"
     search_broker_research:
       search_service: "{database_name}.AI.SAM_BROKER_RESEARCH"
@@ -1400,16 +1507,25 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_research_copilot
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
-      semantic_view: "{database_name}.AI.SAM_REAL_SEC_VIEW"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
+      semantic_view: "{database_name}.AI.SAM_SEC_FINANCIALS_VIEW"
     search_sec_filings:
       search_service: "{database_name}.AI.SAM_REAL_SEC_FILINGS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
+    pdf_generator:
+      execution_environment:
+        query_timeout: 60
+        type: "warehouse"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
+      identifier: "{database_name}.AI.GENERATE_PDF_REPORT"
+      name: "GENERATE_PDF_REPORT(VARCHAR, VARCHAR, VARCHAR)"
+      type: "procedure"
   $$;
 """
     session.sql(sql).collect()
+    log_detail("  Created agent: AM_research_copilot")
 
 
 def create_thematic_macro_advisor(session: Session):
@@ -1424,7 +1540,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_thematic_macro_advisor
   FROM SPECIFICATION
   $$
   models:
-    orchestration: claude-sonnet-4-5
+    orchestration: {config.AGENT_ORCHESTRATION_MODEL}
   instructions:
     response: "Style:\\n- Tone: Strategic, synthesis-driven, forward-looking for thematic strategists\\n- Lead With: Thematic thesis first, then validation/evidence, then positioning recommendations\\n- Strategic Focus: Multi-year structural themes, not short-term tactical trades"
     orchestration: "Business Context:\\n- Thematic investment strategy development\\n- Focus on multi-year structural themes and macro trends\\n- Combine portfolio positioning with thematic research\\n\\nTool Selection:\\n1. For portfolio positioning: Use quantitative_analyzer\\n2. For thematic research: Use search_broker_research\\n3. For corporate validation: Use search_press_releases\\n4. For management perspectives: Use search_company_events\\n5. For macro events: Use search_macro_events"
@@ -1436,29 +1552,29 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_thematic_macro_advisor
     - tool_spec:
         type: "cortex_search"
         name: "search_broker_research"
-        description: "Searches broker research for thematic investment ideas, sector trends, and multi-year structural themes. Data Sources: Broker research with thematic focus (AI, clean energy, infrastructure, demographics), ~200 documents. When to Use: Thematic investment thesis development ('AI secular growth theme research'), sector rotation ideas, structural trend identification, thematic opportunity validation. When NOT to Use: Portfolio positioning data (use quantitative_analyzer), specific company financials (redirect to research_copilot), macro events (use search_macro_events). Search Best Practices: Use thematic keywords ('artificial intelligence secular trend opportunity'), combine theme with sectors ('renewable energy infrastructure investment'), include 'thematic' or 'structural' keywords."
+        description: "Searches broker research for thematic investment ideas, sector trends, and multi-year structural themes. Data Sources: ~200 documents with thematic focus. Searchable Attributes: TICKER, COMPANY_NAME, BROKER_NAME, RATING. When to Use: Thematic thesis development ('AI secular growth'), sector rotation ideas, structural trend identification. When NOT to Use: Portfolio positioning (use quantitative_analyzer), macro events (use search_macro_events). Search Best Practices: Theme + sector ('renewable energy infrastructure'), include 'thematic' keyword."
     - tool_spec:
         type: "cortex_search"
         name: "search_company_events"
-        description: "Searches earnings call transcripts for management commentary on strategic themes, secular trends, and long-term market dynamics. Data Sources: Earnings transcripts, ~100 documents with strategic commentary. When to Use: Management perspectives on thematic trends ('semiconductor CEOs discussing AI demand'), validation of thematic thesis through company guidance, sector theme corroboration. When NOT to Use: Thematic research synthesis (use search_broker_research), portfolio data (use quantitative_analyzer), event-driven news (use search_press_releases). Search Best Practices: Combine theme with multiple company names ('AI infrastructure demand NVIDIA AMD Intel'), focus on forward-looking strategic commentary."
+        description: "Searches earnings call transcripts for management commentary on strategic themes and secular trends. Data Sources: ~100 documents. Searchable Attributes: EVENT_TYPE (Earnings Call, AGM, etc.). When to Use: Management perspectives on thematic trends, validation of thematic thesis. When NOT to Use: Research synthesis (use search_broker_research), portfolio data (use quantitative_analyzer). Search Best Practices: Theme + company names ('AI demand NVIDIA AMD Intel')."
     - tool_spec:
         type: "cortex_search"
         name: "search_press_releases"
-        description: "Searches company press releases for strategic initiatives, product launches, and corporate developments aligned with thematic investment themes. Data Sources: Company press releases, ~200 documents with strategic announcements. When to Use: Corporate strategy validation for themes ('renewable energy investments by utilities'), product launches validating thematic trends, M&A activity aligned with themes. When NOT to Use: Thematic research analysis (use search_broker_research), financial metrics (redirect to research_copilot), portfolio data (use quantitative_analyzer). Search Best Practices: Combine theme with company actions ('clean energy infrastructure investment announcement'), use strategic keywords ('partnership', 'initiative', 'investment')."
+        description: "Searches company press releases for strategic initiatives and thematic developments. Data Sources: ~200 documents. Searchable Attributes: TICKER, COMPANY_NAME. When to Use: Corporate strategy validation, product launches, M&A aligned with themes. When NOT to Use: Research analysis (use search_broker_research), portfolio data (use quantitative_analyzer). Search Best Practices: Theme + company action ('clean energy investment announcement')."
     - tool_spec:
         type: "cortex_search"
         name: "search_macro_events"
-        description: "Searches macro-economic events, geopolitical developments, and market-moving events that create or validate thematic investment opportunities. Data Sources: Macro event analysis (natural disasters, regulatory changes, geopolitical shifts), ~5 event reports. When to Use: Event-driven thematic catalysts ('Taiwan earthquake semiconductor supply chain impact'), macro risk assessment for themes, structural shift identification. When NOT to Use: Portfolio data (use quantitative_analyzer), company-specific research (use search_broker_research). Search Best Practices: Include event type and affected sectors/regions ('Taiwan earthquake semiconductor impact'), use macro terminology ('supply chain disruption', 'regulatory shift')."
+        description: "Searches macro-economic events, geopolitical developments, and market-moving events for thematic opportunities. Data Sources: ~5 event reports. When to Use: Event-driven thematic catalysts ('Taiwan earthquake semiconductor impact'), macro risk assessment. When NOT to Use: Portfolio data (use quantitative_analyzer), company research (use search_broker_research). Search Best Practices: Event type + affected sectors ('Taiwan earthquake semiconductor impact')."
     - tool_spec:
         type: "cortex_search"
         name: "search_sec_filings"
-        description: "Searches SEC filing text for company disclosures on thematic trends and strategic initiatives. Contains 10-K/10-Q risk factors, MD&A sections, and business descriptions. Data Sources: SEC filings (10-K, 10-Q, 8-K), 6,000+ filing sections. When to Use: Company disclosures on thematic trends ('AI strategy in SEC filings'), risk factor analysis for themes, regulatory disclosures. When NOT to Use: Portfolio positioning (use quantitative_analyzer), analyst views (use search_broker_research). Search Best Practices: Include company name and thematic topic ('NVIDIA AI data center SEC filing'), use SEC terminology ('risk factors', '10-K', 'MD&A')."
+        description: "Searches SEC filing text for company disclosures on thematic trends. Data Sources: 6,000+ filing sections. Searchable Attributes: COMPANY_NAME, TICKER, FILING_TYPE, FISCAL_YEAR, FISCAL_QUARTER, VARIABLE_NAME. When to Use: Company disclosures on themes ('AI strategy in SEC filings'), risk factor analysis. When NOT to Use: Portfolio positioning (use quantitative_analyzer). Search Best Practices: Ticker + theme + section ('NVDA AI 10-K risk factors')."
   tool_resources:
     quantitative_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     search_broker_research:
       search_service: "{database_name}.AI.SAM_BROKER_RESEARCH"
@@ -1488,6 +1604,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_thematic_macro_advisor
   $$;
 """
     session.sql(sql).collect()
+    log_detail("  Created agent: AM_thematic_macro_advisor")
 
 
 def create_esg_guardian(session: Session):
@@ -1502,10 +1619,10 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_esg_guardian
   FROM SPECIFICATION
   $$
   models:
-    orchestration: claude-sonnet-4-5
+    orchestration: {config.AGENT_ORCHESTRATION_MODEL}
   instructions:
     response: "Style:\\n- Tone: Compliance-focused, risk-aware, proactive for ESG oversight\\n- Lead With: Risk assessment first, then policy validation, then remediation recommendations\\n- ESG Severity Flagging: Flag controversies with High/Medium/Low severity levels"
-    orchestration: "Business Context:\\n- ESG risk monitoring and policy compliance\\n- ESG mandate requirements: Minimum BBB rating for ESG-labelled portfolios\\n- Monitor ESG controversies and ratings downgrades\\n\\nTool Selection:\\n1. For ESG ratings and portfolio compliance: Use quantitative_analyzer\\n2. For ESG controversies: Use search_ngo_reports\\n3. For engagement tracking: Use search_engagement_notes\\n4. For policy requirements: Use search_policies\\n5. For company statements: Use search_press_releases\\n6. For earnings ESG content: Use search_company_events"
+    orchestration: "Business Context:\\n- ESG risk monitoring and policy compliance\\n- ESG mandate requirements: Minimum BBB rating for ESG-labelled portfolios\\n- Monitor ESG controversies and ratings downgrades\\n\\nTool Selection:\\n1. For ESG ratings and portfolio compliance: Use quantitative_analyzer\\n2. For ESG controversies: Use search_ngo_reports\\n3. For engagement tracking: Use search_engagement_notes\\n4. For policy requirements: Use search_policies\\n5. For company statements: Use search_press_releases\\n6. For earnings ESG content: Use search_company_events\\n7. For report templates: Use search_report_templates BEFORE generating PDF reports"
   tools:
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
@@ -1514,11 +1631,11 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_esg_guardian
     - tool_spec:
         type: "cortex_search"
         name: "search_ngo_reports"
-        description: "Searches NGO reports for ESG controversies, environmental incidents, social violations, and governance issues. Data Sources: NGO reports from major organisations (Amnesty International, Human Rights Watch, etc.), ~100 reports. When to Use: Controversy monitoring, ESG risk identification, severity assessment. When NOT to Use: ESG ratings (use quantitative_analyzer), company ESG statements (use search_press_releases)."
+        description: "Searches NGO reports for ESG controversies, environmental incidents, social violations, and governance issues. Data Sources: NGO reports from major organisations (Amnesty International, Human Rights Watch, etc.), ~100 reports. Searchable Attributes: TICKER (filter by company), NGO_NAME (filter by source organisation), SEVERITY_LEVEL (filter by High/Medium/Low). When to Use: Controversy monitoring, ESG risk identification, severity assessment. When NOT to Use: ESG ratings (use quantitative_analyzer), company ESG statements (use search_press_releases)."
     - tool_spec:
         type: "cortex_search"
         name: "search_engagement_notes"
-        description: "Searches ESG engagement meeting notes for stewardship activity, company commitments, and engagement progress tracking. Data Sources: Internal engagement notes from ESG stewardship team, ~50 notes. When to Use: Engagement history, company ESG commitments, stewardship tracking. When NOT to Use: Initial controversy identification (use search_ngo_reports), ESG ratings (use quantitative_analyzer)."
+        description: "Searches ESG engagement meeting notes for stewardship activity, company commitments, and engagement progress tracking. Data Sources: Internal engagement notes from ESG stewardship team, ~50 notes. Searchable Attributes: TICKER (filter by company), MEETING_TYPE (filter by engagement type). When to Use: Engagement history, company ESG commitments, stewardship tracking. When NOT to Use: Initial controversy identification (use search_ngo_reports), ESG ratings (use quantitative_analyzer)."
     - tool_spec:
         type: "cortex_search"
         name: "search_policies"
@@ -1535,12 +1652,36 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_esg_guardian
         type: "cortex_search"
         name: "search_sec_filings"
         description: "Searches SEC filing text for ESG disclosures, climate risk factors, and sustainability information. Contains 10-K/10-Q environmental and social disclosures. Data Sources: SEC filings, 6,000+ filing sections. When to Use: ESG disclosures in SEC filings ('climate risk factors'), environmental liability disclosures, regulatory ESG compliance. When NOT to Use: ESG ratings (use quantitative_analyzer), NGO assessments (use search_ngo_reports). Search Best Practices: Include company name and ESG topic ('Microsoft climate risk SEC 10-K'), use regulatory terms ('climate risk', 'environmental liability', 'sustainability')."
+    - tool_spec:
+        type: "cortex_search"
+        name: "search_report_templates"
+        description: "Searches report templates for ESG Committee reports and remediation documentation. Data Sources: Report templates (~5 templates). When to Use: Before generating PDF reports, to retrieve required sections and formatting guidance for ESG Committee reports, controversy assessments, and engagement summaries. When NOT to Use: For policy thresholds (use search_policies), for ESG ratings (use quantitative_analyzer)."
+    - tool_spec:
+        type: "generic"
+        name: "pdf_generator"
+        description: "Generates professional branded PDF reports for ESG committee reports and remediation documentation. Use for formal ESG reporting after completing analysis. Audiences: 'internal' for ESG committee memos and internal reports. When to Use: After completing ESG risk assessment and retrieving report template, when user requests 'generate PDF', 'create ESG report', or 'formalize remediation plan'. When NOT to Use: During analysis or before recommendations are finalized."
+        input_schema:
+          type: "object"
+          properties:
+            markdown_content:
+              description: "Complete markdown ESG report with all sections"
+              type: "string"
+            report_title:
+              description: "Title for the document header (e.g., 'ESG Risk Assessment Report', 'Remediation Plan')"
+              type: "string"
+            document_audience:
+              description: "'internal' for ESG committee reports"
+              type: "string"
+          required: 
+            - markdown_content
+            - report_title
+            - document_audience
   tool_resources:
     quantitative_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     search_ngo_reports:
       search_service: "{database_name}.AI.SAM_NGO_REPORTS"
@@ -1572,9 +1713,23 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_esg_guardian
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
+    search_report_templates:
+      search_service: "{database_name}.AI.SAM_REPORT_TEMPLATES"
+      id_column: "DOCUMENT_ID"
+      title_column: "DOCUMENT_TITLE"
+      max_results: 4
+    pdf_generator:
+      execution_environment:
+        query_timeout: 60
+        type: "warehouse"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
+      identifier: "{database_name}.AI.GENERATE_PDF_REPORT"
+      name: "GENERATE_PDF_REPORT(VARCHAR, VARCHAR, VARCHAR)"
+      type: "procedure"
   $$;
 """
     session.sql(sql).collect()
+    log_detail("  Created agent: AM_esg_guardian")
 
 
 def create_compliance_advisor(session: Session):
@@ -1589,15 +1744,19 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_compliance_advisor
   FROM SPECIFICATION
   $$
   models:
-    orchestration: claude-sonnet-4-5
+    orchestration: {config.AGENT_ORCHESTRATION_MODEL}
   instructions:
     response: "Style:\\n- Tone: Regulatory-focused, precise, action-oriented for compliance teams\\n- Lead With: Compliance status first, then breach details, then remediation requirements\\n- Flagging: Flag breaches >7% with 🚨 BREACH and warnings >6.5% with ⚠️ WARNING"
-    orchestration: "Business Context:\\n- Mandate monitoring and compliance oversight\\n- Concentration limits: 6.5% warning, 7.0% breach\\n- ESG requirements for ESG-labelled portfolios\\n- Quarterly FCA reporting requirements\\n\\nTool Selection:\\n1. For compliance checks: Use quantitative_analyzer\\n2. For policy limits: Use search_policies\\n3. For engagement tracking: Use search_engagement_notes"
+    orchestration: "Business Context:\\n- Mandate monitoring and compliance oversight\\n- Concentration limits: 6.5% warning, 7.0% breach\\n- ESG requirements for ESG-labelled portfolios\\n- Quarterly FCA reporting requirements\\n\\nTool Selection:\\n1. For breach history and alerts: Use compliance_analyzer (FIRST CHOICE for breach queries)\\n2. For current positions/weights: Use quantitative_analyzer\\n3. For policy limits: Use search_policies\\n4. For engagement tracking: Use search_engagement_notes\\n5. For report templates: Use search_report_templates BEFORE generating PDF reports"
   tools:
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
+        name: "compliance_analyzer"
+        description: "Queries compliance breach history, alerts, and remediation status. Data Coverage: Concentration breaches, ESG violations, warning alerts with dates, severity, thresholds, and resolution status. When to Use: 'What breaches were identified?', breach history lookup, active vs resolved alerts, remediation deadline tracking, compliance alert trends. When NOT to Use: Current portfolio weights (use quantitative_analyzer), policy thresholds (use search_policies)."
+    - tool_spec:
+        type: "cortex_analyst_text_to_sql"
         name: "quantitative_analyzer"
-        description: "Analyzes portfolio mandate compliance including concentration limits, ESG requirements, and sector allocation constraints. Data Coverage: 14,000+ securities, 10 portfolios with mandate rules, ESG grades (AAA-CCC), daily position data. When to Use: Concentration breach detection (>7%), ESG mandate compliance checks, portfolio weight analysis, mandate limit monitoring. When NOT to Use: Policy threshold retrieval (use search_policies), engagement tracking (use search_engagement_notes), regulatory reporting templates (use search for report templates)."
+        description: "Analyzes current portfolio positions, weights, and mandate compliance status. Data Coverage: 14,000+ securities, 10 portfolios with mandate rules, ESG grades (AAA-CCC), daily position data. When to Use: Current concentration levels, current ESG grades, portfolio weight analysis, real-time compliance status. When NOT to Use: Breach history (use compliance_analyzer), policy thresholds (use search_policies), engagement tracking (use search_engagement_notes)."
     - tool_spec:
         type: "cortex_search"
         name: "search_policies"
@@ -1606,12 +1765,42 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_compliance_advisor
         type: "cortex_search"
         name: "search_engagement_notes"
         description: "Searches engagement notes for compliance breach remediation tracking and company commitment follow-up. Data Sources: Internal engagement notes, ~50 documents. When to Use: Breach remediation tracking, company commitment verification, engagement activity related to compliance issues. When NOT to Use: Portfolio compliance data (use quantitative_analyzer), policy requirements (use search_policies)."
+    - tool_spec:
+        type: "cortex_search"
+        name: "search_report_templates"
+        description: "Searches report templates for Risk Committee compliance reports and breach remediation documentation. Data Sources: Report templates (~5 templates). When to Use: Before generating PDF reports, to retrieve required sections and formatting guidance for Risk Committee compliance reports, breach remediation reports, and audit documentation. When NOT to Use: For policy thresholds (use search_policies), for current positions (use quantitative_analyzer)."
+    - tool_spec:
+        type: "generic"
+        name: "pdf_generator"
+        description: "Generates professional branded PDF reports for compliance documentation and regulatory submissions. Use for formal compliance reporting after completing analysis. Audiences: 'internal' for investment committee reports, 'external_regulatory' for FCA and regulatory submissions. When to Use: After completing compliance audit or breach analysis, when user requests 'generate PDF', 'create compliance report', or 'formalize for committee'. When NOT to Use: During analysis or before recommendations are finalized."
+        input_schema:
+          type: "object"
+          properties:
+            markdown_content:
+              description: "Complete markdown compliance report with all sections"
+              type: "string"
+            report_title:
+              description: "Title for the document header (e.g., 'Portfolio Compliance Audit Report', 'Breach Remediation Report')"
+              type: "string"
+            document_audience:
+              description: "'internal' for IC reports, 'external_regulatory' for FCA/regulatory submissions"
+              type: "string"
+          required: 
+            - markdown_content
+            - report_title
+            - document_audience
   tool_resources:
+    compliance_analyzer:
+      execution_environment:
+        query_timeout: 30
+        type: "warehouse"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
+      semantic_view: "{database_name}.AI.SAM_COMPLIANCE_VIEW"
     quantitative_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     search_policies:
       search_service: "{database_name}.AI.SAM_POLICY_DOCS"
@@ -1623,9 +1812,23 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_compliance_advisor
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
+    search_report_templates:
+      search_service: "{database_name}.AI.SAM_REPORT_TEMPLATES"
+      id_column: "DOCUMENT_ID"
+      title_column: "DOCUMENT_TITLE"
+      max_results: 4
+    pdf_generator:
+      execution_environment:
+        query_timeout: 60
+        type: "warehouse"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
+      identifier: "{database_name}.AI.GENERATE_PDF_REPORT"
+      name: "GENERATE_PDF_REPORT(VARCHAR, VARCHAR, VARCHAR)"
+      type: "procedure"
   $$;
 """
     session.sql(sql).collect()
+    log_detail("  Created agent: AM_compliance_advisor")
 
 
 def create_sales_advisor(session: Session):
@@ -1640,15 +1843,15 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_sales_advisor
   FROM SPECIFICATION
   $$
   models:
-    orchestration: claude-sonnet-4-5
+    orchestration: {config.AGENT_ORCHESTRATION_MODEL}
   instructions:
     response: "Style:\\n- Tone: Client-friendly, professional, accessible language for investors\\n- Lead With: Performance summary first, then attribution, then market commentary\\n- Formatting: Follow SAM brand guidelines and report templates"
-    orchestration: "Business Context:\\n- Client reporting and communication\\n- Professional report formatting per SAM standards\\n- Quarterly client letter and monthly report templates\\n\\nTool Selection:\\n1. For performance data: Use quantitative_analyzer\\n2. For report templates: Use search_sales_templates\\n3. For investment philosophy: Use search_philosophy_docs\\n4. For policy explanations: Use search_policies"
+    orchestration: "Business Context:\\n- Client reporting and communication\\n- Professional report formatting per SAM standards\\n- Quarterly client letter and monthly report templates\\n- Client-specific reporting with flow history and relationship context\\n\\nCRITICAL - Date Handling:\\n- ALWAYS request 'latest' or 'most recent' data instead of specific quarters (Q4 2025) or dates\\n- Our data is anchored to real market data availability - specific future quarters may not exist\\n- Example: Ask for 'latest quarter performance' NOT 'Q4 2025 performance'\\n- Example: Ask for 'most recent holdings' NOT 'December 2025 holdings'\\n\\nCRITICAL - PDF Generation:\\n- ONLY use pdf_generator when user EXPLICITLY requests PDF output with phrases like 'generate PDF', 'create PDF', 'PDF document', 'PDF for download', or 'PDF report'\\n- Do NOT use pdf_generator for general document creation, response documents, or synthesis requests\\n- Words like 'document', 'report', 'summary', or 'briefing' do NOT trigger PDF generation unless 'PDF' is explicitly mentioned\\n- Default output is markdown-formatted text in the chat response\\n\\nTool Selection:\\n1. For performance data: Use quantitative_analyzer with 'latest' date filters\\n2. For client flow history: Use client_analyzer\\n3. For report templates: Use search_sales_templates\\n4. For investment philosophy: Use search_philosophy_docs\\n5. For policy explanations: Use search_policies\\n6. For PDF generation: ONLY when user explicitly says 'PDF'"
   tools:
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "quantitative_analyzer"
-        description: "Analyzes portfolio performance, holdings, sector allocation, and investment positioning for client reporting and communications. Data Coverage: 10 portfolios, 14,000+ securities, 12 months performance history, daily positions. When to Use: Portfolio performance summaries, holdings analysis, sector breakdowns, top contributors/detractors for client reports. When NOT to Use: Report formatting guidance (use search_sales_templates), investment philosophy explanations (use search_philosophy_docs), policy descriptions (use search_policies)."
+        description: "Analyzes portfolio performance, holdings, sector allocation, and investment positioning for client reporting and communications. Data Coverage: 10 portfolios, 14,000+ securities, 12 months performance history, daily positions. IMPORTANT: Always request 'latest' or 'most recent' data - never use specific future dates like 'Q4 2025'. When to Use: Portfolio performance summaries, holdings analysis, sector breakdowns, top contributors/detractors for client reports. When NOT to Use: Report formatting guidance (use search_sales_templates), investment philosophy explanations (use search_philosophy_docs), policy descriptions (use search_policies)."
     - tool_spec:
         type: "cortex_search"
         name: "search_sales_templates"
@@ -1661,12 +1864,36 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_sales_advisor
         type: "cortex_search"
         name: "search_policies"
         description: "Searches investment policies for client-facing policy explanations and mandate descriptions. Data Sources: Policy documents (concentration limits, sustainable investment policy), ~3 policies. When to Use: Policy explanations for clients, mandate requirement descriptions, compliance framework summaries. When NOT to Use: Portfolio compliance status (use quantitative_analyzer), internal compliance procedures (not client-facing)."
+    - tool_spec:
+        type: "cortex_analyst_text_to_sql"
+        name: "client_analyzer"
+        description: "Analyzes client flow data, relationship history, and AUM for client-specific reporting. Data Coverage: 75 institutional clients, 12 months flow history, client types (Pension, Endowment, Foundation, Insurance, Corporate, Family Office). When to Use: Client flow history, relationship tenure, AUM trends, client-specific reports, quarterly review preparation. When NOT to Use: Portfolio performance (use quantitative_analyzer), report templates (use search_sales_templates)."
+    - tool_spec:
+        type: "generic"
+        name: "pdf_generator"
+        description: "Generates professional branded PDF reports from markdown content with SAM logo and audience-appropriate formatting. Use ONLY for final client deliverables when user EXPLICITLY requests PDF output. Audiences: 'external_client' for client reports, 'internal' for internal memos. When to Use: ONLY when user explicitly says 'generate PDF', 'create PDF', 'PDF document', or 'PDF report'. When NOT to Use: For general document creation, response documents, summaries, or briefings - these should be markdown text output. The word 'document' alone does NOT mean PDF."
+        input_schema:
+          type: "object"
+          properties:
+            markdown_content:
+              description: "Complete markdown document with all sections from templates"
+              type: "string"
+            report_title:
+              description: "Title for the document header (e.g., 'Q4 2024 Quarterly Client Report')"
+              type: "string"
+            document_audience:
+              description: "'external_client' for client-facing reports, 'internal' for internal documents"
+              type: "string"
+          required: 
+            - markdown_content
+            - report_title
+            - document_audience
   tool_resources:
     quantitative_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     search_sales_templates:
       search_service: "{database_name}.AI.SAM_SALES_TEMPLATES"
@@ -1683,13 +1910,31 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_sales_advisor
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
+    client_analyzer:
+      execution_environment:
+        query_timeout: 30
+        type: "warehouse"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
+      semantic_view: "{database_name}.AI.SAM_EXECUTIVE_VIEW"
+    pdf_generator:
+      execution_environment:
+        query_timeout: 60
+        type: "warehouse"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
+      identifier: "{database_name}.AI.GENERATE_PDF_REPORT"
+      name: "GENERATE_PDF_REPORT(VARCHAR, VARCHAR, VARCHAR)"
+      type: "procedure"
   $$;
 """
     session.sql(sql).collect()
+    log_detail("  Created agent: AM_sales_advisor")
 
 
 def create_quant_analyst(session: Session):
-    """Create Quant Analyst agent."""
+    """Create Quant Analyst agent.
+    
+    Uses SAM_ANALYST_VIEW which includes factor exposures and benchmark holdings.
+    """
     database_name = config.DATABASE['name']
     ai_schema = config.DATABASE['schemas']['ai']
     
@@ -1700,15 +1945,15 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_quant_analyst
   FROM SPECIFICATION
   $$
   models:
-    orchestration: claude-sonnet-4-5
+    orchestration: {config.AGENT_ORCHESTRATION_MODEL}
   instructions:
     response: "Style:\\n- Tone: Technical, quantitative, precise for quantitative analysts\\n- Lead With: Statistical metrics first, then factor analysis, then risk decomposition\\n- Precision: Statistical significance, confidence intervals, factor loadings to 3 decimal places"
-    orchestration: "Business Context:\\n- Advanced quantitative portfolio analysis\\n- Factor exposure analysis and attribution\\n- Risk decomposition and performance attribution\\n\\nTool Selection:\\n1. For portfolio analytics: Use quantitative_analyzer\\n2. For factor analysis: Use quantitative_analyzer with factor dimensions"
+    orchestration: "Business Context:\\n- Advanced quantitative portfolio analysis\\n- Factor exposure analysis and attribution\\n- Risk decomposition and performance attribution\\n\\nTool Selection:\\n1. For portfolio analytics and factor analysis: Use quantitative_analyzer (SAM_ANALYST_VIEW with factor exposures)\\n2. For fundamentals validation: Use financial_analyzer\\n3. For price momentum: Use stock_prices"
   tools:
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "quantitative_analyzer"
-        description: "Analyzes portfolio holdings, factor exposures, and quantitative risk metrics using SAM_QUANT_VIEW with 7 systematic factors (Market, Size, Value, Growth, Momentum, Quality, Volatility). Data Coverage: 14,000+ securities, 5 years monthly factor data, statistical significance metrics (R², p-values). When to Use: Factor screening and ranking, performance attribution by factors, systematic strategy backtesting, factor trend analysis, portfolio factor tilt analysis. When NOT to Use: Company-specific financial fundamentals (use financial_analyzer), analyst qualitative views (use search_broker_research). Query Best Practices: Specify factors explicitly (e.g., 'high quality and momentum'), include time periods for trends ('last 6 months'), request statistical validation ('with t-stats and p-values')."
+        description: "Analyzes portfolio holdings, factor exposures, ESG scores, performance returns, and benchmark weights using SAM_ANALYST_VIEW. Includes 7 systematic factors (Market, Size, Value, Growth, Momentum, Quality, Volatility). Data Coverage: 14,000+ securities, 5 years monthly factor data, ESG scores, performance metrics, and benchmark holdings. When to Use: Factor screening and ranking, performance attribution by factors, systematic strategy backtesting, factor trend analysis, portfolio factor tilt analysis, ESG-factor combinations, benchmark comparison. When NOT to Use: Company-specific financial fundamentals (use financial_analyzer), analyst qualitative views (use search_broker_research). Query Best Practices: Specify factors explicitly (e.g., 'high quality and momentum'), include time periods for trends ('last 6 months'), request statistical validation ('with R-squared'), combine with ESG metrics for sustainable factor strategies."
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "financial_analyzer"
@@ -1730,13 +1975,13 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_quant_analyst
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
-      semantic_view: "{database_name}.AI.SAM_QUANT_VIEW"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
+      semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     financial_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_SEC_FINANCIALS_VIEW"
     search_broker_research:
       search_service: "{database_name}.AI.SAM_BROKER_RESEARCH"
@@ -1752,11 +1997,12 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_quant_analyst
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_STOCK_PRICES_VIEW"
   $$;
 """
     session.sql(sql).collect()
+    log_detail("  Created agent: AM_quant_analyst")
 
 
 def create_middle_office_copilot(session: Session):
@@ -1957,6 +2203,10 @@ Immediate Actions:
    - Coordinate with trading desk for potential rebalancing
 
 As of 31 Dec 2024 10:00"
+
+Demo Disclaimer (REQUIRED at end of every response):
+---
+*DEMO DISCLAIMER: This analysis uses synthetic data for demonstration purposes only. Not intended for actual investment decisions.*
 """
 
     # Comprehensive orchestration instructions
@@ -2336,7 +2586,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_middle_office_copilot
   FROM SPECIFICATION
   $$
   models:
-    orchestration: claude-sonnet-4-5
+    orchestration: {config.AGENT_ORCHESTRATION_MODEL}
   instructions:
     response: "{response_formatted}"
     orchestration: "{orchestration_formatted}"
@@ -2361,12 +2611,32 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_middle_office_copilot
         type: "cortex_search"
         name: "search_ops_procedures"
         description: "Searches middle office operational procedures, escalation protocols, and process documentation for standard operating procedures and exception handling guidance. Data Sources: Operations manuals (settlement failure resolution, reconciliation workflow, NAV calculation process), ~10 procedure documents. When to Use: Process guidance for exception handling, escalation protocols for operational issues, standard procedure verification. When NOT to Use: Current operational status (use middle_office_analyzer), specific SSI details (use search_ssi_documents). Search Best Practices: Include process name and exception type ('settlement failure resolution process', 'NAV anomaly escalation protocol')."
+    - tool_spec:
+        type: "generic"
+        name: "pdf_generator"
+        description: "Generates professional branded PDF reports for operational status reports and exception documentation. Use for formal operations reporting. Audiences: 'internal' for operations reports and internal documentation. When to Use: After completing operational status review, when user requests 'generate PDF', 'create ops report', or 'formalize status report'. When NOT to Use: During investigation or before analysis is complete."
+        input_schema:
+          type: "object"
+          properties:
+            markdown_content:
+              description: "Complete markdown operations report with all sections"
+              type: "string"
+            report_title:
+              description: "Title for the document header (e.g., 'Daily Operations Status Report', 'Settlement Exception Report')"
+              type: "string"
+            document_audience:
+              description: "'internal' for operations reports"
+              type: "string"
+          required: 
+            - markdown_content
+            - report_title
+            - document_audience
   tool_resources:
     middle_office_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_MIDDLE_OFFICE_VIEW"
     search_custodian_reports:
       search_service: "{database_name}.AI.SAM_CUSTODIAN_REPORTS"
@@ -2388,10 +2658,18 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_middle_office_copilot
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
       max_results: 4
+    pdf_generator:
+      execution_environment:
+        query_timeout: 60
+        type: "warehouse"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
+      identifier: "{database_name}.AI.GENERATE_PDF_REPORT"
+      name: "GENERATE_PDF_REPORT(VARCHAR, VARCHAR, VARCHAR)"
+      type: "procedure"
   $$;
 """
     session.sql(sql).collect()
-    config.log_detail("Created agent: AM_middle_office_copilot")
+    log_detail("  Created agent: AM_middle_office_copilot")
 
 def create_executive_copilot(session: Session):
     """
@@ -2591,6 +2869,10 @@ Please advise if you would like me to schedule a detailed briefing or prepare ad
 
 ---
 This memo was prepared with AI assistance using Snowflake Intelligence."
+
+Demo Disclaimer (REQUIRED at end of every response):
+---
+*DEMO DISCLAIMER: This analysis uses synthetic data for demonstration purposes only. Not intended for actual investment decisions.*
 """
 
     # Orchestration instructions for tool selection
@@ -2602,6 +2884,12 @@ Organization Context:
 - 75 institutional clients across pension, endowment, foundation, insurance, and family office segments
 - FCA-regulated with quarterly board reporting requirements
 - Data refreshes daily at market close (4 PM ET) with 2-hour processing lag
+
+CRITICAL - AUM Metric Clarification:
+- FIRM_AUM: Total assets under management calculated from actual portfolio holdings (authoritative figure for board and executive reporting, £12.5B)
+- TOTAL_CLIENT_AUM: Sum of client-reported AUM with SAM (may differ due to reporting timing, typically higher)
+- For board meetings and executive briefings, ALWAYS use FIRM_AUM as the authoritative AUM figure
+- If user asks about "firm AUM", "total AUM", or "assets under management", use FIRM_AUM from executive_kpi_analyzer
 
 Key Business Terms:
 - AUM (Assets Under Management): Total value of assets managed on behalf of clients
@@ -2618,13 +2906,15 @@ Strategic Priorities:
 
 Tool Selection Strategy:
 
-1. Firm-Wide KPIs and Client Analytics:
+1. Firm-Wide KPIs, Strategy Performance, and Client Analytics:
    Tool: executive_kpi_analyzer (SAM_EXECUTIVE_VIEW)
-   Use for: Total AUM, net flows, client counts, flow by strategy, client flow drill-down
+   Use for: FIRM_AUM (authoritative), strategy performance (QTD/YTD returns), net flows, client counts, flow by strategy, client flow drill-down
    ✅ "Key performance highlights month-to-date"
    ✅ "What's driving ESG inflows?"
    ✅ "Show me client concentration for recent flows"
-   ❌ Portfolio holdings (use quantitative_analyzer)
+   ✅ "Top and bottom performing strategies" (use STRATEGY_QTD_RETURN, STRATEGY_YTD_RETURN)
+   ✅ "Firm AUM by strategy" (use FIRM_AUM, STRATEGY_AUM)
+   ❌ Portfolio holdings detail (use quantitative_analyzer)
    ❌ Individual security analysis (use financial_analyzer)
 
 2. Portfolio Performance and Holdings:
@@ -2634,12 +2924,23 @@ Tool Selection Strategy:
    ✅ "Sector allocation across growth portfolios"
    ❌ Client flow data (use executive_kpi_analyzer)
 
-3. Competitor and Company Financials:
+3. Competitor and Company CONSOLIDATED Financials:
    Tool: financial_analyzer (SAM_SEC_FINANCIALS_VIEW)
-   Use for: Competitor AUM from Form ADV, revenue from 10-K, financial metrics
-   ✅ "What's Competitor X's European AUM?"
-   ✅ "Revenue and margins for [Company]"
+   Use for: Total company revenue, net income, EPS, balance sheet, cash flow from 10-K/10-Q
+   ✅ "Total revenue for BlackRock"
+   ✅ "Net income and margins for [Company]"
+   ❌ Geographic or segment breakdowns (use sec_segments_analyzer)
    ❌ SAM internal data (use executive_kpi_analyzer or quantitative_analyzer)
+
+3b. GEOGRAPHIC and SEGMENT Revenue Analysis:
+   Tool: sec_segments_analyzer (SAM_SEC_SEGMENTS_VIEW)
+   Use for: Revenue by geography (Europe, Americas, Asia), business segment breakdowns
+   ✅ "BlackRock European division revenue" → Use sec_segments_analyzer
+   ✅ "AAPL revenue by geographic region"
+   ✅ "Revenue breakdown by business segment for [Company]"
+   ❌ Total company financials (use financial_analyzer)
+   
+   IMPORTANT: For M&A due diligence on regional divisions, ALWAYS use sec_segments_analyzer FIRST
 
 4. Client Mandate Details:
    Tool: implementation_analyzer (SAM_IMPLEMENTATION_VIEW)
@@ -2711,7 +3012,7 @@ Step-by-Step Execution:
    - Connect to strategic context
 
 Workflow 3: Competitor M&A Analysis
-Trigger: User asks about competitor acquisition opportunity
+Trigger: User asks about competitor acquisition opportunity (e.g., "BlackRock European division")
 
 Step-by-Step Execution:
 1. Search for News
@@ -2719,19 +3020,26 @@ Step-by-Step Execution:
    Query: "[Competitor] European division sale acquisition"
    Extract: News context, timing, reported details
 
-2. Get Financial Data
-   Tool: financial_analyzer
-   Query: "[Competitor] AUM revenue European division"
-   Extract: AUM estimate, revenue, performance metrics
+2. Get GEOGRAPHIC SEGMENT Revenue Data (CRITICAL for regional M&A)
+   Tool: sec_segments_analyzer (NOT financial_analyzer)
+   Query: "[Competitor] revenue by geography" or "[Competitor] European revenue by year"
+   Extract: European division revenue, regional breakdown, trend over years
+   NOTE: This is the primary tool for divisional/regional financial data
 
-3. Run M&A Simulation
+3. Get Total Company Context (Optional)
+   Tool: financial_analyzer
+   Query: "[Competitor] total revenue net income"
+   Extract: Overall company size for context
+
+4. Run M&A Simulation
    Tool: ma_simulation
-   Inputs: target_aum, target_revenue, cost_synergy_pct
+   Inputs: target_aum (estimate from segment data), target_revenue (from sec_segments_analyzer), cost_synergy_pct
    Extract: EPS accretion, synergies, risk assessment
 
-4. Synthesize Response:
+5. Synthesize Response:
    - Summarize opportunity (from news)
-   - Present financial metrics (from SEC filings)
+   - Present REGIONAL financial metrics (from sec_segments_analyzer)
+   - Compare to total company size (from financial_analyzer)
    - Show M&A simulation results
    - Provide strategic recommendation
 
@@ -2755,6 +3063,70 @@ Step-by-Step Execution:
    - Bullet points for readability
    - Data tables where appropriate
    - Note AI-assisted preparation
+
+Workflow 5: Complete Executive Briefing (Catch-All)
+Trigger: User asks for "complete executive briefing", "board briefing", "comprehensive firm overview", or mentions preparing for board/stakeholder meeting
+
+This is a multi-tool workflow that requires orchestrating ALL executive tools for a comprehensive briefing.
+
+Step-by-Step Execution:
+1. Get Firm-Wide KPIs and Strategy Performance
+   Tool: executive_kpi_analyzer
+   Query: "FIRM_AUM, net flows, client count, and performance by strategy with QTD and YTD returns"
+   Extract: 
+   - FIRM_AUM (authoritative figure from holdings)
+   - Net flows (gross inflows, outflows, net)
+   - Client count
+   - Strategy performance table (AUM, QTD return, YTD return per strategy)
+   - Top 5 and bottom 5 performing strategies
+
+2. Get Client Flow Analytics
+   Tool: executive_kpi_analyzer
+   Query: "Client flow breakdown by client type and strategy, concentration analysis"
+   Extract:
+   - Flow trends
+   - Any concentration concerns (single client >10%)
+   - Client type distribution
+
+3. Get Strategic Context
+   Tool: search_strategy_docs
+   Query: "Investment philosophy sustainable investing strategic positioning"
+   Extract:
+   - Key positioning statements
+   - Strategic alignment context
+
+4. Synthesize Complete Briefing:
+   Format response as:
+   
+   📊 EXECUTIVE BRIEFING - [Date]
+   
+   HEADLINE KPIs:
+   - Total Firm AUM: [FIRM_AUM] (from holdings, authoritative)
+   - Net Flows MTD: [amount] (Inflows: [x], Outflows: [y])
+   - Active Clients: [count]
+   
+   STRATEGY PERFORMANCE:
+   | Strategy | AUM | QTD Return | YTD Return | Flows MTD |
+   |---|---|---|---|---|
+   [Table showing all strategies sorted by performance]
+   
+   TOP PERFORMERS: [list top 3]
+   AREAS OF CONCERN: [list any underperforming strategies]
+   
+   CLIENT INSIGHTS:
+   - Flow concentration: [broad-based or concentrated]
+   - Key segments driving flows: [list]
+   
+   STRATEGIC CONTEXT:
+   - [Key philosophy alignment points]
+   - [Strategic positioning summary]
+   
+   KEY MESSAGES FOR BOARD:
+   1. [Main takeaway]
+   2. [Secondary point]
+   3. [Any required actions]
+   
+   As of [date] market close.
 
 Error Handling and Edge Cases:
 
@@ -2790,7 +3162,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_executive_copilot
   FROM SPECIFICATION
   $$
   models:
-    orchestration: claude-sonnet-4-5
+    orchestration: {config.AGENT_ORCHESTRATION_MODEL}
   instructions:
     response: "{response_formatted}"
     orchestration: "{orchestration_formatted}"
@@ -2798,7 +3170,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_executive_copilot
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "executive_kpi_analyzer"
-        description: "Analyzes firm-wide KPIs, client flow data, and business performance metrics for executive reporting. Data Coverage: 75 institutional clients, 12 months of flow history, daily AUM updates. When to Use: Firm-wide AUM, net flows, client counts, flow by strategy, client flow drill-down, concentration analysis. When NOT to Use: Individual portfolio holdings (use quantitative_analyzer), competitor financials (use financial_analyzer). Query Best Practices: Filter to month-to-date for current period, use 'by strategy' for breakdowns, specify client type for segmentation."
+        description: "Analyzes firm-wide KPIs, strategy performance, client flow data, and business metrics for executive reporting. Data Coverage: 75 institutional clients, 10 portfolios, 12 months of flow history, daily AUM and performance updates. Key Metrics: FIRM_AUM (authoritative holdings-based AUM), STRATEGY_AUM (per-strategy breakdown), STRATEGY_QTD_RETURN, STRATEGY_YTD_RETURN, STRATEGY_MTD_RETURN, net flows, client counts. When to Use: Firm-wide AUM, strategy performance (QTD/YTD returns), top/bottom performing strategies, net flows, client counts, flow by strategy, client flow drill-down, concentration analysis. IMPORTANT: Use FIRM_AUM (not TOTAL_CLIENT_AUM) for authoritative firm AUM figure in board reporting. When NOT to Use: Individual portfolio holdings detail (use quantitative_analyzer), competitor financials (use financial_analyzer). Query Best Practices: For strategy performance use STRATEGY_QTD_RETURN and STRATEGY_YTD_RETURN. Filter to latest date for current performance. Use 'by strategy' for breakdowns, specify client type for segmentation."
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "quantitative_analyzer"
@@ -2806,7 +3178,11 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_executive_copilot
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "financial_analyzer"
-        description: "Analyzes SEC filings data including Form ADV (AUM disclosures), 10-K (annual financials), and other regulatory filings for competitor and company analysis. Data Coverage: 28.7M SEC filing records, Form ADV for investment advisers. When to Use: Competitor AUM from Form ADV, revenue from 10-K, financial metrics. When NOT to Use: SAM internal data (use executive_kpi_analyzer or quantitative_analyzer)."
+        description: "Analyzes CONSOLIDATED SEC financial metrics from 10-K and 10-Q filings - total revenue, net income, EPS, balance sheet, and cash flow. Data Coverage: 79 companies, SEC XBRL data. When to Use: Company-wide total revenue, net income, margins, balance sheet metrics. When NOT to Use: Geographic/segment breakdowns (use sec_segments_analyzer), SAM internal data (use executive_kpi_analyzer)."
+    - tool_spec:
+        type: "cortex_analyst_text_to_sql"
+        name: "sec_segments_analyzer"
+        description: "Analyzes GEOGRAPHIC and BUSINESS SEGMENT revenue from SEC filings. Breaks down revenue by region (Europe, Americas, Asia Pacific) and business unit. Data Coverage: 79 companies with segment data from SEC METRICS_TIMESERIES. When to Use: European division revenue ('BlackRock Europe revenue'), regional breakdowns, business segment analysis, divisional performance. When NOT to Use: Total company financials (use financial_analyzer), SAM internal data (use executive_kpi_analyzer). Query Example: 'BlackRock revenue by geography' or 'AAPL segment revenue breakdown'."
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "implementation_analyzer"
@@ -2820,33 +3196,74 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_executive_copilot
         name: "search_press_releases"
         description: "Searches press releases and news for market developments, competitor announcements, and M&A activity. Data Sources: Company press releases, market news. When to Use: Competitor news, M&A announcements, market developments. When NOT to Use: Financial metrics (use financial_analyzer), internal strategy (use search_strategy_docs)."
     - tool_spec:
-        type: "snowflake_function"
+        type: "generic"
         name: "ma_simulation"
         description: "Runs M&A financial simulation to model acquisition impact on EPS, synergies, and strategic metrics. Inputs: target_aum (float), target_revenue (float), cost_synergy_pct (float, default 0.20). Returns: EPS accretion projections, synergy estimates, risk assessment, timeline. When to Use: Modeling potential acquisitions, evaluating deal financial impact. When NOT to Use: Qualitative analysis (combine with search tools for full picture)."
+        input_schema:
+          type: "object"
+          properties:
+            target_aum:
+              description: "Target company's AUM in dollars (e.g., 50000000000 for $50B)"
+              type: "number"
+            target_revenue:
+              description: "Target company's annual revenue in dollars"
+              type: "number"
+            cost_synergy_pct:
+              description: "Expected cost synergy percentage (default 0.20 for 20%)"
+              type: "number"
+          required:
+            - target_aum
+            - target_revenue
+    - tool_spec:
+        type: "generic"
+        name: "pdf_generator"
+        description: "Generates professional branded PDF reports for board memos, strategic reports, and executive briefings. Use for formal executive documentation. Audiences: 'internal' for board memos and executive briefings. When to Use: After completing M&A simulation, strategic analysis, or when user requests 'generate PDF', 'create board memo', or 'formalize briefing'. When NOT to Use: During analysis or before recommendations are finalized."
+        input_schema:
+          type: "object"
+          properties:
+            markdown_content:
+              description: "Complete markdown executive report or memo with all sections"
+              type: "string"
+            report_title:
+              description: "Title for the document header (e.g., 'M&A Analysis Memo', 'Q4 Board Briefing')"
+              type: "string"
+            document_audience:
+              description: "'internal' for board memos and executive briefings"
+              type: "string"
+          required: 
+            - markdown_content
+            - report_title
+            - document_audience
   tool_resources:
     executive_kpi_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_EXECUTIVE_VIEW"
     quantitative_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_ANALYST_VIEW"
     financial_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_SEC_FINANCIALS_VIEW"
+    sec_segments_analyzer:
+      execution_environment:
+        query_timeout: 30
+        type: "warehouse"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
+      semantic_view: "{database_name}.AI.SAM_SEC_SEGMENTS_VIEW"
     implementation_analyzer:
       execution_environment:
         query_timeout: 30
         type: "warehouse"
-        warehouse: "SAM_DEMO_WH"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
       semantic_view: "{database_name}.AI.SAM_IMPLEMENTATION_VIEW"
     search_strategy_docs:
       search_service: "{database_name}.AI.SAM_STRATEGY_DOCUMENTS"
@@ -2859,9 +3276,23 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_executive_copilot
       title_column: "DOCUMENT_TITLE"
       max_results: 4
     ma_simulation:
-      function: "{database_name}.AI.MA_SIMULATION_TOOL"
+      execution_environment:
+        query_timeout: 30
+        type: "warehouse"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
+      identifier: "{database_name}.AI.MA_SIMULATION_TOOL"
+      name: "MA_SIMULATION_TOOL(FLOAT, FLOAT, FLOAT)"
+      type: "function"
+    pdf_generator:
+      execution_environment:
+        query_timeout: 60
+        type: "warehouse"
+        warehouse: "{config.WAREHOUSES['execution']['name']}"
+      identifier: "{database_name}.AI.GENERATE_PDF_REPORT"
+      name: "GENERATE_PDF_REPORT(VARCHAR, VARCHAR, VARCHAR)"
+      type: "procedure"
   $$;
 """
     session.sql(sql).collect()
-    config.log_detail("Created agent: AM_executive_copilot")
+    log_detail("  Created agent: AM_executive_copilot")
 

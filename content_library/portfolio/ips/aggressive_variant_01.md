@@ -14,25 +14,13 @@ placeholders:
 
 # Investment Policy Statement
 
-### Portfolio
+**Portfolio**: {{PORTFOLIO_NAME}}  
+**Strategy**: {{STRATEGY}}  
+**Base Currency**: {{BASE_CURRENCY}}  
+**Inception Date**: {{INCEPTION_DATE}}  
+**Effective Date**: 1 January 2024
 
-{{PORTFOLIO_NAME}}
-### Strategy
-
-{{STRATEGY}}
-### Base Currency
-
-{{BASE_CURRENCY}}
-### Inception Date
-
-{{INCEPTION_DATE}}
-### Effective Date
-
-1 January 2024
-
-### Classification
-
-Confidential
+**Classification**: Confidential
 
 ---
 
@@ -44,27 +32,19 @@ This Investment Policy Statement establishes objectives, guidelines, and constra
 
 ## 2. Investment Objectives
 
-### Primary Objective
+**Primary Objective**: Maximum long-term capital appreciation through concentrated equity investments in high-growth companies and emerging technology themes. The portfolio explicitly prioritises growth over income generation or capital preservation.
 
-Maximum long-term capital appreciation through concentrated equity investments in high-growth companies and emerging technology themes. The portfolio explicitly prioritises growth over income generation or capital preservation.
+**Return Target**: 10-15% annualised return over market cycle (5-7 years), accepting significant year-to-year variance. Target meaningfully exceeds broad market returns through active management and thematic focus.
 
-### Return Target
+**Risk Profile**: Aggressive risk tolerance accepting substantial volatility and drawdown potential in exchange for higher expected returns. Comfortable with annual volatility of 18-25% and potential drawdowns of 30-40% during market corrections.
 
-10-15% annualised return over market cycle (5-7 years), accepting significant year-to-year variance. Target meaningfully exceeds broad market returns through active management and thematic focus.
-
-### Risk Profile
-
-Aggressive risk tolerance accepting substantial volatility and drawdown potential in exchange for higher expected returns. Comfortable with annual volatility of 18-25% and potential drawdowns of 30-40% during market corrections.
-
-### Time Horizon
-
-Long-term horizon of 10+ years allowing strategy to withstand significant market volatility whilst compounding through growth cycles.
+**Time Horizon**: Long-term horizon of 10+ years allowing strategy to withstand significant market volatility whilst compounding through growth cycles.
 
 ---
 
 ## 3. Strategic Asset Allocation
 
-### Target Allocation
+**Target Allocation**:
 
 | Asset Class | Target % | Minimum % | Maximum % | Benchmark |
 |-------------|----------|-----------|-----------|-----------|
@@ -77,24 +57,20 @@ Long-term horizon of 10+ years allowing strategy to withstand significant market
 | **Cash** | **5%** | **0%** | **20%** | Cash |
 | **TOTAL** | **100%** | | | |
 
-### Allocation Rationale
-
-The 90% equity allocation maximises growth potential whilst maintaining modest cash buffer for tactical opportunities and rebalancing. Growth equity focus targets companies with superior revenue expansion characteristics. Concentrated positioning in highest-conviction ideas differentiates from passive indexing.
+**Allocation Rationale**: The 90% equity allocation maximises growth potential whilst maintaining modest cash buffer for tactical opportunities and rebalancing. Growth equity focus targets companies with superior revenue expansion characteristics. Concentrated positioning in highest-conviction ideas differentiates from passive indexing.
 
 ---
 
 ## 4. Investment Guidelines
 
-### Permitted Investments
-
+**Permitted Investments**:
 - Individual equities across all market capitalisations
 - Growth-oriented mutual funds and ETFs
 - Thematic investment vehicles (AI, renewable energy, cybersecurity, etc.)
 - Small/mid-cap companies with strong growth profiles
 - International equities in developed and emerging markets
 
-### Concentration Approach
-
+**Concentration Approach**:
 - Maximum 15% in single issuer (high-conviction threshold)
 - Early warning at 12% triggers review
 - Maximum 50% in single sector (allows thematic concentration)
@@ -107,69 +83,51 @@ The 90% equity allocation maximises growth potential whilst maintaining modest c
 - Strong competitive positioning and defensible moats
 - Experienced management teams with skin in the game
 
-### Investment Restrictions
-
+**Investment Restrictions**:
 - No leveraged derivatives or short selling
 - No individual fixed income securities
 - No illiquid private placements
 - Avoid value traps or mature, low-growth companies
 
-### Thematic Focus
-
-Portfolio emphasises technology innovation themes including artificial intelligence, cloud computing, digital transformation, cybersecurity, renewable energy transition, and emerging consumer trends.
+**Thematic Focus**: Portfolio emphasises technology innovation themes including artificial intelligence, cloud computing, digital transformation, cybersecurity, renewable energy transition, and emerging consumer trends.
 
 ---
 
 ## 5. Risk Management
 
-### Concentration Risk
+**Concentration Risk**: Accepted and managed through research conviction and active monitoring. High-conviction positions may exceed 10% when supported by rigorous analysis and Investment Committee approval.
 
-Accepted and managed through research conviction and active monitoring. High-conviction positions may exceed 10% when supported by rigorous analysis and Investment Committee approval.
+**Sector Concentration**: Technology sector exposure may reach 60-70% of portfolio, reflecting thematic focus and growth objectives. Concentration monitored but explicitly permitted within strategy mandate.
 
-### Sector Concentration
+**Volatility Management**: High volatility expected and accepted. No volatility targeting or defensive positioning requirements. Focus on long-term growth rather than short-term volatility minimization.
 
-Technology sector exposure may reach 60-70% of portfolio, reflecting thematic focus and growth objectives. Concentration monitored but explicitly permitted within strategy mandate.
-
-### Volatility Management
-
-High volatility expected and accepted. No volatility targeting or defensive positioning requirements. Focus on long-term growth rather than short-term volatility minimization.
-
-### Downside Protection
-
-Quality bias (profitable or path to profit, strong balance sheets) provides modest downside protection. Active monitoring and willingness to exit deteriorating positions mitigate permanent capital loss risk.
+**Downside Protection**: Quality bias (profitable or path to profit, strong balance sheets) provides modest downside protection. Active monitoring and willingness to exit deteriorating positions mitigate permanent capital loss risk.
 
 ---
 
 ## 6. Performance Evaluation
 
-### Benchmark
+**Benchmark**: 90% Nasdaq 100 / 10% Cash
 
-90% Nasdaq 100 / 10% Cash
-
-### Success Measures
-
+**Success Measures**:
 - Outperformance versus benchmark over 3-year and 5-year periods
 - Absolute returns exceeding 10% annually over market cycle
 - Capital appreciation with acceptable drawdown management
 - Effective capture of thematic growth opportunities
 
-### Reporting
-
-Quarterly performance reports, annual comprehensive review, monthly statements.
+**Reporting**: Quarterly performance reports, annual comprehensive review, monthly statements.
 
 ---
 
 ## 7. Roles and Responsibilities
 
-### Snowcrest Asset Management
-
+**Snowcrest Asset Management**:
 - Implement aggressive growth strategy within IPS guidelines
 - Concentrate positions in highest-conviction ideas
 - Monitor thematic trends and adjust positioning dynamically
 - Provide transparent reporting on positioning and performance
 
-### Portfolio Oversight
-
+**Portfolio Oversight**:
 - Review performance and strategy quarterly
 - Approve material changes to investment approach
 - Ensure IPS alignment with objectives and risk tolerance

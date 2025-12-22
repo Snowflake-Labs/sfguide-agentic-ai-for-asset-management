@@ -39,15 +39,9 @@ placeholders:
 
 # Quarterly Portfolio Review
 
-### Portfolio
-
-{{PORTFOLIO_NAME}}
-### Period
-
-{{FISCAL_QUARTER}}
-### Date
-
-{{REPORT_DATE}}
+**Portfolio**: {{PORTFOLIO_NAME}}  
+**Period**: {{FISCAL_QUARTER}}  
+**Date**: {{REPORT_DATE}}  
 **Snowcrest Asset Management**
 
 ---
@@ -58,8 +52,7 @@ placeholders:
 
 The {{PORTFOLIO_NAME}} returned {{QTD_RETURN_PCT}}% for the quarter, {{RELATIVE_PERFORMANCE}} the benchmark return of {{BENCHMARK_QTD_PCT}}%. Year-to-date performance of {{YTD_RETURN_PCT}}% compares to benchmark {{BENCHMARK_YTD_PCT}}%.
 
-### Quarter Highlights
-
+**Quarter Highlights**:
 - Portfolio return: {{QTD_RETURN_PCT}}% (Benchmark: {{BENCHMARK_QTD_PCT}}%)
 - YTD return: {{YTD_RETURN_PCT}}% (Benchmark: {{BENCHMARK_YTD_PCT}}%)
 - Active positions: {{POSITION_COUNT}}
@@ -77,21 +70,15 @@ Fixed income markets traded in ranges as investors balanced inflation concerns a
 
 ## Performance Analysis
 
-### Attribution Summary
+**Attribution Summary**:
 
 Performance reflected offsetting effects from various portfolio decisions. Strong security selection in technology and healthcare contributed positively, whilst sector allocation relative to benchmark created modest headwinds. Individual position winners and losers balanced to produce near-benchmark results.
 
-### Top Contributors
+**Top Contributors**: {{LARGEST_POSITION_NAME}} ({{LARGEST_POSITION_WEIGHT}}%) and several mid-cap holdings delivered solid gains. Technology infrastructure positions benefited from steady enterprise adoption trends.
 
-{{LARGEST_POSITION_NAME}} ({{LARGEST_POSITION_WEIGHT}}%) and several mid-cap holdings delivered solid gains. Technology infrastructure positions benefited from steady enterprise adoption trends.
+**Detractors**: Certain cyclical positions faced headwinds from economic uncertainty. One position experienced company-specific challenges though fundamental thesis remains intact.
 
-### Detractors
-
-Certain cyclical positions faced headwinds from economic uncertainty. One position experienced company-specific challenges though fundamental thesis remains intact.
-
-### Active Decisions
-
-We rebalanced modestly, trimming positions that had appreciated and adding to holdings offering improved risk-reward following price pullbacks.
+**Active Decisions**: We rebalanced modestly, trimming positions that had appreciated and adding to holdings offering improved risk-reward following price pullbacks.
 
 ---
 
@@ -103,7 +90,7 @@ We rebalanced modestly, trimming positions that had appreciated and adding to ho
 
 {{CONCENTRATION_WARNING_TEXT}}
 
-### Sector Positioning
+**Sector Positioning**:
 
 {{SECTOR_ALLOCATION_TABLE}}
 
@@ -113,17 +100,11 @@ Our positioning balances growth exposure with quality characteristics and defens
 
 ## Risk Monitoring
 
-### Concentration
+**Concentration**: {{CONCENTRATION_WARNING_STATEMENT}} Largest position is {{LARGEST_POSITION_NAME}} at {{LARGEST_POSITION_WEIGHT}}%.
 
-{{CONCENTRATION_WARNING_STATEMENT}} Largest position is {{LARGEST_POSITION_NAME}} at {{LARGEST_POSITION_WEIGHT}}%.
+**Volatility**: Portfolio volatility {{PORTFOLIO_VOL}}% remains within target parameters.
 
-### Volatility
-
-Portfolio volatility {{PORTFOLIO_VOL}}% remains within target parameters.
-
-### Tracking
-
-Tracking error of {{TRACKING_ERROR_PCT}}% reflects active positioning.
+**Tracking**: Tracking error of {{TRACKING_ERROR_PCT}}% reflects active positioning.
 
 ---
 
@@ -141,15 +122,11 @@ Risks monitored: Economic growth trajectory, monetary policy, geopolitical devel
 
 The {{PORTFOLIO_NAME}} navigated mixed market conditions reasonably well with {{RELATIVE_PERFORMANCE}} performance. Portfolio remains aligned with investment mandate and strategic objectives.
 
-### Monitoring priorities
-
-Concentration levels, sector allocation, individual position developments.
+**Monitoring priorities**: Concentration levels, sector allocation, individual position developments.
 
 ---
 
-### Disclosures
-
-Past performance does not guarantee future results. This report is informational only.
+**Disclosures**: Past performance does not guarantee future results. This report is informational only.
 
 *Snowcrest Asset Management | {{REPORT_DATE}}*
 

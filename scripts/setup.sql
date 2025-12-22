@@ -51,23 +51,25 @@ CREATE SCHEMA IF NOT EXISTS SAM_DEMO.MARKET_DATA
 CREATE ROLE IF NOT EXISTS SAM_DEMO_ROLE
     COMMENT = 'Dedicated role for SAM demo operations';
 
--- Grant database and schema usage
+-- Grant database-level privileges
 GRANT USAGE ON DATABASE SAM_DEMO TO ROLE SAM_DEMO_ROLE;
 GRANT CREATE SCHEMA ON DATABASE SAM_DEMO TO ROLE SAM_DEMO_ROLE;
+
+-- Grant schema usage
 GRANT USAGE ON SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
 GRANT USAGE ON SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
 GRANT USAGE ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
 GRANT USAGE ON SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
 GRANT USAGE ON SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
 
--- Grant all privileges on schemas
+-- Grant all privileges on schemas (includes CREATE TABLE, VIEW, PROCEDURE, etc.)
 GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
 GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
 GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
 GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
 GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
 
--- Grant privileges on all existing and future tables
+-- Grant privileges on TABLES (existing and future)
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
@@ -80,8 +82,79 @@ GRANT ALL PRIVILEGES ON FUTURE TABLES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROL
 GRANT ALL PRIVILEGES ON FUTURE TABLES IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
 GRANT ALL PRIVILEGES ON FUTURE TABLES IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
 
--- Grant role to ACCOUNTADMIN
+-- Grant privileges on VIEWS (existing and future)
+GRANT ALL PRIVILEGES ON ALL VIEWS IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL VIEWS IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL VIEWS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL VIEWS IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL VIEWS IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
+
+GRANT ALL PRIVILEGES ON FUTURE VIEWS IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE VIEWS IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE VIEWS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE VIEWS IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE VIEWS IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
+
+-- Grant privileges on PROCEDURES (existing and future)
+GRANT ALL PRIVILEGES ON ALL PROCEDURES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL PROCEDURES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL PROCEDURES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL PROCEDURES IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL PROCEDURES IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
+
+GRANT ALL PRIVILEGES ON FUTURE PROCEDURES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE PROCEDURES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE PROCEDURES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE PROCEDURES IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE PROCEDURES IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
+
+-- Grant privileges on FUNCTIONS (existing and future)
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
+
+GRANT ALL PRIVILEGES ON FUTURE FUNCTIONS IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE FUNCTIONS IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE FUNCTIONS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE FUNCTIONS IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE FUNCTIONS IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
+
+-- Grant privileges on STAGES (existing and future)
+GRANT ALL PRIVILEGES ON ALL STAGES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL STAGES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL STAGES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL STAGES IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL STAGES IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
+
+GRANT ALL PRIVILEGES ON FUTURE STAGES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE STAGES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE STAGES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE STAGES IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE STAGES IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
+
+-- Grant privileges on FILE FORMATS (existing and future)
+GRANT ALL PRIVILEGES ON ALL FILE FORMATS IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL FILE FORMATS IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL FILE FORMATS IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
+
+GRANT ALL PRIVILEGES ON FUTURE FILE FORMATS IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE FILE FORMATS IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE FILE FORMATS IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
+
+-- Grant privileges on SEQUENCES (existing and future)
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
+
+GRANT ALL PRIVILEGES ON FUTURE SEQUENCES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE SEQUENCES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON FUTURE SEQUENCES IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
+
+-- Grant role to ACCOUNTADMIN and current user
 GRANT ROLE SAM_DEMO_ROLE TO ROLE ACCOUNTADMIN;
+GRANT ROLE SAM_DEMO_ROLE TO ROLE SYSADMIN;
 
 -- ============================================================================
 -- SECTION 3: Warehouse (Single LARGE warehouse for all operations)
@@ -97,7 +170,10 @@ CREATE WAREHOUSE IF NOT EXISTS SAM_DEMO_WH
 -- Ensure warehouse is 2X-LARGE (in case it already exists with different size)
 ALTER WAREHOUSE SAM_DEMO_WH SET WAREHOUSE_SIZE = '2X-LARGE';
 
+-- Grant warehouse permissions
 GRANT USAGE ON WAREHOUSE SAM_DEMO_WH TO ROLE SAM_DEMO_ROLE;
+GRANT OPERATE ON WAREHOUSE SAM_DEMO_WH TO ROLE SAM_DEMO_ROLE;
+GRANT MODIFY ON WAREHOUSE SAM_DEMO_WH TO ROLE SAM_DEMO_ROLE;
 
 -- ============================================================================
 -- SECTION 4: Marketplace Data Access
@@ -109,19 +185,25 @@ GRANT USAGE ON WAREHOUSE SAM_DEMO_WH TO ROLE SAM_DEMO_ROLE;
 GRANT IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE_PUBLIC_DATA_FREE TO ROLE SAM_DEMO_ROLE;
 
 -- ============================================================================
--- SECTION 5: Snowflake Intelligence Setup
+-- SECTION 5: Snowflake Intelligence and Cortex Setup
 -- ============================================================================
 
+-- Create Snowflake Intelligence object
 CREATE SNOWFLAKE INTELLIGENCE IF NOT EXISTS SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;
 
+-- Snowflake Intelligence grants
 GRANT CREATE SNOWFLAKE INTELLIGENCE ON ACCOUNT TO ROLE SAM_DEMO_ROLE;
 GRANT USAGE ON SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT TO ROLE SAM_DEMO_ROLE;
 GRANT MODIFY ON SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT TO ROLE SAM_DEMO_ROLE;
 GRANT USAGE ON SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT TO ROLE PUBLIC;
 
+-- AI/Cortex component creation grants
 GRANT CREATE AGENT ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
 GRANT CREATE CORTEX SEARCH SERVICE ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
 GRANT CREATE SEMANTIC VIEW ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
+
+-- Account-level Cortex privileges (required for LLM functions)
+GRANT BIND SERVICE ENDPOINT ON ACCOUNT TO ROLE SAM_DEMO_ROLE;
 
 -- ============================================================================
 -- SECTION 6: Git Integration
@@ -135,6 +217,7 @@ CREATE OR REPLACE SECRET SAM_DEMO.PUBLIC.GITHUB_SECRET
 
 -- Grant secret usage to role
 GRANT USAGE ON SECRET SAM_DEMO.PUBLIC.GITHUB_SECRET TO ROLE SAM_DEMO_ROLE;
+GRANT READ ON SECRET SAM_DEMO.PUBLIC.GITHUB_SECRET TO ROLE SAM_DEMO_ROLE;
 
 -- Create API integration for Git (must reference the secret in ALLOWED_AUTHENTICATION_SECRETS)
 CREATE OR REPLACE API INTEGRATION GITHUB_INTEGRATION_SAM_DEMO
@@ -150,6 +233,9 @@ CREATE OR REPLACE GIT REPOSITORY SAM_DEMO.PUBLIC.sam_demo_repo
   GIT_CREDENTIALS = SAM_DEMO.PUBLIC.GITHUB_SECRET
   ORIGIN = 'https://github.com/sfc-gh-dshemsi/sfguide-agentic-ai-for-asset-management.git'
   COMMENT = 'Git repository for SAM demo setup files';
+
+-- Grant Git repository usage to role
+GRANT READ ON GIT REPOSITORY SAM_DEMO.PUBLIC.sam_demo_repo TO ROLE SAM_DEMO_ROLE;
 
 -- Fetch latest code from Git
 ALTER GIT REPOSITORY SAM_DEMO.PUBLIC.sam_demo_repo FETCH;
@@ -206,12 +292,17 @@ def run_setup(session, test_mode: bool = False) -> str:
     results.append("\n=== Step 1: Downloading Python modules ===")
     git_stage = '@SAM_DEMO.PUBLIC.sam_demo_repo/branches/main'
     
+    # All Python modules needed for SAM demo (from am_ai_demo source)
     python_files = [
-        'config.py', 'generate_structured.py', 'generate_unstructured.py',
-        'generate_market_data.py', 'generate_real_transcripts.py', 'snowflake_io_utils.py',
-        'build_ai.py', 'create_agents.py', 'create_semantic_views.py',
-        'create_cortex_search.py', 'hydration_engine.py', 'extract_real_assets.py',
-        'rules_loader.py'
+        # Core configuration and utilities
+        'config.py', 'config_accessors.py', 'db_helpers.py', 'demo_helpers.py',
+        'logging_utils.py', 'scenario_utils.py', 'snowflake_io_utils.py',
+        'sql_case_builders.py', 'sql_utils.py', 'rules_loader.py',
+        # Data generation
+        'generate_structured.py', 'generate_unstructured.py', 'generate_market_data.py',
+        'generate_real_transcripts.py', 'hydration_engine.py',
+        # AI component builders
+        'build_ai.py', 'create_agents.py', 'create_semantic_views.py', 'create_cortex_search.py'
     ]
     
     downloaded = 0
@@ -236,10 +327,12 @@ def run_setup(session, test_mode: bool = False) -> str:
                 local_dir = os.path.dirname(os.path.join(content_dir, rel_path))
                 os.makedirs(local_dir, exist_ok=True)
                 try:
-                    session.file.get(f"@{file_path}", local_dir + '/')
+                    # LIST returns relative path - need to use full stage path for GET
+                    full_stage_path = f"{git_stage}/content_library/{rel_path}"
+                    session.file.get(full_stage_path, local_dir + '/')
                     template_count += 1
-                except:
-                    pass
+                except Exception as get_err:
+                    results.append(f"    Warning: Could not download {rel_path}: {get_err}")
         results.append(f"  Downloaded {template_count} template files")
     except Exception as e:
         results.append(f"  Warning: Could not list content library: {e}")
@@ -256,28 +349,84 @@ def run_setup(session, test_mode: bool = False) -> str:
     results.append(f"  Database: {config.DATABASE['name']}")
     results.append(f"  Content library: {config.CONTENT_LIBRARY_PATH}")
     
-    # Step 4: Generate structured data
-    results.append("\n=== Step 3: Generating structured data ===")
+    # Import modules for data generation
+    import generate_structured
+    import generate_market_data
+    
+    # Step 3: Build dimension tables (do NOT depend on max_price_date)
+    results.append("\n=== Step 3: Building dimension tables ===")
     try:
-        import generate_structured
-        generate_structured.build_all(session, ['all'], test_mode=test_mode)
-        results.append("  Structured data complete!")
+        generate_structured.create_database_structure(session, recreate_database=False)
+        generate_structured.build_dimension_tables(session, test_mode=test_mode)
+        results.append("  Dimension tables complete!")
     except Exception as e:
         results.append(f"  ERROR: {e}")
         raise
     
-    # Step 5: Generate market data
-    results.append("\n=== Step 4: Generating market data ===")
+    # Step 4: Build FACT_STOCK_PRICES as date anchor (MUST happen before fact tables)
+    results.append("\n=== Step 4: Building price anchor (FACT_STOCK_PRICES) ===")
     try:
-        import generate_market_data
+        generate_market_data.build_price_anchor(session, test_mode=test_mode)
+        results.append("  Price anchor established!")
+    except Exception as e:
+        results.append(f"  ERROR: {e}")
+        raise
+    
+    # Step 5: Build fact tables (depend on max_price_date from stock prices)
+    results.append("\n=== Step 5: Building fact tables ===")
+    try:
+        generate_structured.build_fact_tables(session, test_mode=test_mode)
+        results.append("  Fact tables complete!")
+    except Exception as e:
+        results.append(f"  ERROR: {e}")
+        raise
+    
+    # Step 6: Build scenario-specific data
+    results.append("\n=== Step 6: Building scenario data ===")
+    try:
+        for scenario in config.AVAILABLE_SCENARIOS:
+            generate_structured.build_scenario_data(session, scenario)
+        generate_structured.validate_data_quality(session)
+        results.append("  Scenario data complete!")
+    except Exception as e:
+        results.append(f"  ERROR: {e}")
+        raise
+    
+    # Step 7: Build remaining market data (SEC filings, financials, estimates)
+    results.append("\n=== Step 7: Building remaining market data ===")
+    try:
         generate_market_data.build_all(session, test_mode=test_mode)
         results.append("  Market data complete!")
     except Exception as e:
         results.append(f"  ERROR: {e}")
         raise
     
-    # Step 6: Generate real transcripts (with fallback to synthetic)
-    results.append("\n=== Step 5: Generating transcripts ===")
+    # Step 7.5: Build performance views (required by SAM_ANALYST_VIEW)
+    # These depend on market data (FACT_STOCK_PRICES) and must be built before semantic views
+    results.append("\n=== Step 7.5: Building performance views ===")
+    try:
+        # Build returns view and update enriched holdings
+        generate_structured.build_security_returns_view(session)
+        generate_structured.build_esg_latest_view(session)  # Rebuild to include returns
+        results.append("  Security returns and ESG views complete!")
+        
+        # Build strategy performance
+        generate_structured.build_fact_strategy_performance(session)
+        results.append("  Strategy performance complete!")
+        
+        # Build benchmark performance (required by SAM_ANALYST_VIEW)
+        generate_structured.build_fact_benchmark_performance(session)
+        results.append("  Benchmark performance complete!")
+        
+        # Build portfolio vs benchmark comparison view (required by SAM_ANALYST_VIEW)
+        generate_structured.build_portfolio_benchmark_comparison_view(session)
+        results.append("  Portfolio vs benchmark view complete!")
+    except Exception as e:
+        results.append(f"  ERROR building performance views: {e}")
+        raise
+    
+    # Step 8: Generate real transcripts (with fallback to synthetic)
+    results.append("\n=== Step 8: Generating transcripts ===")
     real_transcripts_available = False
     try:
         import generate_real_transcripts
@@ -291,19 +440,13 @@ def run_setup(session, test_mode: bool = False) -> str:
     except Exception as e:
         results.append(f"  Real transcripts failed: {e} - will use synthetic fallback")
     
-    # If real transcripts not available, generate synthetic earnings_transcripts as fallback
+    # If real transcripts not available, log warning (synthetic requires templates that may not exist)
     if not real_transcripts_available:
-        results.append("  Generating synthetic earnings transcripts as fallback...")
-        try:
-            import generate_unstructured
-            # Build earnings_transcripts using template hydration (pass as list)
-            generate_unstructured.build_all(session, ['earnings_transcripts'], test_mode)
-            results.append("  Synthetic earnings transcripts created!")
-        except Exception as e:
-            results.append(f"  WARNING: Fallback transcripts failed: {e}")
+        results.append("  INFO: Real transcripts not available. SAM_COMPANY_EVENTS search will use fallback logic.")
+        results.append("  (Search service will fall back to EARNINGS_TRANSCRIPTS_CORPUS if available)")
     
-    # Step 7: Generate unstructured documents
-    results.append("\n=== Step 6: Generating documents from templates ===")
+    # Step 9: Generate unstructured documents
+    results.append("\n=== Step 9: Generating documents from templates ===")
     try:
         import generate_unstructured
         generate_unstructured.build_all(session, ['all'], test_mode=test_mode)
@@ -326,7 +469,7 @@ $$;
 -- SECTION 7.2: AI Components Procedure (Search Services, Semantic Views)
 -- ============================================================================
 
-CREATE OR REPLACE PROCEDURE SAM_DEMO.PUBLIC.SETUP_AI_COMPONENTS(FORCE_REBUILD BOOLEAN DEFAULT FALSE)
+CREATE OR REPLACE PROCEDURE SAM_DEMO.PUBLIC.SETUP_AI_COMPONENTS(FORCE_REBUILD BOOLEAN DEFAULT TRUE)
 RETURNS STRING
 LANGUAGE PYTHON
 RUNTIME_VERSION = '3.11'
@@ -356,9 +499,11 @@ def run_ai_setup(session, force_rebuild: bool = False) -> str:
     results = []
     git_stage = '@SAM_DEMO.PUBLIC.sam_demo_repo/branches/main'
     
-    # Download required Python files
+    # Download required Python files (includes all dependencies)
     python_files = [
-        'config.py', 'build_ai.py', 'create_semantic_views.py', 'create_cortex_search.py'
+        'config.py', 'config_accessors.py', 'db_helpers.py', 'demo_helpers.py',
+        'logging_utils.py', 'scenario_utils.py',
+        'build_ai.py', 'create_semantic_views.py', 'create_cortex_search.py'
     ]
     
     for f in python_files:
@@ -439,8 +584,11 @@ def run_agent_setup(session) -> str:
     results = []
     git_stage = '@SAM_DEMO.PUBLIC.sam_demo_repo/branches/main'
     
-    # Download required Python files
-    python_files = ['config.py', 'create_agents.py']
+    # Download required Python files (includes all dependencies)
+    python_files = [
+        'config.py', 'config_accessors.py', 'db_helpers.py', 'demo_helpers.py',
+        'logging_utils.py', 'create_agents.py'
+    ]
     
     for f in python_files:
         try:

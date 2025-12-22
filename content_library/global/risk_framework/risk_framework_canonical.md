@@ -9,21 +9,11 @@ placeholders:
 
 # Snowcrest Asset Management — Risk Management Framework
 
-### Approved By
-
-Board of Directors
-### Effective Date
-
-1 January 2024
-### Review Date
-
-Annual
-### Owner
-
-Chief Risk Officer
-### Classification
-
-Internal — Confidential
+**Approved By**: Board of Directors  
+**Effective Date**: 1 January 2024  
+**Review Date**: Annual  
+**Owner**: Chief Risk Officer  
+**Classification**: Internal — Confidential
 
 ---
 
@@ -57,28 +47,24 @@ The Framework applies to all business activities, operations, and organizational
 
 ### Three Lines of Defense Model
 
-### First Line — Business Operations
-
+**First Line — Business Operations**:
 - Portfolio managers and investment teams
 - Client service and operations departments
 - **Responsibility**: Own and manage risks in daily operations, implement controls, escalate issues
 
-### Second Line — Risk Oversight
-
+**Second Line — Risk Oversight**:
 - Risk Management function led by Chief Risk Officer
 - Compliance function led by Chief Compliance Officer
 - **Responsibility**: Establish policies, provide oversight, monitor adherence, independent challenge
 
-### Third Line — Independent Assurance
-
+**Third Line — Independent Assurance**:
 - Internal Audit (outsourced)
 - External Auditors
 - **Responsibility**: Independent assessment, validation, assurance
 
 ### Governance Structure
 
-### Board of Directors
-
+**Board of Directors**:
 - Ultimate risk oversight responsibility
 - Approves Risk Management Framework and Risk Appetite Statement
 - Reviews quarterly risk reports and material risk events
@@ -90,22 +76,19 @@ The Framework applies to all business activities, operations, and organizational
 - Challenges risk management practices and effectiveness
 - Meets quarterly with management and annually with auditors
 
-### Chief Risk Officer
-
+**Chief Risk Officer**:
 - Day-to-day risk management leadership
 - Reports to CEO with direct access to Board Risk Committee
 - Independent of revenue-generating functions
 - Escalation authority for material risks
 
-### Investment Committee
-
+**Investment Committee**:
 - Reviews portfolio risk profiles before approval
 - Approves concentration limit exceptions
 - Monitors risk-adjusted performance
 - Validates investment process compliance
 
-### Compliance Committee
-
+**Compliance Committee**:
 - Monitors regulatory and compliance risks
 - Reviews testing results and violations
 - Approves policy changes and enhancements
@@ -151,79 +134,45 @@ Risk capacity reflects our financial ability to absorb potential losses:
 
 ### Market and Investment Risks
 
-### Equity Risk
+**Equity Risk**: Price volatility of equity securities due to market movements, company-specific events, or sector dynamics.
 
-Price volatility of equity securities due to market movements, company-specific events, or sector dynamics.
+**Interest Rate Risk**: Bond price sensitivity to interest rate changes affecting fixed income portfolio values.
 
-### Interest Rate Risk
+**Credit Risk**: Issuer default risk, credit spread widening, rating downgrades impacting bond values.
 
-Bond price sensitivity to interest rate changes affecting fixed income portfolio values.
+**Liquidity Risk**: Inability to trade positions at fair prices or within required timeframes.
 
-### Credit Risk
+**Currency Risk**: Foreign exchange fluctuations affecting international investments (generally hedged to base currency).
 
-Issuer default risk, credit spread widening, rating downgrades impacting bond values.
-
-### Liquidity Risk
-
-Inability to trade positions at fair prices or within required timeframes.
-
-### Currency Risk
-
-Foreign exchange fluctuations affecting international investments (generally hedged to base currency).
-
-### Concentration Risk
-
-Excessive exposure to single securities, issuers, sectors, or geographies.
+**Concentration Risk**: Excessive exposure to single securities, issuers, sectors, or geographies.
 
 ### Operational Risks
 
-### Process Risk
+**Process Risk**: Failures in trade execution, settlement, reconciliation, or other operational processes causing errors or losses.
 
-Failures in trade execution, settlement, reconciliation, or other operational processes causing errors or losses.
+**Technology Risk**: System failures, outages, cybersecurity breaches, or data integrity issues disrupting operations.
 
-### Technology Risk
+**Human Error**: Mistakes in data entry, calculation errors, miscommunications, or judgment failures.
 
-System failures, outages, cybersecurity breaches, or data integrity issues disrupting operations.
+**Third-Party Risk**: Service provider failures including custodians, administrators, or technology vendors.
 
-### Human Error
-
-Mistakes in data entry, calculation errors, miscommunications, or judgment failures.
-
-### Third-Party Risk
-
-Service provider failures including custodians, administrators, or technology vendors.
-
-### Fraud Risk
-
-Internal fraud, external fraud, or cyber-fraud affecting firm or client assets.
+**Fraud Risk**: Internal fraud, external fraud, or cyber-fraud affecting firm or client assets.
 
 ### Compliance and Regulatory Risks
 
-### Regulatory Risk
+**Regulatory Risk**: Non-compliance with securities regulations, resulting in regulatory sanctions, fines, or license restrictions.
 
-Non-compliance with securities regulations, resulting in regulatory sanctions, fines, or license restrictions.
+**Legal Risk**: Contractual disputes, litigation, or legal claims against the firm or personnel.
 
-### Legal Risk
-
-Contractual disputes, litigation, or legal claims against the firm or personnel.
-
-### Fiduciary Risk
-
-Breach of fiduciary duties including conflicts of interest or unsuitable investment recommendations.
+**Fiduciary Risk**: Breach of fiduciary duties including conflicts of interest or unsuitable investment recommendations.
 
 ### Business and Strategic Risks
 
-### Strategic Risk
+**Strategic Risk**: Business strategy execution failures, market positioning errors, or competitive disadvantage.
 
-Business strategy execution failures, market positioning errors, or competitive disadvantage.
+**Reputational Risk**: Damage to firm reputation from investment losses, compliance failures, or public controversies.
 
-### Reputational Risk
-
-Damage to firm reputation from investment losses, compliance failures, or public controversies.
-
-### Business Continuity Risk
-
-Inability to maintain operations during disruptions (natural disasters, pandemics, cyber-attacks).
+**Business Continuity Risk**: Inability to maintain operations during disruptions (natural disasters, pandemics, cyber-attacks).
 
 ---
 
@@ -231,39 +180,23 @@ Inability to maintain operations during disruptions (natural disasters, pandemic
 
 ### Risk Identification Methods
 
-### Risk and Control Self-Assessments (RCSAs)
+**Risk and Control Self-Assessments (RCSAs)**: Quarterly self-assessments by department heads identifying risks, evaluating controls, and documenting gaps.
 
-Quarterly self-assessments by department heads identifying risks, evaluating controls, and documenting gaps.
+**Investment Risk Analysis**: Pre-investment due diligence, ongoing position monitoring, stress testing, and scenario analysis identifying investment risks.
 
-### Investment Risk Analysis
+**Compliance Monitoring**: Automated surveillance, exception reporting, and testing programmes identifying compliance and regulatory risks.
 
-Pre-investment due diligence, ongoing position monitoring, stress testing, and scenario analysis identifying investment risks.
+**Incident Tracking**: Operational errors, near-misses, and risk events analyzed for root causes and systemic issues.
 
-### Compliance Monitoring
-
-Automated surveillance, exception reporting, and testing programmes identifying compliance and regulatory risks.
-
-### Incident Tracking
-
-Operational errors, near-misses, and risk events analyzed for root causes and systemic issues.
-
-### External Intelligence
-
-Regulatory guidance, industry developments, cyber threat intelligence, and market risk indicators.
+**External Intelligence**: Regulatory guidance, industry developments, cyber threat intelligence, and market risk indicators.
 
 ### Risk Assessment and Prioritization
 
-### Risk Impact Assessment
+**Risk Impact Assessment**: Potential severity measured in financial loss, regulatory consequence, reputational damage, or operational disruption.
 
-Potential severity measured in financial loss, regulatory consequence, reputational damage, or operational disruption.
+**Probability Assessment**: Likelihood evaluated based on historical frequency, control effectiveness, and risk environment.
 
-### Probability Assessment
-
-Likelihood evaluated based on historical frequency, control effectiveness, and risk environment.
-
-### Risk Rating Matrix
-
-Combining impact and probability yields risk rating (High/Medium/Low) informing prioritization and mitigation strategies.
+**Risk Rating Matrix**: Combining impact and probability yields risk rating (High/Medium/Low) informing prioritization and mitigation strategies.
 
 ---
 
@@ -295,8 +228,7 @@ Combining impact and probability yields risk rating (High/Medium/Low) informing 
 
 ### Risk Transfer
 
-### Insurance Coverage
-
+**Insurance Coverage**:
 - Professional indemnity insurance (errors & omissions)
 - Directors and officers liability insurance
 - Cyber liability and data breach insurance
@@ -344,22 +276,19 @@ Combining impact and probability yields risk rating (High/Medium/Low) informing 
 
 ## 8. KEY RISK INDICATORS (KRIs)
 
-### Investment Risk KRIs
-
+**Investment Risk KRIs**:
 - Portfolio VaR trends and limit utilization
 - Concentration levels and threshold breaches
 - Tracking error and active risk metrics
 - Largest drawdowns and recovery periods
 
-### Operational Risk KRIs
-
+**Operational Risk KRIs**:
 - Trade error rates and operational losses
 - System availability and incident counts
 - Reconciliation breaks and aging
 - Client complaint frequency
 
-### Compliance Risk KRIs
-
+**Compliance Risk KRIs**:
 - Regulatory examination findings
 - Policy violation frequency and severity
 - Compliance testing failure rates
@@ -369,15 +298,13 @@ Combining impact and probability yields risk rating (High/Medium/Low) informing 
 
 ## 9. STRESS TESTING AND SCENARIO ANALYSIS
 
-### Quarterly Stress Tests
-
+**Quarterly Stress Tests**:
 - Market crash scenario (-30% equity, +100bps rates)
 - Credit crisis (spread widening, ratings downgrades)
 - Liquidity crisis (reduced trading volumes, wider bid-asks)
 - Customized scenarios based on current risk environment
 
-### Annual Comprehensive Scenarios
-
+**Annual Comprehensive Scenarios**:
 - Historical crisis replays (2008 financial crisis, COVID-19, etc.)
 - Forward-looking scenarios (geopolitical events, policy shocks)
 - Reverse stress testing (what scenarios break the business?)
@@ -386,15 +313,13 @@ Combining impact and probability yields risk rating (High/Medium/Low) informing 
 
 ## 10. FRAMEWORK REVIEW AND CONTINUOUS IMPROVEMENT
 
-### Annual Framework Review
-
+**Annual Framework Review**:
 - Board approval required for material changes
 - Risk appetite reassessment
 - Effectiveness evaluation
 - Industry benchmarking
 
-### Continuous Improvement
-
+**Continuous Improvement**:
 - Lessons learned from risk incidents and near-misses
 - Regulatory guidance and examination findings
 - Industry best practice adoption
@@ -402,9 +327,8 @@ Combining impact and probability yields risk rating (High/Medium/Low) informing 
 
 ---
 
-### Framework Approval
-
-Board of Directors: 15 December 2023
+**Framework Approval**:  
+Board of Directors: 15 December 2023  
 Effective Date: 1 January 2024  
 Next Review: December 2024
 

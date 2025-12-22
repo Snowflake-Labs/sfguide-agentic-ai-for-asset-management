@@ -46,18 +46,10 @@ placeholders:
 
 # Quarterly Portfolio Review
 
-### Portfolio
-
-{{PORTFOLIO_NAME}}
-### Reporting Period
-
-{{FISCAL_QUARTER}}
-### Report Date
-
-{{REPORT_DATE}}
-### Prepared by
-
-Snowcrest Asset Management
+**Portfolio**: {{PORTFOLIO_NAME}}  
+**Reporting Period**: {{FISCAL_QUARTER}}  
+**Report Date**: {{REPORT_DATE}}  
+**Prepared by**: Snowcrest Asset Management
 
 ---
 
@@ -67,8 +59,7 @@ Snowcrest Asset Management
 
 The {{PORTFOLIO_NAME}} delivered a return of {{QTD_RETURN_PCT}}% for the quarter, {{RELATIVE_PERFORMANCE}} its benchmark return of {{BENCHMARK_QTD_PCT}}% by {{RELATIVE_RETURN_DIFF}}%. Year-to-date, the portfolio has generated {{YTD_RETURN_PCT}}% compared to the benchmark's {{BENCHMARK_YTD_PCT}}%, demonstrating {{YTD_RELATIVE_PERFORMANCE}} tracking.
 
-### Key Highlights
-
+**Key Highlights**:
 - Quarterly return: {{QTD_RETURN_PCT}}% vs benchmark {{BENCHMARK_QTD_PCT}}%
 - Year-to-date performance: {{YTD_RETURN_PCT}}% vs benchmark {{BENCHMARK_YTD_PCT}}%
 - Active positions: {{POSITION_COUNT}} securities
@@ -92,17 +83,11 @@ The macroeconomic backdrop remained mixed, with resilient consumer spending offs
 
 The {{PORTFOLIO_NAME}}'s {{RELATIVE_PERFORMANCE}} performance versus benchmark was driven by both sector allocation and stock selection effects. {{PORTFOLIO_POSITIONING}}
 
-### Top Contributors
+**Top Contributors**: Our largest position in {{LARGEST_POSITION_NAME}}, representing {{LARGEST_POSITION_WEIGHT}}% of the portfolio, contributed positively to quarterly returns. The company's strong earnings report and upward guidance revision drove share price appreciation. Technology infrastructure holdings also performed well, benefiting from accelerating enterprise adoption of cloud services and AI capabilities.
 
-Our largest position in {{LARGEST_POSITION_NAME}}, representing {{LARGEST_POSITION_WEIGHT}}% of the portfolio, contributed positively to quarterly returns. The company's strong earnings report and upward guidance revision drove share price appreciation. Technology infrastructure holdings also performed well, benefiting from accelerating enterprise adoption of cloud services and AI capabilities.
+**Key Detractors**: More defensive positions in utilities and consumer staples lagged broader market performance as investor risk appetite improved. One position in the industrials sector faced company-specific headwinds related to supply chain disruptions, though we maintain conviction in the long-term investment thesis.
 
-### Key Detractors
-
-More defensive positions in utilities and consumer staples lagged broader market performance as investor risk appetite improved. One position in the industrials sector faced company-specific headwinds related to supply chain disruptions, though we maintain conviction in the long-term investment thesis.
-
-### Active Management Decisions
-
-During the quarter, we added exposure to semiconductor companies given favourable supply-demand dynamics and the critical role of chips in AI infrastructure buildouts. We trimmed certain positions that had appreciated significantly to maintain disciplined position sizing and concentration risk management.
+**Active Management Decisions**: During the quarter, we added exposure to semiconductor companies given favourable supply-demand dynamics and the critical role of chips in AI infrastructure buildouts. We trimmed certain positions that had appreciated significantly to maintain disciplined position sizing and concentration risk management.
 
 ---
 
@@ -114,31 +99,23 @@ During the quarter, we added exposure to semiconductor companies given favourabl
 
 {{CONCENTRATION_WARNING_TEXT}}
 
-### Sector Allocation
+**Sector Allocation**:
 
 {{SECTOR_ALLOCATION_TABLE}}
 
 Our current sector positioning reflects conviction in technology-driven structural growth themes, particularly in areas benefiting from AI adoption, cloud migration, and digital transformation. The portfolio maintains an overweight position in Information Technology and Communication Services relative to benchmark, funded by underweights in more economically sensitive sectors.
 
-### Geographic Exposure
-
-The portfolio maintains primarily North American exposure at {{GEOGRAPHIC_NA_PCT}}%, with European holdings representing {{GEOGRAPHIC_EU_PCT}}% and Asia-Pacific positions comprising {{GEOGRAPHIC_APAC_PCT}}%. This geographic mix reflects our view on regional economic growth dynamics and company quality.
+**Geographic Exposure**: The portfolio maintains primarily North American exposure at {{GEOGRAPHIC_NA_PCT}}%, with European holdings representing {{GEOGRAPHIC_EU_PCT}}% and Asia-Pacific positions comprising {{GEOGRAPHIC_APAC_PCT}}%. This geographic mix reflects our view on regional economic growth dynamics and company quality.
 
 ---
 
 ## Risk Analysis
 
-### Concentration Risk
+**Concentration Risk**: {{CONCENTRATION_WARNING_STATEMENT}} The largest single position ({{LARGEST_POSITION_NAME}}) represents {{LARGEST_POSITION_WEIGHT}}% of portfolio value, which we monitor closely against our 6.5% early warning threshold and 7.0% hard limit.
 
-{{CONCENTRATION_WARNING_STATEMENT}} The largest single position ({{LARGEST_POSITION_NAME}}) represents {{LARGEST_POSITION_WEIGHT}}% of portfolio value, which we monitor closely against our 6.5% early warning threshold and 7.0% hard limit.
+**Portfolio Volatility**: Estimated portfolio volatility remains within our target range at {{PORTFOLIO_VOL}}% annually. The technology-oriented positioning creates some headline volatility sensitivity, but we believe this is appropriate given the portfolio's growth mandate and long-term investment horizon.
 
-### Portfolio Volatility
-
-Estimated portfolio volatility remains within our target range at {{PORTFOLIO_VOL}}% annually. The technology-oriented positioning creates some headline volatility sensitivity, but we believe this is appropriate given the portfolio's growth mandate and long-term investment horizon.
-
-### Tracking Error
-
-Estimated tracking error of {{TRACKING_ERROR_PCT}}% reflects our active management approach and differentiated sector positioning. This level of active risk is consistent with our objective to generate meaningful outperformance whilst managing downside risk.
+**Tracking Error**: Estimated tracking error of {{TRACKING_ERROR_PCT}}% reflects our active management approach and differentiated sector positioning. This level of active risk is consistent with our objective to generate meaningful outperformance whilst managing downside risk.
 
 ---
 
@@ -162,17 +139,14 @@ The {{PORTFOLIO_NAME}} delivered solid performance during the quarter, {{RELATIV
 
 We continue to monitor concentration levels carefully, conduct ongoing research on portfolio holdings, and actively manage position sizing to optimize risk-adjusted returns. The portfolio is well-positioned for our base case scenario whilst maintaining adequate diversification to manage downside risks.
 
-### Action Items
-
+**Action Items**:
 - Monitor concentration in largest position ({{LARGEST_POSITION_NAME}})
 - Review technology sector allocation in context of market developments
 - Assess rebalancing opportunities in Q4
 
 ---
 
-### Important Information
-
-This report is for informational purposes only and does not constitute investment advice. Past performance does not guarantee future results. Portfolio holdings and allocations are subject to change without notice. Please refer to the Investment Policy Statement for complete portfolio guidelines and restrictions.
+**Important Information**: This report is for informational purposes only and does not constitute investment advice. Past performance does not guarantee future results. Portfolio holdings and allocations are subject to change without notice. Please refer to the Investment Policy Statement for complete portfolio guidelines and restrictions.
 
 *Snowcrest Asset Management Quarterly Portfolio Review*
 

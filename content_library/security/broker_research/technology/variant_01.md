@@ -107,3 +107,4 @@ We rate {{COMPANY_NAME}} as **{{RATING}}** based on the company's strong competi
 **Important Disclosures**: This research report is provided for informational purposes only and does not constitute investment advice. {{BROKER_NAME}} may have a business relationship with companies mentioned in this report. Past performance is not indicative of future results. Please see full disclosures at the end of this report.
 
 *Snowcrest Asset Management demonstration purposes only. {{BROKER_NAME}} is a fictional entity.*
+

@@ -49,14 +49,12 @@ For the coming quarter, {{COMPANY_NAME}} expects revenue between ${{GUIDANCE_LOW
 
 This press release contains forward-looking statements regarding future business outlook, financial results, and strategic initiatives. Actual results may differ materially from these statements due to various risks and uncertainties. Please refer to the company's SEC filings for detailed risk factors and important information.
 
-### Investor Contact
-
-Investor Relations
+**Investor Contact**:  
+Investor Relations  
 investor.relations@company.com
 
-### Media Contact
-
-Corporate Communications
+**Media Contact**:  
+Corporate Communications  
 media@company.com
 
 ---

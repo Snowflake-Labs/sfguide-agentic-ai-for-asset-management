@@ -18,21 +18,11 @@ placeholders:
 
 # {{NGO_NAME}} Assessment: Board Composition at {{ISSUER_NAME}}
 
-### Organisation
-
-{{NGO_NAME}}
-### Publication Date
-
-{{PUBLISH_DATE}}
-### Company
-
-{{ISSUER_NAME}} ({{TICKER}})
-### Category
-
-Governance — Board Effectiveness
-### Severity
-
-**{{SEVERITY_LEVEL}}**
+**Organisation**: {{NGO_NAME}}  
+**Publication Date**: {{PUBLISH_DATE}}  
+**Company**: {{ISSUER_NAME}} ({{TICKER}})  
+**Category**: Governance — Board Effectiveness  
+**Severity**: **{{SEVERITY_LEVEL}}**
 
 ---
 
@@ -44,34 +34,24 @@ Governance — Board Effectiveness
 
 ## Key Findings
 
-### Board Independence
+**Board Independence**: {{ISSUER_NAME}}'s board comprises {{BOARD_SIZE}} directors, with {{INDEPENDENT_COUNT}} classified as independent under applicable listing standards. This {{INDEPENDENCE_PCT}}% independence rate meets regulatory requirements and is consistent with governance norms. The independent board members bring relevant expertise and appear to exercise appropriate oversight.
 
-{{ISSUER_NAME}}'s board comprises {{BOARD_SIZE}} directors, with {{INDEPENDENT_COUNT}} classified as independent under applicable listing standards. This {{INDEPENDENCE_PCT}}% independence rate meets regulatory requirements and is consistent with governance norms. The independent board members bring relevant expertise and appear to exercise appropriate oversight.
+**Board Diversity**: Gender diversity on the board stands at {{GENDER_DIVERSITY_PCT}}%, with {{FEMALE_DIRECTORS}} female directors. Whilst this represents progress from previous years, it falls somewhat below the {{SIC_DESCRIPTION}} sector median of {{SECTOR_MEDIAN}}%. Ethnic and experiential diversity could also be enhanced through future director appointments.
 
-### Board Diversity
+**Committee Structure**: Audit, Compensation, and Nominating/Governance committees are composed entirely of independent directors, which aligns with best practices. Committee chairs possess appropriate expertise and tenure. Meeting frequency appears adequate for effective oversight.
 
-Gender diversity on the board stands at {{GENDER_DIVERSITY_PCT}}%, with {{FEMALE_DIRECTORS}} female directors. Whilst this represents progress from previous years, it falls somewhat below the {{SIC_DESCRIPTION}} sector median of {{SECTOR_MEDIAN}}%. Ethnic and experiential diversity could also be enhanced through future director appointments.
-
-### Committee Structure
-
-Audit, Compensation, and Nominating/Governance committees are composed entirely of independent directors, which aligns with best practices. Committee chairs possess appropriate expertise and tenure. Meeting frequency appears adequate for effective oversight.
-
-### Board Refreshment
-
-Average board tenure is {{AVERAGE_TENURE}} years, suggesting balanced mix of institutional knowledge and fresh perspectives. The company has added {{NEW_DIRECTORS}} new directors in the past three years, demonstrating appropriate board refreshment.
+**Board Refreshment**: Average board tenure is {{AVERAGE_TENURE}} years, suggesting balanced mix of institutional knowledge and fresh perspectives. The company has added {{NEW_DIRECTORS}} new directors in the past three years, demonstrating appropriate board refreshment.
 
 ---
 
 ## Recommendations
 
-### Board Composition Enhancements
-
+**Board Composition Enhancements**:
 1. Consider adding directors with specific sustainability and technology expertise
 2. Enhance gender and ethnic diversity through future nomination processes
 3. Publish board skills matrix in proxy materials for transparency
 
-### Governance Practice Improvements
-
+**Governance Practice Improvements**:
 1. Adopt director term limits or mandatory retirement age policy
 2. Enhance disclosure of board evaluation processes and outcomes
 3. Consider separating Chairman and CEO roles or designate lead independent director with robust authority

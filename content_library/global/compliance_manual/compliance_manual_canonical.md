@@ -1,4 +1,4 @@
-Executive Command Center---
+---
 doc_type: compliance_manual
 linkage_level: global
 variant_id: compliance_manual
@@ -9,24 +9,12 @@ placeholders:
 
 # Snowcrest Asset Management — Compliance Manual
 
-### Effective Date
-
-1 January 2024
-### Last Revised
-
-1 January 2024
-### Version
-
-3.0
-### Classification
-
-Internal — Confidential
-### Approved By
-
-Chief Compliance Officer
-### Board Approval
-
-15 December 2023
+**Effective Date**: 1 January 2024  
+**Last Revised**: 1 January 2024  
+**Version**: 3.0  
+**Classification**: Internal — Confidential  
+**Approved By**: Chief Compliance Officer  
+**Board Approval**: 15 December 2023
 
 ---
 
@@ -61,13 +49,9 @@ SAM is registered with the U.S. Securities and Exchange Commission ("SEC") as an
 
 ### Compliance Oversight
 
-### Chief Compliance Officer (CCO)
+**Chief Compliance Officer (CCO)**: Reports to CEO and Board, responsible for compliance programme oversight, regulatory relations, and policy implementation.
 
-Reports to CEO and Board, responsible for compliance programme oversight, regulatory relations, and policy implementation.
-
-### Compliance Committee
-
-Quarterly meetings reviewing compliance issues, testing results, and policy effectiveness.
+**Compliance Committee**: Quarterly meetings reviewing compliance issues, testing results, and policy effectiveness.
 
 ---
 
@@ -86,13 +70,9 @@ SAM operates as fiduciary to clients. All Covered Persons must:
 
 As investment advisers, we owe clients duties of care and loyalty:
 
-### Duty of Care
+**Duty of Care**: Obligation to provide investment advice based on thorough research, sound judgment, and reasonable skill. Decisions must be informed and appropriate for client circumstances.
 
-Obligation to provide investment advice based on thorough research, sound judgment, and reasonable skill. Decisions must be informed and appropriate for client circumstances.
-
-### Duty of Loyalty
-
-Obligation to act in client's best interest, avoiding self-dealing and fully disclosing conflicts. Client interests paramount over Firm or personal interests.
+**Duty of Loyalty**: Obligation to act in client's best interest, avoiding self-dealing and fully disclosing conflicts. Client interests paramount over Firm or personal interests.
 
 ---
 
@@ -100,73 +80,49 @@ Obligation to act in client's best interest, avoiding self-dealing and fully dis
 
 ### Pre-Clearance Requirements
 
-### Covered Securities
+**Covered Securities**: All Covered Persons must pre-clear purchases and sales of securities except Exempt Securities.
 
-All Covered Persons must pre-clear purchases and sales of securities except Exempt Securities.
-
-### Exempt Securities
-
+**Exempt Securities**:
 - US Treasury securities
 - Open-end mutual funds (excluding proprietary funds)
 - Money market funds
 - UK Gilts and government obligations
 - Transactions in 401(k) or pension plans
 
-### Pre-Clearance Procedure
-
+**Pre-Clearance Procedure**:
 1. Submit request via compliance system minimum 24 hours before trade
 2. CCO or designee reviews for conflicts and blackout periods
 3. Approval/denial communicated within 24 hours
 4. Approval valid for 2 business days from grant
 
-### Denial Reasons
-
-Client trades pending in same security, material non-public information, blackout period, concentration concerns, other conflicts.
+**Denial Reasons**: Client trades pending in same security, material non-public information, blackout period, concentration concerns, other conflicts.
 
 ### Blackout Periods
 
-### Client Trade Blackouts
+**Client Trade Blackouts**: 7 calendar days before and after Firm trades same security for client accounts. Purpose: prevent front-running or trading ahead of clients.
 
-7 calendar days before and after Firm trades same security for client accounts. Purpose: prevent front-running or trading ahead of clients.
-
-### Quarterly Blackout Periods
-
-All Covered Persons restricted from trading during firm-wide quarterly blackouts:
+**Quarterly Blackout Periods**: All Covered Persons restricted from trading during firm-wide quarterly blackouts: 
 - Last 5 business days of each calendar quarter
 - First 2 business days of following quarter
 - Purpose: Eliminate conflicts during period-end portfolio positioning
 
-### MNPI Blackouts
-
-No trading while in possession of material non-public information. Blackout continues until information becomes public or is no longer material.
+**MNPI Blackouts**: No trading while in possession of material non-public information. Blackout continues until information becomes public or is no longer material.
 
 ### Holding Period Requirement
 
-### 30-Day Minimum Hold
+**30-Day Minimum Hold**: Securities purchased must be held minimum 30 calendar days before sale permitted. Purpose: Prevent short-term trading and demonstrate investment (not trading) intent.
 
-Securities purchased must be held minimum 30 calendar days before sale permitted. Purpose: Prevent short-term trading and demonstrate investment (not trading) intent.
-
-### Exceptions
-
-CCO may grant exceptions for financial hardship, required tax payments, or other extraordinary circumstances. Exceptions documented.
+**Exceptions**: CCO may grant exceptions for financial hardship, required tax payments, or other extraordinary circumstances. Exceptions documented.
 
 ### Transaction Reporting
 
-### Duplicate Statements
+**Duplicate Statements**: Broker-dealers must provide duplicate trade confirmations and monthly statements directly to CCO.
 
-Broker-dealers must provide duplicate trade confirmations and monthly statements directly to CCO.
+**Quarterly Certification**: All Covered Persons certify compliance with Code of Ethics quarterly via compliance system.
 
-### Quarterly Certification
+**Annual Holdings Report**: Comprehensive holdings report required annually listing all securities held.
 
-All Covered Persons certify compliance with Code of Ethics quarterly via compliance system.
-
-### Annual Holdings Report
-
-Comprehensive holdings report required annually listing all securities held.
-
-### New Account Reporting
-
-Report new brokerage accounts to Compliance within 10 business days of opening.
+**New Account Reporting**: Report new brokerage accounts to Compliance within 10 business days of opening.
 
 ### Violations and Discipline
 
@@ -183,28 +139,20 @@ Violations of personal trading policies result in disciplinary action:
 
 All trades must be executed to achieve best execution considering price, speed, certainty, and total transaction costs. We evaluate broker-dealers based on execution quality, not soft dollar benefits or other considerations.
 
-### Trade Allocation
+**Trade Allocation**: Orders for multiple accounts aggregated when possible to achieve better execution. Partial fills allocated pro-rata based on order sizes. No preferential treatment of any accounts.
 
-Orders for multiple accounts aggregated when possible to achieve better execution. Partial fills allocated pro-rata based on order sizes. No preferential treatment of any accounts.
-
-### Trade Errors
-
-Errors corrected promptly with clients held harmless. Error patterns analyzed for process improvements.
+**Trade Errors**: Errors corrected promptly with clients held harmless. Error patterns analyzed for process improvements.
 
 ### Investment Guidelines Compliance
 
-### Pre-Trade Compliance
-
-Automated pre-trade checks verify proposed trades comply with:
+**Pre-Trade Compliance**: Automated pre-trade checks verify proposed trades comply with:
 - Client Investment Policy Statement guidelines
 - Concentration limits (7% maximum, 6.5% warning)
 - Quality standards (minimum credit ratings, market cap thresholds)
 - Restricted securities lists
 - Asset allocation ranges
 
-### Override Authority
-
-Portfolio managers may override pre-trade alerts only with documented justification. CCO approval required for guideline limit overrides.
+**Override Authority**: Portfolio managers may override pre-trade alerts only with documented justification. CCO approval required for guideline limit overrides.
 
 ---
 
@@ -214,8 +162,7 @@ Portfolio managers may override pre-trade alerts only with documented justificat
 
 Portfolios marketed with ESG, sustainable, or responsible labels must maintain:
 
-### ESG Rating Minimum
-
+**ESG Rating Minimum**:
 - Portfolio-weighted average ESG rating of BBB or higher (on AAA-CCC scale)
 - Maximum 10% of portfolio in securities rated below BBB for ESG purposes
 - No holdings rated CCC or below for ESG purposes
@@ -228,8 +175,7 @@ Portfolios marketed with ESG, sustainable, or responsible labels must maintain:
 - Oil sands extraction >5% revenue (0% tolerance)
 - Companies with ongoing high-severity ESG controversies
 
-### High-Severity Controversy Protocol
-
+**High-Severity Controversy Protocol**:
 1. Quarterly screening using third-party ESG research
 2. Identified controversies escalated to ESG Committee
 3. Investment Committee approval required to maintain positions
@@ -238,13 +184,9 @@ Portfolios marketed with ESG, sustainable, or responsible labels must maintain:
 
 ### ESG Reporting Requirements
 
-### Client Reporting
+**Client Reporting**: ESG-labelled portfolios receive quarterly ESG metrics including weighted average ESG rating, carbon footprint analysis, controversy monitoring summary, and engagement activity highlights.
 
-ESG-labelled portfolios receive quarterly ESG metrics including weighted average ESG rating, carbon footprint analysis, controversy monitoring summary, and engagement activity highlights.
-
-### Regulatory Compliance
-
-ESG disclosures comply with applicable regulations including EU SFDR Article 8/9 requirements where relevant.
+**Regulatory Compliance**: ESG disclosures comply with applicable regulations including EU SFDR Article 8/9 requirements where relevant.
 
 ---
 
@@ -252,8 +194,7 @@ ESG disclosures comply with applicable regulations including EU SFDR Article 8/9
 
 ### Credit Quality Requirements
 
-### Standard Portfolios
-
+**Standard Portfolios**:
 - Minimum 75% Investment Grade (BBB-/Baa3 or higher)
 - Maximum 5% rated CCC+ or below
 - No defaulted securities permitted
@@ -263,37 +204,23 @@ ESG disclosures comply with applicable regulations including EU SFDR Article 8/9
 - Maximum 15% rated BBB-/Baa3 (lower range IG)
 - No securities below BBB-
 
-### Monitoring
-
-Daily credit quality checks with automated compliance reports. Rating changes monitored and assessed for continued suitability.
+**Monitoring**: Daily credit quality checks with automated compliance reports. Rating changes monitored and assessed for continued suitability.
 
 ### Duration Management
 
-### Guideline
+**Guideline**: Portfolio duration maintained within ±1.0 years of benchmark duration unless specific mandate allows wider range.
 
-Portfolio duration maintained within ±1.0 years of benchmark duration unless specific mandate allows wider range.
+**Monitoring**: Daily duration calculations and comparison to benchmarks. Duration deviation exceptions require documented rationale and monthly review.
 
-### Monitoring
-
-Daily duration calculations and comparison to benchmarks. Duration deviation exceptions require documented rationale and monthly review.
-
-### Rebalancing
-
-Duration drifts exceeding guidelines trigger rebalancing assessment. Interest rate view may inform tactical duration positioning within permitted ranges.
+**Rebalancing**: Duration drifts exceeding guidelines trigger rebalancing assessment. Interest rate view may inform tactical duration positioning within permitted ranges.
 
 ### Bond-Specific Compliance
 
-### Issuer Concentration
+**Issuer Concentration**: Maximum 3-5% in any single corporate issuer for fixed income allocations (more conservative than 7% equity limit).
 
-Maximum 3-5% in any single corporate issuer for fixed income allocations (more conservative than 7% equity limit).
+**Sector Limits**: Maximum 20% in any single bond sector unless benchmark-driven or specifically approved.
 
-### Sector Limits
-
-Maximum 20% in any single bond sector unless benchmark-driven or specifically approved.
-
-### Liquidity
-
-Minimum 90% of fixed income holdings in securities with daily trading and observable pricing.
+**Liquidity**: Minimum 90% of fixed income holdings in securities with daily trading and observable pricing.
 
 ---
 
@@ -301,22 +228,20 @@ Minimum 90% of fixed income holdings in securities with daily trading and observ
 
 ### Concentration Limits and Monitoring
 
-### Single Issuer Limits
-
+**Single Issuer Limits**:
 - **Hard Limit**: 7.0% of portfolio market value maximum
 - **Early Warning**: 6.5% threshold triggers automatic alert and review
 - **Monitoring**: Real-time position monitoring with automated alerts
 
-### Breach Protocols
+**Breach Protocols**:
 
-**Warning Threshold (6.5%)**:
+**Warning Threshold (6.5%)**: 
 - Automated alert to portfolio manager and CCO
 - Assessment required within 2 business days
 - Document review and position plan (hold/trim/reduce timeline)
 - Monthly monitoring until below threshold
 
-### Hard Limit Breach (>7.0%)
-
+**Hard Limit Breach (>7.0%)**:
 - Immediate notification to PM, CCO, CIO
 - Trading halt in security until disposition plan approved
 - Remediation plan submitted within 3 business days
@@ -324,9 +249,7 @@ Minimum 90% of fixed income holdings in securities with daily trading and observ
 - Client notification within 48 hours
 - Incident report to Investment Committee
 
-### Passive Breach
-
-If limit breached due to price appreciation:
+**Passive Breach**: If limit breached due to price appreciation:
 - Grandfathered temporarily during reduction period
 - No additional purchases permitted
 - Good faith reduction efforts over 30-day period
@@ -334,17 +257,11 @@ If limit breached due to price appreciation:
 
 ### Sector and Geographic Limits
 
-### Sector Concentration
+**Sector Concentration**: Maximum 25% in single GICS sector (technology-focused strategies may have higher thresholds with approval).
 
-Maximum 25% in single GICS sector (technology-focused strategies may have higher thresholds with approval).
+**Geographic Concentration**: Maximum 60% in single country or region unless strategy specifically focused.
 
-### Geographic Concentration
-
-Maximum 60% in single country or region unless strategy specifically focused.
-
-### Monitoring
-
-Weekly sector and geographic exposure reporting. Quarterly comprehensive review.
+**Monitoring**: Weekly sector and geographic exposure reporting. Quarterly comprehensive review.
 
 ---
 
@@ -352,45 +269,30 @@ Weekly sector and geographic exposure reporting. Quarterly comprehensive review.
 
 ### Form ADV Requirements
 
-### Annual Update
+**Annual Update**: Form ADV Part 1 and Part 2 updated annually within 90 days of fiscal year-end.
 
-Form ADV Part 1 and Part 2 updated annually within 90 days of fiscal year-end.
+**Material Changes**: Material changes to Form ADV Part 2 filed promptly and brochure delivered to clients within 30 days.
 
-### Material Changes
-
-Material changes to Form ADV Part 2 filed promptly and brochure delivered to clients within 30 days.
-
-### Brochure Delivery
-
-Form ADV Part 2 brochure delivered to all new clients before or at time of entering advisory agreement. Annual delivery to existing clients or summary of material changes.
+**Brochure Delivery**: Form ADV Part 2 brochure delivered to all new clients before or at time of entering advisory agreement. Annual delivery to existing clients or summary of material changes.
 
 ### Books and Records
 
-### Required Records
-
+**Required Records**:
 - Client account records and transaction history
 - Portfolio manager work papers and research
 - Compliance testing and monitoring documentation
 - Communications (emails, instant messages) relating to advisory business
 - Marketing and performance advertising materials
 
-### Retention
-
-Generally 5 years with first 2 years readily accessible. Certain records permanent retention.
+**Retention**: Generally 5 years with first 2 years readily accessible. Certain records permanent retention.
 
 ### Privacy and Data Protection
 
-### Privacy Policy
+**Privacy Policy**: Annual privacy notice delivery to all clients describing information collection, usage, sharing, and protection practices.
 
-Annual privacy notice delivery to all clients describing information collection, usage, sharing, and protection practices.
+**Data Security**: Client information protected through encryption, access controls, secure transmission protocols, and regular security assessments.
 
-### Data Security
-
-Client information protected through encryption, access controls, secure transmission protocols, and regular security assessments.
-
-### Cybersecurity
-
-Incident response plan with client notification protocols. Annual penetration testing and security audits.
+**Cybersecurity**: Incident response plan with client notification protocols. Annual penetration testing and security audits.
 
 **GDPR Compliance** (where applicable): Lawful basis for data processing, data subject rights procedures, breach notification within 72 hours.
 
@@ -400,8 +302,7 @@ Incident response plan with client notification protocols. Annual penetration te
 
 ### Daily Monitoring
 
-### Automated Checks
-
+**Automated Checks**:
 - Position concentration vs 7% limit and 6.5% warning
 - Investment guideline adherence (IPS compliance)
 - Restricted securities screening
@@ -410,8 +311,7 @@ Incident response plan with client notification protocols. Annual penetration te
 
 ### Monthly Testing
 
-### Sampling-Based Reviews
-
+**Sampling-Based Reviews**:
 - Personal trading compliance (10% sample)
 - Trade allocation fairness
 - Best execution quality assessment
@@ -420,8 +320,7 @@ Incident response plan with client notification protocols. Annual penetration te
 
 ### Quarterly Reviews
 
-### Comprehensive Testing
-
+**Comprehensive Testing**:
 - Investment guidelines compliance (100% of accounts)
 - ESG compliance for labelled strategies
 - Code of Ethics effectiveness
@@ -430,8 +329,7 @@ Incident response plan with client notification protocols. Annual penetration te
 
 ### Annual Reviews
 
-### Program Effectiveness
-
+**Program Effectiveness**:
 - Compliance program assessment
 - Policies and procedures updates
 - Regulatory rule changes impact analysis
@@ -442,21 +340,13 @@ Incident response plan with client notification protocols. Annual penetration te
 
 ## 10. TRAINING AND CERTIFICATION
 
-### New Employee Training
+**New Employee Training**: Compliance training within first 30 days covering Code of Ethics, personal trading, investment guidelines, confidentiality, and regulatory obligations.
 
-Compliance training within first 30 days covering Code of Ethics, personal trading, investment guidelines, confidentiality, and regulatory obligations.
+**Annual Refresher**: All Covered Persons complete annual compliance training on updated policies, regulatory changes, and case studies.
 
-### Annual Refresher
+**Specialized Training**: Portfolio managers, traders, and compliance staff receive role-specific training on relevant regulations, systems, and procedures.
 
-All Covered Persons complete annual compliance training on updated policies, regulatory changes, and case studies.
-
-### Specialized Training
-
-Portfolio managers, traders, and compliance staff receive role-specific training on relevant regulations, systems, and procedures.
-
-### Certifications
-
-Annual Code of Ethics acknowledgement, personal holdings certification, outside business activities disclosure.
+**Certifications**: Annual Code of Ethics acknowledgement, personal holdings certification, outside business activities disclosure.
 
 ---
 
@@ -472,14 +362,10 @@ This Compliance Manual reviewed and updated at least annually. Ad hoc updates ma
 
 ---
 
-### Questions and Reporting
-
-Contact Chief Compliance Officer
+**Questions and Reporting**: Contact Chief Compliance Officer  
 compliance@snowcrestam.com | [Phone Number]
 
-### Anonymous Reporting
-
-Whistleblower hotline available for anonymous reporting of potential violations or concerns.
+**Anonymous Reporting**: Whistleblower hotline available for anonymous reporting of potential violations or concerns.
 
 ---
 

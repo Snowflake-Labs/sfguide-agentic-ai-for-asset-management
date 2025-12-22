@@ -2,52 +2,40 @@
 Cortex Search Builder for SAM Demo
 
 This module creates all Cortex Search services for document search across
-broker research, earnings transcripts, press releases, NGO reports, engagement notes,
+broker research, company event transcripts, press releases, NGO reports, engagement notes,
 policy documents, sales templates, philosophy docs, macro events, and report templates.
+
+Note: company_event_transcripts replaces earnings_transcripts and uses real data from
+SNOWFLAKE_PUBLIC_DATA_FREE.
 """
 
 from snowflake.snowpark import Session
 from typing import List
 import config
+from logging_utils import log_detail, log_warning, log_error
+from scenario_utils import get_required_document_types
 
-def create_search_services(session: Session, scenarios: List[str], force_rebuild: bool = False):
+def create_search_services(session: Session, scenarios: List[str], force_rebuild: bool = True):
     """
     Create Cortex Search services for required document types.
     
-    Args:
-        session: Snowpark session
-        scenarios: List of scenario names or ['all']
-        force_rebuild: If True, recreate all services. If False, skip existing services.
+    Enhanced with document-type-specific searchable attributes:
+    - Security-level docs: TICKER, COMPANY_NAME, SIC_DESCRIPTION
+    - Broker research: BROKER_NAME, RATING
+    - NGO reports: NGO_NAME, SEVERITY_LEVEL
+    - Portfolio docs: PORTFOLIO_NAME
     """
-    
-    # Expand 'all' to all scenario names
-    if 'all' in scenarios:
-        scenarios = list(config.SCENARIO_DATA_REQUIREMENTS.keys())
-        config.log_detail(f"  Expanding 'all' to {len(scenarios)} scenarios")
-    
-    # Get existing search services to skip if not force_rebuild
-    existing_services = set()
-    if not force_rebuild:
-        try:
-            result = session.sql(f"""
-                SELECT SERVICE_NAME 
-                FROM {config.DATABASE['name']}.INFORMATION_SCHEMA.CORTEX_SEARCH_SERVICES
-            """).collect()
-            existing_services = {row['SERVICE_NAME'] for row in result}
-            if existing_services:
-                config.log_detail(f"  Found {len(existing_services)} existing search services (will skip)")
-        except Exception:
-            pass  # Table might not exist yet
+    # Note: force_rebuild parameter kept for backward compatibility with setup.sql
+    # Default is True, so services are always created fresh using CREATE OR REPLACE
     
     # Determine required document types from scenarios
-    required_doc_types = set()
-    for scenario in scenarios:
-        if scenario in config.SCENARIO_DATA_REQUIREMENTS:
-            required_doc_types.update(config.SCENARIO_DATA_REQUIREMENTS[scenario])
+    required_doc_types = set(get_required_document_types(scenarios))
     
     
-    # Group document types by search service (using CORPUS tables - full documents)
+    # Group document types by search service (some services combine multiple corpus tables)
+    # Also track the document types for each service to determine attributes
     service_to_corpus_tables = {}
+    service_to_doc_types = {}
     for doc_type in required_doc_types:
         if doc_type in config.DOCUMENT_TYPES:
             service_name = config.DOCUMENT_TYPES[doc_type]['search_service']
@@ -55,164 +43,128 @@ def create_search_services(session: Session, scenarios: List[str], force_rebuild
             
             if service_name not in service_to_corpus_tables:
                 service_to_corpus_tables[service_name] = []
+                service_to_doc_types[service_name] = []
             service_to_corpus_tables[service_name].append(corpus_table)
+            service_to_doc_types[service_name].append(doc_type)
     
     # Create search service for each unique service (combining multiple corpus tables if needed)
-    services_created = 0
-    services_skipped = 0
-    services_failed = 0
-    
     for service_name, corpus_tables in service_to_corpus_tables.items():
-        # Skip existing services unless force_rebuild
-        if service_name in existing_services and not force_rebuild:
-            services_skipped += 1
-            continue
-        
-        # Verify corpus table exists before attempting to create search service
-        corpus_exists = False
-        try:
-            session.sql(f"SELECT 1 FROM {corpus_tables[0]} LIMIT 1").collect()
-            corpus_exists = True
-        except Exception:
-            # For SAM_COMPANY_EVENTS, try fallback to synthetic EARNINGS_TRANSCRIPTS_CORPUS
-            if service_name == 'SAM_COMPANY_EVENTS':
-                fallback_corpus = f"{config.DATABASE['name']}.CURATED.EARNINGS_TRANSCRIPTS_CORPUS"
-                try:
-                    session.sql(f"SELECT 1 FROM {fallback_corpus} LIMIT 1").collect()
-                    config.log_warning(f"  {service_name}: Using fallback corpus EARNINGS_TRANSCRIPTS_CORPUS")
-                    corpus_tables = [fallback_corpus]
-                    corpus_exists = True
-                except Exception:
-                    pass
-        
-        if not corpus_exists:
-            config.log_warning(f"  Skipping {service_name}: corpus table not found")
-            services_failed += 1
-            continue
-            
         try:
             # Use dedicated Cortex Search warehouse from structured config
             search_warehouse = config.WAREHOUSES['cortex_search']['name']
             target_lag = config.WAREHOUSES['cortex_search']['target_lag']
+            doc_types = service_to_doc_types[service_name]
             
             # Special handling for SAM_COMPANY_EVENTS which has EVENT_TYPE attribute
             if service_name == 'SAM_COMPANY_EVENTS':
-                # Check if EVENT_TYPE column exists
-                try:
-                    session.sql(f"SELECT EVENT_TYPE FROM {corpus_tables[0]} LIMIT 1").collect()
-                    has_event_type = True
-                except Exception:
-                    has_event_type = False
-                    config.log_warning(f"  {service_name}: EVENT_TYPE column not found, using standard schema")
-                
-                if has_event_type:
-                    # Company event transcripts have additional EVENT_TYPE column for filtering
-                    session.sql(f"""
-                        CREATE OR REPLACE CORTEX SEARCH SERVICE {config.DATABASE['name']}.AI.{service_name}
-                            ON DOCUMENT_TEXT
-                            ATTRIBUTES DOCUMENT_TITLE, SecurityID, IssuerID, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE, EVENT_TYPE
-                            WAREHOUSE = {search_warehouse}
-                            TARGET_LAG = '{target_lag}'
-                            AS 
-                            SELECT 
-                                DOCUMENT_ID,
-                                DOCUMENT_TITLE,
-                                DOCUMENT_TEXT,
-                                SecurityID,
-                                IssuerID,
-                                DOCUMENT_TYPE,
-                                PUBLISH_DATE,
-                                LANGUAGE,
-                                EVENT_TYPE
-                            FROM {corpus_tables[0]}
-                    """).collect()
-                else:
-                    # Fallback to standard schema without EVENT_TYPE
-                    session.sql(f"""
-                        CREATE OR REPLACE CORTEX SEARCH SERVICE {config.DATABASE['name']}.AI.{service_name}
-                            ON DOCUMENT_TEXT
-                            ATTRIBUTES DOCUMENT_TITLE, SecurityID, IssuerID, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE
-                            WAREHOUSE = {search_warehouse}
-                            TARGET_LAG = '{target_lag}'
-                            AS 
-                            SELECT 
-                                DOCUMENT_ID,
-                                DOCUMENT_TITLE,
-                                DOCUMENT_TEXT,
-                                SecurityID,
-                                IssuerID,
-                                DOCUMENT_TYPE,
-                                PUBLISH_DATE,
-                                LANGUAGE
-                            FROM {corpus_tables[0]}
-                    """).collect()
-                services_created += 1
+                # Company event transcripts have additional EVENT_TYPE column for filtering
+                session.sql(f"""
+                    CREATE OR REPLACE CORTEX SEARCH SERVICE {config.DATABASE['name']}.AI.{service_name}
+                        ON DOCUMENT_TEXT
+                        ATTRIBUTES DOCUMENT_TITLE, SecurityID, IssuerID, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE, EVENT_TYPE
+                        WAREHOUSE = {search_warehouse}
+                        TARGET_LAG = '{target_lag}'
+                        AS 
+                        SELECT 
+                            DOCUMENT_ID,
+                            DOCUMENT_TITLE,
+                            DOCUMENT_TEXT,
+                            SecurityID,
+                            IssuerID,
+                            DOCUMENT_TYPE,
+                            PUBLISH_DATE,
+                            LANGUAGE,
+                            EVENT_TYPE
+                        FROM {corpus_tables[0]}
+                """).collect()
+                log_detail(f"  Created search service: {service_name}")
                 continue
             
-            # Build UNION ALL query if multiple corpus tables
+            # Determine linkage level and extra columns based on document types
+            primary_doc_type = doc_types[0] if doc_types else None
+            doc_config = config.DOCUMENT_TYPES.get(primary_doc_type, {})
+            linkage_level = doc_config.get('linkage_level', 'global')
+            
+            # Build attributes and columns based on document type
+            base_attributes = "DOCUMENT_TITLE, SecurityID, IssuerID, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE"
+            base_columns = """DOCUMENT_ID,
+                            DOCUMENT_TITLE,
+                            DOCUMENT_TEXT,
+                            SecurityID,
+                            IssuerID,
+                            DOCUMENT_TYPE,
+                            PUBLISH_DATE,
+                            LANGUAGE"""
+            
+            extra_attributes = ""
+            extra_columns = ""
+            
+            # Add linkage-level specific attributes
+            if linkage_level == 'security':
+                extra_attributes = ", TICKER, COMPANY_NAME"
+                extra_columns = """,
+                            TICKER,
+                            COMPANY_NAME"""
+            elif linkage_level == 'portfolio':
+                extra_attributes = ", PORTFOLIO_NAME"
+                extra_columns = """,
+                            PORTFOLIO_NAME"""
+            
+            # Add document-type specific attributes
+            if primary_doc_type in ['broker_research', 'internal_research']:
+                extra_attributes += ", BROKER_NAME, RATING"
+                extra_columns += """,
+                            BROKER_NAME,
+                            RATING"""
+            elif primary_doc_type == 'ngo_reports':
+                extra_attributes += ", NGO_NAME, SEVERITY_LEVEL"
+                extra_columns += """,
+                            NGO_NAME,
+                            SEVERITY_LEVEL"""
+            elif primary_doc_type == 'engagement_notes':
+                extra_attributes += ", MEETING_TYPE"
+                extra_columns += """,
+                            MEETING_TYPE"""
+            
+            # Build UNION ALL query if multiple corpus tables (use base columns only for UNION)
             if len(corpus_tables) == 1:
                 from_clause = f"FROM {corpus_tables[0]}"
+                select_columns = base_columns + extra_columns
             else:
+                # For UNION, we need common columns only
                 union_parts = [f"""
                     SELECT 
-                        DOCUMENT_ID,
-                        DOCUMENT_TITLE,
-                        DOCUMENT_TEXT,
-                        SecurityID,
-                        IssuerID,
-                        DOCUMENT_TYPE,
-                        PUBLISH_DATE,
-                        LANGUAGE
+                        {base_columns}
                     FROM {table}""" for table in corpus_tables]
                 from_clause = " UNION ALL ".join(union_parts)
                 from_clause = f"FROM ({from_clause})"
+                select_columns = base_columns
+                extra_attributes = ""  # No extra attributes for UNION queries
             
-            # Create enhanced Cortex Search service with SecurityID and IssuerID attributes
-            # Using full DOCUMENT_TEXT from CORPUS tables
+            # Create enhanced Cortex Search service
             session.sql(f"""
                 CREATE OR REPLACE CORTEX SEARCH SERVICE {config.DATABASE['name']}.AI.{service_name}
                     ON DOCUMENT_TEXT
-                    ATTRIBUTES DOCUMENT_TITLE, SecurityID, IssuerID, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE
+                    ATTRIBUTES {base_attributes}{extra_attributes}
                     WAREHOUSE = {search_warehouse}
                     TARGET_LAG = '{target_lag}'
                     AS 
                     SELECT 
-                        DOCUMENT_ID,
-                        DOCUMENT_TITLE,
-                        DOCUMENT_TEXT,
-                        SecurityID,
-                        IssuerID,
-                        DOCUMENT_TYPE,
-                        PUBLISH_DATE,
-                        LANGUAGE
+                        {select_columns}
                     {from_clause}
             """).collect()
             
-            services_created += 1
+            log_detail(f"  Created search service: {service_name}")
             
         except Exception as e:
-            # For optional document types (like company_event_transcripts), warn but continue
-            if service_name == 'SAM_COMPANY_EVENTS':
-                config.log_warning(f"  Could not create {service_name}: {e}")
-                services_failed += 1
-                continue
-            config.log_error(f"CRITICAL: Failed to create search service {service_name}: {e}")
+            log_error(f"CRITICAL: Failed to create search service {service_name}: {e}")
             raise Exception(f"Failed to create required search service {service_name}: {e}")
     
-    # Log summary
-    summary = f"  Search services: {services_created} created"
-    if services_skipped > 0:
-        summary += f", {services_skipped} skipped (already exist)"
-    if services_failed > 0:
-        summary += f", {services_failed} skipped (missing data)"
-    config.log_detail(summary)
-    
-    # Create real SEC filing search service if real data is enabled and available
-    if config.REAL_DATA_SOURCES.get('enabled', False):
-        try:
-            create_real_sec_search_service(session)
-        except Exception as e:
-            config.log_warning(f" Could not create real SEC filing search service: {e}")
+    # Create real SEC filing search service (required)
+    try:
+        create_real_sec_search_service(session)
+    except Exception as e:
+        log_warning(f" Could not create real SEC filing search service: {e}")
 
 
 def create_real_sec_search_service(session: Session):
@@ -221,6 +173,12 @@ def create_real_sec_search_service(session: Session):
     
     This provides search over authentic 10-K, 10-Q, and 8-K filing content including
     MD&A sections, risk factors, and other key disclosures.
+    
+    Enhanced searchable attributes:
+    - COMPANY_NAME, TICKER: Filter by company (e.g., "Microsoft risk factors")
+    - FILING_TYPE: Filter by filing type (10-K, 10-Q, 8-K)
+    - FISCAL_YEAR, FISCAL_QUARTER: Filter by time period
+    - VARIABLE_NAME: Filter by section type (Risk Factors, MD&A, etc.)
     """
     database_name = config.DATABASE['name']
     market_data_schema = config.DATABASE['schemas']['market_data']
@@ -231,36 +189,43 @@ def create_real_sec_search_service(session: Session):
     try:
         session.sql(f"SELECT 1 FROM {database_name}.{market_data_schema}.FACT_SEC_FILING_TEXT LIMIT 1").collect()
     except Exception:
-        config.log_warning("  FACT_SEC_FILING_TEXT not found - skipping SAM_REAL_SEC_FILINGS search service")
+        log_warning("  FACT_SEC_FILING_TEXT not found - skipping SAM_REAL_SEC_FILINGS search service")
         return
     
-    config.log_detail("Creating SAM_REAL_SEC_FILINGS search service for real SEC filing text...")
+    log_detail("Creating SAM_REAL_SEC_FILINGS search service for real SEC filing text...")
     
+    curated_schema = config.DATABASE['schemas']['curated']
+    
+    # JOIN to DIM_ISSUER to get COMPANY_NAME and TICKER (not stored in fact table)
     session.sql(f"""
         CREATE OR REPLACE CORTEX SEARCH SERVICE {database_name}.AI.SAM_REAL_SEC_FILINGS
             ON FILING_TEXT
-            ATTRIBUTES VARIABLE_NAME, CIK, ADSH, PERIOD_END_DATE
+            ATTRIBUTES DOCUMENT_TITLE, COMPANY_NAME, TICKER, FILING_TYPE, FISCAL_YEAR, FISCAL_QUARTER, VARIABLE_NAME, CIK
             WAREHOUSE = {search_warehouse}
             TARGET_LAG = '{target_lag}'
             AS 
             SELECT 
-                FILING_TEXT_ID as DOCUMENT_ID,
-                SEC_DOCUMENT_ID as DOCUMENT_TITLE,
-                FILING_TEXT,
-                VARIABLE_NAME,
-                CIK,
-                ADSH,
-                PERIOD_END_DATE,
-                COMPANY_ID,
-                ISSUERID
-            FROM {database_name}.{market_data_schema}.FACT_SEC_FILING_TEXT
-            WHERE FILING_TEXT IS NOT NULL 
-              AND TEXT_LENGTH > 500
+                f.FILING_TEXT_ID as DOCUMENT_ID,
+                f.DOCUMENT_TITLE,
+                f.FILING_TEXT,
+                i.LegalName as COMPANY_NAME,
+                i.PrimaryTicker as TICKER,
+                f.FILING_TYPE,
+                f.FISCAL_YEAR,
+                f.FISCAL_QUARTER,
+                f.VARIABLE_NAME,
+                f.CIK,
+                f.ISSUERID
+            FROM {database_name}.{market_data_schema}.FACT_SEC_FILING_TEXT f
+            JOIN {database_name}.{curated_schema}.DIM_ISSUER i ON f.IssuerID = i.IssuerID
+            WHERE f.FILING_TEXT IS NOT NULL 
+              AND f.TEXT_LENGTH > 50
     """).collect()
     
-    config.log_detail(" Created search service: SAM_REAL_SEC_FILINGS (REAL SEC filing text)")
+    log_detail(" Created search service: SAM_REAL_SEC_FILINGS (REAL SEC filing text with enhanced metadata)")
 
 
 # =============================================================================
 # CUSTOM TOOLS (PDF Generation)
 # =============================================================================
+

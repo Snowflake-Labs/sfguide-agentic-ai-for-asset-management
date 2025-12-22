@@ -1,1910 +1,515 @@
 # Placeholder Contract - SAM Demo Pre-Generated Content
-# Defines all 481 valid placeholders, their types, data sources, and validation rules
-#
-# This is the authoritative reference for all placeholders used in templates.
-# Numeric bounds are defined separately in numeric_bounds.yaml
+# Defines all valid placeholders, their types, data sources, and validation rules
 
-# ============================================================================
-# SECURITY CONTEXT - Entity identification from DIM_SECURITY/DIM_ISSUER
-# ============================================================================
+# Security Context Placeholders
 security_context:
   COMPANY_NAME:
-    type: string
-    source: DIM_SECURITY.Description
-    description: Company name for security-level documents
-    required_for: [broker_research, internal_research, investment_memo, earnings_transcripts, press_releases]
-
+    description: "Company name from DIM_SECURITY.Description"
+    source: "DIM_SECURITY.Description"
+    type: "string"
+    required_for: ["broker_research", "internal_research", "investment_memo", "earnings_transcripts", "press_releases"]
+  
   TICKER:
-    type: string
-    source: DIM_SECURITY.Ticker
-    description: Stock ticker symbol
-    required_for: [broker_research, internal_research, investment_memo, earnings_transcripts, press_releases, ngo_reports, engagement_notes]
-
+    description: "Stock ticker from DIM_SECURITY.Ticker"
+    source: "DIM_SECURITY.Ticker"
+    type: "string"
+    required_for: ["broker_research", "internal_research", "investment_memo", "earnings_transcripts", "press_releases"]
+  
   SIC_DESCRIPTION:
-    type: string
-    source: DIM_ISSUER.SIC_DESCRIPTION
-    description: SIC industry classification description
-    required_for: [broker_research, internal_research, investment_memo, press_releases, ngo_reports, engagement_notes]
-
-  SUB_INDUSTRY:
-    type: string
-    source: DIM_ISSUER.GICS_SubIndustry
-    description: GICS sub-industry classification
-    required_for: [investment_memo]
-
-# ============================================================================
-# ISSUER CONTEXT - Issuer-level entity identification
-# ============================================================================
-issuer_context:
+    description: "SIC industry description from DIM_ISSUER.SIC_DESCRIPTION"
+    source: "DIM_ISSUER.SIC_DESCRIPTION"
+    type: "string"
+    required_for: ["broker_research", "internal_research", "investment_memo", "earnings_transcripts", "press_releases", "ngo_reports", "engagement_notes"]
+  
   ISSUER_NAME:
-    type: string
-    source: DIM_ISSUER.LegalName
-    description: Legal issuer name for ESG documents
-    required_for: [ngo_reports, engagement_notes]
+    description: "Legal issuer name from DIM_ISSUER.LegalName"
+    source: "DIM_ISSUER.LegalName"
+    type: "string"
+    required_for: ["internal_research", "investment_memo", "ngo_reports", "engagement_notes"]
+  
+  SECURITY_ID:
+    description: "SecurityID from DIM_SECURITY.SecurityID"
+    source: "DIM_SECURITY.SecurityID"
+    type: "integer"
+    required_for: ["broker_research", "internal_research", "investment_memo", "earnings_transcripts", "press_releases"]
+  
+  ISSUER_ID:
+    description: "IssuerID from DIM_ISSUER.IssuerID"
+    source: "DIM_ISSUER.IssuerID"
+    type: "integer"
+    required_for: ["ngo_reports", "engagement_notes"]
+  
+  ASSET_CLASS:
+    description: "Asset class from DIM_SECURITY.AssetClass"
+    source: "DIM_SECURITY.AssetClass"
+    type: "string"
+    required_for: []
 
-# ============================================================================
-# PORTFOLIO CONTEXT - Portfolio identification from DIM_PORTFOLIO
-# ============================================================================
+# Portfolio Context Placeholders
 portfolio_context:
   PORTFOLIO_NAME:
-    type: string
-    source: DIM_PORTFOLIO.PortfolioName
-    description: Portfolio name
-    required_for: [ips, portfolio_review, investment_memo]
-
+    description: "Portfolio name from DIM_PORTFOLIO.PortfolioName"
+    source: "DIM_PORTFOLIO.PortfolioName"
+    type: "string"
+    required_for: ["ips", "portfolio_review"]
+  
+  PORTFOLIO_ID:
+    description: "PortfolioID from DIM_PORTFOLIO.PortfolioID"
+    source: "DIM_PORTFOLIO.PortfolioID"
+    type: "integer"
+    required_for: ["ips", "portfolio_review"]
+  
   STRATEGY:
-    type: string
-    source: DIM_PORTFOLIO.Strategy
-    description: Investment strategy description
-    required_for: [ips]
-
+    description: "Portfolio strategy from DIM_PORTFOLIO.Strategy"
+    source: "DIM_PORTFOLIO.Strategy"
+    type: "string"
+    required_for: ["ips", "portfolio_review"]
+  
   BASE_CURRENCY:
-    type: string
-    source: DIM_PORTFOLIO.BaseCurrency
-    description: Portfolio base currency (e.g., USD, EUR)
-    required_for: [ips]
-
+    description: "Base currency from DIM_PORTFOLIO.BaseCurrency"
+    source: "DIM_PORTFOLIO.BaseCurrency"
+    type: "string"
+    required_for: ["ips", "portfolio_review"]
+  
   INCEPTION_DATE:
-    type: date
-    source: DIM_PORTFOLIO.InceptionDate
-    description: Portfolio inception date
-    required_for: [ips]
+    description: "Portfolio inception date from DIM_PORTFOLIO.InceptionDate"
+    source: "DIM_PORTFOLIO.InceptionDate"
+    type: "date"
+    required_for: ["ips"]
 
-  POSITION_COUNT:
-    type: integer
-    source: Calculated from FACT_POSITION_DAILY_ABOR
-    description: Number of positions in portfolio
-    required_for: [portfolio_review]
-
-# ============================================================================
-# DATE CONTEXT - Date and period placeholders
-# ============================================================================
+# Date and Period Placeholders
 date_context:
   PUBLISH_DATE:
-    type: date
-    source: Generated per document type rules
-    description: Document publication date
-    required_for: [broker_research, internal_research, investment_memo, earnings_transcripts, press_releases, ngo_reports, engagement_notes]
-
+    description: "Document publication date (generated)"
+    source: "Generated per document type rules"
+    type: "date"
+    required_for: ["broker_research", "earnings_transcripts", "press_releases", "ngo_reports", "engagement_notes"]
+  
   REPORT_DATE:
-    type: date
-    source: Generated based on reporting cycles
-    description: Report date for portfolio/market documents
-    required_for: [portfolio_review, market_data]
-
+    description: "Report date for portfolio reviews"
+    source: "Generated based on reporting cycles"
+    type: "date"
+    required_for: ["portfolio_review", "market_data"]
+  
   FISCAL_QUARTER:
-    type: string
-    source: Generated (e.g., "Q3 2024")
-    description: Fiscal quarter identifier
-    required_for: [earnings_transcripts, portfolio_review]
-
+    description: "Fiscal quarter (e.g., Q3 2024)"
+    source: "Generated for earnings"
+    type: "string"
+    required_for: ["earnings_transcripts", "portfolio_review"]
+  
   FISCAL_YEAR:
-    type: integer
-    source: Generated
-    description: Fiscal year
-    required_for: [earnings_transcripts]
-
-  QUARTER_NUM:
-    type: integer
-    source: Generated (1-4)
-    description: Quarter number
-    required_for: [earnings_transcripts]
-
+    description: "Calendar year"
+    source: "Generated"
+    type: "integer"
+    required_for: ["earnings_transcripts"]
+  
   QUARTER_END_DATE:
-    type: date
-    source: Calculated from FISCAL_QUARTER
-    description: Last day of fiscal quarter
-    required_for: [press_releases]
+    description: "Last day of fiscal quarter"
+    source: "Calculated from FISCAL_QUARTER"
+    type: "date"
+    required_for: ["earnings_transcripts"]
 
-  IC_DATE:
-    type: date
-    source: Generated
-    description: Investment committee date
-    required_for: [internal_research]
-
-  IC_MEETING_DATE:
-    type: date
-    source: Generated
-    description: Investment committee meeting date
-    required_for: [investment_memo]
-
-  NEXT_REVIEW_DATE:
-    type: date
-    source: Generated
-    description: Next scheduled review date
-    required_for: [internal_research]
-
-  NEXT_APPROVAL_DATE:
-    type: date
-    source: Generated
-    description: Next approval date
-    required_for: [investment_memo]
-
-  NEXT_DATA_READOUT:
-    type: string
-    source: Generated
-    description: Next data readout timing
-    required_for: [investment_memo]
-
-  NEXT_QUARTER:
-    type: string
-    source: Generated (e.g., "Q4")
-    description: Next quarter identifier
-    required_for: [earnings_transcripts, engagement_notes]
-
-  NEXT_Q:
-    type: string
-    source: Generated (e.g., "Q4")
-    description: Next quarter shorthand
-    required_for: [earnings_transcripts]
-
-  NEXT_YEAR:
-    type: integer
-    source: Generated
-    description: Next calendar year
-    required_for: [earnings_transcripts, press_releases, engagement_notes]
-
-  QUARTER:
-    type: string
-    source: Generated
-    description: Quarter identifier
-    required_for: [investment_memo]
-
-  FILING_QUARTER:
-    type: string
-    source: Generated
-    description: Filing quarter for regulatory documents
-    required_for: [earnings_transcripts]
-
-  CLOSE_QUARTER:
-    type: string
-    source: Generated
-    description: Deal close quarter
-    required_for: [press_releases]
-
-  CLOSE_YEAR:
-    type: integer
-    source: Generated
-    description: Deal close year
-    required_for: [press_releases]
-
-  LAUNCH_QUARTER:
-    type: string
-    source: Generated
-    description: Product launch quarter
-    required_for: [press_releases]
-
-  LAUNCH_YEAR:
-    type: integer
-    source: Generated
-    description: Product launch year
-    required_for: [press_releases]
-
-  CERT_QUARTER:
-    type: string
-    source: Generated
-    description: Certification quarter
-    required_for: [engagement_notes]
-
-  PATENT_EXPIRY:
-    type: integer
-    source: Generated (year)
-    description: Patent expiry year
-    required_for: [earnings_transcripts]
-
-  UPCOMING_DAY_1:
-    type: string
-    source: Generated
-    description: Upcoming event day 1
-    required_for: [market_data]
-
-  UPCOMING_DAY_2:
-    type: string
-    source: Generated
-    description: Upcoming event day 2
-    required_for: [market_data]
-
-  UPCOMING_DAY_3:
-    type: string
-    source: Generated
-    description: Upcoming event day 3
-    required_for: [market_data]
-
-# ============================================================================
-# PROVIDER CONTEXT - Attribution and provider information
-# ============================================================================
+# Provider and Attribution Placeholders
 provider_context:
   BROKER_NAME:
-    type: string
-    source: Selected from fictional_providers.yaml
-    description: Fictional broker name
-    validation: Must be from fictional_brokers list
-    required_for: [broker_research]
-
+    description: "Fictional broker name"
+    source: "Selected from FICTIONAL_BROKER_NAMES"
+    type: "string"
+    required_for: ["broker_research"]
+    validation: "Must be from fictional providers list"
+  
   ANALYST_NAME:
-    type: string
-    source: Generated (Analyst_XXX pattern)
-    description: Analyst identifier
-    required_for: [broker_research, internal_research, investment_memo]
-
+    description: "Analyst identifier"
+    source: "Generated (Analyst_XXX pattern)"
+    type: "string"
+    required_for: ["broker_research", "internal_research"]
+  
   NGO_NAME:
-    type: string
-    source: Selected from fictional_providers.yaml by category
-    description: Fictional NGO name
-    validation: Must be from fictional_ngos list
-    required_for: [ngo_reports]
-
-  CEO_NAME:
-    type: string
-    source: Generated (CEO_XXX pattern)
-    description: CEO identifier for earnings calls
-    required_for: [earnings_transcripts, press_releases]
-
-  CFO_NAME:
-    type: string
-    source: Generated (CFO_XXX pattern)
-    description: CFO identifier for earnings calls
-    required_for: [earnings_transcripts, press_releases]
-
-  RATING:
-    type: string
-    source: Selected from distribution in numeric_bounds.yaml
-    description: Investment rating
-    options: [Strong Buy, Buy, Hold, Sell, Strong Sell]
-    required_for: [broker_research, internal_research, investment_memo]
-
-  SEVERITY_LEVEL:
-    type: string
-    source: Selected from distribution in numeric_bounds.yaml
-    description: ESG severity level
-    options: [High, Medium, Low]
-    required_for: [ngo_reports]
-
+    description: "Fictional NGO name"
+    source: "Selected from FICTIONAL_NGO_NAMES by category"
+    type: "string"
+    required_for: ["ngo_reports"]
+    validation: "Must be from fictional providers list"
+  
   MEETING_TYPE:
-    type: string
-    source: Selected from distribution in numeric_bounds.yaml
-    description: Engagement meeting type
-    options: [Management Meeting, Shareholder Call, Site Visit]
-    required_for: [engagement_notes]
+    description: "Engagement meeting type"
+    source: "Selected from [Management Meeting, Shareholder Call, Site Visit]"
+    type: "string"
+    required_for: ["engagement_notes"]
+  
+  RATING:
+    description: "Investment rating"
+    source: "Selected from distribution"
+    type: "string"
+    required_for: ["broker_research"]
+    options: ["Strong Buy", "Buy", "Hold", "Sell", "Strong Sell"]
+  
+  SEVERITY_LEVEL:
+    description: "ESG severity level"
+    source: "Selected with weights"
+    type: "string"
+    required_for: ["ngo_reports"]
+    options: ["High", "Medium", "Low"]
+  
+  CEO_NAME:
+    description: "CEO name for earnings calls"
+    source: "Generated (CEO_XXX pattern)"
+    type: "string"
+    required_for: ["earnings_transcripts"]
+  
+  CFO_NAME:
+    description: "CFO name for earnings calls"
+    source: "Generated (CFO_XXX pattern)"
+    type: "string"
+    required_for: ["earnings_transcripts"]
 
-  TARGET_COMPANY:
-    type: string
-    source: Generated
-    description: Acquisition target company name
-    required_for: [press_releases]
+# Tier 1 Numerics (Light Bounded Values)
+tier1_numerics:
+  YOY_REVENUE_GROWTH_PCT:
+    description: "Year-over-year revenue growth percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+  
+  EBIT_MARGIN_PCT:
+    description: "EBIT margin percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+  
+  PRICE_TARGET_USD:
+    description: "12-month price target in USD"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+  
+  PE_RATIO:
+    description: "Price-to-earnings ratio"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+  
+  QUARTERLY_REVENUE_BILLIONS:
+    description: "Quarterly revenue in billions"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+  
+  QUARTERLY_EPS:
+    description: "Quarterly earnings per share"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+  
+  QTD_RETURN_PCT:
+    description: "Quarter-to-date return percentage"
+    source: "Sampled from bounds"
+    type: "float"
+    tier: 1
+  
+  YTD_RETURN_PCT:
+    description: "Year-to-date return percentage"
+    source: "Sampled from bounds"
+    type: "float"
+    tier: 1
+  
+  BENCHMARK_RETURN_PCT:
+    description: "Benchmark return percentage"
+    source: "Sampled from bounds"
+    type: "float"
+    tier: 1
 
+# Investment Memo Enhanced Placeholders (Broker Research)
+investment_memo_broker_research:
+  TAM_BILLIONS:
+    description: "Total Addressable Market in billions USD"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  SAM_BILLIONS:
+    description: "Serviceable Addressable Market in billions USD"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  MARKET_SHARE_PCT:
+    description: "Current market share percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  MARKET_CAGR_PCT:
+    description: "Market compound annual growth rate"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  NRR_PCT:
+    description: "Net Revenue Retention percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo", "earnings_transcripts_investment_memo"]
+  
+  GRR_PCT:
+    description: "Gross Revenue Retention percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  ENTERPRISE_PCT:
+    description: "Enterprise customer revenue percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  MIDMARKET_PCT:
+    description: "Mid-market customer revenue percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  SMB_PCT:
+    description: "SMB customer revenue percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  CAC_PAYBACK_MONTHS:
+    description: "Customer Acquisition Cost payback period in months"
+    source: "Sampled from sector-specific bounds"
+    type: "integer"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  LTV_CAC_RATIO:
+    description: "Lifetime Value to Customer Acquisition Cost ratio"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  RULE_OF_40_SCORE:
+    description: "Rule of 40 score (growth rate + profit margin)"
+    source: "Sampled from sector-specific bounds"
+    type: "integer"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  COMPETITOR_1:
+    description: "Primary competitor name"
+    source: "Selected from sector competitor list"
+    type: "string"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  COMPETITOR_2:
+    description: "Secondary competitor name"
+    source: "Selected from sector competitor list"
+    type: "string"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  COMPETITOR_3:
+    description: "Tertiary competitor name"
+    source: "Selected from sector competitor list"
+    type: "string"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+
+# Investment Memo Enhanced Placeholders (Earnings Transcripts)
+investment_memo_earnings_transcripts:
+  CUSTOMER_COUNT:
+    description: "Total customer count"
+    source: "Sampled from sector-specific bounds"
+    type: "integer"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  ACV_THOUSANDS:
+    description: "Average Contract Value in thousands USD"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  ENTERPRISE_CUSTOMER_COUNT:
+    description: "Enterprise customer count (>$100K ACV)"
+    source: "Sampled from sector-specific bounds"
+    type: "integer"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  CLOUD_GROWTH_PCT:
+    description: "Cloud revenue growth percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  AI_ADOPTION_PCT:
+    description: "AI feature adoption percentage among customers"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  NEW_PRODUCT_1:
+    description: "First new product announcement"
+    source: "Generated product name"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  NEW_PRODUCT_2:
+    description: "Second new product announcement"
+    source: "Generated product name"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  RD_FOCUS_AREA:
+    description: "R&D investment focus area"
+    source: "Selected from technology focus areas"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  GEOGRAPHIC_EXPANSION:
+    description: "Geographic expansion commentary"
+    source: "Generated expansion narrative"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  SALES_PRODUCTIVITY_CHANGE:
+    description: "Sales productivity change description"
+    source: "Selected from productivity narratives"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  CHANNEL_UPDATE:
+    description: "Channel partner update commentary"
+    source: "Generated channel narrative"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  NOTABLE_WIN_1:
+    description: "First notable customer win description"
+    source: "Generated customer win narrative"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  NOTABLE_WIN_2:
+    description: "Second notable customer win description"
+    source: "Generated customer win narrative"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  CHURN_COMMENTARY:
+    description: "Customer churn commentary"
+    source: "Generated churn narrative"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+
+# Tier 2 Numerics (Derived from CURATED Tables)
+tier2_numerics:
+  TOP10_WEIGHT_PCT:
+    description: "Sum of top 10 holdings weights"
+    source: "Query FACT_POSITION_DAILY_ABOR"
+    type: "float"
+    tier: 2
+  
+  CONCENTRATION_WARNING:
+    description: "Flag if any position >6.5%"
+    source: "Query FACT_POSITION_DAILY_ABOR"
+    type: "string"
+    tier: 2
+    options: ["YES", "NO"]
+  
   LARGEST_POSITION_NAME:
-    type: string
-    source: Query FACT_POSITION_DAILY_ABOR + DIM_SECURITY
-    description: Company name of largest holding
-    required_for: [portfolio_review]
-
-  BEST_SECTOR:
-    type: string
-    source: Generated
-    description: Best performing sector name
-    required_for: [market_data]
-
-  WORST_SECTOR:
-    type: string
-    source: Generated
-    description: Worst performing sector name
-    required_for: [market_data]
-
-# ============================================================================
-# TEXT CONTENT - Narrative and text placeholders
-# ============================================================================
-text_content:
-  # Market commentary
-  COMMODITY_COMMENTARY:
-    type: string
-    source: Generated narrative
-    description: Commodity market commentary
-    required_for: [market_data]
-
-  CURRENCY_COMMENTARY:
-    type: string
-    source: Generated narrative
-    description: Currency market commentary
-    required_for: [market_data]
-
-  EARNINGS_COMMENTARY:
-    type: string
-    source: Generated narrative
-    description: Earnings commentary
-    required_for: [market_data]
-
-  ECONOMIC_ANALYSIS:
-    type: string
-    source: Generated narrative
-    description: Economic analysis text
-    required_for: [market_data]
-
-  # News and events
-  NEWS_ITEM_1:
-    type: string
-    source: Generated
-    description: News item 1
-    required_for: [market_data]
-
-  NEWS_ITEM_2:
-    type: string
-    source: Generated
-    description: News item 2
-    required_for: [market_data]
-
-  NEWS_ITEM_3:
-    type: string
-    source: Generated
-    description: News item 3
-    required_for: [market_data]
-
-  UPCOMING_EVENT_1:
-    type: string
-    source: Generated
-    description: Upcoming event 1
-    required_for: [market_data]
-
-  UPCOMING_EVENT_2:
-    type: string
-    source: Generated
-    description: Upcoming event 2
-    required_for: [market_data]
-
-  UPCOMING_EVENT_3:
-    type: string
-    source: Generated
-    description: Upcoming event 3
-    required_for: [market_data]
-
-  # Indicator names
-  INDICATOR_1_NAME:
-    type: string
-    source: Generated
-    description: Economic indicator 1 name
-    required_for: [market_data]
-
-  INDICATOR_2_NAME:
-    type: string
-    source: Generated
-    description: Economic indicator 2 name
-    required_for: [market_data]
-
-  # Healthcare specific
-  DRUG_NAME:
-    type: string
-    source: Generated
-    description: Drug name
-    required_for: [press_releases]
-
-  TRIAL_NAME:
-    type: string
-    source: Generated
-    description: Clinical trial name
-    required_for: [press_releases]
-
-  INDICATION:
-    type: string
-    source: Generated
-    description: Medical indication
-    required_for: [press_releases]
-
-  PRIMARY_ENDPOINT:
-    type: string
-    source: Generated
-    description: Primary trial endpoint
-    required_for: [press_releases]
-
-  SECONDARY_ENDPOINTS:
-    type: string
-    source: Generated
-    description: Secondary trial endpoints
-    required_for: [press_releases]
-
-  MECHANISM:
-    type: string
-    source: Generated
-    description: Drug mechanism of action
-    required_for: [earnings_transcripts]
-
-  PIPELINE_ASSET:
-    type: string
-    source: Generated
-    description: Pipeline asset name
-    required_for: [earnings_transcripts]
-
-  # Consumer/sustainability
-  PRODUCT_CATEGORY:
-    type: string
-    source: Generated
-    description: Product category
-    required_for: [earnings_transcripts]
-
-  SUSTAINABLE_MATERIAL:
-    type: string
-    source: Generated
-    description: Sustainable material name
-    required_for: [earnings_transcripts]
-
-  CARBON_NEUTRAL_STATUS:
-    type: string
-    source: Generated
-    description: Carbon neutral status text
-    required_for: [internal_research]
-
-  # Custodian reports
-  COUNTERPARTY_1:
-    type: string
-    source: Generated
-    description: Counterparty 1 name
-    required_for: [custodian_reports]
-
-  COUNTERPARTY_2:
-    type: string
-    source: Generated
-    description: Counterparty 2 name
-    required_for: [custodian_reports]
-
-  COUNTERPARTY_3:
-    type: string
-    source: Generated
-    description: Counterparty 3 name
-    required_for: [custodian_reports]
-
-  COUNTERPARTY_4:
-    type: string
-    source: Generated
-    description: Counterparty 4 name
-    required_for: [custodian_reports]
-
-  COUNTERPARTY_5:
-    type: string
-    source: Generated
-    description: Counterparty 5 name
-    required_for: [custodian_reports]
-
-  CURRENCY_1:
-    type: string
-    source: Generated
-    description: Currency 1 code
-    required_for: [custodian_reports]
-
-  CURRENCY_2:
-    type: string
-    source: Generated
-    description: Currency 2 code
-    required_for: [custodian_reports]
-
-  # Location
-  CITY:
-    type: string
-    source: Generated
-    description: City name
-    required_for: [press_releases]
-
-  # SSI documents
-  EUR_TARGET2:
-    type: string
-    source: Generated
-    description: TARGET2 participant BIC
-    required_for: [ssi_documents]
-
-  # Market direction
-  YIELD_CURVE_SHAPE:
-    type: string
-    source: Generated
-    description: Yield curve shape description
-    options: [steepening, flattening, inverted, normal]
-    required_for: [market_data]
-
-  IG_SPREAD_DIRECTION:
-    type: string
-    source: Generated
-    description: IG spread direction
-    options: [tightening, widening]
-    required_for: [market_data]
-
-  HY_SPREAD_DIRECTION:
-    type: string
-    source: Generated
-    description: HY spread direction
-    options: [tightening, widening]
-    required_for: [market_data]
-
-  EM_SPREAD_DIRECTION:
-    type: string
-    source: Generated
-    description: EM spread direction
-    options: [tightening, widening]
-    required_for: [market_data]
-
-  # Reconciliation and operations
-  ACTION_1:
-    type: string
-    source: Generated
-    description: Action step 1
-    required_for: [reconciliation_notes]
-
-  ACTION_2:
-    type: string
-    source: Generated
-    description: Action step 2
-    required_for: [reconciliation_notes]
-
-  ACTION_3:
-    type: string
-    source: Generated
-    description: Action step 3
-    required_for: [reconciliation_notes]
-
-  CORRECTIVE_ACTION_1:
-    type: string
-    source: Generated
-    description: Corrective action step 1
-    required_for: [reconciliation_notes]
-
-  CORRECTIVE_ACTION_2:
-    type: string
-    source: Generated
-    description: Corrective action step 2
-    required_for: [reconciliation_notes]
-
-  CORRECTIVE_ACTION_3:
-    type: string
-    source: Generated
-    description: Corrective action step 3
-    required_for: [reconciliation_notes]
-
-  RESOLUTION_STEP_1:
-    type: string
-    source: Generated
-    description: Resolution step 1
-    required_for: [reconciliation_notes]
-
-  RESOLUTION_STEP_2:
-    type: string
-    source: Generated
-    description: Resolution step 2
-    required_for: [reconciliation_notes]
-
-  RESOLUTION_STEP_3:
-    type: string
-    source: Generated
-    description: Resolution step 3
-    required_for: [reconciliation_notes]
-
-  RESOLUTION_STEP_4:
-    type: string
-    source: Generated
-    description: Resolution step 4
-    required_for: [reconciliation_notes]
-
-  TEMPLATE_DATE:
-    type: date
-    source: Generated
-    description: Template version date
-    required_for: [sales_templates]
-
-# ============================================================================
-# TABLE CONTENT - Structured table placeholders
-# ============================================================================
-table_content:
+    description: "Company name of largest holding"
+    source: "Query FACT_POSITION_DAILY_ABOR + DIM_SECURITY"
+    type: "string"
+    tier: 2
+  
+  LARGEST_POSITION_WEIGHT:
+    description: "Weight percentage of largest holding"
+    source: "Query FACT_POSITION_DAILY_ABOR"
+    type: "float"
+    tier: 2
+  
   SECTOR_ALLOCATION_TABLE:
-    type: table
-    source: Query FACT_POSITION_DAILY_ABOR + DIM_ISSUER
-    description: Complete sector breakdown table
-    required_for: [portfolio_review]
+    description: "Complete sector breakdown"
+    source: "Query FACT_POSITION_DAILY_ABOR + DIM_ISSUER"
+    type: "table"
+    tier: 2
 
-  TOP10_HOLDINGS_TABLE:
-    type: table
-    source: Query FACT_POSITION_DAILY_ABOR + DIM_SECURITY
-    description: Top 10 holdings table
-    required_for: [portfolio_review]
-
-# ============================================================================
-# CONDITIONAL PLACEHOLDERS - Dynamic text based on conditions
-# ============================================================================
+# Conditional Placeholders (Portfolio Review Specific)
 conditional_placeholders:
   PERFORMANCE_NARRATIVE:
-    type: sentence_conditional
-    condition: QTD_RETURN_PCT > 0
-    description: Sentence conditional on performance
-    required_for: [portfolio_review]
-
+    description: "Sentence conditional on performance"
+    type: "sentence_conditional"
+    condition: "QTD_RETURN_PCT > 0"
+    options:
+      positive: "Full sentence for positive performance"
+      negative: "Full sentence for negative performance"
+  
   RELATIVE_PERFORMANCE:
-    type: word_conditional
-    condition: QTD_RETURN_PCT > BENCHMARK_QTD_PCT
-    options: [outperformed, underperformed]
-    description: Word indicating relative performance
-    required_for: [portfolio_review]
+    description: "Word conditional on benchmark comparison"
+    type: "word_conditional"
+    condition: "QTD_RETURN_PCT > BENCHMARK_RETURN_PCT"
+    options:
+      positive: "outperformed"
+      negative: "underperformed"
+  
+  RISK_COMMENTARY:
+    description: "Sentence based on volatility"
+    type: "sentence_conditional"
+    condition: "TRACKING_ERROR_PCT > 5"
+    options:
+      high: "Full sentence for high tracking error"
+      low: "Full sentence for low tracking error"
 
-  YTD_RELATIVE_PERFORMANCE:
-    type: word_conditional
-    condition: YTD_RETURN_PCT > BENCHMARK_YTD_PCT
-    options: [outperformed, underperformed]
-    description: Word indicating YTD relative performance
-    required_for: [portfolio_review]
-
-  CONCENTRATION_WARNING_TEXT:
-    type: sentence_conditional
-    condition: LARGEST_POSITION_WEIGHT > 6.5
-    description: Concentration warning text
-    required_for: [portfolio_review]
-
-  CONCENTRATION_WARNING_STATEMENT:
-    type: sentence_conditional
-    condition: LARGEST_POSITION_WEIGHT > 6.5
-    description: Concentration warning statement
-    required_for: [portfolio_review]
-
-  MARKET_CONDITION:
-    type: string
-    source: Generated based on market data
-    description: Market condition description
-    required_for: [portfolio_review]
-
-  OUTLOOK_POSITIONING:
-    type: string
-    source: Generated
-    description: Outlook and positioning narrative
-    required_for: [portfolio_review]
-
-  PORTFOLIO_POSITIONING:
-    type: string
-    source: Generated
-    description: Portfolio positioning narrative
-    required_for: [portfolio_review]
-
-# ============================================================================
-# MARKET DATA NUMERICS - Market indices, commodities, currencies, rates
-# ============================================================================
-market_data_numerics:
-  # Equity indices
-  SP500_LEVEL:
-    type: float
-    description: S&P 500 index level
-  SP500_DAILY_PCT:
-    type: float
-    description: S&P 500 daily change %
-  SP500_YTD_PCT:
-    type: float
-    description: S&P 500 YTD return %
-  SP500_SUPPORT:
-    type: float
-    description: S&P 500 support level
-  SP500_RESISTANCE:
-    type: float
-    description: S&P 500 resistance level
-  NASDAQ_DAILY_PCT:
-    type: float
-    description: NASDAQ daily change %
-  FTSE100_LEVEL:
-    type: float
-    description: FTSE 100 index level
-  FTSE100_DAILY_PCT:
-    type: float
-    description: FTSE 100 daily change %
-  FTSE100_YTD_PCT:
-    type: float
-    description: FTSE 100 YTD return %
-  DAX_LEVEL:
-    type: float
-    description: DAX index level
-  DAX_DAILY_PCT:
-    type: float
-    description: DAX daily change %
-  DAX_YTD_PCT:
-    type: float
-    description: DAX YTD return %
-  NIKKEI_LEVEL:
-    type: float
-    description: Nikkei 225 index level
-  NIKKEI_DAILY_PCT:
-    type: float
-    description: Nikkei daily change %
-  NIKKEI_YTD_PCT:
-    type: float
-    description: Nikkei YTD return %
-  MSCI_WORLD_LEVEL:
-    type: float
-    description: MSCI World index level
-  MSCI_WORLD_DAILY_PCT:
-    type: float
-    description: MSCI World daily change %
-  MSCI_WORLD_YTD_PCT:
-    type: float
-    description: MSCI World YTD return %
-  MSCI_EM_LEVEL:
-    type: float
-    description: MSCI EM index level
-  MSCI_EM_DAILY_PCT:
-    type: float
-    description: MSCI EM daily change %
-  MSCI_EM_YTD_PCT:
-    type: float
-    description: MSCI EM YTD return %
-  BEST_SECTOR_PCT:
-    type: float
-    description: Best sector return %
-  WORST_SECTOR_PCT:
-    type: float
-    description: Worst sector return %
-
-  # Volatility and sentiment
-  VIX_LEVEL:
-    type: float
-    description: VIX index level
-  VIX_CHANGE:
-    type: float
-    description: VIX daily change
-  PUT_CALL_RATIO:
-    type: float
-    description: Put/call ratio
-  FEAR_GREED:
-    type: float
-    description: Fear & Greed index
-
-  # Fixed income yields
-  US_10Y_YIELD_PCT:
-    type: float
-    description: US 10Y Treasury yield %
-  US_10Y_DAILY_CHG:
-    type: float
-    description: US 10Y daily change bps
-  US_10Y_MTD_CHG:
-    type: float
-    description: US 10Y MTD change bps
-  US_2Y_YIELD_PCT:
-    type: float
-    description: US 2Y Treasury yield %
-  US_2Y_DAILY_CHG:
-    type: float
-    description: US 2Y daily change bps
-  US_2Y_MTD_CHG:
-    type: float
-    description: US 2Y MTD change bps
-  US_30Y_YIELD_PCT:
-    type: float
-    description: US 30Y Treasury yield %
-  US_30Y_DAILY_CHG:
-    type: float
-    description: US 30Y daily change bps
-  US_30Y_MTD_CHG:
-    type: float
-    description: US 30Y MTD change bps
-  UK_10Y_YIELD_PCT:
-    type: float
-    description: UK 10Y Gilt yield %
-  UK_10Y_DAILY_CHG:
-    type: float
-    description: UK 10Y daily change bps
-  UK_10Y_MTD_CHG:
-    type: float
-    description: UK 10Y MTD change bps
-  DE_10Y_YIELD_PCT:
-    type: float
-    description: German 10Y Bund yield %
-  DE_10Y_DAILY_CHG:
-    type: float
-    description: German 10Y daily change bps
-  DE_10Y_MTD_CHG:
-    type: float
-    description: German 10Y MTD change bps
-  YIELD_CURVE_SPREAD_BPS:
-    type: float
-    description: Yield curve spread bps
-
-  # Credit spreads
-  IG_SPREAD_BPS:
-    type: float
-    description: IG credit spread bps
-  IG_TIGHTENING:
-    type: float
-    description: IG spread tightening bps
-  HY_SPREAD_BPS:
-    type: float
-    description: HY credit spread bps
-  EM_SPREAD_BPS:
-    type: float
-    description: EM credit spread bps
-
-  # Commodities
-  WTI_CRUDE_USD:
-    type: float
-    description: WTI crude oil price USD
-  WTI_DAILY_CHANGE:
-    type: float
-    description: WTI daily change %
-  BRENT_CRUDE_USD:
-    type: float
-    description: Brent crude oil price USD
-  BRENT_DAILY_CHANGE:
-    type: float
-    description: Brent daily change %
-  NATURAL_GAS_USD:
-    type: float
-    description: Natural gas price USD
-  NG_DAILY_CHANGE:
-    type: float
-    description: Natural gas daily change %
-  GOLD_USD:
-    type: float
-    description: Gold price USD/oz
-  GOLD_DAILY_CHANGE:
-    type: float
-    description: Gold daily change %
-  SILVER_USD:
-    type: float
-    description: Silver price USD/oz
-  SILVER_DAILY_CHANGE:
-    type: float
-    description: Silver daily change %
-  COPPER_USD:
-    type: float
-    description: Copper price USD/lb
-  COPPER_DAILY_CHANGE:
-    type: float
-    description: Copper daily change %
-  ALUMINUM_USD:
-    type: float
-    description: Aluminum price USD/mt
-  ALUMINUM_DAILY_CHANGE:
-    type: float
-    description: Aluminum daily change %
-
-  # Currencies
-  EUR_USD:
-    type: float
-    description: EUR/USD exchange rate
-  EUR_USD_DAILY:
-    type: float
-    description: EUR/USD daily change %
-  EUR_USD_MTD:
-    type: float
-    description: EUR/USD MTD change %
-  GBP_USD:
-    type: float
-    description: GBP/USD exchange rate
-  GBP_USD_DAILY:
-    type: float
-    description: GBP/USD daily change %
-  GBP_USD_MTD:
-    type: float
-    description: GBP/USD MTD change %
-  USD_JPY:
-    type: float
-    description: USD/JPY exchange rate
-  USD_JPY_DAILY:
-    type: float
-    description: USD/JPY daily change %
-  USD_JPY_MTD:
-    type: float
-    description: USD/JPY MTD change %
-  USD_CHF:
-    type: float
-    description: USD/CHF exchange rate
-  USD_CHF_DAILY:
-    type: float
-    description: USD/CHF daily change %
-  USD_CHF_MTD:
-    type: float
-    description: USD/CHF MTD change %
-  AUD_USD:
-    type: float
-    description: AUD/USD exchange rate
-  AUD_USD_DAILY:
-    type: float
-    description: AUD/USD daily change %
-  AUD_USD_MTD:
-    type: float
-    description: AUD/USD MTD change %
-  DXY_INDEX:
-    type: float
-    description: DXY Dollar index
-  DXY_DAILY_CHANGE:
-    type: float
-    description: DXY daily change %
-
-  # Economic indicators
-  ISM_ACTUAL:
-    type: float
-    description: ISM actual reading
-  ISM_CONSENSUS:
-    type: float
-    description: ISM consensus estimate
-  ISM_PREVIOUS:
-    type: float
-    description: ISM previous reading
-  CPI_ACTUAL:
-    type: float
-    description: CPI actual %
-  CPI_CONSENSUS:
-    type: float
-    description: CPI consensus %
-  CPI_PREVIOUS:
-    type: float
-    description: CPI previous %
-  CLAIMS_ACTUAL:
-    type: float
-    description: Jobless claims actual (thousands)
-  CLAIMS_CONSENSUS:
-    type: float
-    description: Jobless claims consensus
-  CLAIMS_PREVIOUS:
-    type: float
-    description: Jobless claims previous
-  IND_1_ACTUAL:
-    type: float
-    description: Indicator 1 actual
-  IND_1_CONSENSUS:
-    type: float
-    description: Indicator 1 consensus
-  IND_1_PREVIOUS:
-    type: float
-    description: Indicator 1 previous
-  IND_2_ACTUAL:
-    type: float
-    description: Indicator 2 actual
-  IND_2_CONSENSUS:
-    type: float
-    description: Indicator 2 consensus
-  IND_2_PREVIOUS:
-    type: float
-    description: Indicator 2 previous
-
-# ============================================================================
-# TIER 1 NUMERICS - GROWTH METRICS
-# ============================================================================
-tier1_numerics_growth:
-  YOY_REVENUE_GROWTH_PCT:
-    type: float
-    description: Year-over-year revenue growth %
-  YOY_GROWTH_PCT:
-    type: float
-    description: Year-over-year growth %
-  REVENUE_CAGR:
-    type: float
-    description: Revenue CAGR %
-  FCF_CAGR:
-    type: float
-    description: Free cash flow CAGR %
-  SECTOR_CAGR:
-    type: float
-    description: Sector CAGR %
-  CLOUD_GROWTH:
-    type: float
-    description: Cloud revenue growth %
-  CLOUD_GROWTH_PCT:
-    type: float
-    description: Cloud growth percentage
-  SOFTWARE_GROWTH:
-    type: float
-    description: Software revenue growth %
-  SERVICES_GROWTH:
-    type: float
-    description: Services revenue growth %
-  DIGITAL_GROWTH:
-    type: float
-    description: Digital revenue growth %
-  SUBSCRIPTION_GROWTH:
-    type: float
-    description: Subscription revenue growth %
-  ENTERPRISE_GROWTH:
-    type: float
-    description: Enterprise segment growth %
-  SMB_GROWTH:
-    type: float
-    description: SMB segment growth %
-  INTL_GROWTH:
-    type: float
-    description: International growth %
-  INTERNATIONAL_GROWTH:
-    type: float
-    description: International revenue growth %
-  INTL_CONSTANT_GROWTH:
-    type: float
-    description: International constant currency growth %
-  US_GROWTH:
-    type: float
-    description: US revenue growth %
-  APAC_GROWTH:
-    type: float
-    description: APAC revenue growth %
-  RETAIL_GROWTH:
-    type: float
-    description: Retail segment growth %
-  DTC_GROWTH:
-    type: float
-    description: Direct-to-consumer growth %
-  WHOLESALE_GROWTH:
-    type: float
-    description: Wholesale segment growth %
-  SEQUENTIAL_GROWTH:
-    type: float
-    description: Quarter-over-quarter growth %
-  EPS_GROWTH:
-    type: float
-    description: EPS growth %
-  OPEX_GROWTH:
-    type: float
-    description: Operating expense growth %
-  RD_GROWTH:
-    type: float
-    description: R&D spending growth %
-  ACV_GROWTH:
-    type: float
-    description: Annual contract value growth %
-  CARDIO_GROWTH:
-    type: float
-    description: Cardiovascular segment growth %
-  ONCOLOGY_GROWTH:
-    type: float
-    description: Oncology segment growth %
-  IMMUNO_GROWTH:
-    type: float
-    description: Immunology segment growth %
-  NET_RETENTION:
-    type: float
-    description: Net revenue retention %
-  NET_RETENTION_PCT:
-    type: float
-    description: Net retention percentage
-  CUSTOMER_GROWTH:
-    type: float
-    description: Customer count growth %
-  YEAR1_GROWTH:
-    type: float
-    description: Year 1 projected growth %
-  YEAR2_GROWTH:
-    type: float
-    description: Year 2 projected growth %
-  YEAR3_GROWTH:
-    type: float
-    description: Year 3 projected growth %
-  Y1_GROWTH:
-    type: float
-    description: Year 1 growth %
-  Y2_GROWTH:
-    type: float
-    description: Year 2 growth %
-  Y3_GROWTH:
-    type: float
-    description: Year 3 growth %
-  GROWTH_RATE:
-    type: float
-    description: General growth rate %
-  LT_GROWTH:
-    type: float
-    description: Long-term growth rate %
-
-# ============================================================================
-# TIER 1 NUMERICS - MARGIN METRICS
-# ============================================================================
-tier1_numerics_margins:
-  EBIT_MARGIN_PCT:
-    type: float
-    description: EBIT margin %
-  EBIT_MARGIN_PCT_UPPER:
-    type: float
-    description: EBIT margin upper bound %
-  GROSS_MARGIN_PCT:
-    type: float
-    description: Gross margin %
-  GROSS_MARGIN:
-    type: float
-    description: Gross margin (alternate)
-  OPERATING_MARGIN_PCT:
-    type: float
-    description: Operating margin %
-  FCF_MARGIN:
-    type: float
-    description: Free cash flow margin %
-  CLOUD_MARGIN:
-    type: float
-    description: Cloud segment margin %
-  CURRENT_MARGIN:
-    type: float
-    description: Current margin %
-  TARGET_MARGIN:
-    type: float
-    description: Target margin %
-  TERMINAL_MARGIN:
-    type: float
-    description: Terminal margin %
-  MARGIN_EXPANSION:
-    type: float
-    description: Margin expansion bps
-  MARGIN_EXPANSION_BPS:
-    type: float
-    description: Margin expansion in basis points
-  Y1_MARGIN:
-    type: float
-    description: Year 1 margin %
-  Y2_MARGIN:
-    type: float
-    description: Year 2 margin %
-  Y3_MARGIN:
-    type: float
-    description: Year 3 margin %
-  DIGITAL_MARGIN_PREMIUM:
-    type: float
-    description: Digital margin premium %
-
-# ============================================================================
-# TIER 1 NUMERICS - VALUATION METRICS
-# ============================================================================
-tier1_numerics_valuation:
-  PRICE_TARGET_USD:
-    type: float
-    description: 12-month price target USD
-  TARGET_PRICE_USD:
-    type: float
-    description: Target price USD
-  FAIR_VALUE_USD:
-    type: float
-    description: Fair value USD
-  FAIR_VALUE_HIGH:
-    type: float
-    description: Fair value high estimate USD
-  FAIR_VALUE_LOW:
-    type: float
-    description: Fair value low estimate USD
-  BEAR_FAIR_VALUE:
-    type: float
-    description: Bear case fair value USD
-  CURRENT_PRICE:
-    type: float
-    description: Current stock price USD
-  BEAR_CASE_PRICE:
-    type: float
-    description: Bear case price USD
-  BULL_CASE_PRICE:
-    type: float
-    description: Bull case price USD
-  ADD_PRICE:
-    type: float
-    description: Price level to add position USD
-  TRIM_PRICE:
-    type: float
-    description: Price level to trim position USD
-  ENTRY_PRICE_HIGH:
-    type: float
-    description: Entry price high USD
-  VALUATION_HIGH:
-    type: float
-    description: Valuation high USD
-  VALUATION_LOW:
-    type: float
-    description: Valuation low USD
-  PE_RATIO:
-    type: float
-    description: Price-to-earnings ratio
-  PE_VALUE:
-    type: float
-    description: P/E derived value
-  EV_SALES:
-    type: float
-    description: EV/Sales ratio
-  PRICE_TO_BOOK:
-    type: float
-    description: Price-to-book ratio
-  WACC_PCT:
-    type: float
-    description: Weighted average cost of capital %
-  WACC:
-    type: float
-    description: WACC (alternate)
-  TERMINAL_GROWTH:
-    type: float
-    description: Terminal growth rate %
-  BETA:
-    type: float
-    description: Stock beta
-  ROIC:
-    type: float
-    description: Return on invested capital %
-  ROE_PCT:
-    type: float
-    description: Return on equity %
-  PREMIUM_DISCOUNT:
-    type: float
-    description: Premium/discount to peers %
-  UPSIDE_POTENTIAL:
-    type: float
-    description: Upside potential %
-  UPSIDE_POTENTIAL_PCT:
-    type: float
-    description: Upside potential percentage
-  UPSIDE_PCT:
-    type: float
-    description: Upside percentage
-  ADD_UPSIDE:
-    type: float
-    description: Upside at add price %
-  DOWNSIDE_PCT:
-    type: float
-    description: Downside percentage
-  GROWTH_PREMIUM:
-    type: float
-    description: Growth premium %
-  MARGIN_PREMIUM:
-    type: float
-    description: Margin premium %
-  SOFTWARE_PREMIUM:
-    type: float
-    description: Software premium %
-  ERP:
-    type: float
-    description: Equity risk premium %
-  RFR:
-    type: float
-    description: Risk-free rate %
-  INTL_TARGET:
-    type: float
-    description: International revenue target %
-
-# ============================================================================
-# TIER 1 NUMERICS - GUIDANCE METRICS
-# ============================================================================
-tier1_numerics_guidance:
-  GUIDANCE_REVENUE_LOW:
-    type: float
-    description: Revenue guidance low USD billions
-  GUIDANCE_REVENUE_HIGH:
-    type: float
-    description: Revenue guidance high USD billions
-  GUIDANCE_GROWTH_LOW:
-    type: float
-    description: Growth guidance low %
-  GUIDANCE_GROWTH_HIGH:
-    type: float
-    description: Growth guidance high %
-  GUIDANCE_GROWTH:
-    type: float
-    description: Growth guidance %
-  GUIDANCE_OPMARGIN:
-    type: float
-    description: Operating margin guidance %
-  GUIDANCE_LOW:
-    type: float
-    description: Guidance low
-  GUIDANCE_HIGH:
-    type: float
-    description: Guidance high
-  Q_NEXT_LOW:
-    type: float
-    description: Next quarter guidance low
-  Q_NEXT_HIGH:
-    type: float
-    description: Next quarter guidance high
-  Q_NEXT_GROWTH_LOW:
-    type: float
-    description: Next quarter growth low %
-  Q_NEXT_GROWTH_HIGH:
-    type: float
-    description: Next quarter growth high %
-  Q_NEXT_MARGIN:
-    type: float
-    description: Next quarter margin %
-  FY_LOW:
-    type: float
-    description: Full year guidance low
-  FY_HIGH:
-    type: float
-    description: Full year guidance high
-  FY_GROWTH_LOW:
-    type: float
-    description: Full year growth low %
-  FY_GROWTH_HIGH:
-    type: float
-    description: Full year growth high %
-  FY_MARGIN:
-    type: float
-    description: Full year margin %
-  FULL_YEAR_GROWTH_LOW:
-    type: float
-    description: Full year growth guidance low %
-  FULL_YEAR_GROWTH_HIGH:
-    type: float
-    description: Full year growth guidance high %
-  FULL_YEAR_MARGIN:
-    type: float
-    description: Full year margin guidance %
-  EPS_LOW:
-    type: float
-    description: EPS guidance low
-  EPS_HIGH:
-    type: float
-    description: EPS guidance high
-
-# ============================================================================
-# TIER 1 NUMERICS - CASH FLOW & CAPITAL
-# ============================================================================
-tier1_numerics_cashflow:
-  CASH_BALANCE:
-    type: float
-    description: Cash balance USD billions
-  CASH:
-    type: float
-    description: Cash position USD billions
-  OPERATING_CASH_FLOW:
-    type: float
-    description: Operating cash flow USD billions
-  FREE_CASH_FLOW:
-    type: float
-    description: Free cash flow USD billions
-  OCF:
-    type: float
-    description: Operating cash flow (short)
-  FCF:
-    type: float
-    description: Free cash flow (short)
-  FCF_CONVERSION:
-    type: float
-    description: FCF conversion %
-  NET_CASH:
-    type: float
-    description: Net cash position USD billions
-  DEBT:
-    type: float
-    description: Total debt USD billions
-  BUYBACK_AMOUNT:
-    type: float
-    description: Buyback amount USD billions
-  BUYBACK:
-    type: float
-    description: Buyback (alternate)
-  BUYBACKS:
-    type: float
-    description: Buybacks USD millions
-  DIVIDEND_AMOUNT:
-    type: float
-    description: Dividend amount USD millions
-  DIVIDEND:
-    type: float
-    description: Dividend (alternate)
-  DIVIDENDS:
-    type: float
-    description: Dividends USD millions
-  DIVIDEND_INCREASE:
-    type: float
-    description: Dividend increase %
-  DIV_INCREASE:
-    type: float
-    description: Dividend increase (short) %
-  CAPITAL_RETURN:
-    type: float
-    description: Capital return USD billions
-  TOTAL_RETURN:
-    type: float
-    description: Total shareholder return %
-
-# ============================================================================
-# TIER 1 NUMERICS - PORTFOLIO METRICS
-# ============================================================================
-tier1_numerics_portfolio:
-  QTD_RETURN_PCT:
-    type: float
-    description: Quarter-to-date return %
-  YTD_RETURN_PCT:
-    type: float
-    description: Year-to-date return %
-  BENCHMARK_QTD_PCT:
-    type: float
-    description: Benchmark QTD return %
-  BENCHMARK_YTD_PCT:
-    type: float
-    description: Benchmark YTD return %
-  RELATIVE_RETURN_DIFF:
-    type: float
-    description: Relative return difference %
-  TOP10_WEIGHT_PCT:
-    type: float
-    description: Top 10 holdings weight %
-  LARGEST_POSITION_WEIGHT:
-    type: float
-    description: Largest position weight %
-  TECH_WEIGHT:
-    type: float
-    description: Technology sector weight %
-  TECH_BENCH_WEIGHT:
-    type: float
-    description: Tech benchmark weight %
-  COMM_WEIGHT:
-    type: float
-    description: Communication services weight %
-  COMM_BENCH_WEIGHT:
-    type: float
-    description: Comm services benchmark weight %
-  GEOGRAPHIC_NA_PCT:
-    type: float
-    description: North America allocation %
-  GEOGRAPHIC_EU_PCT:
-    type: float
-    description: Europe allocation %
-  GEOGRAPHIC_APAC_PCT:
-    type: float
-    description: APAC allocation %
-  PORTFOLIO_VOL:
-    type: float
-    description: Portfolio volatility %
-  TRACKING_ERROR_PCT:
-    type: float
-    description: Tracking error %
-  PORTFOLIO_WEIGHT:
-    type: float
-    description: Position weight in portfolio %
-  POSITION_SIZE_PCT:
-    type: float
-    description: Position size %
-  POSITION_SIZE_USD:
-    type: float
-    description: Position size USD millions
-  PORTFOLIO_CONTRIBUTION:
-    type: float
-    description: Portfolio contribution %
-  PORTFOLIO_RISK_CONTRIBUTION:
-    type: float
-    description: Risk contribution %
-  RISK_BUDGET_PCT:
-    type: float
-    description: Risk budget utilization %
-  AI_ALLOCATION:
-    type: float
-    description: AI theme allocation %
-  TECH_ALLOCATION:
-    type: float
-    description: Technology allocation %
-  THEMATIC_ALLOCATION:
-    type: float
-    description: Thematic allocation %
-
-# ============================================================================
-# TIER 1 NUMERICS - ESG METRICS
-# ============================================================================
-tier1_numerics_esg:
-  BOARD_SIZE:
-    type: integer
-    description: Board size (directors)
-  INDEPENDENT_COUNT:
-    type: integer
-    description: Independent directors count
-  INDEPENDENCE_PCT:
-    type: float
-    description: Board independence %
-  FEMALE_DIRECTORS:
-    type: integer
-    description: Female directors count
-  GENDER_DIVERSITY_PCT:
-    type: float
-    description: Gender diversity %
-  DIVERSITY_METRIC:
-    type: float
-    description: Diversity metric %
-  AVERAGE_TENURE:
-    type: float
-    description: Average board tenure years
-  NEW_DIRECTORS:
-    type: integer
-    description: New directors added
-  SECTOR_MEDIAN:
-    type: float
-    description: Sector median comparison
-  EMISSIONS_INCREASE:
-    type: float
-    description: Emissions increase %
-  EMISSIONS_REDUCTION:
-    type: float
-    description: Emissions reduction %
-  RENEWABLE_PCT:
-    type: float
-    description: Renewable energy %
-  RENEWABLE_TARGET:
-    type: float
-    description: Renewable energy target %
-  SUPPLIER_COVERAGE:
-    type: float
-    description: Supplier coverage %
-  SUPPLIER_ISSUES:
-    type: integer
-    description: Supplier issues count
-  ENGAGEMENT_INCREASE:
-    type: float
-    description: Engagement increase %
-
-# ============================================================================
-# TIER 1 NUMERICS - FINANCIAL METRICS (OTHER)
-# ============================================================================
-tier1_numerics_financial:
-  REVENUE_BILLIONS:
-    type: float
-    description: Revenue USD billions
-  QUARTERLY_REVENUE_BILLIONS:
-    type: float
-    description: Quarterly revenue USD billions
-  QUARTERLY_EPS:
-    type: float
-    description: Quarterly EPS
-  GROSS_PROFIT:
-    type: float
-    description: Gross profit USD billions
-  OPERATING_INCOME:
-    type: float
-    description: Operating income USD billions
-  NET_INCOME:
-    type: float
-    description: Net income USD billions
-  OPEX:
-    type: float
-    description: Operating expenses USD billions
-  TAX_RATE:
-    type: float
-    description: Effective tax rate %
-  RD_SPEND:
-    type: float
-    description: R&D spend USD billions
-  RD_PCT:
-    type: float
-    description: R&D as % of revenue
-  RD_BILLIONS:
-    type: float
-    description: R&D USD billions
-  RD_ANNUAL:
-    type: float
-    description: Annual R&D USD billions
-  R_AND_D_INTENSITY_PCT:
-    type: float
-    description: R&D intensity %
-  SALES_SPEND:
-    type: float
-    description: Sales spend USD billions
-  SALES_PCT:
-    type: float
-    description: Sales as % of revenue
-  SGA_SPEND:
-    type: float
-    description: SG&A spend USD billions
-  SGA_PCT:
-    type: float
-    description: SG&A as % of revenue
-  MARKETING:
-    type: float
-    description: Marketing spend USD billions
-  MARKETING_PCT:
-    type: float
-    description: Marketing as % of revenue
-  GA:
-    type: float
-    description: G&A expense USD billions
-
-  # Segment revenues
-  CLOUD_REVENUE:
-    type: float
-    description: Cloud revenue USD billions
-  CLOUD_PERCENTAGE:
-    type: float
-    description: Cloud as % of revenue
-  CLOUD_ARR:
-    type: float
-    description: Cloud ARR USD millions
-  SOFTWARE_REVENUE:
-    type: float
-    description: Software revenue USD billions
-  SERVICES_REVENUE:
-    type: float
-    description: Services revenue USD billions
-  SUBSCRIPTION_REVENUE:
-    type: float
-    description: Subscription revenue USD billions
-  SUBSCRIPTION_PCT:
-    type: float
-    description: Subscription as % of revenue
-  US_REVENUE:
-    type: float
-    description: US revenue USD billions
-  INTL_REVENUE:
-    type: float
-    description: International revenue USD billions
-  RETAIL_REVENUE:
-    type: float
-    description: Retail revenue USD billions
-  DTC_REVENUE:
-    type: float
-    description: DTC revenue USD billions
-  WHOLESALE_REVENUE:
-    type: float
-    description: Wholesale revenue USD billions
-  CARDIO_REVENUE:
-    type: float
-    description: Cardiovascular revenue USD billions
-  ONCOLOGY_REVENUE:
-    type: float
-    description: Oncology revenue USD billions
-  IMMUNO_REVENUE:
-    type: float
-    description: Immunology revenue USD billions
-
-  # Percentages
-  CLOUD_REVENUE_PCT:
-    type: float
-    description: Cloud revenue %
-  SOFTWARE_REVENUE_PCT:
-    type: float
-    description: Software revenue %
-  SERVICES_REVENUE_PCT:
-    type: float
-    description: Services revenue %
-  NA_REVENUE_PCT:
-    type: float
-    description: North America revenue %
-  EUROPE_REVENUE_PCT:
-    type: float
-    description: Europe revenue %
-  APAC_REVENUE_PCT:
-    type: float
-    description: APAC revenue %
-  OTHER_REVENUE_PCT:
-    type: float
-    description: Other regions revenue %
-  DIGITAL_PCT:
-    type: float
-    description: Digital as % of revenue
-  ENTERPRISE_PCT:
-    type: float
-    description: Enterprise as % of revenue
-  INTL_PCT:
-    type: float
-    description: International %
-  INTL_PRIOR_PCT:
-    type: float
-    description: International prior period %
-  US_PCT:
-    type: float
-    description: US %
-  EUROPE_PCT:
-    type: float
-    description: Europe %
-  ROW_PCT:
-    type: float
-    description: Rest of world %
-  AI_ADOPTION_PCT:
-    type: float
-    description: AI adoption %
-
-  # EPS projections
-  Y1_EPS:
-    type: float
-    description: Year 1 EPS
-  Y2_EPS:
-    type: float
-    description: Year 2 EPS
-  Y3_EPS:
-    type: float
-    description: Year 3 EPS
-  Y1_FCF:
-    type: float
-    description: Year 1 FCF
-  Y2_FCF:
-    type: float
-    description: Year 2 FCF
-  Y3_FCF:
-    type: float
-    description: Year 3 FCF
-
-  # Other financial
-  ACV:
-    type: float
-    description: Annual contract value USD millions
-  MARKET_SHARE:
-    type: float
-    description: Market share %
-  MARKET_SIZE:
-    type: float
-    description: Market size USD billions
-  CUSTOMER_COUNT:
-    type: integer
-    description: Customer count
-  INVENTORY:
-    type: float
-    description: Inventory USD billions
-  INVENTORY_DAYS:
-    type: integer
-    description: Days inventory outstanding
-  INSTOCK_PCT:
-    type: float
-    description: In-stock percentage
-  SECTOR_TOTAL:
-    type: float
-    description: Sector total USD billions
-  TRANSACTION_VALUE:
-    type: float
-    description: Transaction value USD millions
-  SALES_VALUE:
-    type: float
-    description: Sales value USD millions
-  DEAL_VALUE_MILLIONS:
-    type: float
-    description: Deal value USD millions
-
-  # Financial services
-  CET1_RATIO_PCT:
-    type: float
-    description: CET1 capital ratio %
-  EFFICIENCY_RATIO_PCT:
-    type: float
-    description: Efficiency ratio %
-  LOAN_GROWTH_PCT:
-    type: float
-    description: Loan growth %
-  DEPOSIT_BETA_PCT:
-    type: float
-    description: Deposit beta %
-  RATE_SENSITIVITY_PCT:
-    type: float
-    description: Rate sensitivity %
-  PAYOUT_RATIO_PCT:
-    type: float
-    description: Dividend payout ratio %
-  NIM_EXPANSION_BPS:
-    type: float
-    description: NIM expansion bps
-
-  # Healthcare specific
-  DIABETES_MARKET:
-    type: float
-    description: Diabetes market share %
-  WEIGHT_BENEFIT:
-    type: float
-    description: Weight benefit %
-  A1C_REDUCTION:
-    type: float
-    description: A1C reduction
-  PLACEBO_A1C:
-    type: float
-    description: Placebo A1C change
-  PEAK_SHARE:
-    type: float
-    description: Peak market share %
-  TARGET_PATIENTS:
-    type: float
-    description: Target patient population millions
-  EROSION_PCT:
-    type: float
-    description: Generic erosion %
-  RESPONSE_THRESHOLD:
-    type: float
-    description: Response threshold %
-  TRIAL_PATIENTS:
-    type: integer
-    description: Trial patient count
-  EFFICACY_METRIC:
-    type: float
-    description: Efficacy metric %
-
-  # Consumer
-  NEW_PRODUCTS:
-    type: integer
-    description: New products count
-  BRAND_AWARENESS:
-    type: float
-    description: Brand awareness improvement %
-  SENTIMENT_IMPROVEMENT:
-    type: float
-    description: Sentiment improvement %
-  DIGITAL_VS_RETAIL:
-    type: float
-    description: Digital vs retail margin difference %
-  SUSTAINABLE_PREMIUM:
-    type: float
-    description: Sustainable product premium %
-  SUSTAINABILITY_METRIC:
-    type: float
-    description: Sustainability metric %
-
-  # Custodian reports
-  OPENING_BALANCE_1:
-    type: float
-    description: Opening balance currency 1
-  OPENING_BALANCE_2:
-    type: float
-    description: Opening balance currency 2
-  CLOSING_BALANCE_1:
-    type: float
-    description: Closing balance currency 1
-  CLOSING_BALANCE_2:
-    type: float
-    description: Closing balance currency 2
-  CP1_VALUE:
-    type: float
-    description: Counterparty 1 value
-  CP1_TRANSACTIONS:
-    type: integer
-    description: Counterparty 1 transactions
-  CP2_VALUE:
-    type: float
-    description: Counterparty 2 value
-  CP2_TRANSACTIONS:
-    type: integer
-    description: Counterparty 2 transactions
-  CP3_VALUE:
-    type: float
-    description: Counterparty 3 value
-  CP3_TRANSACTIONS:
-    type: integer
-    description: Counterparty 3 transactions
-  CP4_VALUE:
-    type: float
-    description: Counterparty 4 value
-  CP4_TRANSACTIONS:
-    type: integer
-    description: Counterparty 4 transactions
-  CP5_VALUE:
-    type: float
-    description: Counterparty 5 value
-  CP5_TRANSACTIONS:
-    type: integer
-    description: Counterparty 5 transactions
-  T_PLUS_2_COUNT:
-    type: integer
-    description: T+2 settlement count
-  T_PLUS_2_PERCENTAGE:
-    type: float
-    description: T+2 settlement %
-  T_PLUS_3_COUNT:
-    type: integer
-    description: T+3 settlement count
-  T_PLUS_3_PERCENTAGE:
-    type: float
-    description: T+3 settlement %
-
-  # Risk framework
-  FIRM_CAPITAL:
-    type: float
-    description: Firm capital USD millions
-  INSURANCE_COVERAGE:
-    type: float
-    description: Insurance coverage USD millions
-
-# ============================================================================
-# VALIDATION RULES
-# ============================================================================
+# Validation Rules
 validation:
   required_fields:
-    rule: All placeholders in template must be provided
+    rule: "All placeholders in template's 'placeholders.required' must be provided"
     error_message: "Missing required placeholder: {placeholder_name}"
-
+  
   unknown_placeholders:
-    rule: All {{PLACEHOLDER}} patterns must exist in this contract
+    rule: "All {{PLACEHOLDER}} patterns must exist in this contract"
     error_message: "Unknown placeholder {{PLACEHOLDER}} not in contract"
-
+  
+  word_count:
+    rule: "Rendered document within ±10% of word_count_target"
+    error_message: "Word count {actual} outside target {target} (±10%)"
+    note: "Placeholders excluded from template word count"
+  
   fictional_providers:
-    rule: BROKER_NAME and NGO_NAME must be from fictional lists only
+    rule: "BROKER_NAME and NGO_NAME must be from fictional lists only"
     error_message: "Real provider name detected: {provider_name}"
-
+    forbidden_brokers: ["Goldman Sachs", "Morgan Stanley", "J.P. Morgan", "Bank of America", "Barclays", "UBS", "Citigroup", "Credit Suisse", "Deutsche Bank"]
+    forbidden_ngos: ["Greenpeace", "Amnesty International", "Human Rights Watch", "Oxfam", "WWF"]
+  
   data_types:
-    rule: Placeholders must resolve to correct data types
+    rule: "Placeholders must resolve to correct data types"
     error_message: "Type mismatch for {placeholder_name}: expected {expected_type}, got {actual_type}"
-
-  numeric_bounds:
-    rule: Numeric values must be within bounds defined in numeric_bounds.yaml
-    error_message: "Value {value} for {placeholder_name} outside bounds [{min}, {max}]"
+  
+  conditional_structure:
+    rule: "Conditional placeholders must have all required options"
+    error_message: "Conditional placeholder {name} missing option: {missing_option}"

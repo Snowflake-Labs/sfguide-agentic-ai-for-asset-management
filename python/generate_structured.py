@@ -14,21 +14,39 @@ from typing import List
 import random
 from datetime import datetime, timedelta, date
 import config
-import pandas as pd
-import os
+from logging_utils import log_detail, log_info, log_warning, log_error, log_success
+from db_helpers import get_max_price_date
+from sql_utils import safe_sql_tuple
+from demo_helpers import build_demo_portfolios_sql_mapping, get_demo_portfolio_names, get_demo_clients_sorted, get_demo_company_tickers, get_all_demo_clients_sorted, get_at_risk_client_ids, get_new_client_ids, get_new_demo_clients
+from sql_case_builders import (
+    build_sector_case_sql,
+    build_country_group_case_sql,
+    build_grade_case_sql,
+    build_overall_esg_sql,
+    build_strategy_case_sql,
+    build_global_uniform_sql,
+    build_factor_case_sql,
+    get_factor_r_squared,
+    build_country_settlement_case_sql
+)
 
-def build_all(session: Session, scenarios: List[str], test_mode: bool = False):
+def build_all(session: Session, scenarios: List[str], test_mode: bool = False, recreate_database: bool = True):
     """
     Build all structured data using the enhanced data model.
     
     Args:
         session: Active Snowpark session
-        scenarios: List of scenario names to build data for
+        scenarios: List of scenario names to build data for (use ['all'] for all scenarios)
         test_mode: If True, use 10% data volumes for faster testing
+        recreate_database: If True, drop and recreate the database. If False, only ensure schemas exist.
     """
     
+    # Expand 'all' to actual scenarios from config
+    if scenarios == ['all'] or 'all' in scenarios:
+        scenarios = config.AVAILABLE_SCENARIOS
+    
     # Step 1: Create database and schemas
-    create_database_structure(session)
+    create_database_structure(session, recreate_database=recreate_database)
     
     # Step 2: Build foundation tables in dependency order
     build_foundation_tables(session, test_mode)
@@ -41,476 +59,346 @@ def build_all(session: Session, scenarios: List[str], test_mode: bool = False):
     validate_data_quality(session)
     
 
-def create_database_structure(session: Session):
-    """Create schema structure (database already exists from setup.sql)."""
+def create_database_structure(session: Session, recreate_database: bool = True):
+    """Create database and schema structure.
+    
+    Args:
+        session: Active Snowpark session
+        recreate_database: If True, drop and recreate the database (destroys all data).
+                          If False, only ensure schemas exist (preserves existing data).
+    """
     try:
-        # Don't create/replace the database - it's already created by setup.sql
-        # and contains the stored procedure we're running from!
-        # Only create schemas if they don't exist
-        session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.RAW").collect()
-        session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.CURATED").collect()
-        session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.AI").collect()
-        session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.MARKET_DATA").collect()
+        if recreate_database:
+            # Clean up agents from Snowflake Intelligence before dropping database
+            # Agents are registered with SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT which is
+            # outside our database, so we need to explicitly unregister them
+            try:
+                import create_agents
+                create_agents.cleanup_all_agents(session)
+            except Exception:
+                pass  # Suppress any cleanup errors - agents may not exist
+            
+            # Full recreation - drops everything and starts fresh
+            session.sql(f"CREATE OR REPLACE DATABASE {config.DATABASE['name']}").collect()
+            session.sql(f"CREATE OR REPLACE SCHEMA {config.DATABASE['name']}.RAW").collect()
+            session.sql(f"CREATE OR REPLACE SCHEMA {config.DATABASE['name']}.CURATED").collect()
+            session.sql(f"CREATE OR REPLACE SCHEMA {config.DATABASE['name']}.AI").collect()
+            session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.MARKET_DATA").collect()
+        else:
+            # Incremental mode - skip database creation (assumes setup.sql already created it)
+            # This is needed when running from a stored procedure inside the database
+            log_info("Skipping database/schema creation (incremental mode - assuming already exists)")
     except Exception as e:
-        config.log_error(f" Failed to create schema structure: {e}")
+        log_error(f" Failed to create database structure: {e}")
         raise
 
-def check_market_data_table_exists(session: Session, table_name: str) -> bool:
-    """Check if a table exists in the MARKET_DATA schema with data."""
-    try:
-        result = session.sql(f"""
-            SELECT COUNT(*) as cnt 
-            FROM {config.DATABASE['name']}.MARKET_DATA.{table_name}
-        """).collect()
-        return result[0]['CNT'] > 0
-    except:
-        return False
 
-def build_foundation_tables(session: Session, test_mode: bool = False):
-    """Build all foundation tables in dependency order."""
+def _run_build_step(func, session, *args, **kwargs):
+    """Wrapper to run a build function with proper error reporting."""
+    func_name = func.__name__
+    try:
+        log_info(f"→ {func_name}")
+        func(session, *args, **kwargs)
+    except Exception as e:
+        log_error(f"FAILED in {func_name}: {e}")
+        raise
+
+
+def build_dimension_tables(session: Session, test_mode: bool = False):
+    """
+    Build dimension tables that do NOT depend on max_price_date.
+    These must be built BEFORE FACT_STOCK_PRICES is created.
+    """
     random.seed(config.RNG_SEED)
     
-    # Create real assets view first (required for issuer and security dimensions)
-    try:
-        from extract_real_assets import create_real_assets_view
-        create_real_assets_view(session)
-    except Exception as e:
-        config.log_error(f" Real assets view creation failed: {e}")
-        raise  # Don't continue without the view
+    # Ensure database context is set at the start
+    database_name = config.DATABASE['name']
+    session.sql(f"USE DATABASE {database_name}").collect()
+    session.sql(f"USE SCHEMA {config.DATABASE['schemas']['curated']}").collect()
     
-    # Build all foundation tables (suppress detailed output)
-    build_dim_issuer(session, test_mode)
-    build_dim_security(session, test_mode)
-    build_dim_portfolio(session)
-    build_dim_benchmark(session)
-    build_dim_supply_chain_relationships(session, test_mode)
-    build_fact_transaction(session, test_mode)
-    build_fact_position_daily_abor(session)
+    # Build dimension tables from DEMO_COMPANIES config
+    # DIM_ISSUER is the driver table - all other data flows from it
+    _run_build_step(build_dim_issuer, session, test_mode)
+    _run_build_step(build_dim_security, session, test_mode)
+    _run_build_step(build_dim_portfolio, session)
+    _run_build_step(build_dim_benchmark, session)
+    _run_build_step(build_dim_supply_chain_relationships, session, test_mode)
     
-    # Check if MARKET_DATA.FACT_STOCK_PRICES exists (real data) - if so, skip synthetic market data
-    use_real_market_data = check_market_data_table_exists(session, 'FACT_STOCK_PRICES')
-    if use_real_market_data:
-        config.log_detail("  Skipping CURATED.FACT_MARKETDATA_TIMESERIES (using MARKET_DATA.FACT_STOCK_PRICES)")
-    else:
-        build_fact_marketdata_timeseries(session, test_mode)
+    # Middle office dimension tables
+    _run_build_step(build_dim_counterparty, session)
+    _run_build_step(build_dim_custodian, session)
+
+
+def build_fact_tables(session: Session, test_mode: bool = False):
+    """
+    Build fact tables that depend on max_price_date.
+    Must be called AFTER FACT_STOCK_PRICES exists to anchor date ranges.
+    """
+    random.seed(config.RNG_SEED)
     
-    # Check if MARKET_DATA.FACT_FINANCIAL_DATA exists (real data) - if so, skip synthetic fundamentals
-    use_real_financials = check_market_data_table_exists(session, 'FACT_FINANCIAL_DATA')
-    if use_real_financials:
-        config.log_detail("  Skipping CURATED.FACT_FUNDAMENTALS/FACT_ESTIMATES (using MARKET_DATA.FACT_FINANCIAL_DATA)")
-    else:
-        # Note: SEC filings now generated in MARKET_DATA schema via generate_market_data.py
-        # build_sec_filings_and_fundamentals(session) - DEPRECATED: Use MARKET_DATA.FACT_FILING_REF instead
-        build_fundamentals_and_estimates(session)
+    # Ensure database context is set at the start
+    database_name = config.DATABASE['name']
+    session.sql(f"USE DATABASE {database_name}").collect()
+    session.sql(f"USE SCHEMA {config.DATABASE['schemas']['curated']}").collect()
     
-    build_esg_scores(session)
-    build_factor_exposures(session)
-    build_benchmark_holdings(session)
-    build_transaction_cost_data(session)
-    build_liquidity_data(session)
-    build_risk_budget_data(session)
-    build_trading_calendar_data(session)
-    build_client_mandate_data(session)
-    build_tax_implications_data(session)
+    # Verify max_price_date is available (FACT_STOCK_PRICES must exist)
+    max_price_date = get_max_price_date(session)
+    if max_price_date is None:
+        log_error("FACT_STOCK_PRICES must be built before fact tables")
+        raise RuntimeError("Missing price date anchor - build FACT_STOCK_PRICES first")
+    log_detail(f"Using max_price_date anchor: {max_price_date}")
+    
+    # Build fact tables that depend on max_price_date
+    _run_build_step(build_fact_transaction, session, test_mode)
+    _run_build_step(build_fact_position_daily_abor, session)
+    _run_build_step(build_esg_scores, session)
+    _run_build_step(build_esg_latest_view, session)  # Enriched view with ESG (returns added later after market data)
+    _run_build_step(build_factor_exposures, session)
+    _run_build_step(build_benchmark_holdings, session)
+    _run_build_step(build_transaction_cost_data, session)
+    _run_build_step(build_liquidity_data, session)
+    _run_build_step(build_risk_budget_data, session)
+    _run_build_step(build_trading_calendar_data, session)
+    _run_build_step(build_client_mandate_data, session)
+    _run_build_step(build_tax_implications_data, session)
     
     # Executive copilot tables (client analytics)
-    build_dim_client(session, test_mode)
-    build_fact_client_flows(session, test_mode)
-    build_fact_fund_flows(session)
+    _run_build_step(build_dim_client, session, test_mode)
+    _run_build_step(build_fact_client_flows, session, test_mode)
+    _run_build_step(build_fact_fund_flows, session)
     
-    # Middle office tables
-    build_dim_counterparty(session)
-    build_dim_custodian(session)
-    build_fact_trade_settlement(session, test_mode)
-    build_fact_reconciliation(session, test_mode)
-    build_fact_nav_calculation(session, test_mode)
-    build_fact_nav_components(session, test_mode)
-    build_fact_corporate_actions(session, test_mode)
-    build_fact_corporate_action_impact(session, test_mode)
-    build_fact_cash_movements(session, test_mode)
-    build_fact_cash_positions(session, test_mode)
+    # Middle office fact tables
+    _run_build_step(build_fact_trade_settlement, session, test_mode)
+    _run_build_step(build_fact_reconciliation, session, test_mode)
+    _run_build_step(build_fact_nav_calculation, session, test_mode)
+    _run_build_step(build_fact_nav_components, session, test_mode)
+    _run_build_step(build_fact_corporate_actions, session, test_mode)
+    _run_build_step(build_fact_corporate_action_impact, session, test_mode)
+    _run_build_step(build_fact_cash_movements, session, test_mode)
+    _run_build_step(build_fact_cash_positions, session, test_mode)
+
+
+def build_foundation_tables(session: Session, test_mode: bool = False):
+    """
+    Build all foundation tables in dependency order.
+    
+    Note: Prefer using build_dimension_tables() + build_fact_tables() separately
+    for proper date anchoring. This function will skip fact tables if
+    max_price_date is not available.
+    """
+    random.seed(config.RNG_SEED)
+    
+    # Ensure database context is set at the start
+    database_name = config.DATABASE['name']
+    session.sql(f"USE DATABASE {database_name}").collect()
+    session.sql(f"USE SCHEMA {config.DATABASE['schemas']['curated']}").collect()
+    
+    # Always build dimension tables
+    build_dimension_tables(session, test_mode)
+    
+    # Check if FACT_STOCK_PRICES exists for date anchoring
+    max_price_date = get_max_price_date(session)
+    if max_price_date is None:
+        raise RuntimeError(
+            "FACT_STOCK_PRICES not found - cannot build fact tables. "
+            "Run generate_market_data.build_price_anchor() first."
+        )
+    
+    # Build fact tables with date anchoring
+    build_fact_tables(session, test_mode)
 
 
 
 
 def build_dim_issuer(session: Session, test_mode: bool = False):
-    """Build issuer dimension from COMPANY_INDEX with proper deduplication."""
+    """
+    Build DIM_ISSUER as the DRIVER TABLE directly from config.DEMO_COMPANIES.
     
+    This is the single source of truth for all companies in the demo.
+    All other data (DIM_SECURITY, transcripts, market data, documents) 
+    flows from DIM_ISSUER.
     
-    # Verify SEC Filings access (view depends on it)
-    try:
-        from extract_real_assets import verify_sec_filings_access
-        verify_sec_filings_access(session)
-    except Exception as e:
-        config.log_error(f" Error: {e}")
-        raise
+    Columns:
+        - IssuerID: Internal ID (auto-generated)
+        - ProviderCompanyID: COMPANY_ID from COMPANY_INDEX (for linking to external data)
+        - CIK: SEC Central Index Key (for SEC filings and transcripts)
+        - PrimaryTicker: Stock ticker symbol
+        - LegalName: Company name
+        - Sector: Industry sector from DEMO_COMPANIES config
+        - CountryOfIncorporation: Country (from COMPANY_INDEX or default 'US')
+        - LEI: Legal Entity Identifier (from COMPANY_INDEX or generated)
+    """
     
-    # Build issuer dimension using COMPANY_INDEX as the authoritative source
-    # This ensures one row per company, avoiding duplicates from multiple securities
+    # Build list of demo companies for SQL
+    demo_companies = config.DEMO_COMPANIES
+    
+    # Create VALUES clause for demo companies - all fields are required
+    values_rows = []
+    for idx, (ticker, data) in enumerate(demo_companies.items(), start=1):
+        company_name = data['company_name'].replace("'", "''")  # Escape single quotes
+        provider_id = data['provider_company_id']
+        cik = data['cik']
+        sector = data['sector']
+        tier = data['tier']
+        values_rows.append(
+            f"('{ticker}', '{company_name}', '{provider_id}', '{cik}', '{sector}', '{tier}')"
+        )
+    
+    values_clause = ",\n            ".join(values_rows)
+    
+    # Build DIM_ISSUER by joining demo companies with COMPANY_INDEX for additional metadata
+    # INNER JOIN ensures all companies must exist in real data source
     session.sql(f"""
         CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.DIM_ISSUER AS
-        WITH company_data AS (
-            -- Start with distinct companies from COMPANY_INDEX
-            SELECT DISTINCT
-                ci.COMPANY_NAME,
-                ci.CIK,
-                ci.PRIMARY_TICKER,
-                ci.LEI,  -- LEI array from COMPANY_INDEX
+        WITH demo_companies AS (
+            SELECT * FROM (VALUES
+            {values_clause}
+            ) AS t(Ticker, CompanyName, ProviderCompanyID, CIK, Sector, Tier)
+        ),
+        enriched AS (
+            -- Enrich demo companies with COMPANY_INDEX data (INNER JOIN - require match)
+            SELECT 
+                dc.Ticker,
+                dc.CompanyName,
+                dc.ProviderCompanyID,
+                dc.CIK,
+                dc.Sector,
+                dc.Tier,
+                ci.LEI,
                 -- Get country from company characteristics
-                MAX(CASE WHEN cc.RELATIONSHIP_TYPE = 'business_address_country' THEN cc.VALUE END) as COUNTRY_OF_DOMICILE,
-                -- Get industry from SIC description (prefer this over NULL values)
-                MAX(CASE WHEN cc.RELATIONSHIP_TYPE = 'sic_description' THEN cc.VALUE END) as INDUSTRY_SECTOR
-            FROM {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.COMPANY_INDEX ci
-            LEFT JOIN {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.COMPANY_CHARACTERISTICS cc
+                MAX(CASE WHEN cc.RELATIONSHIP_TYPE = 'business_address_country' THEN cc.VALUE END) as CountryFromIndex
+            FROM demo_companies dc
+            INNER JOIN {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.COMPANY_INDEX ci
+                ON dc.ProviderCompanyID = ci.COMPANY_ID
+            INNER JOIN {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.COMPANY_CHARACTERISTICS cc
                 ON ci.COMPANY_ID = cc.COMPANY_ID
-            WHERE ci.COMPANY_NAME IS NOT NULL
-                AND ci.COMPANY_NAME != 'Unknown'
-                -- Only include companies that have securities in our V_REAL_ASSETS view
-                AND EXISTS (
-                    SELECT 1 
-                    FROM {config.DATABASE['name']}.{config.DATABASE['schemas']['RAW'.lower()]}.V_REAL_ASSETS ra
-                    WHERE ra.CIK = ci.CIK
-                )
-            GROUP BY ci.COMPANY_NAME, ci.CIK, ci.PRIMARY_TICKER, ci.LEI
+            GROUP BY dc.Ticker, dc.CompanyName, dc.ProviderCompanyID, dc.CIK, dc.Sector, dc.Tier, ci.LEI
         )
         SELECT 
-            ROW_NUMBER() OVER (ORDER BY COMPANY_NAME) as IssuerID,
+            ROW_NUMBER() OVER (ORDER BY 
+                CASE Tier WHEN 'core' THEN 1 WHEN 'major' THEN 2 ELSE 3 END,
+                CompanyName
+            ) as IssuerID,
             NULL as UltimateParentIssuerID,
-            SUBSTR(TRIM(COMPANY_NAME), 1, 255) as LegalName,
-            COALESCE(LEI[0]::VARCHAR, 'LEI' || LPAD(ABS(HASH(COMPANY_NAME)) % 1000000, 6, '0')) as LEI,
-            COALESCE(COUNTRY_OF_DOMICILE, 'US') as CountryOfIncorporation,
-            COALESCE(INDUSTRY_SECTOR, 'Diversified') as SIC_DESCRIPTION,
+            ProviderCompanyID,
             CIK,
-            PRIMARY_TICKER as PrimaryTicker
-        FROM company_data
-        WHERE COMPANY_NAME IS NOT NULL
-        ORDER BY COMPANY_NAME
+            Ticker as PrimaryTicker,
+            SUBSTR(TRIM(CompanyName), 1, 255) as LegalName,
+            Sector as SIC_DESCRIPTION,
+            Sector as GICS_SECTOR,
+            CountryFromIndex as CountryOfIncorporation,
+            LEI[0]::VARCHAR as LEI,
+            Tier
+        FROM enriched
+        ORDER BY IssuerID
     """).collect()
     
-    # Get count for reporting
+    # Validate that all demo companies were matched in real data source
+    expected_count = len(demo_companies)
     issuer_count = session.sql(f"SELECT COUNT(*) as cnt FROM {config.DATABASE['name']}.CURATED.DIM_ISSUER").collect()[0]['CNT']
+    if issuer_count != expected_count:
+        raise RuntimeError(
+            f"DIM_ISSUER build failed: expected {expected_count} issuers from DEMO_COMPANIES, "
+            f"but only {issuer_count} matched in real data source. "
+            f"Check that all DEMO_COMPANIES have valid provider_company_id values in "
+            f"{config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.COMPANY_INDEX"
+        )
+    
+    log_success(f"  DIM_ISSUER: {issuer_count} issuers (driver table)")
     
     # Report on data quality
     quality_stats = session.sql(f"""
         SELECT 
             COUNT(*) as total_issuers,
-            COUNT(CASE WHEN CIK IS NOT NULL THEN 1 END) as issuers_with_cik,
-            COUNT(CASE WHEN SIC_DESCRIPTION != 'Diversified' THEN 1 END) as issuers_with_industry,
-            COUNT(CASE WHEN LEI NOT LIKE 'LEI%' OR LENGTH(LEI) > 20 THEN 1 END) as issuers_with_real_lei
+            COUNT(CASE WHEN CIK IS NOT NULL AND CIK != '' THEN 1 END) as issuers_with_cik,
+            COUNT(CASE WHEN ProviderCompanyID IS NOT NULL AND ProviderCompanyID != '' THEN 1 END) as issuers_with_provider_id,
+            COUNT(CASE WHEN Tier = 'core' THEN 1 END) as core_companies,
+            COUNT(CASE WHEN Tier = 'major' THEN 1 END) as major_companies,
+            COUNT(CASE WHEN Tier = 'additional' THEN 1 END) as additional_companies
         FROM {config.DATABASE['name']}.CURATED.DIM_ISSUER
     """).collect()[0]
     
-    # Suppressed: print(f"    With CIK: {quality_stats['ISSUERS_WITH_CIK']:,}")
-    # Suppressed: print(f"    With Industry: {quality_stats['ISSUERS_WITH_INDUSTRY']:,}")
-    # Suppressed: print(f"    With Real LEI: {quality_stats['ISSUERS_WITH_REAL_LEI']:,}")
+    log_info(f"    Core: {quality_stats['CORE_COMPANIES']}, Major: {quality_stats['MAJOR_COMPANIES']}, Additional: {quality_stats['ADDITIONAL_COMPANIES']}")
+    log_info(f"    With CIK: {quality_stats['ISSUERS_WITH_CIK']}, With Provider ID: {quality_stats['ISSUERS_WITH_PROVIDER_ID']}")
 
 
 
 def build_dim_security(session: Session, test_mode: bool = False):
-    """Build securities from V_REAL_ASSETS view with proper issuer linkage via CIK."""
+    """
+    Build DIM_SECURITY directly from DIM_ISSUER (one equity security per issuer).
     
-    # Use test mode counts if specified (for reporting only)
-    securities_count = config.get_securities_count(test_mode)
+    This function derives securities from the DIM_ISSUER driver table:
+    - One security per issuer (equities only, no bonds/ETFs)
+    - FIGI is a placeholder derived from ticker (no external lookup)
+    - Direct 1:1 relationship with DIM_ISSUER
+    - All company info comes from DEMO_COMPANIES via DIM_ISSUER
+    """
     
-    
-    # Verify V_REAL_ASSETS view exists (should have been created during foundation build)
-    try:
-        from extract_real_assets import verify_real_assets_view_exists
-        verify_real_assets_view_exists(session)
-    except Exception as e:
-        config.log_error(f" Error: {e}")
-        raise
-    
-    # Build security dimension using multi-strategy issuer linkage
-    # Strategy 1: CIK matching (most accurate)
-    # Strategy 2: SECURITY_NAME matching via COMPANY_SECURITY_RELATIONSHIPS
-    # Strategy 3: Create synthetic issuer for remaining securities
+    # Build security dimension directly from DIM_ISSUER (no OPENFIGI lookup)
     session.sql(f"""
         CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.DIM_SECURITY AS
-        WITH parsed_securities AS (
-            -- Parse bond ticker information (rate and maturity date)
-            -- Examples: "DDD 5.5 12/15/16", "AAPL 2.3 05/11/22", "ONEM 3 06/15/25", "F 3.5 12/20/22 NOTZ"
-            SELECT 
-                ra.TOP_LEVEL_OPENFIGI_ID,
-                ra.PRIMARY_TICKER,
-                ra.SECURITY_NAME,
-                ra.ASSET_CATEGORY,
-                ra.COUNTRY_OF_DOMICILE,
-                ra.CIK,
-                -- Parse coupon rate from ticker (2nd space-separated token)
-                -- "EXPE 5.95 08/15/20" -> SPLIT_PART 2 = "5.95"
-                TRY_TO_DECIMAL(
-                    SPLIT_PART(ra.PRIMARY_TICKER, ' ', 2),
-                    10, 4
-                ) as parsed_coupon_rate,
-                -- Parse maturity date from ticker (3rd space-separated token in MM/DD/YY format)
-                -- "EXPE 5.95 08/15/20" -> SPLIT_PART 3 = "08/15/20"
-                TRY_TO_DATE(
-                    SPLIT_PART(ra.PRIMARY_TICKER, ' ', 3),
-                    'MM/DD/YY'
-                ) as parsed_maturity_date
-            FROM {config.DATABASE['name']}.{config.DATABASE['schemas']['RAW'.lower()]}.V_REAL_ASSETS ra
-            WHERE ra.PRIMARY_TICKER IS NOT NULL
-                AND ra.TOP_LEVEL_OPENFIGI_ID IS NOT NULL
-                AND (
-                    -- Corporate bonds can have longer tickers
-                    (ra.ASSET_CATEGORY = 'Corporate Bond' AND LENGTH(ra.PRIMARY_TICKER) <= 50) OR
-                    -- Equity and ETF have shorter tickers
-                    (ra.ASSET_CATEGORY IN ('Equity', 'ETF') AND LENGTH(ra.PRIMARY_TICKER) <= 15)
-                )
-        ),
-        filtered_securities AS (
-            -- Filter out bonds that matured before our historical data period
-            SELECT 
-                ps.TOP_LEVEL_OPENFIGI_ID,
-                ps.PRIMARY_TICKER,
-                ps.SECURITY_NAME,
-                ps.ASSET_CATEGORY,
-                ps.COUNTRY_OF_DOMICILE,
-                ps.CIK,
-                ps.parsed_coupon_rate,
-                ps.parsed_maturity_date
-            FROM parsed_securities ps
-            WHERE (
-                -- Keep all non-bonds
-                ps.ASSET_CATEGORY != 'Corporate Bond'
-                OR
-                -- For bonds, only keep those that mature after our data start date
-                (ps.ASSET_CATEGORY = 'Corporate Bond' AND (
-                    ps.parsed_maturity_date IS NULL OR  -- Keep if we can't parse date
-                    ps.parsed_maturity_date >= DATE('2020-01-01')  -- Filter out pre-2020 maturities
-                ))
-            )
-        ),
-        issuer_matches_via_cik AS (
-            -- Strategy 1: Match via CIK (most accurate, ~15K securities)
-            SELECT 
-                fs.TOP_LEVEL_OPENFIGI_ID,
-                i.IssuerID,
-                'CIK' as match_method
-            FROM filtered_securities fs
-            INNER JOIN {config.DATABASE['name']}.CURATED.DIM_ISSUER i
-                ON fs.CIK = i.CIK
-        ),
-        company_cik_mapping AS (
-            -- Map COMPANY_ID to CIK for name-based matching
-            SELECT DISTINCT
-                ci.COMPANY_ID,
-                ci.CIK
-            FROM {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.COMPANY_INDEX ci
-            WHERE ci.CIK IS NOT NULL
-        ),
-        issuer_matches_via_name AS (
-            -- Strategy 2: Match via SECURITY_NAME for securities without CIK (~3.7K additional)
-            SELECT DISTINCT
-                fs.TOP_LEVEL_OPENFIGI_ID,
-                i.IssuerID,
-                'SECURITY_NAME' as match_method
-            FROM filtered_securities fs
-            LEFT JOIN issuer_matches_via_cik cik_match
-                ON fs.TOP_LEVEL_OPENFIGI_ID = cik_match.TOP_LEVEL_OPENFIGI_ID
-            INNER JOIN {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.COMPANY_SECURITY_RELATIONSHIPS csr
-                ON fs.SECURITY_NAME = csr.SECURITY_NAME
-            INNER JOIN company_cik_mapping ccm
-                ON csr.COMPANY_ID = ccm.COMPANY_ID
-            INNER JOIN {config.DATABASE['name']}.CURATED.DIM_ISSUER i
-                ON ccm.CIK = i.CIK
-            WHERE cik_match.TOP_LEVEL_OPENFIGI_ID IS NULL  -- Only unmatched securities
-        ),
-        all_issuer_matches AS (
-            -- Combine both matching strategies
-            SELECT * FROM issuer_matches_via_cik
-            UNION ALL
-            SELECT * FROM issuer_matches_via_name
-        ),
-        unmatched_securities AS (
-            -- Find securities that still have no issuer match
-            SELECT DISTINCT
-                fs.SECURITY_NAME,
-                fs.COUNTRY_OF_DOMICILE
-            FROM filtered_securities fs
-            LEFT JOIN all_issuer_matches im
-                ON fs.TOP_LEVEL_OPENFIGI_ID = im.TOP_LEVEL_OPENFIGI_ID
-            WHERE im.IssuerID IS NULL
-        ),
-        synthetic_issuers AS (
-            -- Strategy 3: Create synthetic issuers from SECURITY_NAME for remaining unmatched securities
-            -- Assign IssuerIDs starting after the max existing IssuerID to avoid conflicts
-            SELECT 
-                us.SECURITY_NAME,
-                (SELECT MAX(IssuerID) FROM {config.DATABASE['name']}.CURATED.DIM_ISSUER) + ROW_NUMBER() OVER (ORDER BY us.SECURITY_NAME) as IssuerID,
-                us.COUNTRY_OF_DOMICILE,
-                'SYNTHETIC_FROM_SECURITY' as match_method
-            FROM unmatched_securities us
-        ),
-        issuer_matches_via_synthetic AS (
-            -- Strategy 3: Match via synthetic issuers created from SECURITY_NAME
-            SELECT 
-                fs.TOP_LEVEL_OPENFIGI_ID,
-                si.IssuerID,
-                'SYNTHETIC_FROM_SECURITY' as match_method
-            FROM filtered_securities fs
-            LEFT JOIN all_issuer_matches im
-                ON fs.TOP_LEVEL_OPENFIGI_ID = im.TOP_LEVEL_OPENFIGI_ID
-            INNER JOIN synthetic_issuers si
-                ON fs.SECURITY_NAME = si.SECURITY_NAME
-            WHERE im.IssuerID IS NULL  -- Only unmatched securities
-        ),
-        all_issuer_matches_with_synthetic AS (
-            -- Combine all three matching strategies
-            SELECT * FROM issuer_matches_via_cik
-            UNION ALL
-            SELECT * FROM issuer_matches_via_name
-            UNION ALL
-            SELECT * FROM issuer_matches_via_synthetic
-        ),
-        security_data AS (
-            -- Join securities with matched issuers (including synthetic)
-            SELECT 
-                fs.TOP_LEVEL_OPENFIGI_ID,
-                fs.PRIMARY_TICKER,
-                fs.SECURITY_NAME,
-                fs.ASSET_CATEGORY,
-                fs.COUNTRY_OF_DOMICILE,
-                fs.parsed_coupon_rate,
-                fs.parsed_maturity_date,
-                COALESCE(im.IssuerID, 1) as IssuerID,  -- Fallback to IssuerID=1 only if all strategies fail
-                im.match_method
-            FROM filtered_securities fs
-            LEFT JOIN all_issuer_matches_with_synthetic im
-                ON fs.TOP_LEVEL_OPENFIGI_ID = im.TOP_LEVEL_OPENFIGI_ID
-        )
         SELECT 
-            ROW_NUMBER() OVER (ORDER BY ASSET_CATEGORY, PRIMARY_TICKER) as SecurityID,
-            COALESCE(IssuerID, 1) as IssuerID,
-            PRIMARY_TICKER as Ticker,
-            TOP_LEVEL_OPENFIGI_ID as FIGI,
-            SUBSTR(SECURITY_NAME, 1, 255) as Description,
-            ASSET_CATEGORY as AssetClass,
-            CASE 
-                WHEN ASSET_CATEGORY = 'Equity' THEN 'Common Stock'
-                WHEN ASSET_CATEGORY = 'Corporate Bond' THEN 'Corporate Bond'
-                WHEN ASSET_CATEGORY = 'ETF' THEN 'Exchange Traded Fund'
-                ELSE 'Other'
-            END as SecurityType,
-            COALESCE(COUNTRY_OF_DOMICILE, 'US') as CountryOfRisk,
+            ROW_NUMBER() OVER (ORDER BY IssuerID) as SecurityID,
+            IssuerID,
+            PrimaryTicker as Ticker,
+            'FIGI_' || PrimaryTicker as FIGI,  -- Placeholder FIGI derived from ticker
+            LegalName as Description,
+            'Equity' as AssetClass,
+            'Common Stock' as SecurityType,
+            CountryOfIncorporation as CountryOfRisk,
             DATE('2010-01-01') as IssueDate,
-            -- Use parsed maturity date for bonds, or default to 2030
-            CASE 
-                WHEN ASSET_CATEGORY = 'Corporate Bond' THEN COALESCE(parsed_maturity_date, DATE('2030-01-01'))
-                ELSE NULL
-            END as MaturityDate,
-            -- Use parsed coupon rate for bonds, or default to 5.0
-            CASE 
-                WHEN ASSET_CATEGORY = 'Corporate Bond' THEN COALESCE(parsed_coupon_rate, 5.0)
-                ELSE NULL
-            END as CouponRate,
+            NULL as MaturityDate,
+            NULL as CouponRate,
             CURRENT_TIMESTAMP() as RecordStartDate,
             NULL as RecordEndDate,
-            TRUE as IsActive,
-            match_method  -- Track which matching strategy was used for reporting
-        FROM security_data
+            TRUE as IsActive
+        FROM {config.DATABASE['name']}.CURATED.DIM_ISSUER
+        WHERE PrimaryTicker IS NOT NULL
         ORDER BY SecurityID
     """).collect()
     
-    # Insert synthetic issuers into DIM_ISSUER table for securities that needed synthetic matching
-    # This ensures referential integrity and enables proper issuer-level analysis
-    session.sql(f"""
-        INSERT INTO {config.DATABASE['name']}.CURATED.DIM_ISSUER (
-            IssuerID,
-            UltimateParentIssuerID,
-            LegalName,
-            LEI,
-            CountryOfIncorporation,
-            SIC_DESCRIPTION,
-            CIK
-        )
-        SELECT DISTINCT
-            s.IssuerID,
-            NULL as UltimateParentIssuerID,
-            s.Description as LegalName,
-            'SYNTHETIC' || LPAD(s.IssuerID, 10, '0') as LEI,
-            s.CountryOfRisk as CountryOfIncorporation,
-            'Diversified' as SIC_DESCRIPTION,
-            NULL as CIK
-        FROM {config.DATABASE['name']}.CURATED.DIM_SECURITY s
-        WHERE s.match_method = 'SYNTHETIC_FROM_SECURITY'
-            AND NOT EXISTS (
-                SELECT 1 FROM {config.DATABASE['name']}.CURATED.DIM_ISSUER i
-                WHERE i.IssuerID = s.IssuerID
-            )
-    """).collect()
-    
     # Get and report counts
-    count_by_class = session.sql(f"""
-        SELECT AssetClass, COUNT(*) as cnt 
-        FROM {config.DATABASE['name']}.CURATED.DIM_SECURITY 
-        GROUP BY AssetClass
-        ORDER BY AssetClass
-    """).collect()
-    
-    total_securities = sum(row['CNT'] for row in count_by_class)
-    
-    for row in count_by_class:
-        pass
-    
-    # Validate issuer linkage quality with detailed breakdown
-    linkage_stats = session.sql(f"""
-        SELECT 
-            COUNT(DISTINCT IssuerID) as distinct_issuers_linked,
-            COUNT(CASE WHEN IssuerID = 1 THEN 1 END) as securities_without_issuer,
-            SUM(CASE WHEN match_method = 'CIK' THEN 1 ELSE 0 END) as matched_via_cik,
-            SUM(CASE WHEN match_method = 'SECURITY_NAME' THEN 1 ELSE 0 END) as matched_via_name,
-            SUM(CASE WHEN match_method = 'SYNTHETIC_FROM_SECURITY' THEN 1 ELSE 0 END) as matched_via_synthetic,
-            SUM(CASE WHEN match_method IS NULL THEN 1 ELSE 0 END) as unmatched
+    security_count = session.sql(f"""
+        SELECT COUNT(*) as total
         FROM {config.DATABASE['name']}.CURATED.DIM_SECURITY
     """).collect()[0]
     
-    # Suppressed: print(f"    Issuer linkage results:")
-    # Suppressed: print(f"      • Matched via CIK: {linkage_stats['MATCHED_VIA_CIK']:,} securities")
-    # Suppressed: print(f"      • Matched via SECURITY_NAME: {linkage_stats['MATCHED_VIA_NAME']:,} securities")
-    # Suppressed: print(f"      • Matched via synthetic issuer: {linkage_stats['MATCHED_VIA_SYNTHETIC']:,} securities")
-    # Suppressed: print(f"      • Unmatched (using default): {linkage_stats['UNMATCHED']:,} securities")
-    # Suppressed: print(f"    Linked to {linkage_stats['DISTINCT_ISSUERS_LINKED']:,} distinct issuers")
-    
-    total_matched = linkage_stats['MATCHED_VIA_CIK'] + linkage_stats['MATCHED_VIA_NAME'] + linkage_stats['MATCHED_VIA_SYNTHETIC']
-    pct_matched = 100.0 * total_matched / total_securities
-    # Suppressed: print(f"   ✅ {pct_matched:.1f}% of securities have issuer linkage")
-    
-    if linkage_stats['UNMATCHED'] > 0:
-        pct_unmatched = 100.0 * linkage_stats['UNMATCHED'] / total_securities
-    
-    # Report on bond parsing success
-    bond_stats = session.sql(f"""
-        SELECT 
-            COUNT(*) as total_bonds,
-            COUNT(CASE WHEN CouponRate != 5.0 THEN 1 END) as bonds_with_parsed_rate,
-            COUNT(CASE WHEN MaturityDate != DATE('2030-01-01') THEN 1 END) as bonds_with_parsed_maturity,
-            MIN(MaturityDate) as earliest_maturity,
-            MAX(MaturityDate) as latest_maturity
-        FROM {config.DATABASE['name']}.CURATED.DIM_SECURITY
-        WHERE AssetClass = 'Corporate Bond'
-    """).collect()
-    
-    if bond_stats and bond_stats[0]['TOTAL_BONDS'] > 0:
-        pass
+    log_success(f"  DIM_SECURITY: {security_count['TOTAL']} securities (1 per issuer, derived from DIM_ISSUER)")
 
 
 def build_dim_portfolio(session: Session):
-    """Build portfolio dimension from unified PORTFOLIOS configuration."""
+    """Build portfolio dimension from unified PORTFOLIOS configuration.
+    
+    Includes BenchmarkID to link each portfolio to its benchmark for
+    portfolio vs benchmark performance comparison in semantic views.
+    """
+    log_detail("  Building DIM_PORTFOLIO...")
+    
+    # Build benchmark name -> ID mapping from config.BENCHMARKS
+    benchmark_name_to_id = {b['name']: i + 1 for i, b in enumerate(config.BENCHMARKS)}
     
     portfolio_data = []
     for i, (portfolio_name, portfolio_config) in enumerate(config.PORTFOLIOS.items()):
-        # Use strategy from config, with intelligent fallback
-        strategy = portfolio_config.get('strategy', 'Equity')
+        # All portfolio config fields are required
+        strategy = portfolio_config['strategy']
+        
+        # Look up BenchmarkID from the portfolio's benchmark name
+        benchmark_name = portfolio_config['benchmark']
+        if benchmark_name not in benchmark_name_to_id:
+            raise ValueError(
+                f"Portfolio '{portfolio_name}' references benchmark '{benchmark_name}' "
+                f"which is not defined in config.BENCHMARKS"
+            )
+        benchmark_id = benchmark_name_to_id[benchmark_name]
             
         portfolio_data.append({
             'PortfolioID': i + 1,
             'PortfolioCode': f"{config.DATA_MODEL['portfolio_code_prefix']}_{i+1:02d}",
             'PortfolioName': portfolio_name,
             'Strategy': strategy,
-            'BaseCurrency': portfolio_config.get('base_currency', 'USD'),
-            'InceptionDate': datetime.strptime(portfolio_config.get('inception_date', '2019-01-01'), '%Y-%m-%d').date()
+            'BaseCurrency': portfolio_config['base_currency'],
+            'InceptionDate': datetime.strptime(portfolio_config['inception_date'], '%Y-%m-%d').date(),
+            'BenchmarkID': benchmark_id
         })
     
     portfolios_df = session.create_dataframe(portfolio_data)
@@ -519,6 +407,7 @@ def build_dim_portfolio(session: Session):
 
 def build_dim_benchmark(session: Session):
     """Build benchmark dimension."""
+    log_detail("  Building DIM_BENCHMARK...")
     
     benchmark_data = []
     for i, benchmark in enumerate(config.BENCHMARKS):
@@ -565,50 +454,29 @@ def build_dim_supply_chain_relationships(session: Session, test_mode: bool = Fal
         )
     """).collect()
     
-    # Step 2: Get issuer IDs for demo companies
-    issuer_map = {}
-    for ticker, company_info in config.SUPPLY_CHAIN_DEMO_COMPANIES.items():
-        try:
-            # Try with both ticker and FIGI first
-            result = session.sql(f"""
-                SELECT i.IssuerID, i.LegalName
-                FROM {database_name}.CURATED.DIM_ISSUER i
-                JOIN {database_name}.CURATED.DIM_SECURITY s ON i.IssuerID = s.IssuerID
-                WHERE s.Ticker = '{ticker}' AND s.FIGI = '{company_info['openfigi_id']}'
-                LIMIT 1
-            """).collect()
-            
-            # If not found, try with just ticker (for non-US companies like TSM)
-            if not result:
-                result = session.sql(f"""
-                    SELECT i.IssuerID, i.LegalName
-                    FROM {database_name}.CURATED.DIM_ISSUER i
-                    JOIN {database_name}.CURATED.DIM_SECURITY s ON i.IssuerID = s.IssuerID
-                    WHERE s.Ticker = '{ticker}'
-                    LIMIT 1
-                """).collect()
-            
-            if result:
-                issuer_map[ticker] = result[0]['ISSUERID']
-            else:
-                config.log_warning(f" Could not find issuer for {ticker}")
-        except Exception as e:
-            pass
+    # Step 2: Get issuer IDs for supply chain companies - derive tickers from config
+    # Batched lookup - single query instead of loop (Snowflake I/O best practice)
+    supply_chain_tickers = set()
+    for rel in config.SUPPLY_CHAIN_DEMO_RELATIONSHIPS:
+        supply_chain_tickers.add(rel[0])  # company_ticker
+        supply_chain_tickers.add(rel[1])  # counterparty_ticker
+    
+    tickers_sql = ', '.join(f"'{t}'" for t in supply_chain_tickers)
+    issuer_map_rows = session.sql(f"""
+        SELECT i.PrimaryTicker, i.IssuerID
+        FROM {database_name}.CURATED.DIM_ISSUER i
+        WHERE i.PrimaryTicker IN ({tickers_sql})
+    """).collect()
+    issuer_map = {row['PRIMARYTICKER']: row['ISSUERID'] for row in issuer_map_rows}
+    
+    # Log any missing tickers
+    missing_tickers = supply_chain_tickers - set(issuer_map.keys())
+    for ticker in missing_tickers:
+        log_warning(f"  Could not find issuer for supply chain ticker: {ticker}")
     
     # Step 3: Create demo relationships from config
     relationships = []
     relationship_id = 1
-    
-    if not issuer_map:
-        pass
-        available_tickers = session.sql(f"""
-            SELECT DISTINCT s.Ticker 
-            FROM {database_name}.CURATED.DIM_SECURITY s
-            WHERE s.Ticker IN ('TSM', 'NVDA', 'AMD', 'AAPL', 'GM', 'F')
-            ORDER BY s.Ticker
-        """).collect()
-        for row in available_tickers:
-            pass
     
     for company_ticker, counterparty_ticker, rel_type, share, criticality in config.SUPPLY_CHAIN_DEMO_RELATIONSHIPS:
         if company_ticker in issuer_map and counterparty_ticker in issuer_map:
@@ -694,25 +562,31 @@ def build_dim_supply_chain_relationships(session: Session, test_mode: bool = Fal
             f"{database_name}.CURATED.DIM_SUPPLY_CHAIN_RELATIONSHIPS"
         )
     else:
-        config.log_warning("  No supply chain relationships created")
+        log_warning("  No supply chain relationships created")
 
 def build_fact_transaction(session: Session, test_mode: bool = False):
     """Generate synthetic transaction history."""
     
-    # Verify DIM_SECURITY table has FIGI column before proceeding
+    # Verify DIM_SECURITY table exists and has Ticker column
     try:
         columns = session.sql(f"DESCRIBE TABLE {config.DATABASE['name']}.CURATED.DIM_SECURITY").collect()
         column_names = [col['name'] for col in columns]
-        if 'FIGI' not in column_names:
-            raise Exception(f"DIM_SECURITY table missing FIGI column. Available columns: {column_names}")
+        if 'TICKER' not in column_names:
+            raise Exception(f"DIM_SECURITY table missing TICKER column. Available columns: {column_names}")
     except Exception as e:
-        config.log_error(f" Table structure verification failed: {e}")
+        log_error(f" Table structure verification failed: {e}")
         raise
     
-    # Generate transactions for the last 12 months that build up to current positions
+    # Get max price date as upper bound for transactions (anchor to real market data)
+    max_price_date = get_max_price_date(session)
+    if max_price_date is None:
+        raise RuntimeError(
+            "FACT_STOCK_PRICES not found - cannot build FACT_TRANSACTION. "
+            "Run generate_market_data.build_price_anchor() first."
+        )
     
     # Get SQL mapping for demo portfolios (eliminates hardcoded company references)
-    demo_sql_mapping = config.build_demo_portfolios_sql_mapping()
+    demo_sql_mapping = build_demo_portfolios_sql_mapping()
     
     # This is a simplified version - in a real implementation, we'd generate
     # realistic transaction patterns that result in the desired end positions
@@ -720,53 +594,21 @@ def build_fact_transaction(session: Session, test_mode: bool = False):
         -- Generate synthetic transaction history that builds to realistic portfolio positions
         -- This creates a complete audit trail of BUY transactions over the past 12 months
         CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.FACT_TRANSACTION AS
-        WITH all_us_securities AS (
-            -- Step 1a: Identify all equity securities with priority rankings
-            -- Creates a priority ranking system to ensure portfolios hold recognizable securities
+        WITH all_securities AS (
+            -- All securities with priority rankings from DIM_ISSUER tier
+            -- With DEMO_COMPANIES approach, each issuer has exactly one security (1:1 mapping)
             SELECT 
                 s.SecurityID,
                 s.IssuerID,
                 s.Ticker,
-                s.FIGI,
-                CASE 
-                    -- Priority 1-4: Demo companies with their configured priorities from config.DEMO_COMPANIES
-                    {config.get_demo_company_priority_sql()}
-                    -- Priority 5: Other major US stocks from config.MAJOR_US_STOCKS
-                    WHEN s.Ticker IN {config.safe_sql_tuple(config.get_major_us_stocks('tier1'))} 
-                         AND i.CountryOfIncorporation = 'US' THEN 5
-                    -- Priority 6: All other US equities (using data model columns)
-                    WHEN i.CountryOfIncorporation = 'US' AND s.AssetClass = 'Equity' THEN 6
-                    -- Priority 7: Non-US equities
-                    WHEN s.AssetClass = 'Equity' THEN 7
-                    -- Priority 8: All other asset types
-                    ELSE 8
-                END as priority,
-                -- Rank securities within each issuer to select only one per issuer
-                ROW_NUMBER() OVER (PARTITION BY s.IssuerID ORDER BY 
-                    CASE 
-                        -- Prioritize demo companies using config priorities
-                        {config.get_demo_company_priority_sql()}
-                        -- Then prefer Equity over other asset classes
-                        WHEN s.AssetClass = 'Equity' THEN 10
-                        -- Then other asset types
-                        ELSE 20
-                    END,
-                    LENGTH(s.Ticker),  -- Prefer shorter tickers (common stock over ADRs)
-                    s.SecurityID  -- Deterministic tiebreaker
-                ) as issuer_rank
+                CASE i.Tier
+                    WHEN 'core' THEN 1
+                    WHEN 'major' THEN 2
+                    WHEN 'additional' THEN 3
+                    ELSE 4
+                END as priority
             FROM {config.DATABASE['name']}.CURATED.DIM_SECURITY s
             JOIN {config.DATABASE['name']}.CURATED.DIM_ISSUER i ON s.IssuerID = i.IssuerID
-            WHERE s.AssetClass = 'Equity'  -- Focus on equities for transaction generation
-        ),
-        major_us_securities AS (
-            -- Step 1b: Select only one security per issuer to avoid duplicates like "Commercial Metals Co" appearing twice
-            SELECT 
-                SecurityID,
-                Ticker,
-                FIGI,
-                priority
-            FROM all_us_securities
-            WHERE issuer_rank = 1  -- Only the primary security for each issuer
         ),
         portfolio_securities AS (
             -- Step 2: Assign securities to portfolios with demo-specific logic from config.PORTFOLIOS
@@ -778,14 +620,12 @@ def build_fact_transaction(session: Session, test_mode: bool = False):
                 s.priority,
                 -- Special prioritization for demo portfolios (fully driven by config.PORTFOLIOS)
                 CASE 
-                    WHEN p.PortfolioName IN {config.safe_sql_tuple(config.get_demo_portfolio_names())} THEN
+                    WHEN p.PortfolioName IN {safe_sql_tuple(get_demo_portfolio_names())} THEN
                         CASE 
-                            -- Guaranteed top holdings (order from config)
-                            {demo_sql_mapping['guaranteed_case_when_sql']}
-                            -- Additional demo holdings
-                            WHEN s.FIGI IN {demo_sql_mapping['additional_figis']} THEN {demo_sql_mapping['additional_priority']}
-                            -- Filler stocks (from config.MAJOR_US_STOCKS)
-                            WHEN s.Ticker IN {config.safe_sql_tuple(config.get_major_us_stocks('all'))} THEN {demo_sql_mapping['additional_priority'] + 1}
+                            -- Priority holdings from DEMO_COMPANIES demo_order
+                            {demo_sql_mapping['priority_case_when_sql']}
+                            -- Filler stocks (from DEMO_COMPANIES tier=major)
+                            WHEN s.Ticker IN {safe_sql_tuple(get_demo_company_tickers(tier='major'))} THEN {demo_sql_mapping['additional_priority']}
                             ELSE 999  -- Exclude non-demo companies from demo portfolios
                         END
                     ELSE s.priority  -- Use normal priority for non-demo portfolios
@@ -793,14 +633,12 @@ def build_fact_transaction(session: Session, test_mode: bool = False):
                 -- Random ordering within priority groups for portfolio diversification
                 ROW_NUMBER() OVER (PARTITION BY p.PortfolioID ORDER BY 
                     CASE 
-                        WHEN p.PortfolioName IN {config.safe_sql_tuple(config.get_demo_portfolio_names())} THEN
+                        WHEN p.PortfolioName IN {safe_sql_tuple(get_demo_portfolio_names())} THEN
                             CASE 
-                                -- Use OpenFIGI IDs for precise ordering (from config.PORTFOLIOS)
-                                {demo_sql_mapping['guaranteed_case_when_sql']}
-                                -- Additional holdings
-                                WHEN s.FIGI IN {demo_sql_mapping['additional_figis']} THEN {demo_sql_mapping['additional_priority']}
+                                -- Priority ordering from DEMO_COMPANIES demo_order
+                                {demo_sql_mapping['priority_case_when_sql']}
                                 -- Filler stocks
-                                WHEN s.Ticker IN {config.safe_sql_tuple(config.get_major_us_stocks('all'))} THEN {demo_sql_mapping['additional_priority'] + 1}
+                                WHEN s.Ticker IN {safe_sql_tuple(get_demo_company_tickers(tier='major'))} THEN {demo_sql_mapping['additional_priority']}
                                 ELSE 999
                             END
                         ELSE s.priority
@@ -808,7 +646,7 @@ def build_fact_transaction(session: Session, test_mode: bool = False):
                     RANDOM()
                 ) as rn
             FROM {config.DATABASE['name']}.CURATED.DIM_PORTFOLIO p
-            CROSS JOIN major_us_securities s
+            CROSS JOIN all_securities s
         ),
         selected_holdings AS (
             -- Step 3: Limit each portfolio to ~45 securities with theme-specific filtering
@@ -817,21 +655,22 @@ def build_fact_transaction(session: Session, test_mode: bool = False):
             WHERE rn <= 45  -- Typical large-cap equity portfolio size
             AND (
                 -- For demo portfolios, only include securities with valid priorities (from config.PORTFOLIOS)
-                (PortfolioName IN {config.safe_sql_tuple(config.get_demo_portfolio_names())} AND portfolio_priority < 999)
+                (PortfolioName IN {safe_sql_tuple(get_demo_portfolio_names())} AND portfolio_priority < 999)
                 OR 
                 -- For non-demo portfolios, use normal selection
-                (PortfolioName NOT IN {config.safe_sql_tuple(config.get_demo_portfolio_names())})
+                (PortfolioName NOT IN {safe_sql_tuple(get_demo_portfolio_names())})
             )
         ),
         business_days AS (
-            -- Step 4a: Generate all business days over the past 12 months
-            -- Creates complete set of Monday-Friday trading days
+            -- Step 4a: Generate all business days for transaction history
+            -- Creates complete set of Monday-Friday trading days up to max_price_date
             SELECT generated_date as trade_date
             FROM (
-                SELECT DATEADD(day, seq4(), DATEADD(month, -{config.DATA_MODEL['transaction_months']}, CURRENT_DATE())) as generated_date
+                SELECT DATEADD(day, seq4(), DATEADD(month, -{config.DATA_MODEL['transaction_months']}, '{max_price_date}'::DATE)) as generated_date
                 FROM TABLE(GENERATOR(rowcount => {365 * config.DATA_MODEL['transaction_months'] // 12}))
             )
             WHERE DAYOFWEEK(generated_date) BETWEEN 1 AND 5
+              AND generated_date <= '{max_price_date}'::DATE
         ),
         trading_intensity AS (
             -- Step 4b: Assign realistic trading intensity to each business day
@@ -876,14 +715,14 @@ def build_fact_transaction(session: Session, test_mode: bool = False):
             -- Transaction attributes
             'BUY' as TransactionType,  -- Simplified: mostly buys to build positions over time
             DATEADD(day, 2, ptd.trade_date) as SettleDate,  -- Standard T+2 settlement cycle
-            -- Strategic position sizing: larger positions for demo portfolio top holdings (fully from config.PORTFOLIOS)
+            -- Strategic position sizing: larger positions for demo portfolio top holdings (from DEMO_COMPANIES)
             CASE 
                 WHEN EXISTS (
                     SELECT 1 FROM {config.DATABASE['name']}.CURATED.DIM_SECURITY s 
                     JOIN {config.DATABASE['name']}.CURATED.DIM_PORTFOLIO p ON sh.PortfolioID = p.PortfolioID
                     WHERE s.SecurityID = sh.SecurityID 
-                    AND p.PortfolioName IN {config.safe_sql_tuple(config.get_demo_portfolio_names())}  -- Any demo portfolio from config
-                    AND s.FIGI IN {demo_sql_mapping['large_position_figis']}  -- Holdings marked as 'large' in config.PORTFOLIOS
+                    AND p.PortfolioName IN {safe_sql_tuple(get_demo_portfolio_names())}  -- Any demo portfolio from config
+                    AND s.Ticker IN {demo_sql_mapping['large_position_tickers']}  -- Holdings with position_size='large' in DEMO_COMPANIES
                 ) THEN UNIFORM(50000, 100000, RANDOM())  -- Large positions as specified in config
                 ELSE UNIFORM(100, 10000, RANDOM())  -- Normal positions for others
             END as Quantity,
@@ -907,16 +746,26 @@ def build_fact_transaction(session: Session, test_mode: bool = False):
 def build_fact_position_daily_abor(session: Session):
     """Build ABOR positions from transaction log."""
     
+    # Get max price date as upper bound for positions (anchor to real market data)
+    max_price_date = get_max_price_date(session)
+    if max_price_date is None:
+        raise RuntimeError(
+            "FACT_STOCK_PRICES not found - cannot build FACT_POSITION_DAILY_ABOR. "
+            "Run generate_market_data.build_price_anchor() first."
+        )
     
     session.sql(f"""
         -- Build ABOR (Accounting Book of Record) positions from transaction history
         -- This creates monthly position snapshots by aggregating transaction data
+        -- Upper bound is max_price_date to ensure all positions have available price/return data
         CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.FACT_POSITION_DAILY_ABOR AS
         WITH monthly_dates AS (
-            -- Step 1: Generate month-end dates for position snapshots over 5 years of history
+            -- Step 1: Generate month-end dates for position snapshots over {config.YEARS_OF_HISTORY} years of history
             -- Uses LAST_DAY to ensure consistent month-end reporting dates
-            SELECT LAST_DAY(DATEADD(month, seq4(), DATEADD(year, -{config.YEARS_OF_HISTORY}, CURRENT_DATE()))) as position_date
-            FROM TABLE(GENERATOR(rowcount => {12 * config.YEARS_OF_HISTORY}))  -- 60 month-end dates
+            -- Upper bound is max available price date to ensure return data exists
+            SELECT LAST_DAY(DATEADD(month, seq4(), DATEADD(year, -{config.YEARS_OF_HISTORY}, '{max_price_date}'::DATE))) as position_date
+            FROM TABLE(GENERATOR(rowcount => {12 * config.YEARS_OF_HISTORY}))
+            WHERE position_date <= '{max_price_date}'::DATE
         ),
         transaction_balances AS (
             -- Step 2: Calculate net position quantities and average cost basis from transactions
@@ -969,328 +818,73 @@ def build_fact_position_daily_abor(session: Session):
         FROM position_snapshots ps
         JOIN portfolio_totals pt ON ps.HoldingDate = pt.HoldingDate AND ps.PortfolioID = pt.PortfolioID
     """).collect()
-    
 
-def build_fact_marketdata_timeseries(session: Session, test_mode: bool = False):
-    """Build synthetic market data for all securities."""
-    
-    build_marketdata_synthetic(session)
-
-def build_marketdata_synthetic(session: Session):
-    """Build synthetic market data."""
-    
-    session.sql(f"""
-        -- Generate synthetic market data (OHLCV) for all securities over 5 years
-        -- Creates realistic price movements and trading volumes for demo purposes
-        CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.FACT_MARKETDATA_TIMESERIES AS
-        WITH business_dates AS (
-            -- Step 1: Generate business days (Monday-Friday) over 5 years of history
-            -- Excludes weekends to match real market trading calendar
-            SELECT DATEADD(day, seq4(), DATEADD(year, -{config.YEARS_OF_HISTORY}, CURRENT_DATE())) as price_date
-            FROM TABLE(GENERATOR(rowcount => {365 * config.YEARS_OF_HISTORY}))  -- ~1,825 days total
-            WHERE DAYOFWEEK(price_date) BETWEEN 1 AND 5  -- Monday=1 to Friday=5 only
-        ),
-        portfolio_securities AS (
-            -- Step 2: Get only securities that are held in portfolios
-            SELECT DISTINCT 
-                s.SecurityID,
-                s.AssetClass
-            FROM {config.DATABASE['name']}.CURATED.DIM_SECURITY s
-            WHERE EXISTS (
-                SELECT 1 FROM {config.DATABASE['name']}.CURATED.FACT_TRANSACTION t 
-                WHERE t.SecurityID = s.SecurityID
-            )
-        ),
-        securities_dates AS (
-            -- Step 3: Create cartesian product of portfolio securities with business dates
-            -- This ensures every portfolio security has price data for every trading day
-            SELECT 
-                ps.SecurityID,
-                ps.AssetClass,  -- Used for asset-class-specific price ranges
-                bd.price_date as PriceDate
-            FROM portfolio_securities ps
-            CROSS JOIN business_dates bd
-        )
-        -- Step 3: Generate realistic OHLCV data with asset-class-appropriate price ranges
-        SELECT 
-            PriceDate,
-            SecurityID,
-            -- Opening prices with asset-class-specific ranges and daily volatility
-            CASE 
-                WHEN AssetClass = 'Equity' THEN UNIFORM(50, 850, RANDOM())        -- Equity: $50-$850
-                WHEN AssetClass = 'Corporate Bond' THEN UNIFORM(90, 110, RANDOM()) -- Bonds: $90-$110 (near par)
-                ELSE UNIFORM(50, 450, RANDOM())                                   -- ETFs/Other: $50-$450
-            END * (1 + (UNIFORM(-0.02, 0.02, RANDOM()))) as Price_Open,  -- ±2% daily variation
-            
-            -- High prices (always above base price)
-            CASE 
-                WHEN AssetClass = 'Equity' THEN UNIFORM(50, 850, RANDOM())
-                WHEN AssetClass = 'Corporate Bond' THEN UNIFORM(90, 110, RANDOM())
-                ELSE UNIFORM(50, 450, RANDOM())
-            END * (1 + UNIFORM(0, 0.03, RANDOM())) as Price_High,  -- 0-3% above base
-            
-            -- Low prices (always below base price)
-            CASE 
-                WHEN AssetClass = 'Equity' THEN UNIFORM(50, 850, RANDOM())
-                WHEN AssetClass = 'Corporate Bond' THEN UNIFORM(90, 110, RANDOM())
-                ELSE UNIFORM(50, 450, RANDOM())
-            END * (1 - UNIFORM(0, 0.03, RANDOM())) as Price_Low,   -- 0-3% below base
-            
-            -- Closing prices (base price without additional variation)
-            CASE 
-                WHEN AssetClass = 'Equity' THEN UNIFORM(50, 850, RANDOM())
-                WHEN AssetClass = 'Corporate Bond' THEN UNIFORM(90, 110, RANDOM())
-                ELSE UNIFORM(50, 450, RANDOM())
-            END as Price_Close,
-            
-            -- Trading volumes with asset-class-appropriate ranges
-            CASE 
-                WHEN AssetClass = 'Equity' THEN UNIFORM(100000, 10000000, RANDOM())::int      -- High equity volumes
-                WHEN AssetClass = 'Corporate Bond' THEN UNIFORM(10000, 1000000, RANDOM())::int -- Lower bond volumes
-                ELSE UNIFORM(50000, 5000000, RANDOM())::int                                   -- Moderate ETF volumes
-            END as Volume,
-            
-            -- Total return factor (simplified to 1.0 for now - could include dividends/interest)
-            1.0 as TotalReturnFactor_Daily
-        FROM securities_dates
-    """).collect()
-    
-
-# Placeholder functions for remaining tables (to be implemented)
-def build_fundamentals_and_estimates(session: Session):
-    """Build fundamentals and estimates tables with SecurityID linkage."""
-    
-    # Build fundamentals table with realistic financial data
-    session.sql(f"""
-        -- Generate synthetic fundamental data (revenue, earnings, ratios) for equity securities
-        -- Creates quarterly financial metrics with sector-appropriate ranges for 5 years
-        CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.FACT_FUNDAMENTALS AS
-        WITH equity_securities AS (
-            SELECT 
-                s.SecurityID as SECURITY_ID,
-                s.Ticker,
-                i.SIC_DESCRIPTION
-            FROM {config.DATABASE['name']}.CURATED.DIM_SECURITY s
-            JOIN {config.DATABASE['name']}.CURATED.DIM_ISSUER i ON s.IssuerID = i.IssuerID
-            WHERE s.AssetClass = 'Equity'
-            AND EXISTS (
-                SELECT 1 FROM {config.DATABASE['name']}.CURATED.FACT_TRANSACTION t 
-                WHERE t.SecurityID = s.SecurityID
-            )
-        ),
-        quarters AS (
-            SELECT 
-                DATEADD(quarter, seq4(), DATEADD(year, -{config.YEARS_OF_HISTORY}, CURRENT_DATE())) as REPORTING_DATE,
-                'Q' || QUARTER(DATEADD(quarter, seq4(), DATEADD(year, -{config.YEARS_OF_HISTORY}, CURRENT_DATE()))) || 
-                ' ' || YEAR(DATEADD(quarter, seq4(), DATEADD(year, -{config.YEARS_OF_HISTORY}, CURRENT_DATE()))) as FISCAL_QUARTER
-            FROM TABLE(GENERATOR(rowcount => {4 * config.YEARS_OF_HISTORY}))
-        ),
-        base_metrics AS (
-            SELECT 
-                es.SECURITY_ID,
-                q.REPORTING_DATE,
-                q.FISCAL_QUARTER,
-                -- Base financial metrics scaled by sector
-                CASE 
-                    WHEN es.SIC_DESCRIPTION = 'Information Technology' THEN UNIFORM(1000000000, 100000000000, RANDOM())
-                    WHEN es.SIC_DESCRIPTION = 'Health Care' THEN UNIFORM(5000000000, 50000000000, RANDOM())
-                    ELSE UNIFORM(500000000, 20000000000, RANDOM())
-                END as BASE_REVENUE,
-                CASE 
-                    WHEN es.SIC_DESCRIPTION = 'Information Technology' THEN UNIFORM(0.15, 0.35, RANDOM())
-                    WHEN es.SIC_DESCRIPTION = 'Health Care' THEN UNIFORM(0.20, 0.40, RANDOM())
-                    ELSE UNIFORM(0.05, 0.25, RANDOM())
-                END as NET_MARGIN
-            FROM equity_securities es
-            CROSS JOIN quarters q
-        )
-        SELECT SECURITY_ID, REPORTING_DATE, FISCAL_QUARTER, 'Total Revenue' as METRIC_NAME, BASE_REVENUE as METRIC_VALUE, 'USD' as CURRENCY FROM base_metrics
-        UNION ALL
-        SELECT SECURITY_ID, REPORTING_DATE, FISCAL_QUARTER, 'Net Income' as METRIC_NAME, BASE_REVENUE * NET_MARGIN as METRIC_VALUE, 'USD' as CURRENCY FROM base_metrics
-        UNION ALL  
-        SELECT SECURITY_ID, REPORTING_DATE, FISCAL_QUARTER, 'EPS' as METRIC_NAME, (BASE_REVENUE * NET_MARGIN) / UNIFORM(1000000000, 10000000000, RANDOM()) as METRIC_VALUE, 'USD' as CURRENCY FROM base_metrics
-        UNION ALL
-        SELECT SECURITY_ID, REPORTING_DATE, FISCAL_QUARTER, 'Trailing P/E' as METRIC_NAME, UNIFORM(10, 40, RANDOM()) as METRIC_VALUE, 'USD' as CURRENCY FROM base_metrics
-        UNION ALL
-        SELECT SECURITY_ID, REPORTING_DATE, FISCAL_QUARTER, 'Revenue Growth' as METRIC_NAME, UNIFORM(-0.1, 0.3, RANDOM()) as METRIC_VALUE, 'USD' as CURRENCY FROM base_metrics
-    """).collect()
-    
-    # Build estimates table with guidance
-    session.sql(f"""
-        -- Generate synthetic analyst estimates and guidance based on fundamental data
-        -- Creates forward-looking revenue and earnings estimates with realistic consensus ranges
-        CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.FACT_ESTIMATES AS
-        WITH estimate_base AS (
-            SELECT 
-                f.SECURITY_ID,
-                f.REPORTING_DATE as ESTIMATE_DATE,
-                CASE 
-                    WHEN QUARTER(f.REPORTING_DATE) = 4 THEN 'Q1 ' || (YEAR(f.REPORTING_DATE) + 1)
-                    ELSE 'Q' || (QUARTER(f.REPORTING_DATE) + 1) || ' ' || YEAR(f.REPORTING_DATE)
-                END as FISCAL_PERIOD,
-                f.METRIC_VALUE
-            FROM {config.DATABASE['name']}.CURATED.FACT_FUNDAMENTALS f
-            WHERE f.METRIC_NAME IN ('Total Revenue', 'EPS')
-        )
-        SELECT 
-            SECURITY_ID,
-            ESTIMATE_DATE,
-            FISCAL_PERIOD,
-            CASE WHEN METRIC_VALUE > 1000000 THEN 'Revenue Estimate' ELSE 'EPS Estimate' END as METRIC_NAME,
-            METRIC_VALUE * (1 + UNIFORM(-0.1, 0.1, RANDOM())) as ESTIMATE_VALUE,
-            METRIC_VALUE * (1 + UNIFORM(-0.15, -0.05, RANDOM())) as GUIDANCE_LOW,
-            METRIC_VALUE * (1 + UNIFORM(0.05, 0.15, RANDOM())) as GUIDANCE_HIGH,
-            'USD' as CURRENCY
-        FROM estimate_base
-    """).collect()
-    
-
-def build_sec_filings_and_fundamentals(session: Session):
-    """Build SEC filings table and synthetic fundamentals as fallback."""
-    
-    # First, create the FACT_SEC_FILINGS table structure
-    session.sql(f"""
-        CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.FACT_SEC_FILINGS (
-            FilingID BIGINT IDENTITY(1,1) PRIMARY KEY,
-            SecurityID BIGINT NOT NULL,
-            IssuerID BIGINT NOT NULL,
-            CIK VARCHAR(20) NOT NULL,
-            CompanyName VARCHAR(255),
-            FiscalYear INTEGER NOT NULL,
-            FiscalPeriod VARCHAR(10) NOT NULL,           -- 'Q1', 'Q2', 'Q3', 'Q4', 'FY'
-            FormType VARCHAR(10) NOT NULL,               -- '10-K', '10-Q', '8-K'
-            FilingDate DATE NOT NULL,
-            PeriodStartDate DATE,                        -- From SEC_REPORT_ATTRIBUTES.PERIOD_START_DATE
-            PeriodEndDate DATE,                          -- From SEC_REPORT_ATTRIBUTES.PERIOD_END_DATE
-            ReportingDate DATE NOT NULL,                 -- Standardized reporting date
-            -- SEC measures (preserving original measure names and descriptions)
-            TAG VARCHAR(200) NOT NULL,
-            MeasureDescription VARCHAR(500),
-            MeasureValue DECIMAL(38, 2),
-            UnitOfMeasure VARCHAR(50),
-            Statement VARCHAR(100),                      -- Financial statement: Income Statement, Balance Sheet, Cash Flow
-            -- Data lineage
-            DataSource VARCHAR(50) DEFAULT 'SEC_FILINGS_CYBERSYN',
-            LoadTimestamp TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
-        )
-    """).collect()
-    
-    # Try to load real SEC filing data, fallback to synthetic fundamentals if not available
-    try:
-        pass
-        
-        # Test SEC_FILINGS database access
-        test_result = session.sql(f"SELECT COUNT(*) as cnt FROM {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.SEC_REPORT_ATTRIBUTES LIMIT 1").collect()
-        
-        # Load SEC filing data using our enhanced view approach
-        session.sql(f"""
-            INSERT INTO {config.DATABASE['name']}.CURATED.FACT_SEC_FILINGS 
-            SELECT 
-                ROW_NUMBER() OVER (ORDER BY i.IssuerID, sri.FISCAL_YEAR, sri.FISCAL_PERIOD, sra.TAG) as FilingID,
-                s.SecurityID,
-                i.IssuerID,
-                sra.CIK,
-                i.LegalName as CompanyName,
-                sri.FISCAL_YEAR as FiscalYear,
-                sri.FISCAL_PERIOD as FiscalPeriod,
-                sri.FORM_TYPE as FormType,
-                sri.FILED_DATE as FilingDate,
-                sra.PERIOD_START_DATE as PeriodStartDate,
-                sra.PERIOD_END_DATE as PeriodEndDate,
-                sri.FILED_DATE as ReportingDate,  -- Use filing date as reporting date (actual submission date)
-                sra.TAG,
-                sra.MEASURE_DESCRIPTION as MeasureDescription,
-                sra.VALUE as MeasureValue,
-                sra.UNIT_OF_MEASURE as UnitOfMeasure,
-                sra.STATEMENT,
-                'SEC_FILINGS_CYBERSYN' as DataSource,
-                CURRENT_TIMESTAMP() as LoadTimestamp
-            FROM {config.DATABASE['name']}.CURATED.DIM_ISSUER i
-            JOIN {config.DATABASE['name']}.CURATED.DIM_SECURITY s 
-                ON s.IssuerID = i.IssuerID 
-                AND s.Ticker = i.PrimaryTicker
-            JOIN {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.SEC_REPORT_ATTRIBUTES sra ON i.CIK = sra.CIK
-            JOIN {config.REAL_DATA_SOURCES['database']}.{config.REAL_DATA_SOURCES['schema']}.SEC_REPORT_INDEX sri ON sra.ADSH = sri.ADSH AND sra.CIK = sri.CIK
-            WHERE s.AssetClass = 'Equity'
-                AND sri.FISCAL_YEAR >= YEAR(CURRENT_DATE) - {config.YEARS_OF_HISTORY}
-                AND sri.FORM_TYPE IN ('10-K', '10-Q')
-                AND sra.TAG IN (
-                    -- Income Statement
-                    'Revenues', 'RevenueFromContractWithCustomerExcludingAssessedTax',
-                    'NetIncomeLoss', 'GrossProfit', 'OperatingIncomeLoss',
-                    'InterestExpense', 'GeneralAndAdministrativeExpense', 'OperatingExpenses',
-                    'EarningsPerShareBasic', 'EarningsPerShareDiluted',
-                    -- Balance Sheet
-                    'Assets', 'AssetsCurrent', 'StockholdersEquity', 
-                    'Liabilities', 'LiabilitiesCurrent', 'Goodwill',
-                    'CashAndCashEquivalentsAtCarryingValue', 'AccountsPayableCurrent',
-                    'RetainedEarningsAccumulatedDeficit',
-                    -- Cash Flow
-                    'NetCashProvidedByUsedInOperatingActivities',
-                    'NetCashProvidedByUsedInInvestingActivities', 
-                    'NetCashProvidedByUsedInFinancingActivities',
-                    'DepreciationDepletionAndAmortization', 'ShareBasedCompensation'
-                )
-                AND sra.VALUE IS NOT NULL
-        """).collect()
-        
-        # Get count of loaded records
-        sec_count = session.sql(f"SELECT COUNT(*) as cnt FROM {config.DATABASE['name']}.CURATED.FACT_SEC_FILINGS").collect()[0]['CNT']
-        
-    except Exception as e:
-        config.log_warning(f"  SEC filing data not available: {e}")
-        
-        # Call the existing fundamentals function as fallback
-        build_fundamentals_and_estimates(session)
-    
 
 def build_esg_scores(session: Session):
-    """Build ESG scores with SecurityID linkage using efficient SQL generation."""
+    """Build ESG scores with SecurityID linkage using config-driven SQL generation.
+    
+    Uses config-driven SQL builders for:
+    - Sector-based Environmental scores (DATA_MODEL['synthetic_distributions']['by_sector'])
+    - Country-based Social/Governance scores (DATA_MODEL['synthetic_distributions']['country_groups'])
+    - Grade thresholds (COMPLIANCE_RULES['esg']['grade_thresholds'])
+    - Overall ESG weights (COMPLIANCE_RULES['esg']['overall_weights'])
+    """
+    
+    database_name = config.DATABASE['name']
+    
+    # Get max price date as upper bound (anchor to real market data)
+    max_price_date = get_max_price_date(session)
+    if max_price_date is None:
+        raise RuntimeError(
+            "FACT_STOCK_PRICES not found - cannot build FACT_ESG_SCORES. "
+            "Run generate_market_data.build_price_anchor() first."
+        )
+    
+    # Build config-driven SQL expressions
+    e_score_sql = build_sector_case_sql('es.SIC_DESCRIPTION', 'esg.E')
+    s_score_sql = build_country_group_case_sql('es.CountryOfIncorporation', 'esg.S')
+    g_score_sql = build_country_group_case_sql('es.CountryOfIncorporation', 'esg.G')
+    e_grade_sql = build_grade_case_sql('E_SCORE')
+    s_grade_sql = build_grade_case_sql('S_SCORE')
+    g_grade_sql = build_grade_case_sql('G_SCORE')
+    overall_score_sql = build_overall_esg_sql('E_SCORE', 'S_SCORE', 'G_SCORE')
+    overall_grade_sql = build_grade_case_sql(overall_score_sql)
+    esg_provider = config.COMPLIANCE_RULES['esg']['default_provider']
     
     session.sql(f"""
         -- Generate synthetic ESG scores with sector-specific characteristics and regional variations
         -- Creates Environmental, Social, Governance scores (0-100) with realistic distributions
-        CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.FACT_ESG_SCORES AS
+        -- Config-driven via DATA_MODEL['synthetic_distributions'] and COMPLIANCE_RULES['esg']
+        CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_ESG_SCORES AS
         WITH equity_securities AS (
             SELECT 
                 s.SecurityID,
                 s.Ticker,
                 i.SIC_DESCRIPTION,
                 i.CountryOfIncorporation
-            FROM {config.DATABASE['name']}.CURATED.DIM_SECURITY s
-            JOIN {config.DATABASE['name']}.CURATED.DIM_ISSUER i ON s.IssuerID = i.IssuerID
+            FROM {database_name}.CURATED.DIM_SECURITY s
+            JOIN {database_name}.CURATED.DIM_ISSUER i ON s.IssuerID = i.IssuerID
             WHERE s.AssetClass = 'Equity'
             AND EXISTS (
-                SELECT 1 FROM {config.DATABASE['name']}.CURATED.FACT_TRANSACTION t 
+                SELECT 1 FROM {database_name}.CURATED.FACT_TRANSACTION t 
                 WHERE t.SecurityID = s.SecurityID
             )
         ),
         scoring_dates AS (
-            SELECT DATEADD(quarter, seq4(), DATEADD(year, -{config.YEARS_OF_HISTORY}, CURRENT_DATE())) as SCORE_DATE
+            SELECT DATEADD(quarter, seq4(), DATEADD(year, -{config.YEARS_OF_HISTORY}, '{max_price_date}'::DATE)) as SCORE_DATE
             FROM TABLE(GENERATOR(rowcount => {4 * config.YEARS_OF_HISTORY}))
+            WHERE SCORE_DATE <= '{max_price_date}'::DATE
         ),
         base_scores AS (
             SELECT 
                 es.SecurityID,
                 sd.SCORE_DATE,
-                -- Environmental score (sector-specific)
-                CASE 
-                    WHEN es.SIC_DESCRIPTION = 'Utilities' THEN UNIFORM(20, 60, RANDOM())
-                    WHEN es.SIC_DESCRIPTION = 'Energy' THEN UNIFORM(15, 50, RANDOM())
-                    WHEN es.SIC_DESCRIPTION = 'Information Technology' THEN UNIFORM(60, 95, RANDOM())
-                    ELSE UNIFORM(40, 80, RANDOM())
-                END as E_SCORE,
-                -- Social score (region-specific bias)
-                CASE 
-                    WHEN es.CountryOfIncorporation IN ('US', 'CA') THEN UNIFORM(50, 85, RANDOM())
-                    WHEN es.CountryOfIncorporation IN ('DE', 'FR', 'SE', 'DK') THEN UNIFORM(60, 90, RANDOM())
-                    ELSE UNIFORM(45, 75, RANDOM())
-                END as S_SCORE,
-                -- Governance score (generally high for developed markets)
-                CASE 
-                    WHEN es.CountryOfIncorporation IN ('US', 'CA', 'GB', 'DE', 'FR', 'SE', 'DK') THEN UNIFORM(65, 95, RANDOM())
-                    ELSE UNIFORM(40, 70, RANDOM())
-                END as G_SCORE
+                -- Environmental score (sector-specific from config)
+                {e_score_sql} as E_SCORE,
+                -- Social score (country-group-specific from config)
+                {s_score_sql} as S_SCORE,
+                -- Governance score (country-group-specific from config)
+                {g_score_sql} as G_SCORE
             FROM equity_securities es
             CROSS JOIN scoring_dates sd
         )
@@ -1299,143 +893,446 @@ def build_esg_scores(session: Session):
             SCORE_DATE,
             'Environmental' as SCORE_TYPE,
             E_SCORE as SCORE_VALUE,
-            CASE 
-                WHEN E_SCORE >= 80 THEN 'A'
-                WHEN E_SCORE >= 60 THEN 'B' 
-                WHEN E_SCORE >= 40 THEN 'C'
-                ELSE 'D'
-            END as SCORE_GRADE,
-            'MSCI' as PROVIDER
+            {e_grade_sql} as SCORE_GRADE,
+            '{esg_provider}' as PROVIDER
         FROM base_scores
         UNION ALL
         SELECT SecurityID, SCORE_DATE, 'Social', S_SCORE, 
-               CASE WHEN S_SCORE >= 80 THEN 'A' WHEN S_SCORE >= 60 THEN 'B' WHEN S_SCORE >= 40 THEN 'C' ELSE 'D' END,
-               'MSCI' FROM base_scores
+               {s_grade_sql},
+               '{esg_provider}' FROM base_scores
         UNION ALL  
         SELECT SecurityID, SCORE_DATE, 'Governance', G_SCORE,
-               CASE WHEN G_SCORE >= 80 THEN 'A' WHEN G_SCORE >= 60 THEN 'B' WHEN G_SCORE >= 40 THEN 'C' ELSE 'D' END,
-               'MSCI' FROM base_scores
+               {g_grade_sql},
+               '{esg_provider}' FROM base_scores
         UNION ALL
-        SELECT SecurityID, SCORE_DATE, 'Overall ESG', (E_SCORE + S_SCORE + G_SCORE) / 3,
-               CASE WHEN (E_SCORE + S_SCORE + G_SCORE) / 3 >= 80 THEN 'A' 
-                    WHEN (E_SCORE + S_SCORE + G_SCORE) / 3 >= 60 THEN 'B' 
-                    WHEN (E_SCORE + S_SCORE + G_SCORE) / 3 >= 40 THEN 'C' 
-                    ELSE 'D' END,
-               'MSCI' FROM base_scores
+        SELECT SecurityID, SCORE_DATE, 'Overall ESG', {overall_score_sql},
+               {overall_grade_sql},
+               '{esg_provider}' FROM base_scores
     """).collect()
+    
+    # Apply ESG demo overrides for specific securities (for demo scenarios)
+    # This ensures some holdings fall below BBB threshold for breach detection demos
+    # Set-based UPDATE - single query instead of loop (Snowflake I/O best practice)
+    if config.ESG_DEMO_OVERRIDES:
+        override_cases = []
+        override_tickers = list(config.ESG_DEMO_OVERRIDES.keys())
+        for ticker, override in config.ESG_DEMO_OVERRIDES.items():
+            esg_score = override['esg_score']
+            esg_grade = override['esg_grade']
+            override_cases.append(f"WHEN s.Ticker = '{ticker}' THEN {esg_score}")
+        
+        score_case_sql = f"CASE {' '.join(override_cases)} END"
+        grade_cases = [f"WHEN s.Ticker = '{ticker}' THEN '{override['esg_grade']}'" 
+                       for ticker, override in config.ESG_DEMO_OVERRIDES.items()]
+        grade_case_sql = f"CASE {' '.join(grade_cases)} END"
+        tickers_sql = ', '.join(f"'{t}'" for t in override_tickers)
+        
+        session.sql(f"""
+            UPDATE {database_name}.CURATED.FACT_ESG_SCORES f
+            SET SCORE_VALUE = {score_case_sql},
+                SCORE_GRADE = {grade_case_sql}
+            FROM {database_name}.CURATED.DIM_SECURITY s
+            WHERE f.SecurityID = s.SecurityID
+              AND s.Ticker IN ({tickers_sql})
+              AND f.SCORE_TYPE = 'Overall ESG'
+        """).collect()
+
+
+def build_security_returns_view(session: Session):
+    """Create security returns view with calculated performance metrics.
+    
+    This view calculates returns from MARKET_DATA.FACT_STOCK_PRICES:
+    - Daily returns (price change)
+    - MTD returns (month-to-date)
+    - QTD returns (quarter-to-date)
+    - YTD returns (year-to-date)
+    
+    Used by: SAM_ANALYST_VIEW via V_HOLDINGS_WITH_ESG for portfolio performance queries
+    """
+    database_name = config.DATABASE['name']
+    
+    # Check if FACT_STOCK_PRICES exists
+    try:
+        count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.MARKET_DATA.FACT_STOCK_PRICES").collect()[0]['CNT']
+        if count == 0:
+            raise RuntimeError(
+                "FACT_STOCK_PRICES is empty - cannot build V_SECURITY_RETURNS. "
+                "Run generate_market_data.build_price_anchor() first."
+            )
+    except RuntimeError:
+        raise
+    except Exception as e:
+        raise RuntimeError(
+            f"FACT_STOCK_PRICES not found - cannot build V_SECURITY_RETURNS: {e}. "
+            "Run generate_market_data.build_price_anchor() first."
+        )
+    
+    # Create V_SECURITY_RETURNS with calculated returns per security per date
+    session.sql(f"""
+        CREATE OR REPLACE VIEW {database_name}.CURATED.V_SECURITY_RETURNS AS
+        WITH price_data AS (
+            SELECT 
+                SECURITYID,
+                PRICE_DATE,
+                PRICE_CLOSE,
+                LAG(PRICE_CLOSE) OVER (PARTITION BY SECURITYID ORDER BY PRICE_DATE) as PREV_CLOSE,
+                FIRST_VALUE(PRICE_CLOSE) OVER (
+                    PARTITION BY SECURITYID, DATE_TRUNC('MONTH', PRICE_DATE) 
+                    ORDER BY PRICE_DATE
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as MONTH_START_PRICE,
+                FIRST_VALUE(PRICE_CLOSE) OVER (
+                    PARTITION BY SECURITYID, DATE_TRUNC('QUARTER', PRICE_DATE) 
+                    ORDER BY PRICE_DATE
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as QUARTER_START_PRICE,
+                FIRST_VALUE(PRICE_CLOSE) OVER (
+                    PARTITION BY SECURITYID, DATE_TRUNC('YEAR', PRICE_DATE) 
+                    ORDER BY PRICE_DATE
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as YEAR_START_PRICE
+            FROM {database_name}.MARKET_DATA.FACT_STOCK_PRICES
+            WHERE PRICE_CLOSE > 0
+        )
+        SELECT 
+            SECURITYID,
+            PRICE_DATE,
+            PRICE_CLOSE,
+            -- Daily return
+            ROUND((PRICE_CLOSE - PREV_CLOSE) / NULLIF(PREV_CLOSE, 0) * 100, 2) as DAILY_RETURN_PCT,
+            -- MTD return
+            ROUND((PRICE_CLOSE - MONTH_START_PRICE) / NULLIF(MONTH_START_PRICE, 0) * 100, 2) as MTD_RETURN_PCT,
+            -- QTD return
+            ROUND((PRICE_CLOSE - QUARTER_START_PRICE) / NULLIF(QUARTER_START_PRICE, 0) * 100, 2) as QTD_RETURN_PCT,
+            -- YTD return
+            ROUND((PRICE_CLOSE - YEAR_START_PRICE) / NULLIF(YEAR_START_PRICE, 0) * 100, 2) as YTD_RETURN_PCT
+        FROM price_data
+    """).collect()
+    
+    # Create V_SECURITY_RETURNS_LATEST with only the latest returns per security
+    session.sql(f"""
+        CREATE OR REPLACE VIEW {database_name}.CURATED.V_SECURITY_RETURNS_LATEST AS
+        SELECT 
+            SECURITYID,
+            PRICE_DATE as RETURNS_DATE,
+            PRICE_CLOSE as LATEST_PRICE,
+            DAILY_RETURN_PCT,
+            MTD_RETURN_PCT,
+            QTD_RETURN_PCT,
+            YTD_RETURN_PCT
+        FROM {database_name}.CURATED.V_SECURITY_RETURNS
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY SECURITYID ORDER BY PRICE_DATE DESC) = 1
+    """).collect()
+    
+    count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.V_SECURITY_RETURNS_LATEST").collect()[0]['CNT']
+    log_detail(f"  Created V_SECURITY_RETURNS_LATEST view with {count:,} securities")
+
+
+def build_esg_latest_view(session: Session):
+    """Create flattened ESG view with one row per security for semantic view integration.
+    
+    This view provides the latest Overall ESG score for each security. It can be used
+    for ESG analysis in agents via direct queries or through Cortex Analyst.
+    """
+    database_name = config.DATABASE['name']
+    
+    # Create standalone V_ESG_LATEST for direct queries
+    session.sql(f"""
+        CREATE OR REPLACE VIEW {database_name}.CURATED.V_ESG_LATEST AS
+        SELECT 
+            SecurityID,
+            SCORE_VALUE as ESG_SCORE,
+            SCORE_GRADE as ESG_GRADE,
+            SCORE_DATE as ESG_SCORE_DATE,
+            PROVIDER as ESG_PROVIDER
+        FROM {database_name}.CURATED.FACT_ESG_SCORES
+        WHERE SCORE_TYPE = 'Overall ESG'
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY SecurityID ORDER BY SCORE_DATE DESC) = 1
+    """).collect()
+    
+    count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.V_ESG_LATEST").collect()[0]['CNT']
+    log_detail(f"  Created V_ESG_LATEST view with {count:,} securities")
+    
+    # Check if returns view exists
+    has_returns_view = False
+    try:
+        session.sql(f"SELECT 1 FROM {database_name}.CURATED.V_SECURITY_RETURNS LIMIT 1").collect()
+        has_returns_view = True
+        log_detail(f"  Including returns data in enriched holdings view (date-matched)")
+    except:
+        log_detail(f"  Returns view not available, creating holdings view without returns")
+    
+    # Create enriched holdings view with ESG data and date-matched returns
+    # Join holdings with returns from the closest prior trading date (handles weekends/holidays)
+    if has_returns_view:
+        session.sql(f"""
+            CREATE OR REPLACE VIEW {database_name}.CURATED.V_HOLDINGS_WITH_ESG AS
+            WITH holdings_with_returns AS (
+                SELECT 
+                    h.PortfolioID,
+                    h.SecurityID,
+                    h.HoldingDate,
+                    h.Quantity,
+                    h.MarketValue_Base,
+                    h.MarketValue_Local,
+                    h.PortfolioWeight,
+                    h.CostBasis_Base,
+                    h.CostBasis_Local,
+                    h.AccruedInterest_Local,
+                    r.PRICE_CLOSE,
+                    r.DAILY_RETURN_PCT,
+                    r.MTD_RETURN_PCT,
+                    r.QTD_RETURN_PCT,
+                    r.YTD_RETURN_PCT,
+                    r.PRICE_DATE as RETURNS_DATE,
+                    -- Rank to get closest prior trading date
+                    ROW_NUMBER() OVER (
+                        PARTITION BY h.PortfolioID, h.SecurityID, h.HoldingDate 
+                        ORDER BY r.PRICE_DATE DESC
+                    ) as rn
+                FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR h
+                LEFT JOIN {database_name}.CURATED.V_SECURITY_RETURNS r 
+                    ON h.SecurityID = r.SECURITYID 
+                    AND r.PRICE_DATE <= h.HoldingDate
+                    AND r.PRICE_DATE >= DATEADD(day, -7, h.HoldingDate)  -- Within 7 days
+            )
+            SELECT 
+                h.PortfolioID,
+                h.SecurityID,
+                h.HoldingDate,
+                h.Quantity,
+                h.MarketValue_Base,
+                h.MarketValue_Local,
+                h.PortfolioWeight,
+                h.CostBasis_Base,
+                h.CostBasis_Local,
+                h.AccruedInterest_Local,
+                e.ESG_SCORE,
+                e.ESG_GRADE,
+                h.PRICE_CLOSE as LATEST_PRICE,
+                h.DAILY_RETURN_PCT,
+                h.MTD_RETURN_PCT,
+                h.QTD_RETURN_PCT,
+                h.YTD_RETURN_PCT,
+                h.RETURNS_DATE
+            FROM holdings_with_returns h
+            LEFT JOIN {database_name}.CURATED.V_ESG_LATEST e ON h.SecurityID = e.SecurityID
+            WHERE h.rn = 1 OR h.rn IS NULL  -- Get closest match or keep rows with no match
+        """).collect()
+    else:
+        session.sql(f"""
+            CREATE OR REPLACE VIEW {database_name}.CURATED.V_HOLDINGS_WITH_ESG AS
+            SELECT 
+                h.*,
+                e.ESG_SCORE,
+                e.ESG_GRADE,
+                NULL as LATEST_PRICE,
+                NULL as DAILY_RETURN_PCT,
+                NULL as MTD_RETURN_PCT,
+                NULL as QTD_RETURN_PCT,
+                NULL as YTD_RETURN_PCT,
+                NULL as RETURNS_DATE
+            FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR h
+            LEFT JOIN {database_name}.CURATED.V_ESG_LATEST e ON h.SecurityID = e.SecurityID
+        """).collect()
+    
+    log_detail(f"  Created V_HOLDINGS_WITH_ESG enriched view")
     
 
 def build_factor_exposures(session: Session):
-    """Build factor exposures with SecurityID linkage using efficient SQL generation."""
+    """Build factor exposures with SecurityID linkage using config-driven SQL generation.
+    
+    Uses config-driven SQL builders for:
+    - Sector-based factor loadings (DATA_MODEL['synthetic_distributions']['by_sector'][*]['factors'])
+    - Global factors like Size, Momentum (DATA_MODEL['synthetic_distributions']['global']['factor_globals'])
+    - R² values (DATA_MODEL['synthetic_distributions']['global']['factor_r_squared'])
+    """
+    
+    database_name = config.DATABASE['name']
+    
+    # Get max price date as upper bound (anchor to real market data)
+    max_price_date = get_max_price_date(session)
+    if max_price_date is None:
+        raise RuntimeError(
+            "FACT_STOCK_PRICES not found - cannot build FACT_FACTOR_EXPOSURES. "
+            "Run generate_market_data.build_price_anchor() first."
+        )
+    
+    # Build config-driven SQL expressions for each factor
+    market_beta_sql = build_factor_case_sql('es.SIC_DESCRIPTION', 'Market')
+    size_factor_sql = build_global_uniform_sql('factor_globals.Size')
+    value_factor_sql = build_factor_case_sql('es.SIC_DESCRIPTION', 'Value')
+    momentum_factor_sql = build_global_uniform_sql('factor_globals.Momentum')
+    growth_factor_sql = build_factor_case_sql('es.SIC_DESCRIPTION', 'Growth')
+    quality_factor_sql = build_factor_case_sql('es.SIC_DESCRIPTION', 'Quality')
+    volatility_factor_sql = build_factor_case_sql('es.SIC_DESCRIPTION', 'Volatility')
+    
+    # Get R² values from config
+    r2_market = get_factor_r_squared('Market')
+    r2_size = get_factor_r_squared('Size')
+    r2_value = get_factor_r_squared('Value')
+    r2_growth = get_factor_r_squared('Growth')
+    r2_momentum = get_factor_r_squared('Momentum')
+    r2_quality = get_factor_r_squared('Quality')
+    r2_volatility = get_factor_r_squared('Volatility')
     
     session.sql(f"""
         -- Generate synthetic factor exposures (Value, Growth, Quality, etc.) for equity securities
         -- Creates factor loadings with sector-specific characteristics and realistic correlations
-        CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.FACT_FACTOR_EXPOSURES AS
+        -- Config-driven via DATA_MODEL['synthetic_distributions']
+        CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_FACTOR_EXPOSURES AS
         WITH equity_securities AS (
             SELECT 
                 s.SecurityID,
                 s.Ticker,
                 i.SIC_DESCRIPTION,
                 i.CountryOfIncorporation
-            FROM {config.DATABASE['name']}.CURATED.DIM_SECURITY s
-            JOIN {config.DATABASE['name']}.CURATED.DIM_ISSUER i ON s.IssuerID = i.IssuerID
+            FROM {database_name}.CURATED.DIM_SECURITY s
+            JOIN {database_name}.CURATED.DIM_ISSUER i ON s.IssuerID = i.IssuerID
             WHERE s.AssetClass = 'Equity'
             AND EXISTS (
-                SELECT 1 FROM {config.DATABASE['name']}.CURATED.FACT_TRANSACTION t 
+                SELECT 1 FROM {database_name}.CURATED.FACT_TRANSACTION t 
                 WHERE t.SecurityID = s.SecurityID
             )
         ),
         monthly_dates AS (
-            SELECT DATEADD(month, seq4(), DATEADD(year, -{config.YEARS_OF_HISTORY}, CURRENT_DATE())) as EXPOSURE_DATE
+            SELECT DATEADD(month, seq4(), DATEADD(year, -{config.YEARS_OF_HISTORY}, '{max_price_date}'::DATE)) as EXPOSURE_DATE
             FROM TABLE(GENERATOR(rowcount => {12 * config.YEARS_OF_HISTORY}))
+            WHERE EXPOSURE_DATE <= '{max_price_date}'::DATE
         ),
         base_exposures AS (
             SELECT 
                 es.SecurityID,
                 md.EXPOSURE_DATE,
-                -- Market beta (sector-specific)
-                CASE 
-                    WHEN es.SIC_DESCRIPTION = 'Utilities' THEN UNIFORM(0.4, 0.8, RANDOM())
-                    WHEN es.SIC_DESCRIPTION = 'Information Technology' THEN UNIFORM(0.9, 1.4, RANDOM())
-                    WHEN es.SIC_DESCRIPTION = 'Health Care' THEN UNIFORM(0.6, 1.1, RANDOM())
-                    ELSE UNIFORM(0.7, 1.2, RANDOM())
-                END as MARKET_BETA,
-                -- Size factor (small vs large cap)
-                UNIFORM(-0.5, 0.8, RANDOM()) as SIZE_FACTOR,
-                -- Value factor (sector-specific)
-                CASE 
-                    WHEN es.SIC_DESCRIPTION = 'Information Technology' THEN UNIFORM(-0.3, 0.2, RANDOM())
-                    WHEN es.SIC_DESCRIPTION = 'Energy' THEN UNIFORM(0.1, 0.6, RANDOM())
-                    ELSE UNIFORM(-0.2, 0.4, RANDOM())
-                END as VALUE_FACTOR,
-                -- Momentum factor
-                UNIFORM(-0.4, 0.4, RANDOM()) as MOMENTUM_FACTOR,
-                -- Growth factor (inverse of value factor for most tech stocks)
-                CASE 
-                    WHEN es.SIC_DESCRIPTION = 'Information Technology' THEN UNIFORM(0.3, 0.8, RANDOM())
-                    WHEN es.SIC_DESCRIPTION = 'Health Care' THEN UNIFORM(0.1, 0.6, RANDOM())
-                    WHEN es.SIC_DESCRIPTION = 'Energy' THEN UNIFORM(-0.4, 0.1, RANDOM())
-                    ELSE UNIFORM(-0.3, 0.4, RANDOM())
-                END as GROWTH_FACTOR,
-                -- Quality factor
-                CASE 
-                    WHEN es.SIC_DESCRIPTION = 'Information Technology' THEN UNIFORM(0.2, 0.7, RANDOM())
-                    WHEN es.SIC_DESCRIPTION = 'Health Care' THEN UNIFORM(0.1, 0.5, RANDOM())
-                    ELSE UNIFORM(-0.2, 0.3, RANDOM())
-                END as QUALITY_FACTOR,
-                -- Volatility factor
-                CASE 
-                    WHEN es.SIC_DESCRIPTION = 'Utilities' THEN UNIFORM(-0.3, 0.1, RANDOM())
-                    WHEN es.SIC_DESCRIPTION = 'Information Technology' THEN UNIFORM(-0.1, 0.4, RANDOM())
-                    ELSE UNIFORM(-0.2, 0.2, RANDOM())
-                END as VOLATILITY_FACTOR
+                -- Market beta (sector-specific from config)
+                {market_beta_sql} as MARKET_BETA,
+                -- Size factor (global from config)
+                {size_factor_sql} as SIZE_FACTOR,
+                -- Value factor (sector-specific from config)
+                {value_factor_sql} as VALUE_FACTOR,
+                -- Momentum factor (global from config)
+                {momentum_factor_sql} as MOMENTUM_FACTOR,
+                -- Growth factor (sector-specific from config)
+                {growth_factor_sql} as GROWTH_FACTOR,
+                -- Quality factor (sector-specific from config)
+                {quality_factor_sql} as QUALITY_FACTOR,
+                -- Volatility factor (sector-specific from config)
+                {volatility_factor_sql} as VOLATILITY_FACTOR
             FROM equity_securities es
             CROSS JOIN monthly_dates md
         )
-        SELECT SecurityID, EXPOSURE_DATE, 'Market' as FACTOR_NAME, MARKET_BETA as EXPOSURE_VALUE, 0.95 as R_SQUARED FROM base_exposures
+        SELECT SecurityID, EXPOSURE_DATE, 'Market' as FACTOR_NAME, MARKET_BETA as EXPOSURE_VALUE, {r2_market} as R_SQUARED FROM base_exposures
         UNION ALL
-        SELECT SecurityID, EXPOSURE_DATE, 'Size', SIZE_FACTOR, 0.75 FROM base_exposures
+        SELECT SecurityID, EXPOSURE_DATE, 'Size', SIZE_FACTOR, {r2_size} FROM base_exposures
         UNION ALL
-        SELECT SecurityID, EXPOSURE_DATE, 'Value', VALUE_FACTOR, 0.65 FROM base_exposures
+        SELECT SecurityID, EXPOSURE_DATE, 'Value', VALUE_FACTOR, {r2_value} FROM base_exposures
         UNION ALL
-        SELECT SecurityID, EXPOSURE_DATE, 'Growth', GROWTH_FACTOR, 0.60 FROM base_exposures
+        SELECT SecurityID, EXPOSURE_DATE, 'Growth', GROWTH_FACTOR, {r2_growth} FROM base_exposures
         UNION ALL
-        SELECT SecurityID, EXPOSURE_DATE, 'Momentum', MOMENTUM_FACTOR, 0.45 FROM base_exposures
+        SELECT SecurityID, EXPOSURE_DATE, 'Momentum', MOMENTUM_FACTOR, {r2_momentum} FROM base_exposures
         UNION ALL
-        SELECT SecurityID, EXPOSURE_DATE, 'Quality', QUALITY_FACTOR, 0.55 FROM base_exposures
+        SELECT SecurityID, EXPOSURE_DATE, 'Quality', QUALITY_FACTOR, {r2_quality} FROM base_exposures
         UNION ALL
-        SELECT SecurityID, EXPOSURE_DATE, 'Volatility', VOLATILITY_FACTOR, 0.35 FROM base_exposures
+        SELECT SecurityID, EXPOSURE_DATE, 'Volatility', VOLATILITY_FACTOR, {r2_volatility} FROM base_exposures
     """).collect()
     
 
 def build_benchmark_holdings(session: Session):
-    """Build benchmark holdings with SecurityID linkage using efficient SQL generation."""
+    """Build benchmark holdings with SecurityID linkage using config-driven SQL generation.
+    
+    Uses config from BENCHMARKS[*]['holdings_rules'] for:
+    - Constituent counts (e.g., 500 for S&P 500)
+    - Filters (country, sector, or 'all')
+    - Raw weight ranges (simple or country-differentiated)
+    - Min weight thresholds
+    - Assumed benchmark market value
+    """
+    
+    database_name = config.DATABASE['name']
+    
+    # Get max price date as upper bound for benchmark holdings (anchor to real market data)
+    max_price_date = get_max_price_date(session)
+    if max_price_date is None:
+        raise RuntimeError(
+            "FACT_STOCK_PRICES not found - cannot build FACT_BENCHMARK_HOLDINGS. "
+            "Run generate_market_data.build_price_anchor() first."
+        )
+    
+    # Build config-driven SQL for weight assignment and filtering
+    # Generate CASE WHEN clauses from config
+    weight_cases = []
+    constituent_filter_cases = []
+    
+    for bm in config.BENCHMARKS:
+        bm_name = bm['name']
+        rules = bm['holdings_rules']  # Required field
+        filters = rules['filters']  # Required field
+        count = rules['constituent_count']  # Required field
+        min_weight = rules['min_weight']  # Required field
+        
+        # Build filter condition
+        filter_conds = []
+        if 'country' in filters:
+            filter_conds.append(f"es.CountryOfIncorporation = '{filters['country']}'")
+        if 'sector' in filters:
+            filter_conds.append(f"es.SIC_DESCRIPTION = '{filters['sector']}'")
+        # 'all': True means no additional filter
+        
+        filter_sql = ' AND '.join(filter_conds) if filter_conds else 'TRUE'
+        
+        # Build weight expression
+        if 'weight_by_country' in rules:
+            # Country-differentiated weights (e.g., MSCI ACWI)
+            wbc = rules['weight_by_country']
+            weight_subcases = []
+            for country, weight_range in wbc.items():
+                if country != '_default':
+                    weight_subcases.append(f"WHEN es.CountryOfIncorporation = '{country}' THEN UNIFORM({weight_range[0]}, {weight_range[1]}, RANDOM())")
+            default_range = wbc['_default']  # Required default entry
+            weight_sql = f"CASE {' '.join(weight_subcases)} ELSE UNIFORM({default_range[0]}, {default_range[1]}, RANDOM()) END"
+        else:
+            # Simple weight range - required field
+            weight_range = rules['raw_weight_range']
+            weight_sql = f"UNIFORM({weight_range[0]}, {weight_range[1]}, RANDOM())"
+        
+        # Weight case (applies filter for eligibility)
+        weight_cases.append(f"WHEN b.BenchmarkName = '{bm_name}' AND {filter_sql} THEN {weight_sql}")
+        
+        # Constituent count filter
+        constituent_filter_cases.append(f"(BenchmarkName = '{bm_name}' AND rn <= {count})")
+    
+    weight_case_sql = f"CASE {' '.join(weight_cases)} ELSE NULL END"
+    constituent_filter_sql = ' OR '.join(constituent_filter_cases)
+    
+    # Get assumed benchmark MV from first benchmark's holdings_rules
+    assumed_mv = config.BENCHMARKS[0]['holdings_rules']['assumed_benchmark_mv_usd']
     
     session.sql(f"""
-        -- Generate synthetic benchmark holdings for major indices (S&P 500, MSCI ACWI, Nasdaq 100)
+        -- Generate synthetic benchmark holdings for major indices
         -- Creates realistic index compositions with market-cap weighted allocations
-        CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.FACT_BENCHMARK_HOLDINGS AS
+        -- Config-driven via BENCHMARKS[*]['holdings_rules']
+        CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_BENCHMARK_HOLDINGS AS
         WITH equity_securities AS (
             SELECT 
                 s.SecurityID,
                 s.Ticker,
                 i.SIC_DESCRIPTION,
                 i.CountryOfIncorporation
-            FROM {config.DATABASE['name']}.CURATED.DIM_SECURITY s
-            JOIN {config.DATABASE['name']}.CURATED.DIM_ISSUER i ON s.IssuerID = i.IssuerID
+            FROM {database_name}.CURATED.DIM_SECURITY s
+            JOIN {database_name}.CURATED.DIM_ISSUER i ON s.IssuerID = i.IssuerID
             WHERE s.AssetClass = 'Equity'
             AND EXISTS (
-                SELECT 1 FROM {config.DATABASE['name']}.CURATED.FACT_TRANSACTION t 
+                SELECT 1 FROM {database_name}.CURATED.FACT_TRANSACTION t 
                 WHERE t.SecurityID = s.SecurityID
             )
         ),
         benchmarks AS (
-            SELECT BenchmarkID, BenchmarkName FROM {config.DATABASE['name']}.CURATED.DIM_BENCHMARK
+            SELECT BenchmarkID, BenchmarkName FROM {database_name}.CURATED.DIM_BENCHMARK
         ),
         monthly_dates AS (
-            SELECT LAST_DAY(DATEADD(month, seq4(), DATEADD(year, -{config.YEARS_OF_HISTORY}, CURRENT_DATE()))) as HOLDING_DATE
+            SELECT LAST_DAY(DATEADD(month, seq4(), DATEADD(year, -{config.YEARS_OF_HISTORY}, '{max_price_date}'::DATE))) as HOLDING_DATE
             FROM TABLE(GENERATOR(rowcount => {12 * config.YEARS_OF_HISTORY}))
+            WHERE HOLDING_DATE <= '{max_price_date}'::DATE
         ),
         benchmark_universe AS (
             SELECT 
@@ -1446,17 +1343,8 @@ def build_benchmark_holdings(session: Session):
                 es.SIC_DESCRIPTION,
                 es.CountryOfIncorporation,
                 md.HOLDING_DATE,
-                -- Weight logic based on benchmark type
-                CASE 
-                    WHEN b.BenchmarkName = 'S&P 500' AND es.CountryOfIncorporation = 'US' THEN UNIFORM(0.001, 0.07, RANDOM())
-                    WHEN b.BenchmarkName = 'MSCI ACWI' THEN 
-                        CASE 
-                            WHEN es.CountryOfIncorporation = 'US' THEN UNIFORM(0.001, 0.05, RANDOM())
-                            ELSE UNIFORM(0.0001, 0.01, RANDOM())
-                        END
-                    WHEN b.BenchmarkName = 'Nasdaq 100' AND es.SIC_DESCRIPTION = 'Information Technology' THEN UNIFORM(0.005, 0.12, RANDOM())
-                    ELSE NULL
-                END as RAW_WEIGHT,
+                -- Weight logic from config
+                {weight_case_sql} as RAW_WEIGHT,
                 ROW_NUMBER() OVER (PARTITION BY b.BenchmarkID, md.HOLDING_DATE ORDER BY RANDOM()) as rn
             FROM benchmarks b
             CROSS JOIN equity_securities es
@@ -1466,11 +1354,7 @@ def build_benchmark_holdings(session: Session):
             SELECT *
             FROM benchmark_universe
             WHERE RAW_WEIGHT IS NOT NULL
-            AND (
-                (BenchmarkName = 'S&P 500' AND rn <= 500) OR
-                (BenchmarkName = 'MSCI ACWI' AND rn <= 800) OR
-                (BenchmarkName = 'Nasdaq 100' AND rn <= 100)
-            )
+            AND ({constituent_filter_sql})
         ),
         normalized_weights AS (
             SELECT 
@@ -1483,181 +1367,367 @@ def build_benchmark_holdings(session: Session):
             SecurityID,
             HOLDING_DATE,
             WEIGHT as BENCHMARK_WEIGHT,
-            WEIGHT * 1000000000 as MARKET_VALUE_USD  -- Assume $1B benchmark size
+            WEIGHT * {assumed_mv} as MARKET_VALUE_USD
         FROM normalized_weights
         WHERE WEIGHT >= 0.0001  -- Minimum 0.01% weight
     """).collect()
     
 
+def build_fact_benchmark_performance(session: Session):
+    """
+    Build benchmark-level performance returns (MTD, QTD, YTD) from constituent data.
+    
+    This table stores aggregated benchmark returns calculated by weighting constituent
+    security returns by their benchmark weights. Enables queries like:
+    - "What is the Q4 2024 benchmark performance for MSCI ACWI?"
+    - "Compare portfolio returns vs benchmark returns"
+    
+    Used by: SAM_ANALYST_VIEW for benchmark performance comparison
+    Grain: One row per benchmark per date
+    """
+    database_name = config.DATABASE['name']
+    
+    # Ensure database context is set (required for temp stage creation in complex queries)
+    session.sql(f"USE DATABASE {database_name}").collect()
+    session.sql(f"USE SCHEMA {config.DATABASE['schemas']['curated']}").collect()
+    
+    # Check if required source tables exist
+    try:
+        session.sql(f"SELECT 1 FROM {database_name}.CURATED.FACT_BENCHMARK_HOLDINGS LIMIT 1").collect()
+        session.sql(f"SELECT 1 FROM {database_name}.MARKET_DATA.FACT_STOCK_PRICES LIMIT 1").collect()
+    except Exception as e:
+        raise RuntimeError(
+            f"Required tables not found for FACT_BENCHMARK_PERFORMANCE: {e}. "
+            "Ensure FACT_BENCHMARK_HOLDINGS and FACT_STOCK_PRICES are built first."
+        )
+    
+    # First check if V_SECURITY_RETURNS exists (needed for accurate period returns)
+    try:
+        session.sql(f"SELECT 1 FROM {database_name}.CURATED.V_SECURITY_RETURNS LIMIT 1").collect()
+    except Exception as e:
+        raise RuntimeError(
+            f"V_SECURITY_RETURNS not found - cannot build FACT_BENCHMARK_PERFORMANCE: {e}. "
+            "Run build_security_returns_view() first."
+        )
+    
+    # Use V_SECURITY_RETURNS which has properly calculated period returns per security
+    # Weight-average constituent returns to get benchmark returns
+    session.sql(f"""
+        CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_BENCHMARK_PERFORMANCE AS
+        WITH -- Get benchmark holdings with security linkage and the latest returns per holding date
+        -- Note: BenchmarkName available via BenchmarkID -> DIM_BENCHMARK join
+        benchmark_constituents AS (
+            SELECT 
+                bh.BenchmarkID,
+                bh.HOLDING_DATE,
+                bh.SecurityID,
+                bh.BENCHMARK_WEIGHT
+            FROM {database_name}.CURATED.FACT_BENCHMARK_HOLDINGS bh
+        ),
+        -- Join with security returns for the appropriate date
+        -- Match security returns to closest available date <= holding date
+        constituent_returns AS (
+            SELECT 
+                bc.BenchmarkID,
+                bc.HOLDING_DATE,
+                bc.SecurityID,
+                bc.BENCHMARK_WEIGHT,
+                sr.MTD_RETURN_PCT,
+                sr.QTD_RETURN_PCT,
+                sr.YTD_RETURN_PCT,
+                ROW_NUMBER() OVER (
+                    PARTITION BY bc.BenchmarkID, bc.HOLDING_DATE, bc.SecurityID 
+                    ORDER BY sr.PRICE_DATE DESC
+                ) as rn
+            FROM benchmark_constituents bc
+            JOIN {database_name}.CURATED.V_SECURITY_RETURNS sr 
+                ON bc.SecurityID = sr.SECURITYID
+                AND sr.PRICE_DATE <= bc.HOLDING_DATE
+                AND sr.PRICE_DATE >= DATEADD(day, -7, bc.HOLDING_DATE)  -- Within 7 days
+        ),
+        -- Calculate weighted average returns for each benchmark per date
+        benchmark_period_returns AS (
+            SELECT 
+                BenchmarkID,
+                HOLDING_DATE as PerformanceDate,
+                -- Weighted average MTD return
+                SUM(BENCHMARK_WEIGHT * COALESCE(MTD_RETURN_PCT, 0)) as MTD_RETURN_PCT,
+                -- Weighted average QTD return
+                SUM(BENCHMARK_WEIGHT * COALESCE(QTD_RETURN_PCT, 0)) as QTD_RETURN_PCT,
+                -- Weighted average YTD return
+                SUM(BENCHMARK_WEIGHT * COALESCE(YTD_RETURN_PCT, 0)) as YTD_RETURN_PCT
+            FROM constituent_returns
+            WHERE rn = 1  -- Only use the closest matching date per constituent
+            GROUP BY BenchmarkID, HOLDING_DATE
+        )
+        SELECT 
+            ROW_NUMBER() OVER (ORDER BY PerformanceDate, BenchmarkID) as BenchmarkPerfID,
+            BenchmarkID,
+            PerformanceDate,
+            ROUND(MTD_RETURN_PCT, 2) as MTD_RETURN_PCT,
+            ROUND(QTD_RETURN_PCT, 2) as QTD_RETURN_PCT,
+            ROUND(YTD_RETURN_PCT, 2) as YTD_RETURN_PCT,
+            -- Annualized return: extrapolate YTD to full year
+            ROUND(
+                YTD_RETURN_PCT * (365.0 / GREATEST(DATEDIFF('day', DATE_TRUNC('YEAR', PerformanceDate), PerformanceDate), 1)), 
+                2
+            ) as ANNUALIZED_RETURN_PCT,
+            CURRENT_TIMESTAMP() as CREATED_AT
+        FROM benchmark_period_returns
+        ORDER BY PerformanceDate DESC, BenchmarkID
+    """).collect()
+    
+    # Verify creation
+    count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.FACT_BENCHMARK_PERFORMANCE").collect()[0]['CNT']
+    log_detail(f"  Created FACT_BENCHMARK_PERFORMANCE with {count:,} records")
+
+
 def build_transaction_cost_data(session: Session):
-    """Build transaction cost and market microstructure data for realistic execution planning."""
+    """Build transaction cost and market microstructure data using config-driven SQL generation.
+    
+    Uses config-driven SQL builders for:
+    - Sector-based bid-ask spreads, volume, market impact (DATA_MODEL['synthetic_distributions']['by_sector'][*]['transaction_costs'])
+    - Country-based settlement days (DATA_MODEL['synthetic_distributions']['country_groups'][*]['settlement_days'])
+    - Global commission rates (DATA_MODEL['synthetic_distributions']['global']['transaction_cost_globals'])
+    """
+    
+    database_name = config.DATABASE['name']
+    
+    # Get max price date as upper bound (anchor to real market data)
+    max_price_date = get_max_price_date(session)
+    if max_price_date is None:
+        raise RuntimeError(
+            "FACT_STOCK_PRICES not found - cannot build FACT_TRANSACTION_COSTS. "
+            "Run generate_market_data.build_price_anchor() first."
+        )
+    
+    # Build config-driven SQL expressions
+    bid_ask_sql = build_sector_case_sql('es.SIC_DESCRIPTION', 'transaction_costs.bid_ask_spread_bps')
+    volume_sql = build_sector_case_sql('es.SIC_DESCRIPTION', 'transaction_costs.daily_volume_m')
+    impact_sql = build_sector_case_sql('es.SIC_DESCRIPTION', 'transaction_costs.market_impact_bps_per_1m')
+    commission_sql = build_global_uniform_sql('transaction_cost_globals.commission_bps')
+    settlement_sql = build_country_settlement_case_sql('es.CountryOfIncorporation')
+    
+    # Get window size from config
+    from config_accessors import get_global_value
+    business_days_window = get_global_value('transaction_cost_globals.business_days_window', 66)
+    business_months_window = get_global_value('transaction_cost_globals.business_months_window', 3)
     
     session.sql(f"""
-        CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.FACT_TRANSACTION_COSTS AS
+        CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_TRANSACTION_COSTS AS
         WITH equity_securities AS (
             SELECT 
                 s.SecurityID,
                 s.Ticker,
                 i.SIC_DESCRIPTION,
                 i.CountryOfIncorporation
-            FROM {config.DATABASE['name']}.CURATED.DIM_SECURITY s
-            JOIN {config.DATABASE['name']}.CURATED.DIM_ISSUER i ON s.IssuerID = i.IssuerID
+            FROM {database_name}.CURATED.DIM_SECURITY s
+            JOIN {database_name}.CURATED.DIM_ISSUER i ON s.IssuerID = i.IssuerID
             WHERE s.AssetClass = 'Equity'
             AND EXISTS (
-                SELECT 1 FROM {config.DATABASE['name']}.CURATED.FACT_TRANSACTION t 
+                SELECT 1 FROM {database_name}.CURATED.FACT_TRANSACTION t 
                 WHERE t.SecurityID = s.SecurityID
             )
         ),
         business_dates AS (
-            SELECT DATEADD(day, seq4(), DATEADD(month, -3, CURRENT_DATE())) as COST_DATE
-            FROM TABLE(GENERATOR(rowcount => 66))  -- ~3 months of business days
+            SELECT DATEADD(day, seq4(), DATEADD(month, -{business_months_window}, '{max_price_date}'::DATE)) as COST_DATE
+            FROM TABLE(GENERATOR(rowcount => {business_days_window}))  -- ~{business_months_window} months of business days
             WHERE DAYOFWEEK(COST_DATE) BETWEEN 2 AND 6
+              AND COST_DATE <= '{max_price_date}'::DATE
         )
         SELECT 
             es.SecurityID,
             bd.COST_DATE,
-            -- Bid-ask spread (bps) - varies by market cap and sector
-            CASE 
-                WHEN es.SIC_DESCRIPTION = 'Information Technology' THEN UNIFORM(3, 8, RANDOM())
-                WHEN es.SIC_DESCRIPTION = 'Utilities' THEN UNIFORM(5, 12, RANDOM())
-                WHEN es.SIC_DESCRIPTION = 'Energy' THEN UNIFORM(4, 10, RANDOM())
-                ELSE UNIFORM(4, 9, RANDOM())
-            END as BID_ASK_SPREAD_BPS,
-            -- Average daily volume (shares in millions)
-            CASE 
-                WHEN es.SIC_DESCRIPTION = 'Information Technology' THEN UNIFORM(2.0, 15.0, RANDOM())
-                ELSE UNIFORM(0.5, 8.0, RANDOM())
-            END as AVG_DAILY_VOLUME_M,
-            -- Market impact per $1M traded (bps)
-            CASE 
-                WHEN es.SIC_DESCRIPTION = 'Information Technology' THEN UNIFORM(2, 6, RANDOM())
-                ELSE UNIFORM(3, 8, RANDOM())
-            END as MARKET_IMPACT_BPS_PER_1M,
-            -- Commission rate (bps)
-            UNIFORM(1, 3, RANDOM()) as COMMISSION_BPS,
-            -- Settlement period (days)
-            CASE 
-                WHEN es.CountryOfIncorporation = 'US' THEN 2
-                WHEN es.CountryOfIncorporation IN ('GB', 'DE', 'FR') THEN 2
-                ELSE 3
-            END as SETTLEMENT_DAYS
+            -- Bid-ask spread (bps) - sector-specific from config
+            {bid_ask_sql} as BID_ASK_SPREAD_BPS,
+            -- Average daily volume (shares in millions) - sector-specific from config
+            {volume_sql} as AVG_DAILY_VOLUME_M,
+            -- Market impact per $1M traded (bps) - sector-specific from config
+            {impact_sql} as MARKET_IMPACT_BPS_PER_1M,
+            -- Commission rate (bps) - global from config
+            {commission_sql} as COMMISSION_BPS,
+            -- Settlement period (days) - country-group-specific from config
+            {settlement_sql} as SETTLEMENT_DAYS
         FROM equity_securities es
         CROSS JOIN business_dates bd
     """).collect()
     
 
 def build_liquidity_data(session: Session):
-    """Build liquidity and cash flow data for portfolio implementation planning."""
+    """Build liquidity and cash flow data using config-driven SQL generation.
+    
+    Uses config from DATA_MODEL['synthetic_distributions']['global']:
+    - liquidity_by_strategy: Strategy-based liquidity scores and rebalancing frequencies
+    - cash: Global cash position and cashflow ranges
+    """
+    
+    database_name = config.DATABASE['name']
+    
+    # Get max price date as upper bound (anchor to real market data)
+    max_price_date = get_max_price_date(session)
+    if max_price_date is None:
+        raise RuntimeError(
+            "FACT_STOCK_PRICES not found - cannot build FACT_PORTFOLIO_LIQUIDITY. "
+            "Run generate_market_data.build_price_anchor() first."
+        )
+    
+    # Build config-driven SQL expressions
+    liquidity_score_sql = build_strategy_case_sql('p.Strategy', 'liquidity_by_strategy', 'liquidity_score')
+    rebalancing_sql = build_strategy_case_sql('p.Strategy', 'liquidity_by_strategy', 'rebalancing_days')
+    cash_position_sql = build_global_uniform_sql('cash.cash_position_range_usd')
+    cashflow_sql = build_global_uniform_sql('cash.net_cashflow_30d_range_usd')
     
     session.sql(f"""
-        CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.FACT_PORTFOLIO_LIQUIDITY AS
+        CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_PORTFOLIO_LIQUIDITY AS
         WITH portfolios AS (
-            SELECT PortfolioID, PortfolioName FROM {config.DATABASE['name']}.CURATED.DIM_PORTFOLIO
+            SELECT PortfolioID, PortfolioName, Strategy FROM {database_name}.CURATED.DIM_PORTFOLIO
         ),
         monthly_dates AS (
-            SELECT DATEADD(month, seq4(), DATEADD(month, -12, CURRENT_DATE())) as LIQUIDITY_DATE
+            SELECT DATEADD(month, seq4(), DATEADD(month, -12, '{max_price_date}'::DATE)) as LIQUIDITY_DATE
             FROM TABLE(GENERATOR(rowcount => 12))
+            WHERE LIQUIDITY_DATE <= '{max_price_date}'::DATE
         )
         SELECT 
             p.PortfolioID,
             md.LIQUIDITY_DATE,
-            -- Available cash position
-            UNIFORM(1000000, 25000000, RANDOM()) as CASH_POSITION_USD,
-            -- Expected cash flows (subscriptions - redemptions)
-            UNIFORM(-5000000, 10000000, RANDOM()) as NET_CASHFLOW_30D_USD,
-            -- Liquidity score (1-10, 10 = most liquid)
-            CASE 
-                WHEN p.PortfolioName LIKE '%Technology%' THEN UNIFORM(7, 9, RANDOM())
-                WHEN p.PortfolioName LIKE '%ESG%' THEN UNIFORM(6, 8, RANDOM())
-                ELSE UNIFORM(5, 8, RANDOM())
-            END as PORTFOLIO_LIQUIDITY_SCORE,
-            -- Rebalancing frequency (days)
-            CASE 
-                WHEN p.PortfolioName LIKE '%Multi-Asset%' THEN 30
-                WHEN p.PortfolioName LIKE '%Balanced%' THEN 60
-                ELSE 90
-            END as REBALANCING_FREQUENCY_DAYS
+            -- Available cash position (global from config)
+            {cash_position_sql} as CASH_POSITION_USD,
+            -- Expected cash flows (global from config)
+            {cashflow_sql} as NET_CASHFLOW_30D_USD,
+            -- Liquidity score (strategy-specific from config)
+            {liquidity_score_sql} as PORTFOLIO_LIQUIDITY_SCORE,
+            -- Rebalancing frequency (strategy-specific from config)
+            {rebalancing_sql} as REBALANCING_FREQUENCY_DAYS
         FROM portfolios p
         CROSS JOIN monthly_dates md
     """).collect()
     
 
 def build_risk_budget_data(session: Session):
-    """Build risk budget and limits data for professional risk management."""
+    """Build risk budget and limits data using config-driven SQL generation.
+    
+    Uses config from DATA_MODEL['synthetic_distributions']['global']:
+    - risk_limits_by_strategy: Strategy-based tracking error and sector concentration limits
+    - risk_globals: Global risk metrics ranges
+    
+    Also uses COMPLIANCE_RULES['concentration'] for position limits.
+    """
+    
+    database_name = config.DATABASE['name']
+    
+    # Get max price date as reference (anchor to real market data)
+    max_price_date = get_max_price_date(session)
+    if max_price_date is None:
+        raise RuntimeError(
+            "FACT_STOCK_PRICES not found - cannot build FACT_RISK_LIMITS. "
+            "Run generate_market_data.build_price_anchor() first."
+        )
+    
+    # Build config-driven SQL expressions
+    tracking_error_limit_sql = build_strategy_case_sql('p.Strategy', 'risk_limits_by_strategy', 'tracking_error_limit')
+    sector_concentration_sql = build_strategy_case_sql('p.Strategy', 'risk_limits_by_strategy', 'max_sector_concentration')
+    current_te_sql = build_global_uniform_sql('risk_globals.current_tracking_error_pct')
+    utilization_sql = build_global_uniform_sql('risk_globals.risk_budget_utilization_pct')
+    var_sql = build_global_uniform_sql('risk_globals.var_limit_1day_pct')
+    
+    # Get compliance limits from existing config
+    tech_max = config.COMPLIANCE_RULES['concentration']['tech_portfolio_max']
+    default_max = config.COMPLIANCE_RULES['concentration']['max_single_issuer']
     
     session.sql(f"""
-        CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.FACT_RISK_LIMITS AS
+        CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_RISK_LIMITS AS
         WITH portfolios AS (
-            SELECT PortfolioID, PortfolioName, Strategy FROM {config.DATABASE['name']}.CURATED.DIM_PORTFOLIO
+            SELECT PortfolioID, PortfolioName, Strategy FROM {database_name}.CURATED.DIM_PORTFOLIO
         )
         SELECT 
             p.PortfolioID,
-            CURRENT_DATE() as LIMITS_DATE,
-            -- Tracking error limits
+            '{max_price_date}'::DATE as LIMITS_DATE,
+            -- Tracking error limits (strategy-specific from config)
+            {tracking_error_limit_sql} as TRACKING_ERROR_LIMIT_PCT,
+            -- Current tracking error utilization (global from config)
+            {current_te_sql} as CURRENT_TRACKING_ERROR_PCT,
+            -- Maximum single position concentration (from COMPLIANCE_RULES)
             CASE 
-                WHEN p.Strategy = 'Active Equity' THEN UNIFORM(4.0, 6.0, RANDOM())
-                WHEN p.Strategy = 'Multi-Asset' THEN UNIFORM(3.0, 5.0, RANDOM())
-                ELSE UNIFORM(2.0, 4.0, RANDOM())
-            END as TRACKING_ERROR_LIMIT_PCT,
-            -- Current tracking error utilization
-            UNIFORM(2.5, 4.8, RANDOM()) as CURRENT_TRACKING_ERROR_PCT,
-            -- Maximum single position concentration
-            CASE 
-                WHEN p.PortfolioName LIKE '%Technology%' THEN {config.COMPLIANCE_RULES['concentration']['tech_portfolio_max']}
-                ELSE {config.COMPLIANCE_RULES['concentration']['max_single_issuer']}
+                WHEN p.PortfolioName LIKE '%Technology%' THEN {tech_max}
+                ELSE {default_max}
             END as MAX_SINGLE_POSITION_PCT,
-            -- Maximum sector concentration
-            CASE 
-                WHEN p.PortfolioName LIKE '%Technology%' THEN 0.50  -- 50%
-                WHEN p.PortfolioName LIKE '%Multi-Asset%' THEN 0.35  -- 35%
-                ELSE 0.40  -- 40%
-            END as MAX_SECTOR_CONCENTRATION_PCT,
-            -- Risk budget utilization
-            UNIFORM(65, 85, RANDOM()) as RISK_BUDGET_UTILIZATION_PCT,
-            -- VaR limits
-            UNIFORM(1.5, 3.0, RANDOM()) as VAR_LIMIT_1DAY_PCT
+            -- Maximum sector concentration (strategy-specific from config)
+            {sector_concentration_sql} as MAX_SECTOR_CONCENTRATION_PCT,
+            -- Risk budget utilization (global from config)
+            {utilization_sql} as RISK_BUDGET_UTILIZATION_PCT,
+            -- VaR limits (global from config)
+            {var_sql} as VAR_LIMIT_1DAY_PCT
         FROM portfolios p
     """).collect()
     
 
 def build_trading_calendar_data(session: Session):
-    """Build trading calendar with blackout periods and market events."""
+    """Build trading calendar with blackout periods and market events using config-driven SQL.
+    
+    Uses config from DATA_MODEL['synthetic_distributions']['global']['calendar']:
+    - earnings_frequency_days: Quarterly earnings announcements
+    - monthly_review_frequency_days: Monthly rebalancing frequency
+    - weekly_review_frequency_days: Weekly review frequency
+    - vix_range: Expected VIX range
+    - options_expiration_frequency_days: Options expiration cycle
+    """
+    
+    database_name = config.DATABASE['name']
+    
+    # Get max price date as reference "today" for future events (anchor to real market data)
+    max_price_date = get_max_price_date(session)
+    if max_price_date is None:
+        raise RuntimeError(
+            "FACT_STOCK_PRICES not found - cannot build FACT_TRADING_CALENDAR. "
+            "Run generate_market_data.build_price_anchor() first."
+        )
+    
+    # Get calendar config values
+    from config_accessors import get_global_value
+    earnings_freq = get_global_value('calendar.earnings_frequency_days', 90)
+    monthly_freq = get_global_value('calendar.monthly_review_frequency_days', 30)
+    weekly_freq = get_global_value('calendar.weekly_review_frequency_days', 7)
+    vix_range = get_global_value('calendar.vix_range', (12, 35))
+    options_freq = get_global_value('calendar.options_expiration_frequency_days', 21)
+    
+    vix_sql = f"UNIFORM({vix_range[0]}, {vix_range[1]}, RANDOM())"
     
     session.sql(f"""
-        CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.FACT_TRADING_CALENDAR AS
+        CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_TRADING_CALENDAR AS
         WITH securities AS (
             SELECT s.SecurityID, s.Ticker 
-            FROM {config.DATABASE['name']}.CURATED.DIM_SECURITY s
+            FROM {database_name}.CURATED.DIM_SECURITY s
             WHERE s.AssetClass = 'Equity'
             AND EXISTS (
-                SELECT 1 FROM {config.DATABASE['name']}.CURATED.FACT_TRANSACTION t 
+                SELECT 1 FROM {database_name}.CURATED.FACT_TRANSACTION t 
                 WHERE t.SecurityID = s.SecurityID
             )
         ),
         future_dates AS (
-            SELECT DATEADD(day, seq4(), CURRENT_DATE()) as EVENT_DATE
-            FROM TABLE(GENERATOR(rowcount => 90))  -- Next 90 days
+            -- Generate future dates relative to max_price_date (our reference "today")
+            SELECT DATEADD(day, seq4(), '{max_price_date}'::DATE) as EVENT_DATE
+            FROM TABLE(GENERATOR(rowcount => 90))  -- Next 90 days from reference date
         )
         SELECT 
             s.SecurityID,
             fd.EVENT_DATE,
-            -- Earnings announcement dates (quarterly)
+            -- Earnings announcement dates (quarterly from config)
             CASE 
-                WHEN MOD(DATEDIFF(day, CURRENT_DATE(), fd.EVENT_DATE), 90) = 0 THEN 'EARNINGS_ANNOUNCEMENT'
-                WHEN MOD(DATEDIFF(day, CURRENT_DATE(), fd.EVENT_DATE), 30) = 0 THEN 'MONTHLY_REBALANCING'
-                WHEN MOD(DATEDIFF(day, CURRENT_DATE(), fd.EVENT_DATE), 7) = 0 THEN 'WEEKLY_REVIEW'
+                WHEN MOD(DATEDIFF(day, '{max_price_date}'::DATE, fd.EVENT_DATE), {earnings_freq}) = 0 THEN 'EARNINGS_ANNOUNCEMENT'
+                WHEN MOD(DATEDIFF(day, '{max_price_date}'::DATE, fd.EVENT_DATE), {monthly_freq}) = 0 THEN 'MONTHLY_REBALANCING'
+                WHEN MOD(DATEDIFF(day, '{max_price_date}'::DATE, fd.EVENT_DATE), {weekly_freq}) = 0 THEN 'WEEKLY_REVIEW'
                 ELSE NULL
             END as EVENT_TYPE,
-            -- Blackout period indicator
+            -- Blackout period indicator (around earnings)
             CASE 
-                WHEN MOD(DATEDIFF(day, CURRENT_DATE(), fd.EVENT_DATE), 90) BETWEEN -2 AND 2 THEN TRUE
+                WHEN MOD(DATEDIFF(day, '{max_price_date}'::DATE, fd.EVENT_DATE), {earnings_freq}) BETWEEN -2 AND 2 THEN TRUE
                 ELSE FALSE
             END as IS_BLACKOUT_PERIOD,
-            -- Market volatility forecast
-            UNIFORM(12, 35, RANDOM()) as EXPECTED_VIX_LEVEL,
-            -- Options expiration indicator
+            -- Market volatility forecast (from config)
+            {vix_sql} as EXPECTED_VIX_LEVEL,
+            -- Options expiration indicator (from config)
             CASE 
-                WHEN MOD(DATEDIFF(day, CURRENT_DATE(), fd.EVENT_DATE), 21) = 0 THEN TRUE
+                WHEN MOD(DATEDIFF(day, '{max_price_date}'::DATE, fd.EVENT_DATE), {options_freq}) = 0 THEN TRUE
                 ELSE FALSE
             END as IS_OPTIONS_EXPIRATION
         FROM securities s
@@ -1667,45 +1737,76 @@ def build_trading_calendar_data(session: Session):
     
 
 def build_client_mandate_data(session: Session):
-    """Build client mandate and approval requirements data."""
+    """Build client mandate and approval requirements data using config-driven SQL.
+    
+    Uses config from DATA_MODEL['synthetic_distributions']['global']['client_mandates']:
+    - approval_thresholds: Strategy/portfolio-based approval thresholds
+    - sector_allocation_defaults: Strategy-based sector allocation ranges
+    
+    Also uses COMPLIANCE_RULES['esg']['min_overall_rating'] for ESG requirements.
+    """
+    
+    database_name = config.DATABASE['name']
+    
+    # Get mandate config values - all fields required
+    from config_accessors import get_global_value
+    mandates_config = get_global_value('client_mandates')  # No default - require it
+    approval_thresholds = mandates_config['approval_thresholds']
+    sector_allocations = mandates_config['sector_allocation_defaults']
+    
+    # Build approval threshold CASE SQL
+    approval_cases = []
+    for key, threshold in approval_thresholds.items():
+        if key != '_default':
+            approval_cases.append(f"WHEN p.PortfolioName LIKE '%{key}%' THEN {threshold}")
+    default_approval = approval_thresholds['_default']
+    approval_sql = f"CASE {' '.join(approval_cases)} ELSE {default_approval} END" if approval_cases else str(default_approval)
+    
+    # Build sector allocation CASE SQL (JSON strings)
+    import json
+    sector_cases = []
+    for key, allocations in sector_allocations.items():
+        if key != '_default':
+            json_str = json.dumps(allocations).replace('"', '\\"')
+            sector_cases.append(f"WHEN p.PortfolioName LIKE '%{key}%' THEN '\"{json_str}\"'")
+    default_alloc = json.dumps(sector_allocations['_default']).replace('"', '\\"')
+    sector_sql = f"CASE {' '.join(sector_cases)} ELSE '\"{default_alloc}\"' END" if sector_cases else f"'\"{default_alloc}\"'"
+    
+    # Get ESG minimum rating from COMPLIANCE_RULES
+    esg_min_rating = config.COMPLIANCE_RULES['esg']['min_overall_rating']
+    
+    # Build rebalancing CASE using strategy config
+    rebalancing_sql = build_strategy_case_sql('p.Strategy', 'liquidity_by_strategy', 'rebalancing_days')
     
     session.sql(f"""
-        CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.DIM_CLIENT_MANDATES AS
+        CREATE OR REPLACE TABLE {database_name}.CURATED.DIM_CLIENT_MANDATES AS
         WITH portfolios AS (
-            SELECT PortfolioID, PortfolioName, Strategy FROM {config.DATABASE['name']}.CURATED.DIM_PORTFOLIO
+            SELECT PortfolioID, PortfolioName, Strategy FROM {database_name}.CURATED.DIM_PORTFOLIO
         )
         SELECT 
             p.PortfolioID,
-            -- Approval thresholds
-            CASE 
-                WHEN p.PortfolioName LIKE '%Flagship%' THEN 0.03  -- 3% for flagship
-                WHEN p.PortfolioName LIKE '%ESG%' THEN 0.04  -- 4% for ESG
-                ELSE 0.05  -- 5% for others
-            END as POSITION_CHANGE_APPROVAL_THRESHOLD_PCT,
-            -- Sector allocation ranges
+            -- Approval thresholds (from config)
+            {approval_sql} as POSITION_CHANGE_APPROVAL_THRESHOLD_PCT,
+            -- Sector allocation ranges (from config)
             CASE 
                 WHEN p.PortfolioName LIKE '%Technology%' THEN '{{"Technology": [0.30, 0.50], "Healthcare": [0.05, 0.15]}}'
                 WHEN p.PortfolioName LIKE '%ESG%' THEN '{{"Technology": [0.15, 0.35], "Energy": [0.00, 0.05]}}'
                 ELSE '{{"Technology": [0.10, 0.40], "Healthcare": [0.05, 0.20]}}'
             END as SECTOR_ALLOCATION_RANGES_JSON,
-            -- ESG requirements
+            -- ESG requirements (from COMPLIANCE_RULES)
             CASE 
-                WHEN p.PortfolioName LIKE '%ESG%' THEN 'BBB'
+                WHEN p.PortfolioName LIKE '%ESG%' THEN '{esg_min_rating}'
                 WHEN p.PortfolioName LIKE '%Climate%' THEN 'BB'
                 ELSE NULL
             END as MIN_ESG_RATING,
-            -- Exclusion lists
+            -- Exclusion lists (static for now)
             CASE 
                 WHEN p.PortfolioName LIKE '%ESG%' THEN '["Tobacco", "Weapons", "Thermal Coal"]'
                 WHEN p.PortfolioName LIKE '%Climate%' THEN '["Fossil Fuels", "Thermal Coal"]'
                 ELSE '[]'
             END as EXCLUSION_SECTORS_JSON,
-            -- Rebalancing requirements
-            CASE 
-                WHEN p.Strategy = 'Multi-Asset' THEN 30
-                WHEN p.Strategy = 'Active Equity' THEN 90
-                ELSE 60
-            END as MAX_REBALANCING_FREQUENCY_DAYS
+            -- Rebalancing requirements (strategy-based from config)
+            {rebalancing_sql} as MAX_REBALANCING_FREQUENCY_DAYS
         FROM portfolios p
     """).collect()
     
@@ -1715,88 +1816,160 @@ def build_dim_client(session: Session, test_mode: bool = False):
     Build client dimension table with institutional client entities.
     Links to portfolios via FACT_CLIENT_FLOWS for client flow analytics.
     
+    Uses unified DEMO_CLIENTS from config (with category: standard/at_risk/new)
+    for demo clients with realistic names, then generates additional clients 
+    with generic patterns via set-based SQL.
+    
+    Config-driven via DATA_MODEL['synthetic_distributions']['global']['client']:
+    - total_count / total_count_test_mode
+    - aum_range_usd, tenure_days_range
+    - demo_tenure_base_days, demo_tenure_multiplier_days
+    - primary_contacts, client_types, regions
+    
+    I/O Pattern: 
+    - Demo clients: Build in Python, batch write with write_pandas_overwrite
+    - Generated clients: Set-based INSERT...SELECT (no collect-in-loop)
+    
     Used by: Executive Copilot for client flow analysis
     Can also be used by: Sales Advisor for client-specific reporting
     """
     database_name = config.DATABASE['name']
     random.seed(config.RNG_SEED)
     
-    # Client types for institutional asset management
-    client_types = ['Pension', 'Endowment', 'Foundation', 'Insurance', 'Corporate', 'Family Office']
-    regions = ['North America', 'Europe', 'Asia Pacific', 'Middle East', 'Latin America']
-    
-    # Generate 75 clients (or 10 in test mode)
-    num_clients = 10 if test_mode else 75
-    
-    session.sql(f"""
-        CREATE OR REPLACE TABLE {database_name}.CURATED.DIM_CLIENT AS
-        WITH client_seed AS (
-            SELECT 
-                ROW_NUMBER() OVER (ORDER BY RANDOM()) as ClientID,
-                seq4() as seed_val
-            FROM TABLE(GENERATOR(ROWCOUNT => {num_clients}))
+    # Get max price date as reference "today" (anchor to real market data)
+    max_price_date = get_max_price_date(session)
+    if max_price_date is None:
+        raise RuntimeError(
+            "FACT_STOCK_PRICES not found - cannot build DIM_CLIENT. "
+            "Run generate_market_data.build_price_anchor() first."
         )
-        SELECT 
-            cs.ClientID,
-            CASE MOD(cs.ClientID, 15)
-                WHEN 0 THEN 'State Teachers Retirement System'
-                WHEN 1 THEN 'University Endowment Fund'
-                WHEN 2 THEN 'Corporate Pension Trust'
-                WHEN 3 THEN 'Healthcare Workers Pension'
-                WHEN 4 THEN 'Municipal Employees Retirement'
-                WHEN 5 THEN 'Private Foundation Trust'
-                WHEN 6 THEN 'Insurance General Account'
-                WHEN 7 THEN 'Family Office Holdings'
-                WHEN 8 THEN 'Sovereign Wealth Reserve'
-                WHEN 9 THEN 'Corporate Treasury Fund'
-                WHEN 10 THEN 'Public Employees Pension'
-                WHEN 11 THEN 'Charitable Foundation'
-                WHEN 12 THEN 'Life Insurance Portfolio'
-                WHEN 13 THEN 'Multi-Family Office'
-                ELSE 'Institutional Investor'
-            END || ' ' || LPAD(cs.ClientID::VARCHAR, 3, '0') as ClientName,
-            CASE MOD(cs.ClientID, 6)
-                WHEN 0 THEN 'Pension'
-                WHEN 1 THEN 'Endowment'
-                WHEN 2 THEN 'Foundation'
-                WHEN 3 THEN 'Insurance'
-                WHEN 4 THEN 'Corporate'
-                ELSE 'Family Office'
-            END as ClientType,
-            CASE MOD(cs.ClientID, 5)
-                WHEN 0 THEN 'North America'
-                WHEN 1 THEN 'Europe'
-                WHEN 2 THEN 'Asia Pacific'
-                WHEN 3 THEN 'Middle East'
-                ELSE 'Latin America'
-            END as Region,
-            -- AUM with SAM (between $50M and $500M)
-            ROUND(UNIFORM(50000000, 500000000, RANDOM()), -6) as AUM_with_SAM,
-            -- Relationship start date (1-8 years ago)
-            DATEADD('day', -UNIFORM(365, 2920, RANDOM()), CURRENT_DATE()) as RelationshipStartDate,
-            -- Primary contact
-            CASE MOD(cs.ClientID, 8)
-                WHEN 0 THEN 'Sarah Chen'
-                WHEN 1 THEN 'Michael O''Brien'
-                WHEN 2 THEN 'Jennifer Martinez'
-                WHEN 3 THEN 'David Kim'
-                WHEN 4 THEN 'Emma Thompson'
-                WHEN 5 THEN 'Robert Singh'
-                WHEN 6 THEN 'Lisa Anderson'
-                ELSE 'James Wilson'
-            END as PrimaryContact,
-            -- Account status
-            'Active' as AccountStatus
-        FROM client_seed cs
-    """).collect()
+    
+    # Get client config - all fields required
+    from config_accessors import get_global_value
+    client_config = get_global_value('client')  # No default - require it
+    total_clients = client_config['total_count_test_mode'] if test_mode else client_config['total_count']
+    contacts = client_config['primary_contacts']
+    tenure_base = client_config['demo_tenure_base_days']
+    tenure_multiplier = client_config['demo_tenure_multiplier_days']
+    aum_range = client_config['aum_range_usd']
+    tenure_range = client_config['tenure_days_range']
+    client_types = client_config['client_types']
+    regions = client_config['regions']
+    
+    # Get ALL demo clients from config (standard + at-risk + new, sorted by priority)
+    demo_clients = get_all_demo_clients_sorted()
+    num_demo_clients = len(demo_clients)
+    
+    # Total clients: demo clients + generated clients
+    num_generated = max(0, total_clients - num_demo_clients)
+    
+    # Calculate max priority for tenure formula
+    max_priority = max((c['priority'] for c in demo_clients), default=14)
+    
+    # Step 1: Build demo client rows in Python (batched pattern)
+    rows = []
+    for i, client in enumerate(demo_clients, 1):
+        # Calculate middle of AUM range
+        aum = (client['aum_range'][0] + client['aum_range'][1]) // 2
+        
+        # Relationship tenure: new clients have short tenure, others based on priority
+        if client['category'] == 'new':
+            # New clients: use days_since_onboard from config
+            tenure_days = client['days_since_onboard']
+        else:
+            # Established clients: longer tenure based on priority (from config formula)
+            tenure_days = tenure_base + (max_priority + 1 - client['priority']) * tenure_multiplier
+        
+        contact = contacts[(i - 1) % len(contacts)]
+        
+        rows.append({
+            'CLIENTID': i,
+            'CLIENTNAME': client['client_name'],
+            'CLIENTTYPE': client['client_type'],
+            'REGION': client['region'],
+            'AUM_WITH_SAM': aum,
+            'RELATIONSHIPSTARTDATE': max_price_date - timedelta(days=tenure_days),
+            'PRIMARYCONTACT': contact,
+            'ACCOUNTSTATUS': 'Active'
+        })
+    
+    # Step 2: Write demo clients using write_pandas (single batch write)
+    import pandas as pd
+    from snowflake_io_utils import cleanup_temp_stages
+    cleanup_temp_stages(session)  # Clean up any leftover temp stages
+    
+    df = pd.DataFrame(rows)
+    session.write_pandas(
+        df, 'DIM_CLIENT',
+        database=database_name, schema='CURATED',
+        quote_identifiers=False, overwrite=True, auto_create_table=True
+    )
+    
+    # Step 3: Append generated clients via set-based INSERT...SELECT (no collect-in-loop)
+    if num_generated > 0:
+        # Get generated name patterns from config
+        name_patterns = client_config['generated_name_patterns']
+        
+        # Build client name CASE from config
+        num_patterns = len(name_patterns)
+        name_cases = ' '.join([f"WHEN {i} THEN '{p}'" for i, p in enumerate(name_patterns)])
+        name_case_sql = f"CASE MOD(cs.ClientID, {num_patterns}) {name_cases} ELSE '{name_patterns[-1]}' END"
+        
+        # Build client type CASE from config
+        num_types = len(client_types)
+        type_cases = ' '.join([f"WHEN {i} THEN '{t}'" for i, t in enumerate(client_types)])
+        type_case_sql = f"CASE MOD(cs.ClientID, {num_types}) {type_cases} ELSE '{client_types[0]}' END"
+        
+        # Build region CASE from config
+        num_regions = len(regions)
+        region_cases = ' '.join([f"WHEN {i} THEN '{r}'" for i, r in enumerate(regions)])
+        region_case_sql = f"CASE MOD(cs.ClientID, {num_regions}) {region_cases} ELSE '{regions[0]}' END"
+        
+        # Build contact CASE from config (escape single quotes)
+        num_contacts = min(len(contacts), 8)  # Limit to 8 for MOD simplicity
+        contact_cases = ' '.join([f"WHEN {i} THEN '{contacts[i].replace(chr(39), chr(39)+chr(39))}'" for i in range(num_contacts)])
+        contact_case_sql = f"CASE MOD(cs.ClientID, {num_contacts}) {contact_cases} ELSE '{contacts[0].replace(chr(39), chr(39)+chr(39))}' END"
+        
+        session.sql(f"""
+            INSERT INTO {database_name}.CURATED.DIM_CLIENT
+            -- Generated clients (name patterns from config)
+            SELECT 
+                cs.ClientID,
+                {name_case_sql} || ' ' || LPAD(cs.ClientID::VARCHAR, 3, '0') as ClientName,
+                {type_case_sql} as ClientType,
+                {region_case_sql} as Region,
+                ROUND(UNIFORM({aum_range[0]}, {aum_range[1]}, RANDOM()), -6) as AUM_with_SAM,
+                DATEADD('day', -UNIFORM({tenure_range[0]}, {tenure_range[1]}, RANDOM()), '{max_price_date}'::DATE) as RelationshipStartDate,
+                {contact_case_sql} as PrimaryContact,
+                'Active' as AccountStatus
+            FROM (
+                SELECT 
+                    ROW_NUMBER() OVER (ORDER BY RANDOM()) + {num_demo_clients} as ClientID,
+                    seq4() as seed_val
+                FROM TABLE(GENERATOR(ROWCOUNT => {num_generated}))
+            ) cs
+        """).collect()
     
     # Verify creation
     count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.DIM_CLIENT").collect()[0]['CNT']
+    log_detail(f"  Created DIM_CLIENT with {count} clients ({num_demo_clients} demo + {num_generated} generated)")
 
 def build_fact_client_flows(session: Session, test_mode: bool = False):
     """
     Build client flow fact table with subscription/redemption data.
     Links DIM_CLIENT to DIM_PORTFOLIO for flow analytics.
+    
+    Config-driven via DATA_MODEL['synthetic_distributions']['global']['client_flows']:
+    - months_of_history
+    - standard_subscription_pct, standard_redemption_pct, at_risk_redemption_pct
+    - allocation_weight_range, flow_amount_pct_range
+    - esg_recent_inflow_multiplier, growth_volatility_range
+    - monthly_flow_probability_pct
+    
+    Client flow patterns (based on DEMO_CLIENTS 'category' field):
+    - category='standard': net positive inflows
+    - category='at_risk': net negative (redemptions)
+    - category='new': Only recent flow history
     
     Used by: Executive Copilot for analyzing client inflows/outflows
     Supports: "What's driving Sustainable Fixed Income inflows?" queries
@@ -1804,15 +1977,45 @@ def build_fact_client_flows(session: Session, test_mode: bool = False):
     database_name = config.DATABASE['name']
     random.seed(config.RNG_SEED + 100)  # Different seed for variety
     
-    # Generate 12 months of flow data
-    months_of_history = 12
+    # Get max price date as reference (anchor to real market data)
+    max_price_date = get_max_price_date(session)
+    if max_price_date is None:
+        raise RuntimeError(
+            "FACT_STOCK_PRICES not found - cannot build FACT_CLIENT_FLOWS. "
+            "Run generate_market_data.build_price_anchor() first."
+        )
+    
+    # Get client flow config - all fields required
+    from config_accessors import get_global_value
+    flow_config = get_global_value('client_flows')  # No default - require it
+    months_of_history = flow_config['months_of_history']
+    std_sub_pct = flow_config['standard_subscription_pct']
+    std_red_pct = flow_config['standard_redemption_pct']
+    at_risk_red_pct = flow_config['at_risk_redemption_pct']
+    alloc_range = flow_config['allocation_weight_range']
+    flow_pct_range = flow_config['flow_amount_pct_range']
+    esg_mult = flow_config['esg_recent_inflow_multiplier']
+    esg_months = flow_config['esg_recent_months']
+    growth_vol_range = flow_config['growth_volatility_range']
+    flow_prob = flow_config['monthly_flow_probability_pct']
+    
+    # Calculate cumulative thresholds for standard flow type assignment
+    std_redemption_threshold = std_sub_pct + std_red_pct  # 95 = subscription + redemption, rest is transfer
+    
+    # Get at-risk and new client IDs for conditional flow generation
+    at_risk_ids = get_at_risk_client_ids()
+    new_client_ids = get_new_client_ids()
+    
+    # Build SQL-safe list of at-risk client IDs
+    at_risk_ids_sql = f"({','.join(str(id) for id in at_risk_ids)})" if at_risk_ids else "(NULL)"
+    new_client_ids_sql = f"({','.join(str(id) for id in new_client_ids)})" if new_client_ids else "(NULL)"
     
     session.sql(f"""
         CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_CLIENT_FLOWS AS
         WITH 
         -- Get all clients
         clients AS (
-            SELECT ClientID, ClientName, ClientType, Region, AUM_with_SAM
+            SELECT ClientID, ClientName, ClientType, Region, AUM_with_SAM, RelationshipStartDate
             FROM {database_name}.CURATED.DIM_CLIENT
         ),
         -- Get all portfolios
@@ -1820,49 +2023,67 @@ def build_fact_client_flows(session: Session, test_mode: bool = False):
             SELECT PortfolioID, PortfolioName, Strategy
             FROM {database_name}.CURATED.DIM_PORTFOLIO
         ),
-        -- Generate date range (last 12 months, monthly)
+        -- Generate date range (monthly) up to max_price_date
         date_range AS (
-            SELECT DATEADD('month', -seq4(), DATE_TRUNC('month', CURRENT_DATE())) as FlowDate
+            SELECT DATEADD('month', -seq4(), DATE_TRUNC('month', '{max_price_date}'::DATE)) as FlowDate
             FROM TABLE(GENERATOR(ROWCOUNT => {months_of_history}))
         ),
-        -- Create client-portfolio assignments (each client invests in 1-3 portfolios)
+        -- Create client-portfolio assignments (clients invest in 1-3 portfolios)
+        -- Distribution based on config: ~20% single, ~30% dual, ~50% triple
         client_portfolio_map AS (
             SELECT 
                 c.ClientID,
                 p.PortfolioID,
-                -- Weight for this client-portfolio pair (for flow sizing)
-                UNIFORM(0.3, 1.0, RANDOM()) as AllocationWeight
+                -- Weight for this client-portfolio pair (for flow sizing) - from config
+                UNIFORM({alloc_range[0]}, {alloc_range[1]}, RANDOM()) as AllocationWeight
             FROM clients c
             CROSS JOIN portfolios p
             WHERE 
-                -- Each client invests in 1-3 portfolios based on their ID
-                p.PortfolioID <= (MOD(c.ClientID, 3) + 1) * 3
-                AND p.PortfolioID > MOD(c.ClientID, 3) * 3
+                CASE 
+                    -- ~20% of clients (ClientID mod 5 = 0) get only 1 portfolio
+                    WHEN MOD(c.ClientID, 5) = 0 THEN 
+                        p.PortfolioID = MOD(c.ClientID, 10) + 1
+                    -- ~30% of clients (ClientID mod 5 = 1 or 2) get 2 portfolios
+                    WHEN MOD(c.ClientID, 5) IN (1, 2) THEN
+                        p.PortfolioID IN (MOD(c.ClientID, 10) + 1, MOD(c.ClientID + 3, 10) + 1)
+                    -- ~50% of clients (ClientID mod 5 = 3 or 4) get 3 portfolios
+                    ELSE
+                        p.PortfolioID IN (MOD(c.ClientID, 10) + 1, MOD(c.ClientID + 3, 10) + 1, MOD(c.ClientID + 6, 10) + 1)
+                END
         ),
-        -- Generate flows
+        -- Generate flows with different patterns for different client types
         flow_data AS (
             SELECT 
                 ROW_NUMBER() OVER (ORDER BY d.FlowDate, cpm.ClientID, cpm.PortfolioID) as FlowID,
                 d.FlowDate,
                 cpm.ClientID,
                 cpm.PortfolioID,
-                -- Flow type: mostly subscriptions with some redemptions
+                -- Flow type: varies by client type (thresholds from config)
                 CASE 
-                    WHEN UNIFORM(0, 100, RANDOM()) < 75 
-                    THEN 'Subscription'
-                    WHEN UNIFORM(0, 100, RANDOM()) < 95
-                    THEN 'Redemption'
-                    ELSE 'Transfer'
+                    -- At-risk clients: high redemptions (inverted pattern)
+                    WHEN cpm.ClientID IN {at_risk_ids_sql} THEN
+                        CASE 
+                            WHEN UNIFORM(0, 100, RANDOM()) < {at_risk_red_pct} THEN 'Redemption'
+                            ELSE 'Subscription'
+                        END
+                    -- Standard clients: subscription/redemption/transfer split from config
+                    ELSE
+                        CASE 
+                            WHEN UNIFORM(0, 100, RANDOM()) < {std_sub_pct} THEN 'Subscription'
+                            WHEN UNIFORM(0, 100, RANDOM()) < {std_redemption_threshold} THEN 'Redemption'
+                            ELSE 'Transfer'
+                        END
                 END as FlowType,
-                -- Flow amount based on client AUM and allocation
+                -- Flow amount based on client AUM and allocation (percentages from config)
                 ROUND(
                     c.AUM_with_SAM * cpm.AllocationWeight * 
-                    UNIFORM(0.01, 0.05, RANDOM()) *
+                    UNIFORM({flow_pct_range[0]}, {flow_pct_range[1]}, RANDOM()) *
                     CASE 
-                        -- ESG strategies getting more inflows recently
-                        WHEN p.Strategy = 'ESG' AND d.FlowDate > DATEADD('month', -6, CURRENT_DATE()) THEN 1.5
-                        -- Growth strategies volatile
-                        WHEN p.Strategy = 'Growth' THEN UNIFORM(0.8, 1.2, RANDOM())
+                        -- ESG strategies getting more inflows recently (multiplier from config)
+                        WHEN p.Strategy = 'ESG' AND d.FlowDate > DATEADD('month', -{esg_months}, '{max_price_date}'::DATE) 
+                             AND cpm.ClientID NOT IN {at_risk_ids_sql} THEN {esg_mult}
+                        -- Growth strategies volatile (range from config)
+                        WHEN p.Strategy = 'Growth' THEN UNIFORM({growth_vol_range[0]}, {growth_vol_range[1]}, RANDOM())
                         ELSE 1.0
                     END,
                     -4  -- Round to nearest 10,000
@@ -1871,8 +2092,11 @@ def build_fact_client_flows(session: Session, test_mode: bool = False):
             CROSS JOIN client_portfolio_map cpm
             JOIN clients c ON cpm.ClientID = c.ClientID
             JOIN portfolios p ON cpm.PortfolioID = p.PortfolioID
-            -- Not every client-portfolio has a flow every month
-            WHERE UNIFORM(0, 100, RANDOM()) < 40
+            WHERE 
+                -- Not every client-portfolio has a flow every month (probability from config)
+                UNIFORM(0, 100, RANDOM()) < {flow_prob}
+                -- New clients: only have flows after their relationship start date
+                AND d.FlowDate >= c.RelationshipStartDate
         )
         SELECT 
             FlowID,
@@ -1892,6 +2116,7 @@ def build_fact_client_flows(session: Session, test_mode: bool = False):
     
     # Verify creation
     count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.FACT_CLIENT_FLOWS").collect()[0]['CNT']
+    log_detail(f"  Created FACT_CLIENT_FLOWS with {count} flow records")
 
 def build_fact_fund_flows(session: Session):
     """
@@ -1906,26 +2131,22 @@ def build_fact_fund_flows(session: Session):
     session.sql(f"""
         CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_FUND_FLOWS AS
         WITH flow_aggregates AS (
+            -- Note: PortfolioName, Strategy available via PortfolioID -> DIM_PORTFOLIO join
             SELECT 
                 cf.FlowDate,
                 cf.PortfolioID,
-                p.PortfolioName,
-                p.Strategy,
                 SUM(CASE WHEN cf.FlowAmount > 0 THEN cf.FlowAmount ELSE 0 END) as GrossInflows,
                 SUM(CASE WHEN cf.FlowAmount < 0 THEN ABS(cf.FlowAmount) ELSE 0 END) as GrossOutflows,
                 SUM(cf.FlowAmount) as NetFlows,
                 COUNT(DISTINCT cf.ClientID) as ClientCount,
                 COUNT(*) as TransactionCount
             FROM {database_name}.CURATED.FACT_CLIENT_FLOWS cf
-            JOIN {database_name}.CURATED.DIM_PORTFOLIO p ON cf.PortfolioID = p.PortfolioID
-            GROUP BY cf.FlowDate, cf.PortfolioID, p.PortfolioName, p.Strategy
+            GROUP BY cf.FlowDate, cf.PortfolioID
         )
         SELECT 
             ROW_NUMBER() OVER (ORDER BY FlowDate, PortfolioID) as FundFlowID,
             FlowDate,
             PortfolioID,
-            PortfolioName,
-            Strategy,
             GrossInflows,
             GrossOutflows,
             NetFlows,
@@ -1938,44 +2159,225 @@ def build_fact_fund_flows(session: Session):
     # Verify creation
     count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.FACT_FUND_FLOWS").collect()[0]['CNT']
 
-def build_tax_implications_data(session: Session):
-    """Build tax implications and cost basis data for tax-efficient execution."""
+
+def build_fact_strategy_performance(session: Session):
+    """
+    Build aggregated strategy-level performance metrics for executive KPI queries.
+    Aggregates portfolio-level returns and AUM by strategy for executive reporting.
+    
+    Used by: Executive Copilot for strategy performance in executive briefings
+    Supports: "Top and bottom performing strategies", "Performance by strategy"
+    
+    Note: Calculates FIRM_AUM from actual holdings (distinct from client-reported AUM)
+    """
+    database_name = config.DATABASE['name']
+    
+    # Check if V_HOLDINGS_WITH_ESG exists with returns data
+    try:
+        session.sql(f"SELECT QTD_RETURN_PCT FROM {database_name}.CURATED.V_HOLDINGS_WITH_ESG LIMIT 1").collect()
+    except Exception as e:
+        raise RuntimeError(
+            f"V_HOLDINGS_WITH_ESG missing returns columns - cannot build FACT_STRATEGY_PERFORMANCE: {e}. "
+            "Run build_esg_latest_view() after build_security_returns_view() first."
+        )
+    
+    # Build strategy performance with returns data
+    session.sql(f"""
+        CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_STRATEGY_PERFORMANCE AS
+        WITH portfolio_performance AS (
+            -- Note: PortfolioName, Strategy available via PortfolioID -> DIM_PORTFOLIO join
+            SELECT 
+                h.HoldingDate,
+                h.PortfolioID,
+                SUM(h.MarketValue_Base) as Portfolio_AUM,
+                -- Weighted average returns (by market value)
+                SUM(h.MarketValue_Base * COALESCE(h.MTD_RETURN_PCT, 0)) / NULLIF(SUM(h.MarketValue_Base), 0) as Weighted_MTD_Return,
+                SUM(h.MarketValue_Base * COALESCE(h.QTD_RETURN_PCT, 0)) / NULLIF(SUM(h.MarketValue_Base), 0) as Weighted_QTD_Return,
+                SUM(h.MarketValue_Base * COALESCE(h.YTD_RETURN_PCT, 0)) / NULLIF(SUM(h.MarketValue_Base), 0) as Weighted_YTD_Return,
+                COUNT(DISTINCT h.SecurityID) as Holding_Count
+            FROM {database_name}.CURATED.V_HOLDINGS_WITH_ESG h
+            GROUP BY h.HoldingDate, h.PortfolioID
+        )
+        SELECT 
+            ROW_NUMBER() OVER (ORDER BY HoldingDate, PortfolioID) as StrategyPerfID,
+            HoldingDate,
+            PortfolioID,
+            ROUND(Portfolio_AUM, 2) as Strategy_AUM,
+            ROUND(Weighted_MTD_Return, 2) as Strategy_MTD_Return,
+            ROUND(Weighted_QTD_Return, 2) as Strategy_QTD_Return,
+            ROUND(Weighted_YTD_Return, 2) as Strategy_YTD_Return,
+            Holding_Count,
+            'USD' as Currency
+        FROM portfolio_performance
+    """).collect()
+    
+    # Verify creation
+    count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.FACT_STRATEGY_PERFORMANCE").collect()[0]['CNT']
+    log_detail(f"  Created FACT_STRATEGY_PERFORMANCE with {count:,} records")
+
+
+def build_portfolio_benchmark_comparison_view(session: Session):
+    """
+    Build a pre-joined view that combines portfolio returns with their benchmark returns.
+    
+    This view is needed for semantic views because HOLDINGS and BENCHMARK_PERFORMANCE
+    are independent fact tables with different granularities. Semantic views cannot
+    combine metrics from unrelated fact tables, so we pre-join them here.
+    
+    Grain: One row per portfolio per date
+    
+    Provides:
+    - Portfolio-level aggregated returns (MTD, QTD, YTD)
+    - Benchmark returns for the portfolio's assigned benchmark
+    - Active returns (portfolio - benchmark)
+    
+    Used by: SAM_ANALYST_VIEW for "portfolio vs benchmark" comparison queries
+    """
+    database_name = config.DATABASE['name']
+    
+    # Check if required source views/tables exist
+    try:
+        session.sql(f"SELECT 1 FROM {database_name}.CURATED.V_HOLDINGS_WITH_ESG LIMIT 1").collect()
+        session.sql(f"SELECT 1 FROM {database_name}.CURATED.FACT_BENCHMARK_PERFORMANCE LIMIT 1").collect()
+    except Exception as e:
+        raise RuntimeError(
+            f"Required tables not found for V_PORTFOLIO_BENCHMARK_COMPARISON: {e}. "
+            "Ensure V_HOLDINGS_WITH_ESG and FACT_BENCHMARK_PERFORMANCE are built first."
+        )
     
     session.sql(f"""
-        CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.FACT_TAX_IMPLICATIONS AS
+        CREATE OR REPLACE VIEW {database_name}.CURATED.V_PORTFOLIO_BENCHMARK_COMPARISON AS
+        WITH portfolio_returns AS (
+            -- Aggregate holding-level returns to portfolio level
+            SELECT 
+                h.PortfolioID,
+                p.PortfolioName,
+                p.Strategy,
+                p.BenchmarkID,
+                h.HoldingDate as PerformanceDate,
+                -- Weight-average the holding returns
+                SUM(h.PortfolioWeight * COALESCE(h.MTD_RETURN_PCT, 0)) / NULLIF(SUM(h.PortfolioWeight), 0) as PORTFOLIO_MTD_RETURN,
+                SUM(h.PortfolioWeight * COALESCE(h.QTD_RETURN_PCT, 0)) / NULLIF(SUM(h.PortfolioWeight), 0) as PORTFOLIO_QTD_RETURN,
+                SUM(h.PortfolioWeight * COALESCE(h.YTD_RETURN_PCT, 0)) / NULLIF(SUM(h.PortfolioWeight), 0) as PORTFOLIO_YTD_RETURN,
+                COUNT(DISTINCT h.SecurityID) as HOLDING_COUNT,
+                SUM(h.MarketValue_Base) as PORTFOLIO_AUM
+            FROM {database_name}.CURATED.V_HOLDINGS_WITH_ESG h
+            JOIN {database_name}.CURATED.DIM_PORTFOLIO p ON h.PortfolioID = p.PortfolioID
+            GROUP BY h.PortfolioID, p.PortfolioName, p.Strategy, p.BenchmarkID, h.HoldingDate
+        ),
+        benchmark_returns AS (
+            -- Get benchmark returns by date
+            -- Note: BenchmarkName available via BenchmarkID -> DIM_BENCHMARK join
+            SELECT 
+                bp.BenchmarkID,
+                b.BenchmarkName,
+                bp.PerformanceDate,
+                bp.MTD_RETURN_PCT as BENCHMARK_MTD_RETURN,
+                bp.QTD_RETURN_PCT as BENCHMARK_QTD_RETURN,
+                bp.YTD_RETURN_PCT as BENCHMARK_YTD_RETURN
+            FROM {database_name}.CURATED.FACT_BENCHMARK_PERFORMANCE bp
+            JOIN {database_name}.CURATED.DIM_BENCHMARK b ON bp.BenchmarkID = b.BenchmarkID
+        )
+        SELECT 
+            pr.PortfolioID,
+            pr.PortfolioName,
+            pr.Strategy,
+            pr.BenchmarkID,
+            br.BenchmarkName,
+            pr.PerformanceDate,
+            -- Portfolio returns
+            ROUND(pr.PORTFOLIO_MTD_RETURN, 2) as PORTFOLIO_MTD_RETURN,
+            ROUND(pr.PORTFOLIO_QTD_RETURN, 2) as PORTFOLIO_QTD_RETURN,
+            ROUND(pr.PORTFOLIO_YTD_RETURN, 2) as PORTFOLIO_YTD_RETURN,
+            -- Benchmark returns
+            ROUND(br.BENCHMARK_MTD_RETURN, 2) as BENCHMARK_MTD_RETURN,
+            ROUND(br.BENCHMARK_QTD_RETURN, 2) as BENCHMARK_QTD_RETURN,
+            ROUND(br.BENCHMARK_YTD_RETURN, 2) as BENCHMARK_YTD_RETURN,
+            -- Active returns (portfolio - benchmark)
+            ROUND(pr.PORTFOLIO_MTD_RETURN - COALESCE(br.BENCHMARK_MTD_RETURN, 0), 2) as ACTIVE_MTD_RETURN,
+            ROUND(pr.PORTFOLIO_QTD_RETURN - COALESCE(br.BENCHMARK_QTD_RETURN, 0), 2) as ACTIVE_QTD_RETURN,
+            ROUND(pr.PORTFOLIO_YTD_RETURN - COALESCE(br.BENCHMARK_YTD_RETURN, 0), 2) as ACTIVE_YTD_RETURN,
+            -- Portfolio metadata
+            pr.HOLDING_COUNT,
+            ROUND(pr.PORTFOLIO_AUM, 2) as PORTFOLIO_AUM
+        FROM portfolio_returns pr
+        LEFT JOIN benchmark_returns br 
+            ON pr.BenchmarkID = br.BenchmarkID 
+            AND pr.PerformanceDate = br.PerformanceDate
+    """).collect()
+    
+    log_detail("  Created V_PORTFOLIO_BENCHMARK_COMPARISON view")
+
+
+def build_tax_implications_data(session: Session):
+    """Build tax implications and cost basis data using config-driven SQL.
+    
+    Uses config from DATA_MODEL['synthetic_distributions']['global']['tax']:
+    - cost_basis_multiplier_range: Range for synthetic cost basis calculation
+    - holding_period_days_range: Range for holding period
+    - long_term_threshold_days: Days threshold for long-term treatment
+    - long_term_rate: Long-term capital gains tax rate
+    - short_term_rate: Short-term capital gains tax rate
+    - tax_loss_harvest_threshold_usd: Threshold for tax loss harvesting opportunity
+    """
+    
+    database_name = config.DATABASE['name']
+    
+    # Get max price date as reference (anchor to real market data)
+    max_price_date = get_max_price_date(session)
+    if max_price_date is None:
+        raise RuntimeError(
+            "FACT_STOCK_PRICES not found - cannot build FACT_TAX_IMPLICATIONS. "
+            "Run generate_market_data.build_price_anchor() first."
+        )
+    
+    # Get tax config values
+    from config_accessors import get_global_value
+    cost_basis_range = get_global_value('tax.cost_basis_multiplier_range', (0.70, 1.30))
+    holding_range = get_global_value('tax.holding_period_days_range', (30, 1095))
+    lt_threshold = get_global_value('tax.long_term_threshold_days', 365)
+    lt_rate = get_global_value('tax.long_term_rate', 0.20)
+    st_rate = get_global_value('tax.short_term_rate', 0.37)
+    tlh_threshold = get_global_value('tax.tax_loss_harvest_threshold_usd', -10000)
+    
+    cost_basis_sql = f"UNIFORM({cost_basis_range[0]}, {cost_basis_range[1]}, RANDOM())"
+    holding_sql = f"UNIFORM({holding_range[0]}, {holding_range[1]}, RANDOM())"
+    
+    session.sql(f"""
+        CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_TAX_IMPLICATIONS AS
         WITH portfolio_holdings AS (
             SELECT DISTINCT 
                 h.PortfolioID,
                 h.SecurityID,
                 h.MarketValue_Base,
                 h.PortfolioWeight
-            FROM {config.DATABASE['name']}.CURATED.FACT_POSITION_DAILY_ABOR h
-            WHERE h.HoldingDate = (SELECT MAX(HoldingDate) FROM {config.DATABASE['name']}.CURATED.FACT_POSITION_DAILY_ABOR)
+            FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR h
+            WHERE h.HoldingDate = (SELECT MAX(HoldingDate) FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR)
         )
         SELECT 
             ph.PortfolioID,
             ph.SecurityID,
-            CURRENT_DATE() as TAX_DATE,
-            -- Cost basis (synthetic - based on current market value with gain/loss)
-            ph.MarketValue_Base * UNIFORM(0.70, 1.30, RANDOM()) as COST_BASIS_USD,
+            '{max_price_date}'::DATE as TAX_DATE,
+            -- Cost basis (synthetic - based on current market value with multiplier from config)
+            ph.MarketValue_Base * {cost_basis_sql} as COST_BASIS_USD,
             -- Unrealized gain/loss
-            ph.MarketValue_Base - (ph.MarketValue_Base * UNIFORM(0.70, 1.30, RANDOM())) as UNREALIZED_GAIN_LOSS_USD,
-            -- Holding period (days)
-            UNIFORM(30, 1095, RANDOM()) as HOLDING_PERIOD_DAYS,
-            -- Tax treatment
+            ph.MarketValue_Base - (ph.MarketValue_Base * {cost_basis_sql}) as UNREALIZED_GAIN_LOSS_USD,
+            -- Holding period (days from config)
+            {holding_sql} as HOLDING_PERIOD_DAYS,
+            -- Tax treatment (based on threshold from config)
             CASE 
-                WHEN UNIFORM(30, 1095, RANDOM()) > 365 THEN 'LONG_TERM'
+                WHEN {holding_sql} > {lt_threshold} THEN 'LONG_TERM'
                 ELSE 'SHORT_TERM'
             END as TAX_TREATMENT,
-            -- Tax loss harvesting opportunity
+            -- Tax loss harvesting opportunity (threshold from config)
             CASE 
-                WHEN ph.MarketValue_Base - (ph.MarketValue_Base * UNIFORM(0.70, 1.30, RANDOM())) < -10000 THEN TRUE
+                WHEN ph.MarketValue_Base - (ph.MarketValue_Base * {cost_basis_sql}) < {tlh_threshold} THEN TRUE
                 ELSE FALSE
             END as TAX_LOSS_HARVEST_OPPORTUNITY,
-            -- Capital gains tax rate
+            -- Capital gains tax rate (rates from config)
             CASE 
-                WHEN UNIFORM(30, 1095, RANDOM()) > 365 THEN 0.20  -- Long-term rate
-                ELSE 0.37  -- Short-term rate
+                WHEN {holding_sql} > {lt_threshold} THEN {lt_rate}
+                ELSE {st_rate}
             END as TAX_RATE
         FROM portfolio_holdings ph
     """).collect()
@@ -2068,22 +2470,21 @@ def generate_demo_compliance_alert(session: Session):
     """).collect()
     
     if not portfolio_id_result:
-        config.log_warning(f"  Portfolio '{portfolio_name}' not found - skipping demo alert")
+        log_warning(f"  Portfolio '{portfolio_name}' not found - skipping demo alert")
         return
     
     portfolio_id = portfolio_id_result[0]['PORTFOLIOID']
     
-    # Get the security ID for META
+    # Get the security ID for META (lookup by ticker)
     security_id_result = session.sql(f"""
         SELECT SecurityID 
         FROM {database_name}.CURATED.DIM_SECURITY 
-        WHERE FIGI = '{non_compliant['openfigi_id']}'
-        OR Ticker = '{non_compliant['ticker']}'
+        WHERE Ticker = '{non_compliant['ticker']}'
         LIMIT 1
     """).collect()
     
     if not security_id_result:
-        config.log_warning(f"  Security {non_compliant['ticker']} not found - skipping demo alert")
+        log_warning(f"  Security {non_compliant['ticker']} not found - skipping demo alert")
         return
     
     security_id = security_id_result[0]['SECURITYID']
@@ -2113,6 +2514,147 @@ def generate_demo_compliance_alert(session: Session):
     """).collect()
     
 
+def generate_concentration_breach_alerts(session: Session):
+    """
+    Generate concentration breach alerts by scanning current positions
+    against the 7.0% breach threshold and 6.5% warning threshold.
+    Creates historical alerts for demo purposes (spread over last 30 days).
+    
+    Uses batched writes for efficiency per performance-io.mdc.
+    """
+    from datetime import datetime, timedelta
+    import snowflake_io_utils
+    database_name = config.DATABASE['name']
+    
+    # Ensure database context is set (required for temp stage creation in complex queries)
+    session.sql(f"USE DATABASE {database_name}").collect()
+    session.sql(f"USE SCHEMA {config.DATABASE['schemas']['curated']}").collect()
+    
+    # Clean up any stale Snowpark temp stages from previous failed runs
+    try:
+        stages = session.sql("SHOW STAGES LIKE 'SNOWPARK_TEMP_STAGE_%'").collect()
+        for stage in stages:
+            stage_name = stage['name']
+            session.sql(f"DROP STAGE IF EXISTS {stage_name}").collect()
+    except:
+        pass  # Ignore errors - stages may not exist
+    
+    # Query positions that exceed concentration thresholds
+    # Focus on SAM Technology & Infrastructure (per demo scenario)
+    breach_threshold = config.COMPLIANCE_RULES['concentration']['max_single_issuer']  # 0.07 = 7%
+    warning_threshold = config.COMPLIANCE_RULES['concentration']['warning_threshold']  # 0.065 = 6.5%
+    
+    # Get positions exceeding warning threshold from latest holdings
+    concentration_issues = session.sql(f"""
+        WITH latest_holdings AS (
+            SELECT 
+                h.PortfolioID,
+                h.SecurityID,
+                h.PortfolioWeight,
+                h.MarketValue_Base,
+                p.PortfolioName,
+                s.Ticker,
+                s.Description,
+                ROW_NUMBER() OVER (PARTITION BY h.PortfolioID, h.SecurityID ORDER BY h.HoldingDate DESC) as rn
+            FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR h
+            JOIN {database_name}.CURATED.DIM_PORTFOLIO p ON h.PortfolioID = p.PortfolioID
+            JOIN {database_name}.CURATED.DIM_SECURITY s ON h.SecurityID = s.SecurityID
+            WHERE h.PortfolioWeight >= {warning_threshold}
+        )
+        SELECT 
+            PortfolioID,
+            SecurityID,
+            PortfolioWeight,
+            MarketValue_Base,
+            PortfolioName,
+            Ticker,
+            Description
+        FROM latest_holdings
+        WHERE rn = 1
+        ORDER BY PortfolioWeight DESC
+    """).collect()
+    
+    if not concentration_issues:
+        log_detail("  No concentration issues found - skipping breach alerts")
+        return
+    
+    # Generate alerts with dates spread over last 30 days for demo realism
+    today = datetime.now().date()
+    rows = []
+    
+    # PM names for resolved breaches (demo data)
+    pm_names = ['Anna Chen', 'David Martinez', 'Sarah Thompson', 'Michael Roberts']
+    
+    for i, issue in enumerate(concentration_issues):
+        weight_pct = float(issue['PORTFOLIOWEIGHT']) * 100
+        is_breach = issue['PORTFOLIOWEIGHT'] >= breach_threshold
+        
+        # Spread alert dates across last 30 days (older alerts for higher concentrations)
+        days_ago = min(28, 5 + i * 3)  # First alerts 5-28 days ago
+        alert_date = today - timedelta(days=days_ago)
+        action_deadline = alert_date + timedelta(days=30)
+        
+        severity = 'BREACH' if is_breach else 'WARNING'
+        threshold_pct = breach_threshold * 100 if is_breach else warning_threshold * 100
+        
+        description = (
+            f"{issue['TICKER']} ({issue['DESCRIPTION']}) position at {weight_pct:.1f}% "
+            f"exceeds {threshold_pct:.1f}% {severity.lower()} threshold in {issue['PORTFOLIONAME']}. "
+            f"Market value: ${issue['MARKETVALUE_BASE']:,.0f}"
+        )
+        
+        # Determine remediation status for demo purposes:
+        # - Older WARNING alerts (>20 days old): mark as resolved
+        # - Some older BREACH alerts (>25 days old, every other one): mark as resolved
+        # - Recent alerts: leave unresolved to show active breaches
+        resolved_date = None
+        resolved_by = None
+        resolution_notes = None
+        
+        if not is_breach and days_ago > 20:
+            # Older warnings - mark as resolved (position naturally decreased)
+            resolved_date = alert_date + timedelta(days=10)
+            resolved_by = pm_names[i % len(pm_names)]
+            resolution_notes = f"Position weight decreased to below warning threshold through market movement and natural rebalancing."
+        elif is_breach and days_ago > 25 and i % 2 == 0:
+            # Some older breaches - mark as resolved (PM took action)
+            resolved_date = alert_date + timedelta(days=15)
+            resolved_by = pm_names[i % len(pm_names)]
+            resolution_notes = f"Position reduced to {threshold_pct - 0.5:.1f}% per remediation plan. Executed via TWAP over 3 trading days to minimise market impact."
+        
+        rows.append({
+            'AlertDate': alert_date,
+            'PortfolioID': issue['PORTFOLIOID'],
+            'SecurityID': issue['SECURITYID'],
+            'AlertType': 'CONCENTRATION_BREACH' if is_breach else 'CONCENTRATION_WARNING',
+            'AlertSeverity': severity,
+            'OriginalValue': f"{threshold_pct:.1f}%",
+            'CurrentValue': f"{weight_pct:.1f}%",
+            'RequiresAction': is_breach,
+            'ActionDeadline': action_deadline if is_breach else None,
+            'AlertDescription': description,
+            'ResolvedDate': resolved_date,
+            'ResolvedBy': resolved_by,
+            'ResolutionNotes': resolution_notes
+        })
+    
+    # Batch insert all alerts using write_pandas
+    if rows:
+        import pandas as pd
+        df = pd.DataFrame(rows)
+        df.columns = [col.upper() for col in df.columns]
+        session.write_pandas(
+            df, 'FACT_COMPLIANCE_ALERTS',
+            database=database_name, schema='CURATED',
+            quote_identifiers=False, overwrite=False, auto_create_table=False
+        )
+        breach_count = sum(1 for r in rows if r['AlertSeverity'] == 'BREACH')
+        warning_count = sum(1 for r in rows if r['AlertSeverity'] == 'WARNING')
+        resolved_count = sum(1 for r in rows if r['ResolvedDate'] is not None)
+        active_count = len(rows) - resolved_count
+        log_detail(f"  Generated {len(rows)} concentration alerts ({breach_count} breaches, {warning_count} warnings, {resolved_count} resolved, {active_count} active)")
+
+
 def generate_demo_pre_screened_replacements(session: Session):
     """
     Generate pre-screened replacement candidates for the demo scenario.
@@ -2120,7 +2662,6 @@ def generate_demo_pre_screened_replacements(session: Session):
     
     Uses batched lookups and writes for efficiency (no per-row SELECTs or INSERTs).
     """
-    import snowflake_io_utils
     database_name = config.DATABASE['name']
     scenario_config = config.SCENARIO_3_2_MANDATE_COMPLIANCE
     
@@ -2133,20 +2674,22 @@ def generate_demo_pre_screened_replacements(session: Session):
     """).collect()
     
     if not portfolio_id_result:
-        config.log_warning(f"  Portfolio '{portfolio_name}' not found - skipping pre-screened replacements")
+        log_warning(f"  Portfolio '{portfolio_name}' not found - skipping pre-screened replacements")
         return
     
     portfolio_id = portfolio_id_result[0]['PORTFOLIOID']
     
     # Batch fetch all SecurityIDs for configured replacements in ONE query
-    # (no per-iteration SELECT per performance-io.mdc)
     replacements = scenario_config['pre_screened_replacements']
     tickers = [r['ticker'] for r in replacements]
-    figis = [r['openfigi_id'] for r in replacements]
+    ticker_list = ", ".join(f"'{t}'" for t in tickers)
     
-    security_map = snowflake_io_utils.batch_lookup_security_ids(
-        session, database_name, tickers=tickers, figis=figis
-    )
+    sec_rows = session.sql(f"""
+        SELECT SecurityID, Ticker
+        FROM {database_name}.CURATED.DIM_SECURITY
+        WHERE Ticker IN ({ticker_list})
+    """).collect()
+    security_map = {row['TICKER']: row['SECURITYID'] for row in sec_rows}
     
     # Build all replacement rows locally
     from datetime import datetime
@@ -2160,11 +2703,11 @@ def generate_demo_pre_screened_replacements(session: Session):
     
     rows = []
     for replacement in replacements:
-        # Look up SecurityID from batched result (by ticker or FIGI)
-        security_id = security_map.get(replacement['ticker']) or security_map.get(replacement['openfigi_id'])
+        # Look up SecurityID from batched result (by ticker)
+        security_id = security_map.get(replacement['ticker'])
         
         if not security_id:
-            config.log_warning(f"  Security {replacement['ticker']} not found - skipping")
+            log_warning(f"  Security {replacement['ticker']} not found - skipping")
             continue
         
         rows.append({
@@ -2181,12 +2724,17 @@ def generate_demo_pre_screened_replacements(session: Session):
             'ScreeningCriteria': screening_criteria,
         })
     
-    # Write all rows in a single batch (no row-by-row INSERT per performance-io.mdc)
+    # Write all rows in a single batch
     if rows:
-        snowflake_io_utils.write_pandas_overwrite(
-            session,
-            f"{database_name}.CURATED.FACT_PRE_SCREENED_REPLACEMENTS",
-            rows
+        import pandas as pd
+        from snowflake_io_utils import cleanup_temp_stages
+        cleanup_temp_stages(session)
+        df = pd.DataFrame(rows)
+        df.columns = [col.upper() for col in df.columns]
+        session.write_pandas(
+            df, 'FACT_PRE_SCREENED_REPLACEMENTS',
+            database=database_name, schema='CURATED',
+            quote_identifiers=False, overwrite=True, auto_create_table=True
         )
         
 
@@ -2232,21 +2780,24 @@ def build_dim_counterparty(session: Session):
         {'CounterpartyID': 20, 'CounterpartyName': 'Market Maker A', 'CounterpartyType': 'Broker', 'HistoricalFailRate': 0.02, 'AverageSettlementTime': 2.0, 'RiskRating': 'BBB'},
     ]
     
-    # Use batched write_pandas (no row-by-row inserts per performance-io.mdc)
-    snowflake_io_utils.write_pandas_overwrite(
-        session,
-        f"{database_name}.CURATED.DIM_COUNTERPARTY",
-        counterparties
+    # Write using native write_pandas
+    import pandas as pd
+    from snowflake_io_utils import cleanup_temp_stages
+    cleanup_temp_stages(session)
+    df = pd.DataFrame(counterparties)
+    df.columns = [col.upper() for col in df.columns]
+    session.write_pandas(
+        df, 'DIM_COUNTERPARTY',
+        database=database_name, schema='CURATED',
+        quote_identifiers=False, overwrite=True, auto_create_table=True
     )
 
 
 def build_dim_custodian(session: Session):
     """Build custodian dimension.
     
-    Uses batched write_pandas for efficiency (no row-by-row inserts).
     Explicit CustodianID 1..8 preserves downstream assumptions in FACT_TRADE_SETTLEMENT.
     """
-    import snowflake_io_utils
     database_name = config.DATABASE['name']
     
     # Define major custodians as list of dicts with explicit IDs (1..N)
@@ -2261,27 +2812,44 @@ def build_dim_custodian(session: Session):
         {'CustodianID': 8, 'CustodianName': 'BNP Paribas Securities Services', 'CustodianType': 'Regional Custodian', 'CoverageRegions': 'EMEA', 'ServiceLevel': 'Standard'},
     ]
     
-    # Use batched write_pandas (no row-by-row inserts per performance-io.mdc)
-    snowflake_io_utils.write_pandas_overwrite(
-        session,
-        f"{database_name}.CURATED.DIM_CUSTODIAN",
-        custodians
+    # Write using native write_pandas
+    import pandas as pd
+    from snowflake_io_utils import cleanup_temp_stages
+    cleanup_temp_stages(session)
+    df = pd.DataFrame(custodians)
+    df.columns = [col.upper() for col in df.columns]
+    session.write_pandas(
+        df, 'DIM_CUSTODIAN',
+        database=database_name, schema='CURATED',
+        quote_identifiers=False, overwrite=True, auto_create_table=True
     )
 
 
 def build_fact_trade_settlement(session: Session, test_mode: bool = False):
-    """Build trade settlement fact table with status tracking."""
+    """Build trade settlement fact table with status tracking.
+    
+    Uses default settlement days from DATA_MODEL['synthetic_distributions']['country_groups']['_default']['settlement_days'].
+    Includes recent window data (last 10 days relative to max_price_date) for demo scenarios.
+    """
     database_name = config.DATABASE['name']
     random.seed(config.RNG_SEED)
     
+    # Get max_price_date for recent window generation
+    max_price_date = get_max_price_date(session)
+    
+    # Get default settlement days from config
+    from config_accessors import get_country_value
+    default_settlement_days = get_country_value('US', 'settlement_days') or 2
+    
     # Create table using CREATE TABLE AS SELECT pattern (no foreign keys)
+    # Includes both historical settlements and recent window settlements for demo
     session.sql(f"""
         CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_TRADE_SETTLEMENT AS
         WITH trade_data AS (
             SELECT 
                 t.TransactionID,
                 t.TransactionDate,
-                DATEADD(day, 2, t.TransactionDate) as SettlementDate,
+                DATEADD(day, {default_settlement_days}, t.TransactionDate) as SettlementDate,
                 t.PortfolioID,
                 t.SecurityID,
                 ABS(t.GrossAmount_Local) as SettlementValue,
@@ -2293,43 +2861,110 @@ def build_fact_trade_settlement(session: Session, test_mode: bool = False):
                 UNIFORM(0, 100, RANDOM()) as failure_chance
             FROM {database_name}.CURATED.FACT_TRANSACTION t
             WHERE t.TransactionType IN ('BUY', 'SELL')
+        ),
+        historical_settlements AS (
+            SELECT 
+                TransactionID as TradeID,
+                TransactionDate as TradeDate,
+                SettlementDate,
+                CASE 
+                    WHEN failure_chance <= 3 THEN 'Failed'
+                    WHEN failure_chance <= 5 THEN 'Pending'
+                    ELSE 'Settled'
+                END as Status,
+                PortfolioID,
+                SecurityID,
+                CounterpartyID,
+                CustodianID,
+                SettlementValue,
+                Currency,
+                CASE 
+                    WHEN failure_chance <= 1 THEN 'SSI mismatch'
+                    WHEN failure_chance <= 2 THEN 'Insufficient shares'
+                    WHEN failure_chance <= 3 THEN 'Counterparty system issue'
+                    ELSE NULL
+                END as FailureReason,
+                CASE 
+                    WHEN failure_chance <= 3 THEN DATEADD(day, UNIFORM(1, 3, RANDOM()), SettlementDate)
+                    ELSE NULL
+                END as ResolvedDate
+            FROM trade_data
+        ),
+        -- Recent window: Generate settlements for last 10 days relative to max_price_date
+        -- This ensures demo queries for "today" or "past N days" find data
+        recent_dates AS (
+            SELECT DATEADD(day, -seq4(), '{max_price_date}'::DATE) as recent_date
+            FROM TABLE(GENERATOR(rowcount => 10))
+            WHERE DAYOFWEEK(DATEADD(day, -seq4(), '{max_price_date}'::DATE)) BETWEEN 2 AND 6
+        ),
+        recent_securities AS (
+            SELECT DISTINCT SecurityID, PortfolioID
+            FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR
+            WHERE HoldingDate = (SELECT MAX(HoldingDate) FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR)
+        ),
+        recent_window_settlements AS (
+            SELECT 
+                -1 * (ROW_NUMBER() OVER (ORDER BY rd.recent_date, rs.SecurityID)) as TradeID,
+                DATEADD(day, -{default_settlement_days}, rd.recent_date) as TradeDate,
+                rd.recent_date as SettlementDate,
+                -- Higher failure/pending rate for demo visibility (15% failed, 10% pending)
+                CASE 
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 15 THEN 'Failed'
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 25 THEN 'Pending'
+                    ELSE 'Settled'
+                END as Status,
+                rs.PortfolioID,
+                rs.SecurityID,
+                MOD(ABS(HASH(rs.SecurityID + DATEDIFF(day, '2020-01-01', rd.recent_date))), 20) + 1 as CounterpartyID,
+                MOD(ABS(HASH(rs.SecurityID * 2)), 8) + 1 as CustodianID,
+                UNIFORM(50000, 500000, RANDOM()) as SettlementValue,
+                'USD' as Currency,
+                CASE 
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 5 THEN 'SSI mismatch'
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 10 THEN 'Insufficient shares'
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 15 THEN 'Counterparty system issue'
+                    ELSE NULL
+                END as FailureReason,
+                NULL as ResolvedDate
+            FROM recent_dates rd
+            CROSS JOIN (SELECT * FROM recent_securities ORDER BY RANDOM() LIMIT 5) rs
+        ),
+        all_settlements AS (
+            SELECT * FROM historical_settlements
+            UNION ALL
+            SELECT * FROM recent_window_settlements
         )
         SELECT 
-            ROW_NUMBER() OVER (ORDER BY TransactionID) as SettlementID,
-            TransactionID as TradeID,
-            TransactionDate as TradeDate,
+            ROW_NUMBER() OVER (ORDER BY SettlementDate, TradeID) as SettlementID,
+            TradeID,
+            TradeDate,
             SettlementDate,
-            CASE 
-                WHEN failure_chance <= 3 THEN 'Failed'
-                WHEN failure_chance <= 5 THEN 'Pending'
-                ELSE 'Settled'
-            END as Status,
+            Status,
             PortfolioID,
             SecurityID,
             CounterpartyID,
             CustodianID,
             SettlementValue,
             Currency,
-            CASE 
-                WHEN failure_chance <= 1 THEN 'SSI mismatch'
-                WHEN failure_chance <= 2 THEN 'Insufficient shares'
-                WHEN failure_chance <= 3 THEN 'Counterparty system issue'
-                ELSE NULL
-            END as FailureReason,
-            CASE 
-                WHEN failure_chance <= 3 THEN DATEADD(day, UNIFORM(1, 3, RANDOM()), SettlementDate)
-                ELSE NULL
-            END as ResolvedDate
-        FROM trade_data
+            FailureReason,
+            ResolvedDate
+        FROM all_settlements
     """).collect()
 
 
 def build_fact_reconciliation(session: Session, test_mode: bool = False):
-    """Build reconciliation fact table tracking breaks and resolutions."""
+    """Build reconciliation fact table tracking breaks and resolutions.
+    
+    Includes recent window data (last 10 days relative to max_price_date) for demo scenarios.
+    """
     database_name = config.DATABASE['name']
     random.seed(config.RNG_SEED)
     
+    # Get max_price_date for recent window generation
+    max_price_date = get_max_price_date(session)
+    
     # Create table using CREATE TABLE AS SELECT pattern (no foreign keys)
+    # Includes both historical breaks and recent window breaks for demo
     session.sql(f"""
         CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_RECONCILIATION AS
         WITH position_data AS (
@@ -2344,7 +2979,7 @@ def build_fact_reconciliation(session: Session, test_mode: bool = False):
                 UNIFORM(0, 3, RANDOM()) as break_type_flag
             FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR p
         ),
-        breaks AS (
+        historical_breaks AS (
             SELECT 
                 HoldingDate as ReconciliationDate,
                 PortfolioID,
@@ -2357,9 +2992,68 @@ def build_fact_reconciliation(session: Session, test_mode: bool = False):
                 MarketValue_Base as InternalValue,
                 -- Generate custodian value with small difference
                 MarketValue_Base * (1 + UNIFORM(-0.05, 0.05, RANDOM())) as CustodianValue,
-                break_chance
+                CASE 
+                    WHEN break_chance <= 0.5 THEN 'Open'
+                    WHEN break_chance <= 1.5 THEN 'Investigating'
+                    ELSE 'Resolved'
+                END as Status,
+                CASE 
+                    WHEN break_chance > 0.5 THEN DATEADD(day, UNIFORM(1, 5, RANDOM()), HoldingDate)
+                    ELSE NULL
+                END as ResolutionDate,
+                CASE 
+                    WHEN break_chance > 1.5 THEN 'Timing difference - resolved through custodian confirmation'
+                    WHEN break_chance > 0.5 THEN 'Under investigation - awaiting custodian response'
+                    ELSE NULL
+                END as ResolutionNotes
             FROM position_data
             WHERE break_chance <= 2
+        ),
+        -- Recent window: Generate daily reconciliation breaks for last 10 days relative to max_price_date
+        -- This ensures demo queries for "today's breaks" find data
+        recent_dates AS (
+            SELECT DATEADD(day, -seq4(), '{max_price_date}'::DATE) as recent_date
+            FROM TABLE(GENERATOR(rowcount => 10))
+            WHERE DAYOFWEEK(DATEADD(day, -seq4(), '{max_price_date}'::DATE)) BETWEEN 2 AND 6
+        ),
+        recent_portfolios AS (
+            SELECT DISTINCT PortfolioID FROM {database_name}.CURATED.DIM_PORTFOLIO
+        ),
+        recent_securities AS (
+            SELECT DISTINCT SecurityID, PortfolioID, MarketValue_Base
+            FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR
+            WHERE HoldingDate = (SELECT MAX(HoldingDate) FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR)
+        ),
+        recent_window_breaks AS (
+            SELECT 
+                rd.recent_date as ReconciliationDate,
+                rs.PortfolioID,
+                rs.SecurityID,
+                -- Distribute break types evenly
+                CASE 
+                    WHEN MOD(ABS(HASH(rs.SecurityID + DATEDIFF(day, '2020-01-01', rd.recent_date))), 3) = 0 THEN 'Position'
+                    WHEN MOD(ABS(HASH(rs.SecurityID + DATEDIFF(day, '2020-01-01', rd.recent_date))), 3) = 1 THEN 'Cash'
+                    ELSE 'Price'
+                END as BreakType,
+                rs.MarketValue_Base as InternalValue,
+                rs.MarketValue_Base * (1 + UNIFORM(-0.03, 0.03, RANDOM())) as CustodianValue,
+                -- Mix of statuses for demo: 40% Open, 35% Investigating, 25% Resolved
+                CASE 
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 40 THEN 'Open'
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 75 THEN 'Investigating'
+                    ELSE 'Resolved'
+                END as Status,
+                NULL as ResolutionDate,
+                NULL as ResolutionNotes
+            FROM recent_dates rd
+            CROSS JOIN (SELECT * FROM recent_securities ORDER BY RANDOM() LIMIT 3) rs
+        ),
+        all_breaks AS (
+            SELECT ReconciliationDate, PortfolioID, SecurityID, BreakType, InternalValue, CustodianValue, Status, ResolutionDate, ResolutionNotes
+            FROM historical_breaks
+            UNION ALL
+            SELECT ReconciliationDate, PortfolioID, SecurityID, BreakType, InternalValue, CustodianValue, Status, ResolutionDate, ResolutionNotes
+            FROM recent_window_breaks
         )
         SELECT 
             ROW_NUMBER() OVER (ORDER BY ReconciliationDate, PortfolioID, SecurityID) as ReconciliationID,
@@ -2370,30 +3064,26 @@ def build_fact_reconciliation(session: Session, test_mode: bool = False):
             InternalValue,
             CustodianValue,
             ABS(InternalValue - CustodianValue) as Difference,
-            CASE 
-                WHEN break_chance <= 0.5 THEN 'Open'
-                WHEN break_chance <= 1.5 THEN 'Investigating'
-                ELSE 'Resolved'
-            END as Status,
-            CASE 
-                WHEN break_chance > 0.5 THEN DATEADD(day, UNIFORM(1, 5, RANDOM()), ReconciliationDate)
-                ELSE NULL
-            END as ResolutionDate,
-            CASE 
-                WHEN break_chance > 1.5 THEN 'Timing difference - resolved through custodian confirmation'
-                WHEN break_chance > 0.5 THEN 'Under investigation - awaiting custodian response'
-                ELSE NULL
-            END as ResolutionNotes
-        FROM breaks
+            Status,
+            ResolutionDate,
+            ResolutionNotes
+        FROM all_breaks
     """).collect()
 
 
 def build_fact_nav_calculation(session: Session, test_mode: bool = False):
-    """Build NAV calculation fact table."""
+    """Build NAV calculation fact table.
+    
+    Includes recent window data (last 10 days relative to max_price_date) for demo scenarios.
+    """
     database_name = config.DATABASE['name']
     random.seed(config.RNG_SEED)
     
+    # Get max_price_date for recent window generation
+    max_price_date = get_max_price_date(session)
+    
     # Create table using CREATE TABLE AS SELECT pattern (no foreign keys)
+    # Includes both historical NAV calculations and recent window for demo
     session.sql(f"""
         CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_NAV_CALCULATION AS
         WITH daily_positions AS (
@@ -2404,17 +3094,83 @@ def build_fact_nav_calculation(session: Session, test_mode: bool = False):
             FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR
             GROUP BY HoldingDate, PortfolioID
         ),
-        nav_calc AS (
+        historical_nav AS (
             SELECT 
                 HoldingDate as CalculationDate,
                 PortfolioID,
                 TotalAssets,
-                TotalAssets * 0.001 as TotalLiabilities,  -- 0.1% liabilities
+                TotalAssets * 0.001 as TotalLiabilities,
                 TotalAssets * 0.999 as NetAssets,
-                100000000.00 as SharesOutstanding,  -- Fixed 100M shares
+                100000000.00 as SharesOutstanding,
                 (TotalAssets * 0.999) / 100000000.00 as NAVperShare,
-                UNIFORM(0, 100, RANDOM()) as anomaly_chance
+                CASE 
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 1 THEN 'Pending Review'
+                    ELSE 'Calculated'
+                END as CalculationStatus,
+                CASE 
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 0.5 THEN 'NAV change >2% from prior day'
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 1 THEN 'Missing prices detected'
+                    ELSE NULL
+                END as AnomaliesDetected,
+                CASE 
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 1 THEN 'Pending'
+                    ELSE 'Approved'
+                END as ApprovalStatus,
+                CASE 
+                    WHEN UNIFORM(0, 100, RANDOM()) > 1 THEN 'Operations Manager'
+                    ELSE NULL
+                END as ApprovedBy,
+                CASE 
+                    WHEN UNIFORM(0, 100, RANDOM()) > 1 THEN DATEADD(hour, 2, HoldingDate)
+                    ELSE NULL
+                END as ApprovalTimestamp
             FROM daily_positions
+        ),
+        -- Recent window: Generate daily NAV calculations for last 10 days relative to max_price_date
+        -- This ensures demo queries for "today's NAV" find data
+        recent_dates AS (
+            SELECT DATEADD(day, -seq4(), '{max_price_date}'::DATE) as recent_date
+            FROM TABLE(GENERATOR(rowcount => 10))
+            WHERE DAYOFWEEK(DATEADD(day, -seq4(), '{max_price_date}'::DATE)) BETWEEN 2 AND 6
+        ),
+        latest_portfolio_values AS (
+            SELECT PortfolioID, TotalAssets
+            FROM (
+                SELECT PortfolioID, SUM(MarketValue_Base) as TotalAssets
+                FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR
+                WHERE HoldingDate = (SELECT MAX(HoldingDate) FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR)
+                GROUP BY PortfolioID
+            )
+        ),
+        recent_window_nav AS (
+            SELECT 
+                rd.recent_date as CalculationDate,
+                lpv.PortfolioID,
+                -- Add small daily variation to assets (-0.5% to +0.5%)
+                lpv.TotalAssets * (1 + UNIFORM(-0.005, 0.005, RANDOM())) as TotalAssets,
+                lpv.TotalAssets * 0.001 as TotalLiabilities,
+                lpv.TotalAssets * 0.999 as NetAssets,
+                100000000.00 as SharesOutstanding,
+                (lpv.TotalAssets * 0.999) / 100000000.00 as NAVperShare,
+                -- Most recent NAVs are calculated and approved
+                'Calculated' as CalculationStatus,
+                -- Small chance of anomaly for demo interest (5%)
+                CASE 
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 5 THEN 'Zero NAV Movement Anomaly'
+                    ELSE NULL
+                END as AnomaliesDetected,
+                'Approved' as ApprovalStatus,
+                'Operations Manager' as ApprovedBy,
+                DATEADD(hour, 18, rd.recent_date) as ApprovalTimestamp
+            FROM recent_dates rd
+            CROSS JOIN latest_portfolio_values lpv
+        ),
+        all_nav AS (
+            SELECT CalculationDate, PortfolioID, TotalAssets, TotalLiabilities, NetAssets, SharesOutstanding, NAVperShare, CalculationStatus, AnomaliesDetected, ApprovalStatus, ApprovedBy, ApprovalTimestamp
+            FROM historical_nav
+            UNION ALL
+            SELECT CalculationDate, PortfolioID, TotalAssets, TotalLiabilities, NetAssets, SharesOutstanding, NAVperShare, CalculationStatus, AnomaliesDetected, ApprovalStatus, ApprovedBy, ApprovalTimestamp
+            FROM recent_window_nav
         )
         SELECT 
             ROW_NUMBER() OVER (ORDER BY CalculationDate, PortfolioID) as NAVID,
@@ -2425,28 +3181,12 @@ def build_fact_nav_calculation(session: Session, test_mode: bool = False):
             TotalLiabilities,
             NetAssets,
             SharesOutstanding,
-            CASE 
-                WHEN anomaly_chance <= 1 THEN 'Pending Review'
-                ELSE 'Calculated'
-            END as CalculationStatus,
-            CASE 
-                WHEN anomaly_chance <= 0.5 THEN 'NAV change >2% from prior day'
-                WHEN anomaly_chance <= 1 THEN 'Missing prices detected'
-                ELSE NULL
-            END as AnomaliesDetected,
-            CASE 
-                WHEN anomaly_chance <= 1 THEN 'Pending'
-                ELSE 'Approved'
-            END as ApprovalStatus,
-            CASE 
-                WHEN anomaly_chance > 1 THEN 'Operations Manager'
-                ELSE NULL
-            END as ApprovedBy,
-            CASE 
-                WHEN anomaly_chance > 1 THEN DATEADD(hour, 2, CalculationDate)
-                ELSE NULL
-            END as ApprovalTimestamp
-        FROM nav_calc
+            CalculationStatus,
+            AnomaliesDetected,
+            ApprovalStatus,
+            ApprovedBy,
+            ApprovalTimestamp
+        FROM all_nav
     """).collect()
 
 
@@ -2474,11 +3214,40 @@ def build_fact_nav_components(session: Session, test_mode: bool = False):
 
 
 def build_fact_corporate_actions(session: Session, test_mode: bool = False):
-    """Build corporate actions fact table."""
+    """Build corporate actions fact table using config-driven SQL.
+    
+    Uses config from DATA_MODEL['synthetic_distributions']['global']['corporate_actions']:
+    - dividend_range_usd: Range for dividend amount per share
+    - action_type_weights: Probability weights for action types
+    - quarterly_event_frequency_days: Days between quarterly events
+    - ex_date_offset_days, record_date_offset_days, payment_date_offset_days: Date offsets
+    
+    Includes pending corporate actions with ExDates in forward window from max_price_date for demo.
+    """
     database_name = config.DATABASE['name']
     random.seed(config.RNG_SEED)
     
+    # Get max_price_date for forward window generation
+    max_price_date = get_max_price_date(session)
+    
+    # Get corporate action config values
+    from config_accessors import get_global_value
+    dividend_range = get_global_value('corporate_actions.dividend_range_usd', (0.50, 2.00))
+    action_weights = get_global_value('corporate_actions.action_type_weights', {'Dividend': 0.90, 'Split': 0.07, 'Merger': 0.03})
+    event_freq = get_global_value('corporate_actions.quarterly_event_frequency_days', 90)
+    ex_offset = get_global_value('corporate_actions.ex_date_offset_days', 15)
+    record_offset = get_global_value('corporate_actions.record_date_offset_days', 16)
+    payment_offset = get_global_value('corporate_actions.payment_date_offset_days', 30)
+    
+    # Calculate action type thresholds from weights (cumulative)
+    total_weight = sum(action_weights.values())
+    dividend_threshold = action_weights['Dividend'] / total_weight * 3
+    split_threshold = dividend_threshold + action_weights['Split'] / total_weight * 3
+    
+    dividend_sql = f"UNIFORM({dividend_range[0]}, {dividend_range[1]}, RANDOM())"
+    
     # Create table using CREATE TABLE AS SELECT pattern (no foreign keys)
+    # Includes both historical actions and forward window pending actions for demo
     session.sql(f"""
         CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_CORPORATE_ACTIONS AS
         WITH top_securities AS (
@@ -2504,38 +3273,107 @@ def build_fact_corporate_actions(session: Session, test_mode: bool = False):
                 day_num,
                 UNIFORM(0, 3, RANDOM()) as action_type_flag
             FROM top_securities
-            WHERE MOD(day_num, 90) = 0  -- Quarterly events
+            WHERE MOD(day_num, {event_freq}) = 0
+        ),
+        historical_actions AS (
+            SELECT 
+                SecurityID,
+                IssuerID,
+                CASE 
+                    WHEN action_type_flag < {dividend_threshold} THEN 'Dividend'
+                    WHEN action_type_flag < {split_threshold} THEN 'Split'
+                    ELSE 'Merger'
+                END as ActionType,
+                AnnouncementDate,
+                DATEADD(day, {ex_offset}, AnnouncementDate) as ExDate,
+                DATEADD(day, {record_offset}, AnnouncementDate) as RecordDate,
+                DATEADD(day, {payment_offset}, AnnouncementDate) as PaymentDate,
+                CASE 
+                    WHEN action_type_flag < {dividend_threshold} THEN 'Quarterly dividend: $' || ROUND({dividend_sql}, 2) || ' per share'
+                    WHEN action_type_flag < {split_threshold} THEN '2-for-1 stock split'
+                    ELSE 'Acquisition announcement'
+                END as ActionDetails,
+                CASE 
+                    WHEN action_type_flag < {dividend_threshold} THEN {dividend_sql}
+                    WHEN action_type_flag < {split_threshold} THEN 2.0
+                    ELSE 0.0
+                END as ImpactValue,
+                CASE 
+                    WHEN action_type_flag < {dividend_threshold} THEN 'Processed'
+                    WHEN action_type_flag < {split_threshold} THEN 'Pending'
+                    ELSE 'Announced'
+                END as ProcessingStatus,
+                UNIFORM(1, 10, RANDOM()) as PortfoliosAffected
+            FROM action_dates
+        ),
+        -- Forward window: Generate pending corporate actions with ExDates in next 10 days from max_price_date
+        -- This ensures demo queries for "pending corporate actions in next 5 days" find data
+        forward_dates AS (
+            SELECT DATEADD(day, seq4() + 1, '{max_price_date}'::DATE) as future_date
+            FROM TABLE(GENERATOR(rowcount => 10))
+            WHERE DAYOFWEEK(DATEADD(day, seq4() + 1, '{max_price_date}'::DATE)) BETWEEN 2 AND 6
+        ),
+        forward_securities AS (
+            SELECT DISTINCT s.SecurityID, s.IssuerID
+            FROM {database_name}.CURATED.DIM_SECURITY s
+            WHERE EXISTS (
+                SELECT 1 FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR p
+                WHERE p.SecurityID = s.SecurityID
+            )
+            ORDER BY RANDOM()
+            LIMIT 15
+        ),
+        forward_actions AS (
+            SELECT 
+                fs.SecurityID,
+                fs.IssuerID,
+                -- Mix of action types: 70% dividends, 20% splits, 10% mergers for demo
+                CASE 
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 70 THEN 'Dividend'
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 90 THEN 'Split'
+                    ELSE 'Merger'
+                END as ActionType,
+                DATEADD(day, -5, fd.future_date) as AnnouncementDate,
+                fd.future_date as ExDate,
+                DATEADD(day, 1, fd.future_date) as RecordDate,
+                DATEADD(day, 15, fd.future_date) as PaymentDate,
+                CASE 
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 70 THEN 'Quarterly dividend: $' || ROUND({dividend_sql}, 2) || ' per share'
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 90 THEN '2-for-1 stock split'
+                    ELSE 'Acquisition announcement - pending regulatory approval'
+                END as ActionDetails,
+                CASE 
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 70 THEN {dividend_sql}
+                    WHEN UNIFORM(0, 100, RANDOM()) <= 90 THEN 2.0
+                    ELSE 0.0
+                END as ImpactValue,
+                -- All forward actions are pending for demo
+                'Pending' as ProcessingStatus,
+                UNIFORM(3, 8, RANDOM()) as PortfoliosAffected
+            FROM forward_dates fd
+            CROSS JOIN (SELECT * FROM forward_securities ORDER BY RANDOM() LIMIT 3) fs
+        ),
+        all_actions AS (
+            SELECT SecurityID, IssuerID, ActionType, AnnouncementDate, ExDate, RecordDate, PaymentDate, ActionDetails, ImpactValue, ProcessingStatus, PortfoliosAffected
+            FROM historical_actions
+            UNION ALL
+            SELECT SecurityID, IssuerID, ActionType, AnnouncementDate, ExDate, RecordDate, PaymentDate, ActionDetails, ImpactValue, ProcessingStatus, PortfoliosAffected
+            FROM forward_actions
         )
         SELECT 
             ROW_NUMBER() OVER (ORDER BY AnnouncementDate, SecurityID) as ActionID,
             SecurityID,
             IssuerID,
-            CASE 
-                WHEN action_type_flag < 2.7 THEN 'Dividend'
-                WHEN action_type_flag < 2.9 THEN 'Split'
-                ELSE 'Merger'
-            END as ActionType,
+            ActionType,
             AnnouncementDate,
-            DATEADD(day, 15, AnnouncementDate) as ExDate,
-            DATEADD(day, 16, AnnouncementDate) as RecordDate,
-            DATEADD(day, 30, AnnouncementDate) as PaymentDate,
-            CASE 
-                WHEN action_type_flag < 2.7 THEN 'Quarterly dividend: $' || ROUND(UNIFORM(0.50, 2.00, RANDOM()), 2) || ' per share'
-                WHEN action_type_flag < 2.9 THEN '2-for-1 stock split'
-                ELSE 'Acquisition announcement'
-            END as ActionDetails,
-            CASE 
-                WHEN action_type_flag < 2.7 THEN UNIFORM(0.50, 2.00, RANDOM())
-                WHEN action_type_flag < 2.9 THEN 2.0
-                ELSE 0.0
-            END as ImpactValue,
-            CASE 
-                WHEN action_type_flag < 2.7 THEN 'Processed'
-                WHEN action_type_flag < 2.9 THEN 'Pending'
-                ELSE 'Announced'
-            END as ProcessingStatus,
-            UNIFORM(1, 10, RANDOM()) as PortfoliosAffected
-        FROM action_dates
+            ExDate,
+            RecordDate,
+            PaymentDate,
+            ActionDetails,
+            ImpactValue,
+            ProcessingStatus,
+            PortfoliosAffected
+        FROM all_actions
     """).collect()
 
 
@@ -2666,10 +3504,17 @@ def build_fact_cash_movements(session: Session, test_mode: bool = False):
 
 
 def build_fact_cash_positions(session: Session, test_mode: bool = False):
-    """Build daily cash position snapshots."""
+    """Build daily cash position snapshots.
+    
+    Includes recent window data (last 10 days relative to max_price_date) for demo scenarios.
+    """
     database_name = config.DATABASE['name']
     
+    # Get max_price_date for recent window generation
+    max_price_date = get_max_price_date(session)
+    
     # Create table using CREATE TABLE AS SELECT pattern (no foreign keys)
+    # Includes both historical positions and recent window for demo
     session.sql(f"""
         CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_CASH_POSITIONS AS
         WITH daily_flows AS (
@@ -2683,7 +3528,7 @@ def build_fact_cash_positions(session: Session, test_mode: bool = False):
             FROM {database_name}.CURATED.FACT_CASH_MOVEMENTS
             GROUP BY MovementDate, PortfolioID, Currency
         ),
-        cumulative_cash AS (
+        historical_cash AS (
             SELECT 
                 MovementDate as PositionDate,
                 PortfolioID,
@@ -2693,8 +3538,44 @@ def build_fact_cash_positions(session: Session, test_mode: bool = False):
                 Inflows,
                 Outflows,
                 0 as FXGainLoss,
-                Inflows - Outflows as NetChange
+                Inflows - Outflows as NetChange,
+                'Reconciled' as ReconciliationStatus
             FROM daily_flows
+        ),
+        -- Recent window: Generate daily cash positions for last 10 days relative to max_price_date
+        -- This ensures demo queries for "current cash position" find data
+        recent_dates AS (
+            SELECT DATEADD(day, -seq4(), '{max_price_date}'::DATE) as recent_date
+            FROM TABLE(GENERATOR(rowcount => 10))
+            WHERE DAYOFWEEK(DATEADD(day, -seq4(), '{max_price_date}'::DATE)) BETWEEN 2 AND 6
+        ),
+        portfolios AS (
+            SELECT DISTINCT PortfolioID FROM {database_name}.CURATED.DIM_PORTFOLIO
+        ),
+        recent_window_cash AS (
+            SELECT 
+                rd.recent_date as PositionDate,
+                p.PortfolioID,
+                MOD(ABS(HASH(p.PortfolioID)), 8) + 1 as CustodianID,
+                'USD' as Currency,
+                -- Base opening balance around $5-15M per portfolio
+                UNIFORM(5000000, 15000000, RANDOM()) as OpeningBalance,
+                -- Daily inflows $100K - $500K
+                UNIFORM(100000, 500000, RANDOM()) as Inflows,
+                -- Daily outflows $80K - $400K  
+                UNIFORM(80000, 400000, RANDOM()) as Outflows,
+                UNIFORM(-10000, 10000, RANDOM()) as FXGainLoss,
+                0 as NetChange,
+                'Reconciled' as ReconciliationStatus
+            FROM recent_dates rd
+            CROSS JOIN portfolios p
+        ),
+        all_cash AS (
+            SELECT PositionDate, PortfolioID, CustodianID, Currency, OpeningBalance, Inflows, Outflows, FXGainLoss, ReconciliationStatus
+            FROM historical_cash
+            UNION ALL
+            SELECT PositionDate, PortfolioID, CustodianID, Currency, OpeningBalance, Inflows, Outflows, FXGainLoss, ReconciliationStatus
+            FROM recent_window_cash
         )
         SELECT 
             ROW_NUMBER() OVER (ORDER BY PositionDate, PortfolioID) as CashPositionID,
@@ -2707,8 +3588,8 @@ def build_fact_cash_positions(session: Session, test_mode: bool = False):
             Outflows,
             FXGainLoss,
             OpeningBalance + Inflows - Outflows + FXGainLoss as ClosingBalance,
-            'Reconciled' as ReconciliationStatus
-        FROM cumulative_cash
+            ReconciliationStatus
+        FROM all_cash
     """).collect()
 
 
@@ -2719,12 +3600,13 @@ def build_scenario_data(session: Session, scenario: str):
         pass
         
         # Create tables
-        build_fact_compliance_alerts(session)
-        build_fact_pre_screened_replacements(session)
+        _run_build_step(build_fact_compliance_alerts, session)
+        _run_build_step(build_fact_pre_screened_replacements, session)
         
         # Generate demo data
-        generate_demo_compliance_alert(session)
-        generate_demo_pre_screened_replacements(session)
+        _run_build_step(generate_demo_compliance_alert, session)
+        _run_build_step(generate_concentration_breach_alerts, session)
+        _run_build_step(generate_demo_pre_screened_replacements, session)
         
         # Note: Report templates are generated via unstructured data hydration engine
         # They will be processed through generate_unstructured.py following the
@@ -2750,16 +3632,15 @@ def validate_data_quality(session: Session):
     """).collect()
     
     if weight_check:
-        config.log_warning(f"  Portfolio weight deviations found: {len(weight_check)} portfolios")
+        log_warning(f"  Portfolio weight deviations found: {len(weight_check)} portfolios")
     else:
         pass
     
-    # Check security identifier integrity (simplified - check direct columns)
+    # Check security identifier integrity (simplified - check ticker column)
     security_check = session.sql(f"""
         SELECT 
             COUNT(*) as total_securities,
-            COUNT(CASE WHEN Ticker IS NOT NULL AND LENGTH(Ticker) > 0 THEN 1 END) as securities_with_ticker,
-            COUNT(CASE WHEN FIGI IS NOT NULL AND LENGTH(FIGI) > 0 THEN 1 END) as securities_with_figi
+            COUNT(CASE WHEN Ticker IS NOT NULL AND LENGTH(Ticker) > 0 THEN 1 END) as securities_with_ticker
         FROM {config.DATABASE['name']}.CURATED.DIM_SECURITY
     """).collect()
     
@@ -2767,11 +3648,7 @@ def validate_data_quality(session: Session):
         result = security_check[0]
         total = result['TOTAL_SECURITIES']
         with_ticker = result['SECURITIES_WITH_TICKER']
-        with_figi = result['SECURITIES_WITH_FIGI']
-        
         
         if with_ticker < total:
-            config.log_warning(f"  {total - with_ticker} securities missing TICKER")
-        if with_figi < total:
-            config.log_warning(f"  {total - with_figi} securities missing FIGI")
+            log_warning(f"  {total - with_ticker} securities missing TICKER")
     

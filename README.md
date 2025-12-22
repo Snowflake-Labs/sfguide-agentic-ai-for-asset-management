@@ -61,15 +61,58 @@ sfguide-agentic-ai-for-asset-management/
 
 | Agent | Role | Tools | Key Capabilities |
 |-------|------|-------|-----------------|
-| **Portfolio Copilot** | Portfolio Manager | 6 tools | Holdings analysis, concentration risk, event impact, supply chain exposure, implementation planning |
-| **Research Copilot** | Research Analyst | 4 tools | Multi-source research, company analysis, earnings intelligence, investment memos |
-| **Thematic Macro Advisor** | Thematic PM | 3 tools | Theme positioning, emerging trends, strategic allocation optimization |
-| **Quant Analyst** | Quantitative Analyst | 4 tools | Factor screening, performance attribution, statistical validation |
-| **Sales Advisor** | Client Relations | 4 tools | Client reporting, template formatting, philosophy integration, compliance review |
-| **ESG Guardian** | ESG Officer | 3 tools | Controversy scanning, engagement tracking, remediation planning |
-| **Compliance Advisor** | Compliance Officer | 3 tools | Mandate monitoring, breach detection, audit documentation |
-| **Middle Office Copilot** | Operations Manager | 2 tools | Settlement monitoring, reconciliation breaks, NAV validation, corporate actions |
-| **Executive Command Center** | C-Suite Executive | 7 tools | Firm-wide KPIs, client analytics, competitor intelligence, M&A simulation |
+| **Portfolio Copilot** | Portfolio Manager | 14 tools | Holdings analysis, concentration risk, event impact, supply chain exposure, implementation planning, SEC financials |
+| **Research Copilot** | Research Analyst | 8 tools | Multi-source research, company analysis, earnings intelligence, investment memos, SEC filings |
+| **Thematic Macro Advisor** | Thematic PM | 6 tools | Theme positioning, emerging trends, macro events, strategic allocation optimization |
+| **Quant Analyst** | Quantitative Analyst | 5 tools | Factor screening, performance attribution, financial analysis, statistical validation |
+| **Sales Advisor** | Client Relations | 6 tools | Client reporting, template formatting, philosophy integration, compliance review |
+| **ESG Guardian** | ESG Officer | 9 tools | NGO reports, controversy scanning, engagement tracking, policy review, remediation planning |
+| **Compliance Advisor** | Compliance Officer | 6 tools | Mandate monitoring, breach detection, policy lookup, audit documentation |
+| **Middle Office Copilot** | Operations Manager | 6 tools | Settlement monitoring, reconciliation breaks, NAV validation, corporate actions, procedures |
+| **Executive Command Center** | C-Suite Executive | 9 tools | Firm-wide KPIs, client analytics, competitor intelligence, M&A simulation, strategic docs |
+
+---
+
+## 📚 Demo Scenarios by Audience
+
+> **Important**: Complete demo scenario documentation with step-by-step scripts, talking points, expected responses, and business context is available in the [`docs/`](docs/) folder. Use these to prepare for demos and select the right scenarios for your audience.
+
+### Quick Reference: Which Scenarios for Which Audience?
+
+| Audience | Recommended Scenarios | Agent(s) | Demo Doc |
+|----------|----------------------|----------|----------|
+| **Portfolio Managers** | Portfolio analysis, event risk, supply chain exposure, mandate compliance | Portfolio Copilot, Thematic Macro Advisor | [Portfolio Manager Scenarios](docs/demo_scenarios_portfolio_manager.md) |
+| **Research Analysts** | Multi-source research, earnings analysis, investment memos | Research Copilot | [Research Analyst Scenarios](docs/demo_scenarios_research_analyst.md) |
+| **Quant Analysts** | Factor screening, performance attribution, statistical validation | Quant Analyst | [Quant Analyst Scenarios](docs/demo_scenarios_quant_analyst.md) |
+| **Client Relations** | Client reporting, RFP responses, onboarding, retention | Sales Advisor | [Client Relations Scenarios](docs/demo_scenarios_client_relations.md) |
+| **ESG/Sustainability** | Controversy scanning, engagement tracking, policy compliance | ESG Guardian | [ESG Officer Scenarios](docs/demo_scenarios_esg_officer.md) |
+| **Compliance Officers** | Mandate monitoring, breach detection, audit documentation | Compliance Advisor | [Compliance Scenarios](docs/demo_scenarios_compliance_officer.md) |
+| **Middle Office/Ops** | Settlement monitoring, reconciliation, NAV, corporate actions | Middle Office Copilot | [Middle Office Scenarios](docs/demo_scenarios_middle_office.md) |
+| **C-Suite Executives** | Firm-wide KPIs, competitor intelligence, M&A simulation | Executive Command Center | [Executive Scenarios](docs/demo_scenarios_executive.md) |
+
+### Demo Scenario Index
+
+📄 **[Main Scenario Overview](docs/demo_scenarios.md)** - Start here for a complete overview of all scenarios organized by role.
+
+**Detailed Scenario Documentation:**
+- [Portfolio Manager Scenarios](docs/demo_scenarios_portfolio_manager.md) - 5 scenarios including event-driven risk assessment
+- [Research Analyst Scenarios](docs/demo_scenarios_research_analyst.md) - 4 scenarios including earnings intelligence
+- [Thematic Advisor Scenarios](docs/demo_scenarios_thematic_advisor.md) - AI infrastructure strategy development
+- [Quant Analyst Scenarios](docs/demo_scenarios_quant_analyst.md) - Multi-factor screening and validation
+- [Client Relations Scenarios](docs/demo_scenarios_client_relations.md) - 6 scenarios including RFP and retention
+- [Sales Scenarios](docs/demo_scenarios_sales.md) - Additional Sales Advisor scenarios
+- [ESG Officer Scenarios](docs/demo_scenarios_esg_officer.md) - 6 scenarios including daily scanning
+- [Compliance Officer Scenarios](docs/demo_scenarios_compliance_officer.md) - 5 scenarios including audit prep
+- [Risk & Compliance Scenarios](docs/demo_scenarios_risk_compliance.md) - Combined ESG and Compliance
+- [Middle Office Scenarios](docs/demo_scenarios_middle_office.md) - Operations monitoring
+- [Executive Scenarios](docs/demo_scenarios_executive.md) - Strategic intelligence and M&A
+
+**Reference Documentation:**
+- [Data Model](docs/data_model.md) - Complete data architecture documentation
+- [Data Lineage](docs/data_lineage.md) - How data flows through the system
+- [Implementation Status](docs/implementation_status.md) - Current feature status
+
+---
 
 ## Prerequisites
 
@@ -99,12 +142,13 @@ This single script automatically:
 1. Creates database infrastructure (SAM_DEMO)
 2. Connects to Snowflake Public Data (Free) Marketplace dataset
 3. Sets up Git integration to this repository
-4. Loads and executes the setup notebook from Git
-5. Generates 14,000+ real securities and 24 CURATED tables
-6. Creates 3,463 documents from 69 templates (24 RAW tables)
-7. Creates 17 Cortex Search services
-8. Creates 7 Cortex Analyst semantic views
-9. Creates 9 Snowflake Intelligence agents
+4. Executes Python stored procedures from Git
+5. Generates **46 CURATED tables + 5 views** with 14,000+ real securities
+6. Creates **15 RAW corpus tables** from 69 document templates
+7. Creates **9 MARKET_DATA tables** with real SEC filings and stock prices
+8. Creates **16 Cortex Search services** for document intelligence
+9. Creates **10 Cortex Analyst semantic views** for structured data
+10. Creates **9 Snowflake Intelligence agents** for complete workflow coverage
 
 
 ### Step 3: Access Snowflake Intelligence
@@ -166,11 +210,11 @@ What is my indirect exposure through supply chain dependencies? Show me which US
 ```
 
 #### Scenario 3: AI-Assisted Mandate Compliance & Security Replacement
-*David Chen receives a compliance alert that META has been downgraded to ESG grade D, violating the fund's minimum BBB ESG requirement. He needs to identify a suitable replacement.*
+*David Chen receives a compliance alert that META has been downgraded to ESG grade CCC due to governance concerns, violating the fund's minimum BBB ESG requirement. He needs to identify a suitable replacement.*
 
 **Mandate Compliance - ESG Breach**:
 ```
-I've received an alert that META has been downgraded to ESG grade D. Can you verify this breach for the SAM AI & Digital Innovation portfolio and show me our current exposure?
+I've received an alert that META has been downgraded to ESG grade CCC. Can you verify this breach for the SAM AI & Digital Innovation portfolio and show me our current exposure?
 ```
 
 **Mandate Compliance - Replacements**:
@@ -328,6 +372,19 @@ From the emerging themes identified, pick the most promising one and analyze how
 Based on our AI/tech positioning and the selected theme, create an integrated investment strategy that optimizes our thematic exposure across portfolios
 ```
 
+#### Scenario 2: AI Infrastructure Strategy Development (Multi-Tool)
+*Anna is preparing the quarterly thematic investment strategy for presentation to the Investment Committee, focusing on artificial intelligence infrastructure.*
+
+**Comprehensive AI Infrastructure Strategy**:
+```
+I'm developing our upcoming quarterly thematic investment strategy around artificial intelligence infrastructure. Can you:
+1. Analyze our current portfolio exposure to AI and data center themes across all portfolios
+2. Find the latest broker research identifying key AI infrastructure sub-themes and investment opportunities
+3. Review what major technology company managements are saying in earnings calls about AI spending and data center capacity plans
+4. Check recent corporate announcements for AI infrastructure investments and partnerships
+5. Synthesize this into a thematic positioning recommendation showing where we're under-positioned relative to the emerging AI infrastructure opportunity
+```
+
 ---
 
 ### Quant Analyst
@@ -411,6 +468,116 @@ Integrate our ESG investment philosophy and technology innovation messaging to a
 Complete the compliance review by adding all required regulatory disclosures, risk warnings, and fiduciary language for final client delivery
 ```
 
+#### Scenario 2: RFP Response Preparation
+*James received an RFP from a large pension fund seeking a Global ESG Equity mandate. The response is due in 10 days.*
+
+**Primary - RFP Response**:
+```
+I need to prepare an RFP response for a Global ESG Equity mandate. Start by gathering our firm capabilities, ESG track record, and available performance history for the SAM ESG Leaders Global Equity strategy.
+```
+
+**Investment Process**:
+```
+Provide our ESG investment process, integration methodology, and active ownership approach for the investment process section of the RFP.
+```
+
+**Compliance & Risk**:
+```
+Gather our compliance framework, risk management policies, and regulatory disclosures for the operational due diligence section of the RFP.
+```
+
+**Complete RFP Draft**:
+```
+Create a complete RFP response draft for the Global ESG Equity mandate combining our track record, investment process, and compliance content in our standard RFP format.
+```
+
+#### Scenario 3: Client Onboarding Package
+*James just closed a new mandate with Midwest Community Foundation, a foundation client allocating $62 million to SAM ESG Leaders Global Equity.*
+
+**Onboarding Welcome**:
+```
+I need to prepare an onboarding welcome package for our new client Midwest Community Foundation. They're investing in SAM ESG Leaders Global Equity. Start with their client profile and portfolio overview.
+```
+
+**Welcome Structure**:
+```
+Retrieve our client onboarding welcome template and customize it for Midwest Community Foundation as a foundation client.
+```
+
+**Philosophy for New Client**:
+```
+Include our ESG investment philosophy and sustainable investing approach in the welcome package, emphasizing alignment with foundation values.
+```
+
+**Complete Onboarding**:
+```
+Create the complete onboarding welcome package for Midwest Community Foundation combining their portfolio overview, welcome materials, and ESG philosophy content.
+```
+
+#### Scenario 4: At-Risk Client Analysis
+*James is reviewing his client book for Q4 planning and wants to identify any relationships showing signs of potential redemption risk.*
+
+**Flow Pattern Analysis**:
+```
+Analyze client flow patterns to identify any clients showing redemption trends or declining engagement over the past 6 months.
+```
+
+**Performance Context**:
+```
+Show me which portfolios Pacific Coast Pension Fund has invested in historically, including their complete flow history and any remaining positions. Then show the performance of those portfolios.
+```
+
+**Retention Strategy**:
+```
+Retrieve retention strategies and engagement tactics for an at-risk pension fund client concerned about performance.
+```
+
+**Retention Action Plan**:
+```
+Create an action plan for retaining Pacific Coast Pension Fund including talking points, value demonstration, and recommended next steps.
+```
+
+#### Scenario 5: Product Cross-Sell Opportunity
+*James is preparing for his quarterly business development review and wants to identify cross-sell opportunities across his client book.*
+
+**Single-Product Clients**:
+```
+Show me clients with single-product relationships who might be good cross-sell opportunities. Include their current SAM product allocation and AUM.
+```
+
+**Product Catalog**:
+```
+Retrieve our SAM product catalog with strategy descriptions, target clients, and suitability criteria for cross-sell analysis.
+```
+
+**Client-Product Matching**:
+```
+For Meridian Capital Partners, who currently holds SAM ESG Leaders, recommend additional SAM products that would complement their portfolio and align with their pension fund objectives.
+```
+
+**Cross-Sell Proposal**:
+```
+Create a cross-sell proposal for Meridian Capital Partners with product recommendations, key messaging, and suggested next steps.
+```
+
+#### Scenario 6: Client Segmentation and Prioritisation
+*James is planning his Q1 client engagement calendar and wants to prioritise his client outreach based on relationship value and health.*
+
+**Client Book Overview**:
+```
+Give me an overview of my client book segmented by AUM tier and client type, including total relationship value.
+```
+
+**Relationship Health**:
+```
+Analyze relationship health across my client book based on flow trends over the past 12 months. Identify growing, stable, and declining relationships.
+```
+
+**Prioritised Engagement List**:
+```
+Create a prioritised client engagement list for the upcoming quarter combining AUM value and relationship health, with recommended action for each segment.
+```
+
 ---
 
 ### ESG Guardian
@@ -450,6 +617,106 @@ What does our ESG policy say about the specific issues identified, and what's ou
 **Committee Summary**:
 ```
 Draft a comprehensive ESG committee summary covering all the companies and issues we've analyzed.
+```
+
+#### Scenario 2: Daily ESG Controversy Scanning
+*Sarah starts each morning with a quick ESG controversy scan to identify any new issues affecting portfolio companies.*
+
+**Daily Scan**:
+```
+Are there any new ESG controversies affecting our ESG-labelled portfolios? Check recent NGO reports for any High or Medium severity issues.
+```
+
+**Detailed Controversy**:
+```
+For the NVIDIA high-severity environmental issue, what are the specific details of the controversy and when was it reported? What exactly happened?
+```
+
+**Policy Threshold Check**:
+```
+Check if the NVIDIA high-severity controversy breaches our Sustainable Investment Policy thresholds. What are our requirements for High severity controversies?
+```
+
+**IC Escalation Memo**:
+```
+Given the policy breach identified for NVIDIA's high-severity environmental controversy, prepare an escalation memo for the Investment Committee with the controversy details, portfolio exposure, policy requirements, and recommended actions.
+```
+
+#### Scenario 3: ESG Rating Monitor
+*Sarah is conducting the weekly ESG grade review for ESG-labelled portfolios to ensure all holdings meet the minimum BBB requirement.*
+
+**Grade Distribution**:
+```
+Show me the ESG grade distribution for our SAM ESG Leaders Global Equity portfolio. I need to see the breakdown from AAA to CCC.
+```
+
+**Grade Breach Identification**:
+```
+Identify any holdings in the ESG Leaders portfolio that are below the BBB minimum threshold. Show me the specific companies and their ESG grades.
+```
+
+**Policy Remediation**:
+```
+What does our Sustainable Investment Policy require for ESG grade breaches in ESG-labelled portfolios? What's the remediation timeline and process?
+```
+
+#### Scenario 4: Company ESG Response Analysis
+*Sarah is preparing an engagement assessment for NVIDIA, which was flagged for a high-severity environmental controversy.*
+
+**Full Controversy Details**:
+```
+What ESG controversies have been reported about NVIDIA? Give me the full details from NGO reports.
+```
+
+**Public Response**:
+```
+How has NVIDIA responded publicly to environmental concerns? Search their press releases for any statements or sustainability announcements.
+```
+
+**Management Commentary**:
+```
+What has NVIDIA management said about environmental issues or sustainability in their earnings calls?
+```
+
+**SEC Disclosures**:
+```
+What does NVIDIA disclose in their SEC filings about environmental risks and climate factors? Check their 10-K filings.
+```
+
+**Comprehensive Assessment**:
+```
+Based on all sources—NGO reports, press releases, earnings calls, and SEC filings—provide an overall assessment of NVIDIA's response to environmental concerns. Is their response adequate for continued investment?
+```
+
+#### Scenario 5: Stewardship & Engagement Review
+*Sarah is preparing for the quarterly ESG Committee meeting and needs to report on stewardship activities with ALPHABET.*
+
+**Engagement History**:
+```
+What ESG engagements have we had with ALPHABET in the past year? Show me the history of our discussions and any commitments they made.
+```
+
+**Current ESG Status**:
+```
+What is ALPHABET's current ESG status? Show me their ESG grade and our portfolio exposure.
+```
+
+**Commitment Verification**:
+```
+Has ALPHABET met their engagement commitments? Check for any new controversies that might indicate problems.
+```
+
+**Stewardship Report**:
+```
+Prepare a stewardship report on ALPHABET for the ESG Committee. Include engagement history, current status, commitment tracking, and recommendations for next steps.
+```
+
+#### Scenario 6: Complete ESG Risk Assessment (All Tools)
+*Sarah receives an urgent request from the CEO for a complete ESG risk briefing on the ESG Leaders portfolio before a media interview.*
+
+**Complete Assessment**:
+```
+Conduct a complete ESG risk assessment for SAM ESG Leaders Global Equity including scanning NGO reports for any High or Medium severity controversies affecting our holdings, calculating exact portfolio exposure to flagged companies, verifying against our Sustainable Investment Policy thresholds, checking engagement history with any flagged companies, and providing a prioritised remediation plan with severity-based timelines and ESG Committee recommendations. Generate a formal ESG Committee report using our standard template.
 ```
 
 ---
@@ -492,6 +759,84 @@ For each breach identified, what are our remediation options and what's the prio
 **Incident Report**:
 ```
 Generate a comprehensive compliance incident report covering all breaches with our complete remediation plan
+```
+
+#### Scenario 2: Daily Concentration Limit Monitoring
+*James starts each day with a quick concentration check across all portfolios before the morning risk meeting.*
+
+**Portfolio-Wide Scan**:
+```
+Run a daily concentration check across all portfolios. Show me any positions above the 6.5% warning threshold, sorted by weight.
+```
+
+**Policy Thresholds**:
+```
+What are the exact concentration thresholds in our Concentration Risk Policy? Confirm warning and breach levels.
+```
+
+**Compliance Classification**:
+```
+Apply these policy thresholds to classify each flagged position as Compliant, Warning, or Breach. Include the exact variance from threshold.
+```
+
+**Daily Summary**:
+```
+Create a brief daily compliance summary I can share with the risk team and file in my compliance log.
+```
+
+#### Scenario 3: Policy Requirements Lookup
+*A new portfolio manager asks James about ESG requirements for ESG-labelled portfolios.*
+
+**ESG Requirements**:
+```
+What are the ESG requirements for ESG-labelled portfolios? What grades are required and what are the exclusion criteria?
+```
+
+**Breach Procedures**:
+```
+What happens if we breach a concentration limit? What's the remediation timeline and what committees need to be notified?
+```
+
+**Portfolio-Specific Requirements**:
+```
+Which of our portfolios are ESG-labelled and have these ESG requirements? Show me the list with their specific mandate requirements.
+```
+
+#### Scenario 4: Breach Remediation Tracking
+*James is preparing for the monthly Risk Committee meeting and needs to report on the status of previously identified concentration breaches.*
+
+**Breach History**:
+```
+Show me all concentration breaches from the last 30 days. Include which ones have been resolved and which are still active.
+```
+
+**PM Commitments**:
+```
+Search our engagement notes for any compliance discussions or PM commitments regarding Apple and Microsoft concentration breaches.
+```
+
+**Position vs Target**:
+```
+What are the current weights for Apple and Microsoft in the SAM Technology & Infrastructure portfolio? Compare to the committed remediation targets.
+```
+
+**Risk Committee Report**:
+```
+Find the Risk Committee compliance report template and generate a formal PDF report with all our findings on breach status, PM commitments, and remediation recommendations.
+```
+
+#### Scenario 5: Complete Compliance Assessment (All Tools)
+*James receives an urgent request from the FCA for a compliance status report on SAM Technology & Infrastructure.*
+
+**Complete Assessment**:
+```
+Conduct a complete compliance assessment for SAM Technology & Infrastructure including:
+1. Historical breach alerts showing which have been resolved and which remain active
+2. Current portfolio positions checked against concentration limits (single position and issuer)
+3. Policy thresholds from our Concentration Risk Policy 
+4. Any engagement notes documenting PM commitments for remediation
+5. A formal Risk Committee compliance report using the appropriate template
+6. Generate a professional PDF for FCA submission
 ```
 
 ---

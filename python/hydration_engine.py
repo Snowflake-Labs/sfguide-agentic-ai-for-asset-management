@@ -18,18 +18,19 @@ import os
 import re
 import yaml
 import random
+import hashlib
 from typing import Dict, List, Any, Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from snowflake.snowpark import Session
 import config
+import rules_loader
+from logging_utils import log_warning
+from demo_helpers import get_demo_company_priority_sql
+from db_helpers import get_max_price_date
 
-# Import rules_loader for YAML-based configuration
-try:
-    import rules_loader
-    USE_YAML_RULES = True
-except ImportError:
-    USE_YAML_RULES = False
-    print("Warning: rules_loader not available, using hardcoded bounds")
+# Module-level anchor date for consistent date generation across all documents
+# Set by hydrate_documents() to max_price_date from stock prices
+_anchor_date: Optional[date] = None
 
 # ============================================================================
 # MODULE: Content Loader
@@ -113,7 +114,7 @@ def load_single_template(file_path: str) -> Optional[Dict[str, Any]]:
         missing_fields = [f for f in required_fields if f not in metadata]
         
         if missing_fields:
-            config.log_warning(f"  Template {file_path} missing required fields: {missing_fields}")
+            log_warning(f"  Template {file_path} missing required fields: {missing_fields}")
             return None
         
         return {
@@ -170,8 +171,29 @@ def select_template(templates: List[Dict[str, Any]], context: Dict[str, Any]) ->
         return templates[0]
     
     # Get entity ID for deterministic selection
-    entity_id = context.get('SECURITY_ID') or context.get('ISSUER_ID') or context.get('PORTFOLIO_ID') or 0
+    entity_id = context.get('SECURITY_ID') or context.get('ISSUER_ID') or context.get('PORTFOLIO_ID')
     doc_type = context.get('_doc_type', 'unknown')
+    doc_num = context.get('_doc_num', 0)
+    
+    # For global documents (no entity ID), cycle through templates using doc_num directly
+    # This ensures all template variants are used when docs_total matches template count
+    if entity_id is None:
+        template_index = doc_num % len(templates)
+        return templates[template_index]
+    
+    # Meeting type-based routing for engagement notes
+    # If context has MEETING_TYPE, find templates that match that meeting_type
+    meeting_type = context.get('MEETING_TYPE', '')
+    if meeting_type and doc_type == 'engagement_notes':
+        # Convert meeting type to template metadata format (lowercase, underscore)
+        meeting_type_key = meeting_type.lower().replace(' ', '_')
+        meeting_matched = [
+            t for t in templates
+            if t.get('metadata', {}).get('meeting_type', '').lower() == meeting_type_key
+        ]
+        if meeting_matched:
+            # Use the meeting-type specific template
+            return meeting_matched[0]
     
     # Sector-aware routing: map SIC description to GICS sector for template matching
     entity_sector = context.get('SIC_DESCRIPTION', '')
@@ -191,8 +213,10 @@ def select_template(templates: List[Dict[str, Any]], context: Dict[str, Any]) ->
     # Use sector-matched templates if available, otherwise use all templates
     candidate_templates = sector_matched if sector_matched else templates
     
-    # Deterministic selection using hash
-    template_index = hash(f"{entity_id}:{doc_type}:{config.RNG_SEED}") % len(candidate_templates)
+    # Deterministic selection using MD5 hash (Python's hash() is randomized per-process)
+    hash_input = f"{entity_id}:{doc_type}:{config.RNG_SEED}".encode('utf-8')
+    hash_value = int(hashlib.md5(hash_input).hexdigest(), 16)
+    template_index = hash_value % len(candidate_templates)
     selected = candidate_templates[template_index]
     
     return selected
@@ -357,7 +381,7 @@ def build_portfolio_context(session: Session, portfolio_id: int, doc_type: str) 
     context.update(generate_dates_for_doc_type(doc_type))
     
     # Add Tier 2 derived metrics for portfolio reviews
-    if doc_type == 'portfolio_review' and config.NUMERIC_TIER_BY_DOC_TYPE.get(doc_type) == 'tier2':
+    if doc_type == 'portfolio_review':
         context.update(query_tier2_portfolio_metrics(session, portfolio_id))
     
     # Add Tier 1 numerics for performance data
@@ -443,6 +467,112 @@ def build_global_context(doc_type: str, doc_num: int = 0) -> Dict[str, Any]:
     
     return context
 
+
+def get_breach_context_for_issuer(session: Session, issuer_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Query FACT_COMPLIANCE_ALERTS for breach data to enrich engagement note context.
+    
+    Used for compliance_discussion meeting type engagement notes to include
+    actual breach details (portfolio, weight, thresholds) in the generated document.
+    
+    Args:
+        session: Snowpark session
+        issuer_id: IssuerID to look up breaches for
+    
+    Returns:
+        Dict with breach context fields, or None if no breach found for this issuer
+    """
+    database_name = config.DATABASE['name']
+    
+    breach_data = session.sql(f"""
+        SELECT 
+            ca.CurrentValue,
+            ca.OriginalValue,
+            ca.AlertDate,
+            ca.ActionDeadline,
+            ca.ResolvedBy,
+            ca.ResolutionNotes,
+            ca.AlertSeverity,
+            ca.AlertType,
+            p.PortfolioName,
+            s.Ticker
+        FROM {database_name}.CURATED.FACT_COMPLIANCE_ALERTS ca
+        JOIN {database_name}.CURATED.DIM_PORTFOLIO p ON ca.PortfolioID = p.PortfolioID
+        JOIN {database_name}.CURATED.DIM_SECURITY s ON ca.SecurityID = s.SecurityID
+        WHERE s.IssuerID = {issuer_id}
+          AND ca.AlertType IN ('CONCENTRATION_BREACH', 'CONCENTRATION_WARNING')
+        ORDER BY 
+            CASE ca.AlertType WHEN 'CONCENTRATION_BREACH' THEN 1 ELSE 2 END,
+            ca.AlertDate DESC
+        LIMIT 1
+    """).collect()
+    
+    if not breach_data:
+        return None
+    
+    b = breach_data[0]
+    
+    # Parse weight values (stored as strings like "7.2%")
+    current_weight = b['CURRENTVALUE'] if b['CURRENTVALUE'] else '7.0%'
+    breach_threshold = b['ORIGINALVALUE'] if b['ORIGINALVALUE'] else '7.0%'
+    
+    # Calculate derived values
+    try:
+        weight_num = float(current_weight.replace('%', ''))
+        target_weight = f"{weight_num - 1.5:.1f}"  # Target 1.5% below current
+    except:
+        target_weight = '6.0'
+    
+    # Calculate days outstanding
+    from datetime import datetime
+    alert_date = b['ALERTDATE']
+    if alert_date:
+        days_outstanding = (datetime.now().date() - alert_date).days
+    else:
+        days_outstanding = 10
+    
+    return {
+        'PORTFOLIO_NAME': b['PORTFOLIONAME'],
+        'CURRENT_WEIGHT': current_weight,
+        'BREACH_THRESHOLD': breach_threshold,
+        'ALERT_DATE': str(alert_date) if alert_date else 'Recent',
+        'PM_NAME': b['RESOLVEDBY'] if b['RESOLVEDBY'] else 'Anna Chen',
+        'TARGET_DATE': str(b['ACTIONDEADLINE']) if b['ACTIONDEADLINE'] else 'Within 30 days',
+        'REMEDIATION_DAYS': '15',
+        'TARGET_WEIGHT': target_weight,
+        'DAYS_OUTSTANDING': str(days_outstanding),
+        'EXCESS_AMOUNT': f"{float(current_weight.replace('%', '')) - float(breach_threshold.replace('%', '')):.1f}%" if '%' in current_weight else '0.5%'
+    }
+
+
+def prefetch_issuers_with_breaches(session: Session) -> set:
+    """
+    Get set of IssuerIDs that have concentration breaches or warnings.
+    
+    Used to determine which issuers should get "Compliance Discussion" 
+    meeting type for engagement notes.
+    
+    Args:
+        session: Snowpark session
+    
+    Returns:
+        Set of IssuerIDs that have breach/warning alerts
+    """
+    database_name = config.DATABASE['name']
+    
+    try:
+        result = session.sql(f"""
+            SELECT DISTINCT s.IssuerID
+            FROM {database_name}.CURATED.FACT_COMPLIANCE_ALERTS ca
+            JOIN {database_name}.CURATED.DIM_SECURITY s ON ca.SecurityID = s.SecurityID
+            WHERE ca.AlertType IN ('CONCENTRATION_BREACH', 'CONCENTRATION_WARNING')
+        """).collect()
+        return {row['ISSUERID'] for row in result}
+    except Exception as e:
+        log_warning(f"  Could not prefetch breach data: {e}")
+        return set()
+
+
 # ============================================================================
 # MODULE: Fiscal Calendar Lookup
 # ============================================================================
@@ -506,7 +636,7 @@ def get_fiscal_calendar_dates(session: Session, cik: str, num_periods: int = 4) 
 def generate_dates_for_doc_type(doc_type: str, context: Optional[Dict[str, Any]] = None, session: Optional[Session] = None) -> Dict[str, str]:
     """
     Generate appropriate dates based on document type.
-    Uses fiscal calendar data when available for earnings_transcripts and broker_research.
+    Uses fiscal calendar data when available for broker_research.
     
     Args:
         doc_type: Document type
@@ -520,9 +650,9 @@ def generate_dates_for_doc_type(doc_type: str, context: Optional[Dict[str, Any]]
     
     dates = {}
     
-    # Try to use fiscal calendar for earnings-related documents
+    # Try to use fiscal calendar for broker research (aligns with earnings dates)
     fiscal_periods = []
-    if doc_type in ['earnings_transcripts', 'broker_research'] and context and session:
+    if doc_type == 'broker_research' and context and session:
         cik = context.get('CIK')
         if cik:
             fiscal_periods = get_fiscal_calendar_dates(session, cik, num_periods=4)
@@ -549,50 +679,15 @@ def generate_dates_for_doc_type(doc_type: str, context: Optional[Dict[str, Any]]
             publish_date = current_date - timedelta(days=offset_days)
             dates['PUBLISH_DATE'] = publish_date.strftime('%d %B %Y')
     
-    elif doc_type == 'earnings_transcripts':
-        # Use fiscal calendar if available, otherwise fall back to synthetic dates
-        if fiscal_periods:
-            # Pick one of the recent fiscal periods (0-3 quarters back)
-            period_idx = random.randint(0, len(fiscal_periods) - 1)
-            fiscal_period = fiscal_periods[period_idx]
-            
-            # Earnings calls typically happen 14-30 days after period end
-            period_end = fiscal_period['PERIOD_END_DATE']
-            days_after_period_end = random.randint(14, 30)
-            publish_date = period_end + timedelta(days=days_after_period_end)
-            
-            dates['FISCAL_QUARTER'] = fiscal_period['FISCAL_PERIOD']
-            dates['FISCAL_YEAR'] = str(fiscal_period['FISCAL_YEAR'])
-            dates['PUBLISH_DATE'] = publish_date.strftime('%d %B %Y')
-            
-            # Extract quarter number from fiscal period (e.g., 'Q3' -> 3)
-            quarter_num = int(fiscal_period['FISCAL_PERIOD'][1])
-            fiscal_year = fiscal_period['FISCAL_YEAR']
-        else:
-            # Fallback: Quarterly earnings dates using synthetic generation
-            quarters_back = random.randint(0, 3)
-            quarter_date = current_date - timedelta(days=90 * quarters_back)
-            quarter_num = ((quarter_date.month - 1) // 3) + 1
-            fiscal_year = quarter_date.year
-            
-            dates['FISCAL_QUARTER'] = f'Q{quarter_num} {fiscal_year}'
-            dates['FISCAL_YEAR'] = str(fiscal_year)
-            dates['PUBLISH_DATE'] = (quarter_date + timedelta(days=random.randint(14, 28))).strftime('%d %B %Y')
-        
-        # Add common earnings placeholders
-        dates['QUARTER_NUM'] = str(quarter_num)
-        dates['NEXT_QUARTER'] = str((quarter_num % 4) + 1)
-        dates['FILING_QUARTER'] = f'Q{(quarter_num % 4) + 1}'
-        dates['NEXT_YEAR'] = str(fiscal_year + 1)
-        dates['CLOSE_QUARTER'] = f'Q{(quarter_num % 4) + 1}'
-        dates['CLOSE_YEAR'] = str(fiscal_year + 1)
-        dates['LAUNCH_QUARTER'] = f'Q{(quarter_num + 1) % 4 + 1}'
-        dates['LAUNCH_YEAR'] = str(fiscal_year + 1)
-    
     elif doc_type in ['ngo_reports', 'engagement_notes']:
-        # ESG documents within last 180 days
-        offset_days = random.randint(1, 180)
-        publish_date = current_date - timedelta(days=offset_days)
+        # Use anchor_date (max_price_date) for consistent date alignment with other data
+        # NGO reports within last 60 days for recency, engagement notes over 180 days for history
+        anchor = _anchor_date if _anchor_date else current_date.date()
+        if doc_type == 'ngo_reports':
+            offset_days = random.randint(1, 60)  # More recent for controversy scanning
+        else:
+            offset_days = random.randint(1, 180)  # Broader range for engagement history
+        publish_date = datetime.combine(anchor, datetime.min.time()) - timedelta(days=offset_days)
         dates['PUBLISH_DATE'] = publish_date.strftime('%d %B %Y')
     
     elif doc_type == 'portfolio_review':
@@ -633,13 +728,16 @@ def generate_dates_for_doc_type(doc_type: str, context: Optional[Dict[str, Any]]
 # MODULE: Provider and Attribution Context
 # ============================================================================
 
-def generate_provider_context(context: Dict[str, Any], doc_type: str) -> Dict[str, Any]:
+def generate_provider_context(context: Dict[str, Any], doc_type: str, 
+                              issuers_with_breaches: Optional[set] = None) -> Dict[str, Any]:
     """
     Generate provider names, ratings, severity levels, etc.
     
     Args:
         context: Existing context
         doc_type: Document type
+        issuers_with_breaches: Optional set of IssuerIDs that have concentration breaches
+                               (used for engagement notes to determine Compliance Discussion meeting type)
     
     Returns:
         Dict with provider/attribution placeholders
@@ -648,13 +746,10 @@ def generate_provider_context(context: Dict[str, Any], doc_type: str) -> Dict[st
     entity_id = context.get('SECURITY_ID') or context.get('ISSUER_ID') or context.get('PORTFOLIO_ID') or 0
     
     if doc_type in ['broker_research', 'internal_research', 'investment_memo']:
-        # Select fictional broker (use rules_loader if available)
-        if USE_YAML_RULES:
-            brokers = rules_loader.get_fictional_brokers()
-        else:
-            brokers = config.FICTIONAL_BROKER_NAMES
-        broker_index = hash(f"{entity_id}:broker:{config.RNG_SEED}") % len(brokers)
-        provider_context['BROKER_NAME'] = brokers[broker_index]
+        # Select fictional broker from YAML rules
+        fictional_brokers = rules_loader.get_fictional_brokers()
+        broker_index = hash(f"{entity_id}:broker:{config.RNG_SEED}") % len(fictional_brokers)
+        provider_context['BROKER_NAME'] = fictional_brokers[broker_index]
         
         # Generate analyst name
         analyst_id = (hash(f"{entity_id}:analyst:{config.RNG_SEED}") % 100) + 1
@@ -692,15 +787,11 @@ def generate_provider_context(context: Dict[str, Any], doc_type: str) -> Dict[st
         # Determine ESG category (from template or random)
         category = context.get('_category', random.choice(['environmental', 'social', 'governance']))
         
-        # Select NGO from appropriate category (use rules_loader if available)
-        if USE_YAML_RULES:
-            category_ngos = rules_loader.get_fictional_ngos(category)
-            if not category_ngos:
-                category_ngos = rules_loader.get_fictional_ngos('environmental')
-        else:
-            category_ngos = config.FICTIONAL_NGO_NAMES.get(category, config.FICTIONAL_NGO_NAMES['environmental'])
-        ngo_index = hash(f"{entity_id}:ngo:{category}:{config.RNG_SEED}") % len(category_ngos)
-        provider_context['NGO_NAME'] = category_ngos[ngo_index]
+        # Select NGO from appropriate category (from YAML rules)
+        fictional_ngos = rules_loader.get_fictional_ngos()
+        category_ngos = fictional_ngos.get(category, fictional_ngos.get('environmental', []))
+        ngo_index = hash(f"{entity_id}:ngo:{category}:{config.RNG_SEED}") % len(category_ngos) if category_ngos else 0
+        provider_context['NGO_NAME'] = category_ngos[ngo_index] if category_ngos else 'Global Sustainability Watch'
         
         # Select severity level
         provider_context['SEVERITY_LEVEL'] = select_from_distribution('severity_level')
@@ -721,8 +812,28 @@ def generate_provider_context(context: Dict[str, Any], doc_type: str) -> Dict[st
         provider_context['NEW_DIRECTORS'] = str(random.randint(1, 3))
     
     elif doc_type == 'engagement_notes':
-        # Select meeting type
-        provider_context['MEETING_TYPE'] = select_from_distribution('meeting_type')
+        # Select meeting type - only use Compliance Discussion if issuer has breach data
+        issuer_id = context.get('ISSUER_ID')
+        if issuers_with_breaches and issuer_id and issuer_id in issuers_with_breaches:
+            # This issuer has breach data, assign Compliance Discussion
+            provider_context['MEETING_TYPE'] = 'Compliance Discussion'
+        else:
+            # No breach data - use other meeting types (exclude Compliance Discussion)
+            # Only include meeting types that have matching templates
+            non_compliance_types = {
+                'Management Meeting': 0.60,
+                'Shareholder Call': 0.40
+            }
+            # Select from distribution excluding Compliance Discussion
+            rand_val = random.random()
+            cumulative = 0.0
+            selected = 'Management Meeting'
+            for meeting_type, weight in non_compliance_types.items():
+                cumulative += weight
+                if rand_val <= cumulative:
+                    selected = meeting_type
+                    break
+            provider_context['MEETING_TYPE'] = selected
         
         # Add ESG engagement metrics
         provider_context['EMISSIONS_REDUCTION'] = str(random.randint(5, 20))
@@ -735,96 +846,6 @@ def generate_provider_context(context: Dict[str, Any], doc_type: str) -> Dict[st
         provider_context['CERT_QUARTER'] = f'Q{random.randint(1, 4)}'
         provider_context['NEXT_QUARTER'] = f'Q{random.randint(1, 4)}'
         provider_context['NEXT_YEAR'] = str(datetime.now().year + 1)
-    
-    elif doc_type == 'earnings_transcripts':
-        # Generate realistic executive names deterministically from config
-        ceo_first_names = config.EXECUTIVE_NAMES['ceo']['first_names']
-        ceo_last_names = config.EXECUTIVE_NAMES['ceo']['last_names']
-        cfo_first_names = config.EXECUTIVE_NAMES['cfo']['first_names']
-        cfo_last_names = config.EXECUTIVE_NAMES['cfo']['last_names']
-        
-        ceo_first_index = hash(f"{entity_id}:ceo_first:{config.RNG_SEED}") % len(ceo_first_names)
-        ceo_last_index = hash(f"{entity_id}:ceo_last:{config.RNG_SEED}") % len(ceo_last_names)
-        provider_context['CEO_NAME'] = f'{ceo_first_names[ceo_first_index]} {ceo_last_names[ceo_last_index]}'
-        
-        cfo_first_index = hash(f"{entity_id}:cfo_first:{config.RNG_SEED}") % len(cfo_first_names)
-        cfo_last_index = hash(f"{entity_id}:cfo_last:{config.RNG_SEED}") % len(cfo_last_names)
-        provider_context['CFO_NAME'] = f'{cfo_first_names[cfo_first_index]} {cfo_last_names[cfo_last_index]}'
-        
-        # Add quarter-specific context
-        quarter_num = int(context.get('FISCAL_QUARTER', 'Q1 2024')[1])
-        provider_context['QUARTER_NUM'] = str(quarter_num)
-        provider_context['NEXT_Q'] = str((quarter_num % 4) + 1)
-        
-        # Investment memo enhanced placeholders for earnings transcripts
-        # New product announcements
-        product_names = [
-            'AI Analytics Suite', 'Cloud Security Platform', 'Enterprise Data Hub',
-            'Intelligent Automation Engine', 'Digital Transformation Suite', 'Customer 360 Platform',
-            'Edge Computing Framework', 'Machine Learning Accelerator', 'DevOps Orchestration Tool'
-        ]
-        prod1_idx = hash(f"{entity_id}:prod1:{config.RNG_SEED}") % len(product_names)
-        prod2_idx = (prod1_idx + 3) % len(product_names)
-        provider_context['NEW_PRODUCT_1'] = product_names[prod1_idx]
-        provider_context['NEW_PRODUCT_2'] = product_names[prod2_idx]
-        
-        # R&D focus areas
-        rd_focus_areas = [
-            'artificial intelligence and machine learning infrastructure',
-            'cloud-native platform capabilities and edge computing',
-            'security and compliance automation',
-            'data analytics and business intelligence',
-            'customer experience and engagement platforms'
-        ]
-        rd_idx = hash(f"{entity_id}:rd:{config.RNG_SEED}") % len(rd_focus_areas)
-        provider_context['RD_FOCUS_AREA'] = rd_focus_areas[rd_idx]
-        
-        # Geographic expansion commentary
-        geo_expansions = [
-            'We expanded our presence in Europe with new data centers in Frankfurt and London, and saw strong traction in APAC markets',
-            'International markets now represent 35% of revenue, with particular strength in EMEA and Japan',
-            'Our Asia-Pacific expansion accelerated with new partnerships in India, Singapore, and Australia'
-        ]
-        geo_idx = hash(f"{entity_id}:geo:{config.RNG_SEED}") % len(geo_expansions)
-        provider_context['GEOGRAPHIC_EXPANSION'] = geo_expansions[geo_idx]
-        
-        # Sales productivity changes
-        sales_changes = [
-            'improved 15% year-over-year',
-            'remained strong with quota attainment above 90%',
-            'increased driven by AI-assisted selling tools'
-        ]
-        sales_idx = hash(f"{entity_id}:sales:{config.RNG_SEED}") % len(sales_changes)
-        provider_context['SALES_PRODUCTIVITY_CHANGE'] = sales_changes[sales_idx]
-        
-        # Channel updates
-        channel_updates = [
-            'Our partner ecosystem expanded with 50 new ISV integrations and strategic alliances with major system integrators',
-            'Channel revenue grew 25% as partners increasingly lead with our platform in enterprise deals',
-            'We deepened our cloud marketplace presence with enhanced listings on AWS, Azure, and Google Cloud'
-        ]
-        channel_idx = hash(f"{entity_id}:channel:{config.RNG_SEED}") % len(channel_updates)
-        provider_context['CHANNEL_UPDATE'] = channel_updates[channel_idx]
-        
-        # Notable customer wins
-        notable_wins = [
-            'We landed a transformational deal with a Fortune 100 financial services firm, representing our largest enterprise contract to date',
-            'A major healthcare system selected us as their strategic platform for digital transformation, displacing multiple incumbent vendors',
-            'We won a competitive deal with a global manufacturing company, demonstrating our strength in industrial IoT use cases'
-        ]
-        win1_idx = hash(f"{entity_id}:win1:{config.RNG_SEED}") % len(notable_wins)
-        win2_idx = (win1_idx + 1) % len(notable_wins)
-        provider_context['NOTABLE_WIN_1'] = notable_wins[win1_idx]
-        provider_context['NOTABLE_WIN_2'] = notable_wins[win2_idx]
-        
-        # Churn commentary
-        churn_commentaries = [
-            'Churn remained at historically low levels, with the small amount of attrition primarily driven by M&A activity among customers',
-            'We saw minimal churn this quarter, and our proactive customer success initiatives continue to drive strong retention',
-            'Customer churn was below 2%, reflecting the mission-critical nature of our platform and strong customer satisfaction'
-        ]
-        churn_idx = hash(f"{entity_id}:churn:{config.RNG_SEED}") % len(churn_commentaries)
-        provider_context['CHURN_COMMENTARY'] = churn_commentaries[churn_idx]
     
     elif doc_type == 'press_releases':
         # Add common press release fields
@@ -883,39 +904,6 @@ def generate_provider_context(context: Dict[str, Any], doc_type: str) -> Dict[st
         product_index = hash(f"{entity_id}:product:{config.RNG_SEED}") % len(products)
         provider_context['PRODUCT_CATEGORY'] = products[product_index]
     
-    elif doc_type == 'earnings_transcripts':
-        # Market condition narrative
-        market_conditions = ['strong growth', 'mixed results', 'resilient performance']
-        market_index = hash(f"{entity_id}:market:{config.RNG_SEED}") % len(market_conditions)
-        provider_context['MARKET_CONDITION'] = market_conditions[market_index]
-        
-        # Get sector to generate appropriate context
-        entity_sector = context.get('SIC_DESCRIPTION', '')
-        
-        # Healthcare-specific placeholders (only for Health Care sector)
-        if 'Health Care' in entity_sector or 'Pharmaceuticals' in entity_sector or 'Medical' in entity_sector:
-            # Mechanism of action (for healthcare)
-            mechanisms = ['dual GLP-1/GIP receptor agonism', 'selective insulin receptor modulation', 'novel glucose regulation pathway']
-            mech_index = hash(f"{entity_id}:mechanism:{config.RNG_SEED}") % len(mechanisms)
-            provider_context['MECHANISM'] = mechanisms[mech_index]
-            
-            # Pipeline asset names
-            pipeline_assets = ['Compound-247', 'BIO-553', 'TherapX-901']
-            pipeline_index = hash(f"{entity_id}:pipeline:{config.RNG_SEED}") % len(pipeline_assets)
-            provider_context['PIPELINE_ASSET'] = pipeline_assets[pipeline_index]
-            
-            # Healthcare metrics that appear in earnings calls
-            provider_context['TARGET_PATIENTS'] = f'{random.randint(1, 10)}M'  # Format with M for millions
-            provider_context['PEAK_SHARE'] = str(random.randint(15, 35))
-            provider_context['RESPONSE_THRESHOLD'] = str(random.randint(40, 70))
-            provider_context['DIABETES_MARKET'] = str(random.randint(25, 65))
-            provider_context['PATENT_EXPIRY'] = str(random.randint(2028, 2035))
-        
-        # Generic sustainability materials (for all sectors)
-        sustainability_materials = ['100% recycled', '80% renewable', '75% sustainable']
-        sustain_index = hash(f"{entity_id}:sustain:{config.RNG_SEED}") % len(sustainability_materials)
-        provider_context['SUSTAINABLE_MATERIAL'] = sustainability_materials[sustain_index]
-    
     return provider_context
 
 def select_from_distribution(distribution_name: str) -> str:
@@ -928,15 +916,7 @@ def select_from_distribution(distribution_name: str) -> str:
     Returns:
         Selected value
     """
-    # Use rules_loader if available, otherwise fallback to hardcoded
-    if USE_YAML_RULES:
-        dist = rules_loader.get_distribution(distribution_name)
-        if dist:
-            values = list(dist.keys())
-            weights = list(dist.values())
-            return random.choices(values, weights=weights)[0]
-    
-    # Fallback distributions (if YAML rules not available)
+    # Load distributions from numeric_bounds.yaml (simplified for now)
     distributions = {
         'rating': {
             'Strong Buy': 0.10,
@@ -951,9 +931,10 @@ def select_from_distribution(distribution_name: str) -> str:
             'Low': 0.40
         },
         'meeting_type': {
-            'Management Meeting': 0.50,
-            'Shareholder Call': 0.30,
-            'Site Visit': 0.20
+            'Management Meeting': 0.40,
+            'Shareholder Call': 0.25,
+            'Site Visit': 0.15,
+            'Compliance Discussion': 0.20
         }
     }
     
@@ -988,8 +969,8 @@ def generate_tier1_numerics(context: Dict[str, Any], doc_type: str) -> Dict[str,
     entity_id = context.get('SECURITY_ID') or context.get('PORTFOLIO_ID') or 0
     sector = context.get('SIC_DESCRIPTION', 'Information Technology')
     
-    # Load numeric bounds from config (simplified - would load from YAML file in production)
-    bounds = get_numeric_bounds_for_doc_type(doc_type, sector)
+    # Load numeric bounds from YAML rules
+    bounds = rules_loader.get_numeric_bounds(doc_type, sector)
     
     # Sample each numeric placeholder deterministically (ONLY if not already set)
     for placeholder, bound_spec in bounds.items():
@@ -1027,390 +1008,6 @@ def generate_tier1_numerics(context: Dict[str, Any], doc_type: str) -> Dict[str,
             numerics[placeholder] = round(value, 2)
     
     return numerics
-
-def get_numeric_bounds_for_doc_type(doc_type: str, sector: str) -> Dict[str, Dict[str, float]]:
-    """
-    Get numeric bounds for document type and sector.
-    
-    Uses rules_loader to load from numeric_bounds.yaml if available,
-    otherwise falls back to hardcoded bounds.
-    
-    Args:
-        doc_type: Document type
-        sector: GICS sector
-    
-    Returns:
-        Dict mapping placeholder names to {min, max} bounds
-    """
-    # Use rules_loader for YAML-based bounds if available
-    if USE_YAML_RULES:
-        try:
-            bounds = rules_loader.get_numeric_bounds(doc_type, sector)
-            if bounds:
-                return bounds
-        except Exception as e:
-            print(f"Warning: Failed to load YAML bounds for {doc_type}/{sector}: {e}")
-    
-    # Fallback to hardcoded bounds (legacy support)
-    bounds_map = {
-        'broker_research': {
-            'Information Technology': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 8, 'max': 35},
-                'EBIT_MARGIN_PCT': {'min': 12, 'max': 35},
-                'PRICE_TARGET_USD': {'min': 80, 'max': 450},
-                'PE_RATIO': {'min': 15, 'max': 35},
-                'GROSS_MARGIN_PCT': {'min': 60, 'max': 85},
-                # Investment Memo Enhanced Placeholders
-                'TAM_BILLIONS': {'min': 50, 'max': 500},
-                'SAM_BILLIONS': {'min': 20, 'max': 200},
-                'MARKET_SHARE_PCT': {'min': 5, 'max': 35},
-                'MARKET_CAGR_PCT': {'min': 8, 'max': 25},
-                'NRR_PCT': {'min': 105, 'max': 145},
-                'ENTERPRISE_PCT': {'min': 40, 'max': 70},
-                'MIDMARKET_PCT': {'min': 20, 'max': 40},
-                'SMB_PCT': {'min': 10, 'max': 30},
-                'CAC_PAYBACK_MONTHS': {'min': 12, 'max': 36},
-                'LTV_CAC_RATIO': {'min': 2.5, 'max': 6.0},
-                'RULE_OF_40_SCORE': {'min': 25, 'max': 65},
-                'REVENUE_BILLIONS': {'min': 5, 'max': 200}
-            },
-            'Health Care': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 5, 'max': 18},
-                'EBIT_MARGIN_PCT': {'min': 15, 'max': 35},
-                'PRICE_TARGET_USD': {'min': 60, 'max': 350},
-                'PE_RATIO': {'min': 18, 'max': 40},
-                'GROSS_MARGIN_PCT': {'min': 60, 'max': 80}
-            },
-            'Financials': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 3, 'max': 15},
-                'EBIT_MARGIN_PCT': {'min': 20, 'max': 40},
-                'PRICE_TARGET_USD': {'min': 50, 'max': 300},
-                'PE_RATIO': {'min': 8, 'max': 18},
-                'ROE_PCT': {'min': 10, 'max': 25}
-            },
-            'Consumer Discretionary': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 4, 'max': 20},
-                'EBIT_MARGIN_PCT': {'min': 8, 'max': 18},
-                'PRICE_TARGET_USD': {'min': 40, 'max': 400},
-                'PE_RATIO': {'min': 12, 'max': 30}
-            },
-            'Communication Services': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 5, 'max': 22},
-                'EBIT_MARGIN_PCT': {'min': 10, 'max': 30},
-                'PRICE_TARGET_USD': {'min': 45, 'max': 350},
-                'PE_RATIO': {'min': 12, 'max': 28},
-                'REVENUE_BILLIONS': {'min': 10, 'max': 200}
-            },
-            # Default bounds for sectors not explicitly listed
-            '_default': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 3, 'max': 20},
-                'EBIT_MARGIN_PCT': {'min': 10, 'max': 30},
-                'PRICE_TARGET_USD': {'min': 50, 'max': 350},
-                'PE_RATIO': {'min': 12, 'max': 28},
-                'REVENUE_BILLIONS': {'min': 5, 'max': 150},
-                'GROSS_MARGIN_PCT': {'min': 30, 'max': 60},
-                'EBIT_MARGIN_PCT_UPPER': {'min': 15, 'max': 35},
-                'UPSIDE_POTENTIAL': {'min': 15, 'max': 45},
-                'ROE_PCT': {'min': 10, 'max': 25},
-                # Add all sector-specific placeholders to default so they work regardless of sector
-                'MARKET_SHARE': {'min': 15, 'max': 45},
-                'CARDIO_GROWTH': {'min': 8, 'max': 25},
-                'SEQUENTIAL_GROWTH': {'min': 2, 'max': 12},
-                'ONCOLOGY_REVENUE': {'min': 2, 'max': 15},
-                'ONCOLOGY_GROWTH': {'min': 10, 'max': 30},
-                'DIGITAL_GROWTH': {'min': 15, 'max': 40},
-                'DIGITAL_PCT': {'min': 20, 'max': 45},
-                'NEW_PRODUCTS': {'min': 5, 'max': 25},
-                'PRODUCT_CATEGORY': {'min': 1, 'max': 5},
-                'BRAND_AWARENESS': {'min': 2, 'max': 8}
-            }
-        },
-        'internal_research': {
-            'Information Technology': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 8, 'max': 25},
-                'EBIT_MARGIN_PCT': {'min': 12, 'max': 28},
-                'TARGET_PRICE_USD': {'min': 80, 'max': 450},
-                'FAIR_VALUE_USD': {'min': 75, 'max': 500},
-                'UPSIDE_POTENTIAL_PCT': {'min': 10, 'max': 60},
-                'PE_RATIO': {'min': 15, 'max': 35}
-            }
-        },
-        'investment_memo': {
-            'Information Technology': {
-                'YOY_REVENUE_GROWTH_PCT': {'min': 8, 'max': 25},
-                'EBIT_MARGIN_PCT': {'min': 12, 'max': 28},
-                'TARGET_PRICE_USD': {'min': 80, 'max': 450},
-                'PE_RATIO': {'min': 15, 'max': 35},
-                'POSITION_SIZE_PCT': {'min': 2, 'max': 7}
-            }
-        },
-        'portfolio_review': {
-            'returns': {
-                'QTD_RETURN_PCT': {'min': -8, 'max': 12},
-                'YTD_RETURN_PCT': {'min': -15, 'max': 20},
-                'BENCHMARK_QTD_PCT': {'min': -7, 'max': 10},
-                'BENCHMARK_YTD_PCT': {'min': -12, 'max': 18},
-                'TRACKING_ERROR_PCT': {'min': 2, 'max': 8}
-            }
-        },
-        'earnings_transcripts': {
-            'Information Technology': {
-                'QUARTERLY_REVENUE_BILLIONS': {'min': 10, 'max': 60},
-                'QUARTERLY_EPS': {'min': 1.0, 'max': 5.0},
-                'YOY_GROWTH_PCT': {'min': 8, 'max': 35},
-                'OPERATING_MARGIN_PCT': {'min': 20, 'max': 40},
-                'CLOUD_GROWTH': {'min': 20, 'max': 45},
-                'INTERNATIONAL_GROWTH': {'min': 15, 'max': 35},
-                'SOFTWARE_GROWTH': {'min': 12, 'max': 28},
-                'SERVICES_GROWTH': {'min': 8, 'max': 20},
-                'NET_RETENTION': {'min': 110, 'max': 130},
-                # Investment Memo Enhanced Placeholders
-                'NRR_PCT': {'min': 105, 'max': 145},
-                'GRR_PCT': {'min': 88, 'max': 98},
-                'CUSTOMER_COUNT': {'min': 10000, 'max': 500000},
-                'ACV_THOUSANDS': {'min': 25, 'max': 150},
-                'ENTERPRISE_CUSTOMER_COUNT': {'min': 500, 'max': 5000},
-                'CLOUD_GROWTH_PCT': {'min': 20, 'max': 60},
-                'AI_ADOPTION_PCT': {'min': 30, 'max': 80},
-                'INTL_GROWTH': {'min': 15, 'max': 35},
-                'SUBSCRIPTION_REVENUE': {'min': 5, 'max': 50},
-                'CLOUD_REVENUE': {'min': 8, 'max': 45},
-                'CLOUD_PERCENTAGE': {'min': 35, 'max': 60},
-                'CLOUD_MARGIN': {'min': 55, 'max': 75},
-                'SOFTWARE_REVENUE': {'min': 3, 'max': 25},
-                'SERVICES_REVENUE': {'min': 2, 'max': 15},
-                'SUBSCRIPTION_GROWTH': {'min': 15, 'max': 35},
-                'SUBSCRIPTION_PCT': {'min': 65, 'max': 85},
-                'US_REVENUE': {'min': 6, 'max': 35},
-                'US_GROWTH': {'min': 10, 'max': 25},
-                'INTL_REVENUE': {'min': 4, 'max': 25},
-                'INTL_PCT': {'min': 25, 'max': 45},
-                'GROSS_PROFIT': {'min': 5, 'max': 35},
-                'GROSS_MARGIN_PCT': {'min': 55, 'max': 75},
-                'OPEX': {'min': 3, 'max': 20},
-                'OPEX_GROWTH': {'min': 8, 'max': 20},
-                'NET_INCOME': {'min': 2, 'max': 15},
-                'EPS_GROWTH': {'min': 10, 'max': 30},
-                'TAX_RATE': {'min': 18, 'max': 25},
-                'INTL_CONSTANT_GROWTH': {'min': 12, 'max': 30},
-                'INTL_PRIOR_PCT': {'min': 20, 'max': 40},
-                'RD_SPEND': {'min': 2, 'max': 12},
-                'RD_PCT': {'min': 12, 'max': 22},
-                'SALES_SPEND': {'min': 2, 'max': 15},
-                'SALES_PCT': {'min': 15, 'max': 30},
-                'OPERATING_INCOME': {'min': 3, 'max': 18},
-                'CASH_BALANCE': {'min': 10, 'max': 80},
-                'OPERATING_CASH_FLOW': {'min': 4, 'max': 20},
-                'FREE_CASH_FLOW': {'min': 3, 'max': 18},
-                'BUYBACK_AMOUNT': {'min': 1, 'max': 8},
-                'DIVIDEND_AMOUNT': {'min': 50, 'max': 500},
-                'GUIDANCE_REVENUE_LOW': {'min': 10, 'max': 55},
-                'GUIDANCE_REVENUE_HIGH': {'min': 12, 'max': 60},
-                'GUIDANCE_GROWTH_LOW': {'min': 8, 'max': 20},
-                'GUIDANCE_GROWTH_HIGH': {'min': 10, 'max': 25},
-                'GUIDANCE_OPMARGIN': {'min': 25, 'max': 38},
-                'FULL_YEAR_GROWTH_LOW': {'min': 12, 'max': 22},
-                'FULL_YEAR_GROWTH_HIGH': {'min': 15, 'max': 28},
-                'FULL_YEAR_MARGIN': {'min': 28, 'max': 38},
-                'Q_NEXT_LOW': {'min': 12, 'max': 58},
-                'Q_NEXT_HIGH': {'min': 14, 'max': 62},
-                'Q_NEXT_GROWTH_LOW': {'min': 10, 'max': 22},
-                'Q_NEXT_GROWTH_HIGH': {'min': 12, 'max': 28},
-                'Q_NEXT_MARGIN': {'min': 25, 'max': 38},
-                'FY_GROWTH_LOW': {'min': 12, 'max': 22},
-                'FY_GROWTH_HIGH': {'min': 15, 'max': 28},
-                'FY_MARGIN': {'min': 28, 'max': 38},
-                'MARGIN_EXPANSION': {'min': 50, 'max': 150},
-                'MARGIN_EXPANSION_BPS': {'min': 50, 'max': 150},
-                'OCF': {'min': 4, 'max': 22},
-                'FCF': {'min': 3, 'max': 20},
-                'FCF_MARGIN': {'min': 20, 'max': 35},
-                'CASH': {'min': 15, 'max': 90},
-                'CAPITAL_RETURN': {'min': 2, 'max': 12},
-                'BUYBACK': {'min': 1, 'max': 10},
-                'DIVIDEND': {'min': 100, 'max': 800},
-                'ACV_GROWTH': {'min': 12, 'max': 30},
-                'DIV_INCREASE': {'min': 8, 'max': 15},
-                'NET_RETENTION_PCT': {'min': 110, 'max': 135},
-                'AI_ADOPTION_PCT': {'min': 45, 'max': 75},
-                'RD_GROWTH': {'min': 10, 'max': 25},
-                'ENTERPRISE_PCT': {'min': 55, 'max': 75},
-                'ENTERPRISE_GROWTH': {'min': 12, 'max': 28},
-                'SMB_GROWTH': {'min': 18, 'max': 35},
-                'AI_REVENUE_CONTRIBUTION': {'min': 5, 'max': 20},
-                'APAC_GROWTH': {'min': 18, 'max': 40},
-                'FCF_CONVERSION': {'min': 75, 'max': 92},
-                'DIVIDEND_INCREASE': {'min': 8, 'max': 18},
-                'RD_BILLIONS': {'min': 2, 'max': 15}
-            },
-            'Health Care': {
-                'QUARTERLY_REVENUE_BILLIONS': {'min': 5, 'max': 40},
-                'QUARTERLY_EPS': {'min': 0.8, 'max': 4.0},
-                'YOY_GROWTH_PCT': {'min': 5, 'max': 18},
-                'OPERATING_MARGIN_PCT': {'min': 18, 'max': 38},
-                'MARKET_SHARE': {'min': 15, 'max': 45},
-                'CARDIO_GROWTH': {'min': 8, 'max': 25},
-                'SEQUENTIAL_GROWTH': {'min': 2, 'max': 12},
-                'ONCOLOGY_REVENUE': {'min': 2, 'max': 15},
-                'ONCOLOGY_GROWTH': {'min': 10, 'max': 30},
-                'CARDIO_REVENUE': {'min': 1, 'max': 10},
-                'IMMUNO_REVENUE': {'min': 0.5, 'max': 8},
-                'IMMUNO_GROWTH': {'min': 15, 'max': 40},
-                'US_PCT': {'min': 40, 'max': 60},
-                'EUROPE_PCT': {'min': 20, 'max': 35},
-                'ROW_PCT': {'min': 10, 'max': 25},
-                'GROSS_PROFIT': {'min': 3, 'max': 28},
-                'GROSS_MARGIN': {'min': 60, 'max': 80},
-                'SGA_SPEND': {'min': 2, 'max': 15},
-                'SGA_PCT': {'min': 20, 'max': 40},
-                'DEBT': {'min': 5, 'max': 35},
-                'GUIDANCE_LOW': {'min': 5, 'max': 38},
-                'GUIDANCE_HIGH': {'min': 6, 'max': 42},
-                'EPS_LOW': {'min': 0.8, 'max': 3.8},
-                'EPS_HIGH': {'min': 1.0, 'max': 4.2},
-                'FY_LOW': {'min': 8, 'max': 16},
-                'FY_HIGH': {'min': 10, 'max': 20}
-            },
-            'Consumer Discretionary': {
-                'QUARTERLY_REVENUE_BILLIONS': {'min': 3, 'max': 100},
-                'QUARTERLY_EPS': {'min': 0.5, 'max': 3.0},
-                'YOY_GROWTH_PCT': {'min': 4, 'max': 20},
-                'OPERATING_MARGIN_PCT': {'min': 8, 'max': 18},
-                'DIGITAL_GROWTH': {'min': 15, 'max': 40},
-                'DIGITAL_PCT': {'min': 20, 'max': 45},
-                'NEW_PRODUCTS': {'min': 5, 'max': 25},
-                'INTL_GROWTH': {'min': 10, 'max': 30},
-                'INTL_PCT': {'min': 20, 'max': 40},
-                'INTL_PRIOR_PCT': {'min': 18, 'max': 38},
-                'BRAND_AWARENESS': {'min': 2, 'max': 8},
-                'SENTIMENT_IMPROVEMENT': {'min': 3, 'max': 12},
-                'INSTOCK_PCT': {'min': 92, 'max': 98},
-                'PRODUCT_CATEGORY': {'min': 1, 'max': 5},
-                'RETAIL_REVENUE': {'min': 5, 'max': 60},
-                'RETAIL_GROWTH': {'min': 3, 'max': 18},
-                'DTC_REVENUE': {'min': 2, 'max': 30},
-                'DTC_GROWTH': {'min': 20, 'max': 50},
-                'WHOLESALE_REVENUE': {'min': 3, 'max': 40},
-                'WHOLESALE_GROWTH': {'min': 2, 'max': 15},
-                'GROSS_PROFIT': {'min': 3, 'max': 50},
-                'GROSS_MARGIN': {'min': 35, 'max': 55},
-                'MARKETING': {'min': 1, 'max': 15},
-                'MARKETING_PCT': {'min': 8, 'max': 20},
-                'GA': {'min': 1, 'max': 10},
-                'GROSS_MARGIN': {'min': 35, 'max': 55},
-                'DIVIDENDS': {'min': 100, 'max': 600},
-                'BUYBACKS': {'min': 500, 'max': 3000},
-                'INVENTORY': {'min': 2, 'max': 15},
-                'INVENTORY_DAYS': {'min': 45, 'max': 90}
-            },
-            # Fallback bounds that include ALL placeholders used in any template
-            '_fallback': {
-                # Include all possible placeholders with reasonable defaults
-                'MARKET_SHARE': {'min': 15, 'max': 45},
-                'CARDIO_GROWTH': {'min': 8, 'max': 25},
-                'CARDIO_REVENUE': {'min': 1, 'max': 10},
-                'SEQUENTIAL_GROWTH': {'min': 2, 'max': 12},
-                'ONCOLOGY_REVENUE': {'min': 2, 'max': 15},
-                'ONCOLOGY_GROWTH': {'min': 10, 'max': 30},
-                'IMMUNO_REVENUE': {'min': 0.5, 'max': 8},
-                'IMMUNO_GROWTH': {'min': 15, 'max': 40},
-                'DIGITAL_GROWTH': {'min': 15, 'max': 40},
-                'DIGITAL_PCT': {'min': 20, 'max': 45},
-                'NEW_PRODUCTS': {'min': 5, 'max': 25},
-                'PRODUCT_CATEGORY': {'min': 1, 'max': 5},
-                'BRAND_AWARENESS': {'min': 2, 'max': 8},
-                'SENTIMENT_IMPROVEMENT': {'min': 3, 'max': 12},
-                'INSTOCK_PCT': {'min': 92, 'max': 98},
-                'RETAIL_REVENUE': {'min': 5, 'max': 60},
-                'RETAIL_GROWTH': {'min': 3, 'max': 18},
-                'DTC_REVENUE': {'min': 2, 'max': 30},
-                'DTC_GROWTH': {'min': 20, 'max': 50},
-                'WHOLESALE_REVENUE': {'min': 3, 'max': 40},
-                'WHOLESALE_GROWTH': {'min': 2, 'max': 15},
-                'US_PCT': {'min': 40, 'max': 60},
-                'EUROPE_PCT': {'min': 20, 'max': 35},
-                'ROW_PCT': {'min': 10, 'max': 25},
-                'GROSS_MARGIN': {'min': 35, 'max': 70},
-                'SGA_SPEND': {'min': 2, 'max': 15},
-                'SGA_PCT': {'min': 20, 'max': 40},
-                'DEBT': {'min': 5, 'max': 35},
-                'GUIDANCE_LOW': {'min': 5, 'max': 40},
-                'GUIDANCE_HIGH': {'min': 6, 'max': 45},
-                'MARKETING': {'min': 1, 'max': 15},
-                'MARKETING_PCT': {'min': 8, 'max': 20},
-                'GA': {'min': 1, 'max': 10},
-                'DIVIDENDS': {'min': 100, 'max': 600},
-                'BUYBACKS': {'min': 500, 'max': 3000},
-                'EPS_LOW': {'min': 0.8, 'max': 3.8},
-                'EPS_HIGH': {'min': 1.0, 'max': 4.2},
-                'FY_LOW': {'min': 8, 'max': 16},
-                'FY_HIGH': {'min': 10, 'max': 20},
-                'WEIGHT_BENEFIT': {'min': 3, 'max': 8},
-                'A1C_REDUCTION': {'min': 0.8, 'max': 1.8},
-                'PLACEBO_A1C': {'min': 0.1, 'max': 0.4},
-                'MECHANISM': {'min': 1, 'max': 3},  # Will be text
-                'DIGITAL_MARGIN_PREMIUM': {'min': 5, 'max': 15},
-                'DIGITAL_VS_RETAIL': {'min': 3, 'max': 12},
-                'INVENTORY': {'min': 2, 'max': 15},
-                'INVENTORY_DAYS': {'min': 45, 'max': 90},
-                'SUSTAINABILITY_METRIC': {'min': 15, 'max': 40},
-                'SUSTAINABLE_PREMIUM': {'min': 8, 'max': 18},
-                'DIABETES_MARKET': {'min': 25, 'max': 65},
-                'PATENT_EXPIRY': {'min': 2028, 'max': 2035},
-                'PIPELINE_ASSET': {'min': 1, 'max': 3},  # Will be text
-                'EROSION_PCT': {'min': 40, 'max': 70},
-                'RD_ANNUAL': {'min': 3, 'max': 12},
-                'TOTAL_RETURN': {'min': 1, 'max': 8},
-                'RESPONSE_THRESHOLD': {'min': 40, 'max': 70},
-                'SUSTAINABLE_MATERIAL': {'min': 60, 'max': 100},  # Will be text
-                'TARGET_PATIENTS': {'min': 1, 'max': 10},  # Will be formatted with M
-                'PEAK_SHARE': {'min': 15, 'max': 35}
-            }
-        },
-        'press_releases': {
-            'general': {
-                'DEAL_VALUE_MILLIONS': {'min': 50, 'max': 5000},
-                'PARTNERSHIP_VALUE_MILLIONS': {'min': 100, 'max': 3000},
-                'QUARTERLY_REVENUE_BILLIONS': {'min': 5, 'max': 60},
-                'YOY_GROWTH_PCT': {'min': 5, 'max': 25},
-                'QUARTERLY_EPS': {'min': 0.8, 'max': 4.0},
-                'CLOUD_GROWTH_PCT': {'min': 15, 'max': 40},
-                'OPERATING_CASH_FLOW': {'min': 2, 'max': 20}
-            }
-        }
-    }
-    
-    # Get bounds for this doc_type and sector
-    if doc_type in bounds_map:
-        sector_bounds = {}
-        
-        # Start with sector-specific bounds if available
-        if sector in bounds_map[doc_type]:
-            sector_bounds = bounds_map[doc_type][sector].copy()
-        elif 'returns' in bounds_map[doc_type]:  # Portfolio review
-            sector_bounds = bounds_map[doc_type]['returns'].copy()
-        elif 'general' in bounds_map[doc_type]:  # Press releases
-            sector_bounds = bounds_map[doc_type]['general'].copy()
-        elif not sector_bounds:
-            # Use first available sector as base
-            first_sector = [k for k in bounds_map[doc_type].keys() if not k.startswith('_')][0]
-            sector_bounds = bounds_map[doc_type][first_sector].copy()
-        
-        # Merge in default bounds for any missing placeholders
-        if '_default' in bounds_map[doc_type]:
-            for key, value in bounds_map[doc_type]['_default'].items():
-                if key not in sector_bounds:
-                    sector_bounds[key] = value
-        
-        # Merge in fallback bounds for any still missing
-        if '_fallback' in bounds_map[doc_type]:
-            for key, value in bounds_map[doc_type]['_fallback'].items():
-                if key not in sector_bounds:
-                    sector_bounds[key] = value
-        
-        return sector_bounds
-    
-    return {}
 
 # ============================================================================
 # MODULE: Tier 2 Derivations (Portfolio Metrics from CURATED Tables)
@@ -1470,7 +1067,7 @@ def query_tier2_portfolio_metrics(session: Session, portfolio_id: int) -> Dict[s
             metrics['SECTOR_ALLOCATION_TABLE'] = sectors
     
     except Exception as e:
-        config.log_warning(f"  Tier 2 query failed for portfolio {portfolio_id}: {e}")
+        log_warning(f"  Tier 2 query failed for portfolio {portfolio_id}: {e}")
         # Fallback to Tier 1 if queries fail
         pass
     
@@ -1538,7 +1135,7 @@ def process_conditional_placeholders(template: Dict[str, Any], context: Dict[str
             context[name] = selected_value
             
         except Exception as e:
-            config.log_warning(f"  Conditional placeholder {name} evaluation failed: {e}")
+            log_warning(f"  Conditional placeholder {name} evaluation failed: {e}")
             # Use first available option as fallback
             context[name] = list(options.values())[0] if options else ''
     
@@ -1597,7 +1194,7 @@ def render_template(template: Dict[str, Any], context: Dict[str, Any]) -> Tuple[
             # Replace {{> partial_name}} with partial content
             body = body.replace(f'{{{{> {partial_name}}}}}', partial_content)
         except Exception as e:
-            config.log_warning(f"  Could not load partial {partial_name}: {e}")
+            log_warning(f"  Could not load partial {partial_name}: {e}")
     
     # Fill all {{PLACEHOLDER}} patterns
     rendered = body
@@ -1620,7 +1217,7 @@ def render_template(template: Dict[str, Any], context: Dict[str, Any]) -> Tuple[
     # Check for unresolved placeholders
     unresolved = re.findall(r'\{\{([A-Z_]+)\}\}', rendered)
     if unresolved:
-        config.log_warning(f"  Unresolved placeholders: {unresolved[:5]}")  # Show first 5
+        log_warning(f"  Unresolved placeholders: {unresolved[:5]}")  # Show first 5
         # Don't fail - some placeholders might be optional
     
     # Extract document title from first H1 if not in context
@@ -1652,7 +1249,7 @@ def write_to_raw_table(session: Session, doc_type: str, documents: List[Dict[str
         documents: List of dicts with 'rendered' content and 'context'
     """
     if not documents:
-        config.log_warning(f"  No documents to write for {doc_type}")
+        log_warning(f"  No documents to write for {doc_type}")
         return
     
     table_name = f"{config.DATABASE['name']}.RAW.{config.DOCUMENT_TYPES[doc_type]['table_name']}"
@@ -1714,10 +1311,6 @@ def write_to_raw_table(session: Session, doc_type: str, documents: List[Dict[str
         elif doc_type == 'engagement_notes':
             row['MEETING_TYPE'] = ctx.get('MEETING_TYPE')
         
-        elif doc_type == 'earnings_transcripts':
-            row['FISCAL_QUARTER'] = ctx.get('FISCAL_QUARTER')
-            row['TRANSCRIPT_TYPE'] = 'Summary'  # Simplified
-        
         elif doc_type == 'portfolio_review':
             row['FISCAL_QUARTER'] = ctx.get('FISCAL_QUARTER')
             row['QTD_RETURN_PCT'] = ctx.get('QTD_RETURN_PCT')
@@ -1750,6 +1343,12 @@ def hydrate_documents(session: Session, doc_type: str, test_mode: bool = False) 
     """
     import snowflake_io_utils
     
+    # Set module-level anchor date for consistent date generation
+    # All document dates will be relative to max_price_date from stock prices
+    global _anchor_date
+    if _anchor_date is None:
+        _anchor_date = get_max_price_date(session)
+    
     # Load templates
     templates = load_templates(doc_type)
     
@@ -1757,7 +1356,7 @@ def hydrate_documents(session: Session, doc_type: str, test_mode: bool = False) 
     entities = get_entities_for_doc_type(session, doc_type, test_mode)
     
     if not entities:
-        config.log_warning(f"  No entities found for {doc_type}")
+        log_warning(f"  No entities found for {doc_type}")
         return 0
     
     linkage_level = config.DOCUMENT_TYPES[doc_type]['linkage_level']
@@ -1776,7 +1375,7 @@ def hydrate_documents(session: Session, doc_type: str, test_mode: bool = False) 
             session, database_name, security_ids
         )
         # Prefetch fiscal calendars for all CIKs if needed for this doc type
-        if doc_type in ['earnings_transcripts', 'broker_research']:
+        if doc_type == 'broker_research':
             ciks = [ctx.get('CIK') for ctx in prefetched_contexts.values() if ctx.get('CIK')]
             if ciks:
                 fiscal_calendar_cache = snowflake_io_utils.prefetch_fiscal_calendars(
@@ -1810,6 +1409,14 @@ def hydrate_documents(session: Session, doc_type: str, test_mode: bool = False) 
                     ciks
                 )
     
+    # Prefetch issuers with breaches for engagement_notes (for Compliance Discussion meeting type)
+    issuers_with_breaches: set = set()
+    if doc_type == 'engagement_notes':
+        issuers_with_breaches = prefetch_issuers_with_breaches(session)
+        if issuers_with_breaches:
+            from logging_utils import log_detail
+            log_detail(f"  Found {len(issuers_with_breaches)} issuers with breach data for Compliance Discussion")
+    
     elif linkage_level == 'portfolio':
         portfolio_ids = [e['id'] for e in entities]
         prefetched_contexts = snowflake_io_utils.prefetch_portfolio_contexts(
@@ -1833,7 +1440,9 @@ def hydrate_documents(session: Session, doc_type: str, test_mode: bool = False) 
                 context = build_issuer_context_from_prefetch(
                     prefetched_contexts.get(entity['id']),
                     doc_type,
-                    fiscal_calendar_cache
+                    fiscal_calendar_cache,
+                    session,  # Pass session for breach context queries (engagement notes)
+                    issuers_with_breaches  # Pass breach set for Compliance Discussion meeting type
                 )
             elif linkage_level == 'portfolio':
                 context = build_portfolio_context_from_prefetch(
@@ -1845,7 +1454,7 @@ def hydrate_documents(session: Session, doc_type: str, test_mode: bool = False) 
                 context = build_global_context(doc_type, entity.get('num', 0))
             
             if context is None:
-                config.log_warning(f"  No prefetched data for {doc_type} entity {entity.get('id')}")
+                log_warning(f"  No prefetched data for {doc_type} entity {entity.get('id')}")
                 continue
             
             # Select appropriate template
@@ -1853,6 +1462,13 @@ def hydrate_documents(session: Session, doc_type: str, test_mode: bool = False) 
                 template = select_portfolio_review_variant(templates, context)
             else:
                 template = select_template(templates, context)
+            
+            # Override SEVERITY_LEVEL from template metadata for NGO reports
+            # This ensures metadata field matches hardcoded severity in template body
+            if doc_type == 'ngo_reports':
+                template_severity = template.get('metadata', {}).get('severity', '')
+                if template_severity:
+                    context['SEVERITY_LEVEL'] = template_severity.title()  # 'high' -> 'High'
             
             # Render template
             rendered, enriched_context = render_template(template, context)
@@ -1866,7 +1482,7 @@ def hydrate_documents(session: Session, doc_type: str, test_mode: bool = False) 
             })
             
         except Exception as e:
-            config.log_warning(f"  Failed to hydrate {doc_type} for entity {entity.get('id')}: {e}")
+            log_warning(f"  Failed to hydrate {doc_type} for entity {entity.get('id')}: {e}")
             continue
     
     # Write to RAW table
@@ -2071,16 +1687,20 @@ def inject_sec_financial_metrics(
 def build_issuer_context_from_prefetch(
     prefetched_row: Optional[Dict[str, Any]],
     doc_type: str,
-    fiscal_calendar_cache: Dict[str, List[Dict[str, Any]]]
+    fiscal_calendar_cache: Dict[str, List[Dict[str, Any]]],
+    session: Optional[Session] = None,
+    issuers_with_breaches: Optional[set] = None
 ) -> Optional[Dict[str, Any]]:
     """
     Build context for issuer-level documents from prefetched data.
-    No database queries - uses data already fetched in batch.
+    Mostly uses prefetched data, but may query for breach context when needed.
     
     Args:
         prefetched_row: Row from prefetch_issuer_contexts()
         doc_type: Document type
         fiscal_calendar_cache: Prefetched fiscal calendar data keyed by CIK
+        session: Optional Snowpark session for breach context queries
+        issuers_with_breaches: Optional set of IssuerIDs that have concentration breaches
     
     Returns:
         Context dict or None if prefetched_row is missing
@@ -2106,8 +1726,23 @@ def build_issuer_context_from_prefetch(
     # Add dates using cached fiscal data
     context.update(generate_dates_for_doc_type_from_cache(doc_type, context, fiscal_periods))
     
-    # Add NGO/meeting type context
-    context.update(generate_provider_context(context, doc_type))
+    # Add NGO/meeting type context (pass issuers_with_breaches for engagement notes)
+    context.update(generate_provider_context(context, doc_type, issuers_with_breaches))
+    
+    # For engagement notes with Compliance Discussion meeting type, enrich with breach data
+    # (Now only happens for issuers that actually have breaches, since meeting type is 
+    # only set to "Compliance Discussion" for those issuers by generate_provider_context)
+    if doc_type == 'engagement_notes' and session is not None:
+        meeting_type = context.get('MEETING_TYPE')
+        if meeting_type == 'Compliance Discussion':
+            issuer_id = context.get('ISSUER_ID')
+            if issuer_id:
+                breach_ctx = get_breach_context_for_issuer(session, issuer_id)
+                if breach_ctx:
+                    # Breach found - enrich context with breach-specific data
+                    context.update(breach_ctx)
+                # Note: No fallback needed since meeting type is only set to 
+                # "Compliance Discussion" for issuers confirmed to have breaches
     
     return context
 
@@ -2146,7 +1781,7 @@ def build_portfolio_context_from_prefetch(
     
     # Add Tier 2 derived metrics for portfolio reviews (still needs session)
     portfolio_id = context.get('PORTFOLIO_ID')
-    if doc_type == 'portfolio_review' and config.NUMERIC_TIER_BY_DOC_TYPE.get(doc_type) == 'tier2' and portfolio_id:
+    if doc_type == 'portfolio_review' and portfolio_id:
         context.update(query_tier2_portfolio_metrics(session, portfolio_id))
     
     # Add Tier 1 numerics for performance data
@@ -2198,58 +1833,16 @@ def generate_dates_for_doc_type_from_cache(
             publish_date = current_date - timedelta(days=offset_days)
             dates['PUBLISH_DATE'] = publish_date.strftime('%d %B %Y')
     
-    elif doc_type == 'earnings_transcripts':
-        if fiscal_periods:
-            period_idx = random.randint(0, len(fiscal_periods) - 1)
-            fiscal_period = fiscal_periods[period_idx]
-            
-            period_end = fiscal_period.get('PERIOD_END_DATE')
-            if period_end:
-                days_after_period_end = random.randint(14, 30)
-                publish_date = period_end + timedelta(days=days_after_period_end)
-                
-                dates['FISCAL_QUARTER'] = fiscal_period.get('FISCAL_PERIOD', '')
-                dates['FISCAL_YEAR'] = str(fiscal_period.get('FISCAL_YEAR', ''))
-                dates['PUBLISH_DATE'] = publish_date.strftime('%d %B %Y')
-                
-                fiscal_period_str = fiscal_period.get('FISCAL_PERIOD', 'Q1')
-                quarter_num = int(fiscal_period_str[1]) if len(fiscal_period_str) > 1 else 1
-                fiscal_year = fiscal_period.get('FISCAL_YEAR', current_date.year)
-            else:
-                quarters_back = random.randint(0, 3)
-                quarter_date = current_date - timedelta(days=90 * quarters_back)
-                quarter_num = ((quarter_date.month - 1) // 3) + 1
-                fiscal_year = quarter_date.year
-                
-                dates['FISCAL_QUARTER'] = f'Q{quarter_num} {fiscal_year}'
-                dates['FISCAL_YEAR'] = str(fiscal_year)
-                dates['PUBLISH_DATE'] = (quarter_date + timedelta(days=random.randint(14, 28))).strftime('%d %B %Y')
-        else:
-            quarters_back = random.randint(0, 3)
-            quarter_date = current_date - timedelta(days=90 * quarters_back)
-            quarter_num = ((quarter_date.month - 1) // 3) + 1
-            fiscal_year = quarter_date.year
-            
-            dates['FISCAL_QUARTER'] = f'Q{quarter_num} {fiscal_year}'
-            dates['FISCAL_YEAR'] = str(fiscal_year)
-            dates['PUBLISH_DATE'] = (quarter_date + timedelta(days=random.randint(14, 28))).strftime('%d %B %Y')
-        
-        # Add common earnings placeholders
-        if 'quarter_num' not in dir():
-            quarter_num = 1
-            fiscal_year = current_date.year
-        dates['QUARTER_NUM'] = str(quarter_num)
-        dates['NEXT_QUARTER'] = str((quarter_num % 4) + 1)
-        dates['FILING_QUARTER'] = f'Q{(quarter_num % 4) + 1}'
-        dates['NEXT_YEAR'] = str(fiscal_year + 1)
-        dates['CLOSE_QUARTER'] = f'Q{(quarter_num % 4) + 1}'
-        dates['CLOSE_YEAR'] = str(fiscal_year + 1)
-        dates['LAUNCH_QUARTER'] = f'Q{(quarter_num + 1) % 4 + 1}'
-        dates['LAUNCH_YEAR'] = str(fiscal_year + 1)
-    
     elif doc_type in ['ngo_reports', 'engagement_notes']:
-        offset_days = random.randint(1, 180)
-        publish_date = current_date - timedelta(days=offset_days)
+        # Use anchor_date (max_price_date) for consistent date alignment with other data
+        # NGO reports within last 60 days of anchor date for recency in demos
+        # Engagement notes spread over last 180 days for historical depth
+        anchor = _anchor_date if _anchor_date else current_date.date()
+        if doc_type == 'ngo_reports':
+            offset_days = random.randint(1, 60)  # More recent for controversy scanning
+        else:
+            offset_days = random.randint(1, 180)  # Broader range for engagement history
+        publish_date = datetime.combine(anchor, datetime.min.time()) - timedelta(days=offset_days)
         dates['PUBLISH_DATE'] = publish_date.strftime('%d %B %Y')
     
     elif doc_type == 'portfolio_review':
@@ -2300,22 +1893,16 @@ def get_entities_for_doc_type(session: Session, doc_type: str, test_mode: bool =
         securities = session.sql(f"""
             SELECT 
                 s.SecurityID as id,
-                s.FIGI,
                 s.Ticker
             FROM {config.DATABASE['name']}.CURATED.DIM_SECURITY s
             JOIN {config.DATABASE['name']}.CURATED.DIM_ISSUER i ON s.IssuerID = i.IssuerID
             WHERE s.AssetClass = 'Equity'
             ORDER BY 
-                -- Prioritize demo scenario companies (from config.DEMO_COMPANIES - same logic as portfolio holdings)
+                -- Prioritize demo scenario companies by tier from config.DEMO_COMPANIES
                 CASE 
-                    -- Demo companies with their configured priorities from config.DEMO_COMPANIES
-                    {config.get_demo_company_priority_sql()}
-                    -- Other major US stocks (from config.MAJOR_US_STOCKS)
-                    WHEN s.Ticker IN {config.safe_sql_tuple(config.get_major_us_stocks('tier1'))} AND i.CountryOfIncorporation = 'US' THEN 5
-                    -- Other US equities
-                    WHEN i.CountryOfIncorporation = 'US' THEN 6
-                    -- Non-US equities
-                    ELSE 7
+                    {get_demo_company_priority_sql()}
+                    -- Companies not in DEMO_COMPANIES
+                    ELSE 10
                 END,
                 s.Ticker
             LIMIT {coverage_count}
@@ -2337,12 +1924,10 @@ def get_entities_for_doc_type(session: Session, doc_type: str, test_mode: bool =
                     i.LegalName,
                     MIN(
                         CASE 
-                            -- Demo companies with their configured priorities from config.DEMO_COMPANIES
-                            {config.get_demo_company_priority_sql()}
-                            -- Other major US stocks from config.MAJOR_US_STOCKS
-                            WHEN s.Ticker IN {config.safe_sql_tuple(config.get_major_us_stocks('tier1'))} AND i.CountryOfIncorporation = 'US' THEN 5
-                            WHEN i.CountryOfIncorporation = 'US' THEN 6
-                            ELSE 7
+                            -- Demo companies by tier from config.DEMO_COMPANIES
+                            {get_demo_company_priority_sql()}
+                            -- Companies not in DEMO_COMPANIES
+                            ELSE 10
                         END
                     ) as priority
                 FROM {config.DATABASE['name']}.CURATED.DIM_ISSUER i

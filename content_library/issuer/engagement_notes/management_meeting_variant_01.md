@@ -16,21 +16,11 @@ placeholders:
 
 # ESG Engagement Log: {{ISSUER_NAME}} Management Meeting
 
-### Date
-
-{{PUBLISH_DATE}}
-### Meeting Type
-
-{{MEETING_TYPE}}
-### Companies
-
-{{ISSUER_NAME}} ({{TICKER}})
-### SAM Participants
-
-ESG Team, Portfolio Management
-### Company Participants
-
-Head of Sustainability, Investor Relations
+**Date**: {{PUBLISH_DATE}}  
+**Meeting Type**: {{MEETING_TYPE}}  
+**Companies**: {{ISSUER_NAME}} ({{TICKER}})  
+**SAM Participants**: ESG Team, Portfolio Management  
+**Company Participants**: Head of Sustainability, Investor Relations
 
 ---
 
@@ -44,39 +34,29 @@ The meeting focused on three primary areas: climate transition planning and emis
 
 ## Key Discussion Points
 
-### Environmental Strategy
+**Environmental Strategy**: {{ISSUER_NAME}} provided updates on progress toward emissions reduction targets, noting a {{EMISSIONS_REDUCTION}}% reduction in Scope 1 and 2 emissions since the baseline year. Management acknowledged that Scope 3 measurement requires improvement and committed to publishing comprehensive Scope 3 inventory in the next sustainability report. The company is evaluating science-based targets but has not yet made formal commitments.
 
-{{ISSUER_NAME}} provided updates on progress toward emissions reduction targets, noting a {{EMISSIONS_REDUCTION}}% reduction in Scope 1 and 2 emissions since the baseline year. Management acknowledged that Scope 3 measurement requires improvement and committed to publishing comprehensive Scope 3 inventory in the next sustainability report. The company is evaluating science-based targets but has not yet made formal commitments.
+**Social Initiatives**: Discussion covered workforce diversity metrics, with management sharing data on gender and ethnic diversity across management levels. The company has implemented unconscious bias training, enhanced recruitment practices to broaden candidate pools, and established employee resource groups to support inclusive culture. Progress is evident though management acknowledged continued work is needed, particularly at senior leadership levels.
 
-### Social Initiatives
-
-Discussion covered workforce diversity metrics, with management sharing data on gender and ethnic diversity across management levels. The company has implemented unconscious bias training, enhanced recruitment practices to broaden candidate pools, and established employee resource groups to support inclusive culture. Progress is evident though management acknowledged continued work is needed, particularly at senior leadership levels.
-
-### Governance Matters
-
-Board composition was discussed, including plans for upcoming director elections. Management indicated openness to adding directors with relevant ESG expertise and confirmed commitment to board refreshment. Executive compensation structures include ESG metrics, though the weighting and specific metrics could be enhanced to drive greater accountability.
+**Governance Matters**: Board composition was discussed, including plans for upcoming director elections. Management indicated openness to adding directors with relevant ESG expertise and confirmed commitment to board refreshment. Executive compensation structures include ESG metrics, though the weighting and specific metrics could be enhanced to drive greater accountability.
 
 ---
 
 ## Management Commitments and Next Steps
 
-### Company Commitments
-
+**Company Commitments**:
 1. Publish Scope 3 emissions inventory in next annual sustainability report (due Q2 2024)
 2. Evaluate science-based emissions targets and provide update within 12 months
 3. Enhance disclosure of diversity metrics with intersectional data by end of fiscal year
 4. Consider ESG expertise in next board nomination process
 
-### SAM Follow-up Actions
-
+**SAM Follow-up Actions**:
 1. Monitor progress on Scope 3 disclosure commitment in Q2 2024 sustainability report
 2. Review science-based target evaluation in follow-up engagement Q4 2024
 3. Assess diversity disclosure enhancements in annual reporting
 4. Evaluate board composition changes at next annual general meeting
 
-### Next Engagement
-
-Scheduled follow-up meeting in 12 months (Q4 2024) to review progress against commitments and discuss ongoing ESG priorities.
+**Next Engagement**: Scheduled follow-up meeting in 12 months (Q4 2024) to review progress against commitments and discuss ongoing ESG priorities.
 
 ---
 
@@ -88,9 +68,7 @@ We will continue monitoring the company's ESG performance through ongoing resear
 
 ---
 
-### Engagement Type
-
-Proactive | **Follow-up Required**: Yes | **Voting Implications**: Under Review
+**Engagement Type**: Proactive | **Follow-up Required**: Yes | **Voting Implications**: Under Review
 
 *Confidential - Snowcrest Asset Management Internal Use Only*
 
