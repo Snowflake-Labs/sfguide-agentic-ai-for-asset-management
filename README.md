@@ -192,6 +192,11 @@ Based on those top holdings you just showed me, what is the latest broker resear
 Looking at those top holdings and their research, what's our sector concentration risk in this portfolio, especially for the companies with the largest positions?
 ```
 
+**Follow-up - Action Plan**:
+```
+Based on our concentration analysis and research findings, which of our largest positions need attention and what actions should we consider?
+```
+
 **Follow-up - Implementation Plan**:
 ```
 Based on our complete analysis, provide me with a specific implementation plan including exact position sizes, timelines, and dollar amounts for the portfolio actions we should take.
@@ -215,17 +220,22 @@ What is my direct exposure to Taiwan-based semiconductor companies across all po
 What is my indirect exposure through supply chain dependencies? Show me which US companies in my portfolio depend on Taiwan semiconductor suppliers.
 ```
 
+**Event Impact - Company Statements**:
+```
+Do we have any statements from TSMC or their customers about the Taiwan earthquake impact and supply chain resilience?
+```
+
 #### Scenario 3: AI-Assisted Mandate Compliance & Security Replacement
-*David Chen receives a compliance alert that META has been downgraded to ESG grade CCC due to governance concerns, violating the ESG-labelled fund's minimum BBB ESG requirement. He needs to identify a suitable replacement.*
+*David Chen receives a compliance alert that META has been downgraded to ESG grade CCC due to governance concerns, violating the portfolio's minimum BBB ESG requirement. He needs to identify a suitable replacement.*
 
 **Mandate Compliance - ESG Breach**:
 ```
-I've received an alert that META has been downgraded to ESG grade CCC. Can you verify this breach for the SAM ESG Leaders Global Equity portfolio and show me our current exposure?
+I've received an alert that META has been downgraded to ESG grade CCC. Can you verify this breach for the SAM AI & Digital Innovation portfolio and show me our current exposure?
 ```
 
 **Mandate Compliance - Replacements**:
 ```
-Based on that breach, what are our pre-screened replacement candidates that meet the mandate requirements and maintain our technology/growth focus?
+Based on that breach, what are our pre-screened replacement candidates that meet the mandate requirements and maintain our AI growth focus?
 ```
 
 **Mandate Compliance - Company Analysis**:
@@ -283,7 +293,12 @@ From those companies mentioned in the AI and cloud research, pick the one with t
 
 **Competitive Intelligence**:
 ```
-How does [the company from previous analysis]'s AI strategy compare to what other technology companies mentioned are doing?
+How does that company's AI strategy compare to what other technology companies mentioned are doing?
+```
+
+**Investment Thesis Validation**:
+```
+Based on our analysis of the company and its competitive position, compare what management is saying about AI growth prospects versus what analysts are forecasting for this investment opportunity
 ```
 
 #### Scenario 2: Earnings Intelligence
@@ -894,7 +909,7 @@ Give me the key performance highlights for the firm, month-to-date. I want to se
 
 **Client Flow Drill-Down**:
 ```
-The inflows for Sustainable Fixed Income look strong. What is driving this? Is it one large client or broad-based demand?
+The inflows for ESG look strong. What is driving this? Is it one large client or broad-based demand?
 ```
 
 **Strategic Document Context**:
@@ -927,7 +942,15 @@ Let's model this. Run a high-level simulation of us acquiring that $50 billion A
 
 **Executive Memo Generation**:
 ```
-That's a compelling number. Draft a confidential memo to the Chief Strategy Officer. Title it 'Project Europa: Preliminary Analysis.' Summarize the opportunity, our key findings, the potential EPS accretion, and ask them to prepare a more detailed analysis for us to review next week.
+That's a compelling number. Draft a confidential memo to the Chief Strategy Officer. Title it 'Project Europa: Preliminary Analysis.' Summarize the opportunity, our key findings, the potential EPS accretion, and ask them to prepare a more detailed analysis for us to review next week. Generate a professional PDF for my signature.
+```
+
+#### Scenario 3: Complete Board Briefing with Autonomous Orchestration
+*Sarah has 5 minutes before a surprise call from the board chairman requesting an update on firm performance. She needs a complete executive briefing immediately.*
+
+**Complete Executive Briefing with PDF**:
+```
+Prepare a complete executive briefing for the board covering firm-wide AUM and performance across all strategies, client flow analysis with any concentration concerns, our top and bottom performing strategies with context, and relevant investment philosophy positioning that explains our current strategic direction. Generate a professional PDF for board distribution.
 ```
 
 ## Key Features

@@ -502,16 +502,16 @@ Do we have any statements from TSMC or their customers about the Taiwan earthqua
 **Value Proposition**: AI-powered compliance workflow that automatically identifies pre-screened replacement candidates, analyzes their strategic fit, and generates investment committee documentation—reducing breach response time from days to minutes.
 
 **Agent**: `portfolio_copilot`  
-**Data Available**: SAM ESG Leaders Global Equity portfolio, compliance alerts, pre-screened replacements, ESG data, financial filings, broker research
+**Data Available**: SAM AI & Digital Innovation portfolio, compliance alerts, pre-screened replacements, ESG data, financial filings, broker research
 
 #### Demo Flow
 
-**Scene Setting**: David receives a compliance alert that META has been downgraded to ESG grade CCC due to governance concerns, violating the SAM ESG Leaders Global Equity fund's minimum BBB ESG requirement. He needs to identify a suitable replacement that maintains the portfolio's technology/growth focus while meeting all mandate requirements, then document his recommendation for the investment committee.
+**Scene Setting**: David receives a compliance alert that META has been downgraded to ESG grade CCC due to governance concerns, violating the SAM AI & Digital Innovation fund's minimum BBB ESG requirement. He needs to identify a suitable replacement that maintains the portfolio's AI/digital innovation focus while meeting all mandate requirements, then document his recommendation for the investment committee.
 
 ##### Step 1: Verify Compliance Breach
 **User Input**: 
 ```
-I've received an alert that META has been downgraded to ESG grade CCC. Can you verify this breach for the SAM ESG Leaders Global Equity portfolio and show me our current exposure?
+I've received an alert that META has been downgraded to ESG grade CCC. Can you verify this breach for the SAM AI & Digital Innovation portfolio and show me our current exposure?
 ```
 
 **Tools Used**:

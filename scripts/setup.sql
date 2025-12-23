@@ -1,22 +1,17 @@
 -- ============================================================================
--- SAM Demo - Complete Setup (Single SQL Script)
+-- SAM Demo - Complete Setup Script
 -- ============================================================================
--- This script sets up the entire SAM demo environment in Snowflake
--- 
--- ARCHITECTURE:
--- 1. Git Integration pulls repo content (templates, Python files)
--- 2. Python Stored Procedures hydrate templates and generate data
--- 3. SQL DDL creates search services, semantic views, and agents
+-- This script sets up the entire SAM demo environment in Snowflake.
 --
 -- RESULT:
 -- - 50+ CURATED dimension/fact tables with 14,000+ real securities
--- - 26 RAW document tables from 50+ templates  
+-- - 26 RAW document tables from 76+ templates  
 -- - 26 corpus tables (document collections)
--- - 17 Cortex Search services (16 core + 1 real SEC filings)
--- - 12 Cortex Analyst semantic views (9 core + 3 for real data)
--- - 9 Cortex agents
+-- - 16 Cortex Search services
+-- - 10 Semantic Views (Cortex Analyst)
+-- - 9 Cortex Agents
 --
--- RUN TIME: ~15-20 minutes
+-- RUN TIME: ~10-12 minutes
 -- REQUIRES: ACCOUNTADMIN role
 -- ============================================================================
 
@@ -51,124 +46,32 @@ CREATE SCHEMA IF NOT EXISTS SAM_DEMO.MARKET_DATA
 CREATE ROLE IF NOT EXISTS SAM_DEMO_ROLE
     COMMENT = 'Dedicated role for SAM demo operations';
 
--- Grant database-level privileges
+-- Database-level privileges
 GRANT USAGE ON DATABASE SAM_DEMO TO ROLE SAM_DEMO_ROLE;
 GRANT CREATE SCHEMA ON DATABASE SAM_DEMO TO ROLE SAM_DEMO_ROLE;
 
--- Grant schema usage
-GRANT USAGE ON SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT USAGE ON SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT USAGE ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT USAGE ON SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
-GRANT USAGE ON SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
-
--- Grant all privileges on schemas (includes CREATE TABLE, VIEW, PROCEDURE, etc.)
+-- Schema-level grants (includes all object types: tables, views, procedures, functions, stages, etc.)
+-- ALL PRIVILEGES on schema automatically covers future objects created in that schema
 GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
 GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
 GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
 GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
 GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
 
--- Grant privileges on TABLES (existing and future)
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
-
-GRANT ALL PRIVILEGES ON FUTURE TABLES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE TABLES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE TABLES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE TABLES IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE TABLES IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
-
--- Grant privileges on VIEWS (existing and future)
-GRANT ALL PRIVILEGES ON ALL VIEWS IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL VIEWS IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL VIEWS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL VIEWS IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL VIEWS IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
-
-GRANT ALL PRIVILEGES ON FUTURE VIEWS IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE VIEWS IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE VIEWS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE VIEWS IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE VIEWS IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
-
--- Grant privileges on PROCEDURES (existing and future)
-GRANT ALL PRIVILEGES ON ALL PROCEDURES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL PROCEDURES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL PROCEDURES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL PROCEDURES IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL PROCEDURES IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
-
-GRANT ALL PRIVILEGES ON FUTURE PROCEDURES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE PROCEDURES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE PROCEDURES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE PROCEDURES IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE PROCEDURES IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
-
--- Grant privileges on FUNCTIONS (existing and future)
-GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
-
-GRANT ALL PRIVILEGES ON FUTURE FUNCTIONS IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE FUNCTIONS IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE FUNCTIONS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE FUNCTIONS IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE FUNCTIONS IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
-
--- Grant privileges on STAGES (existing and future)
-GRANT ALL PRIVILEGES ON ALL STAGES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL STAGES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL STAGES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL STAGES IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL STAGES IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
-
-GRANT ALL PRIVILEGES ON FUTURE STAGES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE STAGES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE STAGES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE STAGES IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE STAGES IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
-
--- Grant privileges on FILE FORMATS (existing and future)
-GRANT ALL PRIVILEGES ON ALL FILE FORMATS IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL FILE FORMATS IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL FILE FORMATS IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
-
-GRANT ALL PRIVILEGES ON FUTURE FILE FORMATS IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE FILE FORMATS IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE FILE FORMATS IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
-
--- Grant privileges on SEQUENCES (existing and future)
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
-
-GRANT ALL PRIVILEGES ON FUTURE SEQUENCES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE SEQUENCES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON FUTURE SEQUENCES IN SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
-
--- Grant role to ACCOUNTADMIN and current user
+-- Role hierarchy
 GRANT ROLE SAM_DEMO_ROLE TO ROLE ACCOUNTADMIN;
 GRANT ROLE SAM_DEMO_ROLE TO ROLE SYSADMIN;
 
 -- ============================================================================
--- SECTION 3: Warehouse (Single LARGE warehouse for all operations)
+-- SECTION 3: Warehouse
 -- ============================================================================
 
 CREATE WAREHOUSE IF NOT EXISTS SAM_DEMO_WH
-    WAREHOUSE_SIZE = '2X-LARGE'
+    WAREHOUSE_SIZE = 'LARGE'
     AUTO_SUSPEND = 60
     AUTO_RESUME = TRUE
     INITIALLY_SUSPENDED = TRUE
     COMMENT = 'Warehouse for SAM demo operations';
-
--- Ensure warehouse is 2X-LARGE (in case it already exists with different size)
-ALTER WAREHOUSE SAM_DEMO_WH SET WAREHOUSE_SIZE = '2X-LARGE';
 
 -- Grant warehouse permissions
 GRANT USAGE ON WAREHOUSE SAM_DEMO_WH TO ROLE SAM_DEMO_ROLE;
@@ -241,23 +144,20 @@ GRANT READ ON GIT REPOSITORY SAM_DEMO.PUBLIC.sam_demo_repo TO ROLE SAM_DEMO_ROLE
 ALTER GIT REPOSITORY SAM_DEMO.PUBLIC.sam_demo_repo FETCH;
 
 -- ============================================================================
--- SECTION 7: Python Stored Procedures for Data Generation
+-- SECTION 7: Python Stored Procedures (Data Generation)
 -- ============================================================================
 
 USE ROLE SAM_DEMO_ROLE;
 USE WAREHOUSE SAM_DEMO_WH;
 USE DATABASE SAM_DEMO;
 
--- Create stage for reports
+-- Create stage for PDF reports
 CREATE STAGE IF NOT EXISTS SAM_DEMO.CURATED.SAM_REPORTS_STAGE
     DIRECTORY = (ENABLE = TRUE)
     ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')
     COMMENT = 'Stage for generated PDF reports';
 
--- ============================================================================
--- SECTION 7.1: Master Setup Procedure
--- ============================================================================
-
+-- Master Setup Procedure (Data Generation)
 CREATE OR REPLACE PROCEDURE SAM_DEMO.PUBLIC.SETUP_SAM_DEMO(TEST_MODE BOOLEAN DEFAULT FALSE)
 RETURNS STRING
 LANGUAGE PYTHON
@@ -292,16 +192,13 @@ def run_setup(session, test_mode: bool = False) -> str:
     results.append("\n=== Step 1: Downloading Python modules ===")
     git_stage = '@SAM_DEMO.PUBLIC.sam_demo_repo/branches/main'
     
-    # All Python modules needed for SAM demo (from am_ai_demo source)
+    # All Python modules needed for SAM demo
     python_files = [
-        # Core configuration and utilities
         'config.py', 'config_accessors.py', 'db_helpers.py', 'demo_helpers.py',
         'logging_utils.py', 'scenario_utils.py', 'snowflake_io_utils.py',
         'sql_case_builders.py', 'sql_utils.py', 'rules_loader.py',
-        # Data generation
         'generate_structured.py', 'generate_unstructured.py', 'generate_market_data.py',
         'generate_real_transcripts.py', 'hydration_engine.py',
-        # AI component builders
         'build_ai.py', 'create_agents.py', 'create_semantic_views.py', 'create_cortex_search.py'
     ]
     
@@ -327,7 +224,6 @@ def run_setup(session, test_mode: bool = False) -> str:
                 local_dir = os.path.dirname(os.path.join(content_dir, rel_path))
                 os.makedirs(local_dir, exist_ok=True)
                 try:
-                    # LIST returns relative path - need to use full stage path for GET
                     full_stage_path = f"{git_stage}/content_library/{rel_path}"
                     session.file.get(full_stage_path, local_dir + '/')
                     template_count += 1
@@ -340,7 +236,6 @@ def run_setup(session, test_mode: bool = False) -> str:
     # Step 3: Configure Python path
     sys.path.insert(0, python_dir)
     
-    # Import and configure modules
     import config
     config.PROJECT_ROOT = tmp_dir
     config.CONTENT_LIBRARY_PATH = content_dir
@@ -349,11 +244,10 @@ def run_setup(session, test_mode: bool = False) -> str:
     results.append(f"  Database: {config.DATABASE['name']}")
     results.append(f"  Content library: {config.CONTENT_LIBRARY_PATH}")
     
-    # Import modules for data generation
     import generate_structured
     import generate_market_data
     
-    # Step 3: Build dimension tables (do NOT depend on max_price_date)
+    # Step 3: Build dimension tables
     results.append("\n=== Step 3: Building dimension tables ===")
     try:
         generate_structured.create_database_structure(session, recreate_database=False)
@@ -363,7 +257,7 @@ def run_setup(session, test_mode: bool = False) -> str:
         results.append(f"  ERROR: {e}")
         raise
     
-    # Step 4: Build FACT_STOCK_PRICES as date anchor (MUST happen before fact tables)
+    # Step 4: Build FACT_STOCK_PRICES as date anchor
     results.append("\n=== Step 4: Building price anchor (FACT_STOCK_PRICES) ===")
     try:
         generate_market_data.build_price_anchor(session, test_mode=test_mode)
@@ -372,7 +266,7 @@ def run_setup(session, test_mode: bool = False) -> str:
         results.append(f"  ERROR: {e}")
         raise
     
-    # Step 5: Build fact tables (depend on max_price_date from stock prices)
+    # Step 5: Build fact tables
     results.append("\n=== Step 5: Building fact tables ===")
     try:
         generate_structured.build_fact_tables(session, test_mode=test_mode)
@@ -392,7 +286,7 @@ def run_setup(session, test_mode: bool = False) -> str:
         results.append(f"  ERROR: {e}")
         raise
     
-    # Step 7: Build remaining market data (SEC filings, financials, estimates)
+    # Step 7: Build remaining market data
     results.append("\n=== Step 7: Building remaining market data ===")
     try:
         generate_market_data.build_all(session, test_mode=test_mode)
@@ -402,48 +296,40 @@ def run_setup(session, test_mode: bool = False) -> str:
         raise
     
     # Step 7.5: Build performance views (required by SAM_ANALYST_VIEW)
-    # These depend on market data (FACT_STOCK_PRICES) and must be built before semantic views
     results.append("\n=== Step 7.5: Building performance views ===")
     try:
-        # Build returns view and update enriched holdings
         generate_structured.build_security_returns_view(session)
-        generate_structured.build_esg_latest_view(session)  # Rebuild to include returns
+        generate_structured.build_esg_latest_view(session)
         results.append("  Security returns and ESG views complete!")
         
-        # Build strategy performance
         generate_structured.build_fact_strategy_performance(session)
         results.append("  Strategy performance complete!")
         
-        # Build benchmark performance (required by SAM_ANALYST_VIEW)
         generate_structured.build_fact_benchmark_performance(session)
         results.append("  Benchmark performance complete!")
         
-        # Build portfolio vs benchmark comparison view (required by SAM_ANALYST_VIEW)
         generate_structured.build_portfolio_benchmark_comparison_view(session)
         results.append("  Portfolio vs benchmark view complete!")
     except Exception as e:
         results.append(f"  ERROR building performance views: {e}")
         raise
     
-    # Step 8: Generate real transcripts (with fallback to synthetic)
+    # Step 8: Generate real transcripts
     results.append("\n=== Step 8: Generating transcripts ===")
     real_transcripts_available = False
     try:
         import generate_real_transcripts
-        # Check if real data source is available
         if generate_real_transcripts.verify_transcripts_available(session):
             generate_real_transcripts.build_all(session, test_mode=test_mode)
             results.append("  Real transcripts complete!")
             real_transcripts_available = True
         else:
-            results.append("  Real transcript source not available - will use synthetic fallback")
+            results.append("  Real transcript source not available")
     except Exception as e:
-        results.append(f"  Real transcripts failed: {e} - will use synthetic fallback")
+        results.append(f"  Real transcripts failed: {e}")
     
-    # If real transcripts not available, log warning (synthetic requires templates that may not exist)
     if not real_transcripts_available:
-        results.append("  INFO: Real transcripts not available. SAM_COMPANY_EVENTS search will use fallback logic.")
-        results.append("  (Search service will fall back to EARNINGS_TRANSCRIPTS_CORPUS if available)")
+        results.append("  INFO: Real transcripts not available. Search will use fallback.")
     
     # Step 9: Generate unstructured documents
     results.append("\n=== Step 9: Generating documents from templates ===")
@@ -455,7 +341,6 @@ def run_setup(session, test_mode: bool = False) -> str:
         results.append(f"  ERROR: {e}")
         raise
     
-    # Clean up temp directory
     try:
         shutil.rmtree(tmp_dir)
     except:
@@ -466,10 +351,11 @@ def run_setup(session, test_mode: bool = False) -> str:
 $$;
 
 -- ============================================================================
--- SECTION 7.2: AI Components Procedure (Search Services, Semantic Views)
+-- SECTION 8: AI Components Procedures
 -- ============================================================================
 
-CREATE OR REPLACE PROCEDURE SAM_DEMO.PUBLIC.SETUP_AI_COMPONENTS(FORCE_REBUILD BOOLEAN DEFAULT TRUE)
+-- AI Components Setup (Semantic Views & Search Services)
+CREATE OR REPLACE PROCEDURE SAM_DEMO.PUBLIC.SETUP_AI_COMPONENTS()
 RETURNS STRING
 LANGUAGE PYTHON
 RUNTIME_VERSION = '3.11'
@@ -481,17 +367,10 @@ $$
 import os
 import sys
 
-def run_ai_setup(session, force_rebuild: bool = False) -> str:
-    """
-    Creates AI components: semantic views and Cortex Search services.
-    
-    Args:
-        force_rebuild: If True, recreate all search services even if they exist.
-                      If False (default), skip existing search services for faster setup.
-    """
+def run_ai_setup(session) -> str:
+    """Creates AI components: semantic views and Cortex Search services."""
     import tempfile
     
-    # Create temp directory and download modules
     tmp_dir = tempfile.mkdtemp(prefix='sam_ai_')
     python_dir = os.path.join(tmp_dir, 'python')
     os.makedirs(python_dir, exist_ok=True)
@@ -499,7 +378,6 @@ def run_ai_setup(session, force_rebuild: bool = False) -> str:
     results = []
     git_stage = '@SAM_DEMO.PUBLIC.sam_demo_repo/branches/main'
     
-    # Download required Python files (includes all dependencies)
     python_files = [
         'config.py', 'config_accessors.py', 'db_helpers.py', 'demo_helpers.py',
         'logging_utils.py', 'scenario_utils.py',
@@ -517,7 +395,6 @@ def run_ai_setup(session, force_rebuild: bool = False) -> str:
     import config
     config.PROJECT_ROOT = tmp_dir
     
-    # Expand 'all' to all scenario names (required for semantic views creation)
     all_scenarios = [
         'portfolio_copilot', 'research_copilot', 'thematic_macro_advisor',
         'esg_guardian', 'sales_advisor', 'quant_analyst', 'compliance_advisor',
@@ -531,20 +408,19 @@ def run_ai_setup(session, force_rebuild: bool = False) -> str:
         create_semantic_views.create_semantic_views(session, all_scenarios)
         results.append("  Semantic views created!")
     except Exception as e:
-        results.append(f"  ERROR creating semantic views: {e}")
+        results.append(f"  ERROR: {e}")
         raise
     
     # Create search services
-    results.append(f"\n=== Creating Cortex Search Services (force_rebuild={force_rebuild}) ===")
+    results.append(f"\n=== Creating Cortex Search Services ===")
     try:
         import create_cortex_search
-        create_cortex_search.create_search_services(session, all_scenarios, force_rebuild=force_rebuild)
+        create_cortex_search.create_search_services(session, all_scenarios)
         results.append("  Search services created!")
     except Exception as e:
-        results.append(f"  ERROR creating search services: {e}")
+        results.append(f"  ERROR: {e}")
         raise
     
-    # Clean up
     import shutil
     try:
         shutil.rmtree(tmp_dir)
@@ -555,10 +431,7 @@ def run_ai_setup(session, force_rebuild: bool = False) -> str:
     return "\n".join(results)
 $$;
 
--- ============================================================================
--- SECTION 7.3: Agent Creation Procedure
--- ============================================================================
-
+-- Agent Creation Procedure
 CREATE OR REPLACE PROCEDURE SAM_DEMO.PUBLIC.SETUP_AGENTS()
 RETURNS STRING
 LANGUAGE PYTHON
@@ -572,9 +445,7 @@ import os
 import sys
 
 def run_agent_setup(session) -> str:
-    """
-    Creates all Cortex agents for the SAM demo.
-    """
+    """Creates all Cortex agents for the SAM demo."""
     import tempfile
     
     tmp_dir = tempfile.mkdtemp(prefix='sam_agents_')
@@ -584,7 +455,6 @@ def run_agent_setup(session) -> str:
     results = []
     git_stage = '@SAM_DEMO.PUBLIC.sam_demo_repo/branches/main'
     
-    # Download required Python files (includes all dependencies)
     python_files = [
         'config.py', 'config_accessors.py', 'db_helpers.py', 'demo_helpers.py',
         'logging_utils.py', 'create_agents.py'
@@ -601,7 +471,6 @@ def run_agent_setup(session) -> str:
     import config
     config.PROJECT_ROOT = tmp_dir
     
-    # Create agents
     results.append("=== Creating Cortex Agents ===")
     try:
         import create_agents
@@ -610,10 +479,9 @@ def run_agent_setup(session) -> str:
         if failed > 0:
             results.append(f"  Failed: {failed} agents")
     except Exception as e:
-        results.append(f"  ERROR creating agents: {e}")
+        results.append(f"  ERROR: {e}")
         raise
     
-    # Clean up
     import shutil
     try:
         shutil.rmtree(tmp_dir)
@@ -625,92 +493,10 @@ def run_agent_setup(session) -> str:
 $$;
 
 -- ============================================================================
--- SECTION 8: Custom Tools (PDF Generation, M&A Simulation)
+-- SECTION 9: Custom Tools
 -- ============================================================================
 
--- PDF Report Generation Tool
-CREATE OR REPLACE PROCEDURE SAM_DEMO.AI.GENERATE_INVESTMENT_COMMITTEE_PDF(
-    markdown_content VARCHAR,
-    portfolio_name VARCHAR,
-    security_ticker VARCHAR
-)
-RETURNS VARCHAR
-LANGUAGE PYTHON
-RUNTIME_VERSION = '3.11'
-PACKAGES = ('snowflake-snowpark-python','markdown','weasyprint')
-HANDLER = 'generate_pdf'
-AS
-$$
-from snowflake.snowpark import Session
-from datetime import datetime
-import re
-import markdown
-import tempfile
-import os
-
-def generate_pdf(session: Session, markdown_content: str, portfolio_name: str, security_ticker: str):
-    """
-    Generate PDF report from markdown content provided by the agent.
-    """
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    safe_portfolio = re.sub(r'[^a-zA-Z0-9_]', '_', portfolio_name)[:20]
-    safe_ticker = re.sub(r'[^a-zA-Z0-9_]', '_', security_ticker)[:10]
-    pdf_filename = f'mandate_compliance_{safe_portfolio}_{safe_ticker}_{timestamp}.pdf'
-    
-    with tempfile.TemporaryDirectory() as tmpdir:
-        html_body = markdown.markdown(markdown_content, extensions=['tables', 'fenced_code'])
-        
-        css_style = """
-            @page { size: A4; margin: 2cm; }
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #2C3E50; }
-            h1 { color: #1F4E79; border-bottom: 3px solid #1F4E79; padding-bottom: 10px; }
-            h2 { color: #2E75B6; border-left: 4px solid #2E75B6; padding-left: 15px; }
-            table { border-collapse: collapse; width: 100%; margin: 20px 0; }
-            th { background-color: #1F4E79; color: white; padding: 12px; }
-            td { padding: 10px; border-bottom: 1px solid #ddd; }
-        """
-        
-        sam_header = """
-        <div style="text-align: center; background: linear-gradient(135deg, #1F4E79, #2E75B6); color: white; padding: 20px; margin-bottom: 30px;">
-            <h1 style="margin: 0; color: white; border: none;">🏔️ SNOWCREST ASSET MANAGEMENT</h1>
-            <p style="margin: 5px 0 0 0;">Investment Committee Decision Documentation</p>
-        </div>
-        """
-        
-        footer = f"""
-        <div style="margin-top: 30px; padding-top: 15px; border-top: 2px solid #1F4E79; font-size: 12px;">
-            <p><strong>Generated:</strong> {datetime.now().strftime('%B %d, %Y at %I:%M %p UTC')}</p>
-            <p><strong>By:</strong> Snowflake Intelligence - Portfolio Co-Pilot</p>
-        </div>
-        """
-        
-        html_content = f"""
-        <!DOCTYPE html>
-        <html><head><meta charset="UTF-8"><style>{css_style}</style></head>
-        <body>{sam_header}{html_body}{footer}</body></html>
-        """
-        
-        html_path = os.path.join(tmpdir, 'report.html')
-        with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-        
-        import weasyprint
-        pdf_path = os.path.join(tmpdir, pdf_filename)
-        weasyprint.HTML(filename=html_path).write_pdf(pdf_path)
-        
-        stage_path = '@SAM_DEMO.CURATED.SAM_REPORTS_STAGE'
-        session.file.put(pdf_path, stage_path, overwrite=True, auto_compress=False)
-        
-        presigned_url = session.sql(
-            f"SELECT GET_PRESIGNED_URL('{stage_path}', '{pdf_filename}') AS url"
-        ).collect()[0]['URL']
-        
-        return f"[Investment Committee Decision - {portfolio_name} - {security_ticker}]({presigned_url})"
-$$;
-
--- ============================================================================
--- PDF Report Generator (used by all agents with pdf_generator tool)
--- ============================================================================
+-- PDF Report Generator (used by all agents)
 CREATE OR REPLACE PROCEDURE SAM_DEMO.AI.GENERATE_PDF_REPORT(
     MARKDOWN_CONTENT VARCHAR,
     REPORT_TITLE VARCHAR,
@@ -719,7 +505,7 @@ CREATE OR REPLACE PROCEDURE SAM_DEMO.AI.GENERATE_PDF_REPORT(
 RETURNS VARCHAR
 LANGUAGE PYTHON
 RUNTIME_VERSION = '3.11'
-PACKAGES = ('snowflake-snowpark-python', 'markdown', 'fpdf2')
+PACKAGES = ('snowflake-snowpark-python', 'fpdf2')
 HANDLER = 'generate_pdf_report'
 EXECUTE AS CALLER
 AS
@@ -727,160 +513,408 @@ $$
 from snowflake.snowpark import Session
 from datetime import datetime
 import re
-import markdown
 import tempfile
 import os
 
 def generate_pdf_report(session: Session, markdown_content: str, report_title: str, document_audience: str = 'internal'):
-    """
-    Generate professional branded PDF report from markdown content.
-    
-    Args:
-        markdown_content: Complete markdown document
-        report_title: Title for the document header
-        document_audience: 'internal', 'external_client', or 'external_regulatory'
-    
-    Returns:
-        Markdown link to presigned URL for PDF download
-    """
     from fpdf import FPDF
-    import html
     
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    safe_title = re.sub(r'[^a-zA-Z0-9_]', '_', report_title)[:40]
-    pdf_filename = f'{safe_title}_{timestamp}.pdf'
+    def clean_text(text: str) -> str:
+        """Clean text for PDF - remove emojis and non-latin1 characters."""
+        if not text:
+            return text
+        replacements = {
+            '🚨': '[!]', '⚠️': '[!]', '✅': '[Y]', '❌': '[N]',
+            '📊': '', '📈': '', '📉': '', '💰': '$', '🏔️': '',
+            '📄': '', '📥': '', '🔴': '[H]', '🟡': '[M]', '🟢': '[L]',
+            '✓': 'Y', '✗': 'N', '→': '>', '←': '<', '•': '-',
+            '📋': '', '🎯': '', '💡': '', '🔍': '', '📝': '',
+            '★': '*', '☆': '*', '●': '-', '○': '-', '✔': 'Y', '✘': 'N',
+        }
+        for e, r in replacements.items():
+            text = text.replace(e, r)
+        text = re.compile("[\U0001F000-\U0001FFFF]", re.UNICODE).sub('', text)
+        try:
+            text.encode('latin-1')
+        except UnicodeEncodeError:
+            text = text.encode('latin-1', errors='ignore').decode('latin-1')
+        return text
     
-    # Audience-specific config
-    audience_configs = {
-        'internal': {'badge': 'INTERNAL DOCUMENT', 'color': (31, 78, 121)},
-        'external_client': {'badge': 'CLIENT REPORT', 'color': (44, 62, 80)},
-        'external_regulatory': {'badge': 'REGULATORY SUBMISSION', 'color': (52, 73, 94)}
-    }
-    config = audience_configs.get(document_audience, audience_configs['internal'])
-    
-    class PDFReport(FPDF):
-        def __init__(self, title, badge, color):
-            super().__init__()
-            self.title_text = title
-            self.badge_text = badge
-            self.header_color = color
-            
-        def header(self):
-            # Header background
-            self.set_fill_color(*self.header_color)
-            self.rect(0, 0, 210, 35, 'F')
-            
-            # Company name
-            self.set_text_color(255, 255, 255)
-            self.set_font('Helvetica', 'B', 16)
-            self.set_xy(10, 8)
-            self.cell(0, 8, 'SNOWCREST ASSET MANAGEMENT', align='C')
-            
-            # Report title
-            self.set_font('Helvetica', '', 11)
-            self.set_xy(10, 18)
-            self.cell(0, 6, self.title_text[:60], align='C')
-            
-            # Badge
-            self.set_font('Helvetica', 'B', 8)
-            self.set_xy(10, 26)
-            self.cell(0, 6, self.badge_text, align='C')
-            
-            self.set_text_color(0, 0, 0)
-            self.ln(40)
-            
-        def footer(self):
-            self.set_y(-20)
-            self.set_font('Helvetica', 'I', 8)
-            self.set_text_color(128, 128, 128)
-            self.cell(0, 5, f'Generated: {datetime.now().strftime("%B %d, %Y")} | Snowflake Intelligence', align='C')
-            self.ln(4)
-            self.cell(0, 5, f'Page {self.page_no()}', align='C')
-    
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Create PDF
-        pdf = PDFReport(report_title, config['badge'], config['color'])
-        pdf.add_page()
-        pdf.set_auto_page_break(auto=True, margin=25)
+    def parse_content(content: str) -> dict:
+        """Parse content into structured sections - strips ALL markdown formatting."""
+        sections = []
+        current_section = {'title': 'Overview', 'content': [], 'subsections': []}
+        current_subsection = None
         
-        # Demo disclaimer
-        pdf.set_fill_color(255, 243, 205)
-        pdf.set_font('Helvetica', 'B', 9)
-        pdf.multi_cell(0, 6, 'DEMO DISCLAIMER: This document uses synthetic data for demonstration only.', fill=True, align='C')
-        pdf.ln(8)
-        
-        # Process markdown content
-        lines = markdown_content.split('\\n')
-        pdf.set_font('Helvetica', '', 10)
-        
+        lines = content.split('\\n')
         for line in lines:
             line = line.strip()
             if not line:
-                pdf.ln(3)
                 continue
+            
+            # Strip markdown syntax - ultra-safe approach with fallbacks
+            clean = line
+            
+            # Remove links [text](url) → text (safe approach with fallback)
+            try:
+                clean = re.sub(r'\\[([^\\]]+)\\]\\([^\\)]+\\)', r'\\1', clean)
+            except:
+                # Fallback: just remove brackets
+                clean = clean.replace('[', '').replace(']', '')
                 
-            # Headers
+            # Remove images ![alt](url) (safe approach)
+            try:
+                clean = re.sub(r'!\\[([^\\]]+)\\]\\([^\\)]+\\)', r'\\1', clean)
+            except:
+                pass
+                
+            # Remove code blocks `text` → text
+            try:
+                clean = re.sub(r'`([^`]+)`', r'\\1', clean)
+            except:
+                clean = clean.replace('`', '')
+                
+            # Remove bold **text** → text (simple greedy removal)
+            while '**' in clean:
+                clean = clean.replace('**', '', 2)
+                
+            # Remove remaining markdown symbols
+            clean = clean.replace('*', '').replace('_', ' ').replace('#', '')
+            
+            # Remove any remaining parentheses from failed link parsing
+            if '(' in clean and ')' in clean:
+                # Simple cleanup of (url) patterns
+                clean = re.sub(r'\\([^\\)]+\\)', '', clean)
+                
+            # Clean emojis and special chars
+            clean = clean_text(clean)
+            
             if line.startswith('# '):
-                pdf.set_font('Helvetica', 'B', 14)
-                pdf.set_text_color(*config['color'])
-                pdf.ln(5)
-                pdf.multi_cell(0, 7, line[2:])
-                pdf.set_text_color(0, 0, 0)
-                pdf.ln(3)
+                if current_section['content'] or current_section['subsections']:
+                    sections.append(current_section)
+                current_section = {'title': clean_text(line[2:]), 'content': [], 'subsections': []}
+                current_subsection = None
             elif line.startswith('## '):
-                pdf.set_font('Helvetica', 'B', 12)
-                pdf.set_text_color(*config['color'])
-                pdf.ln(4)
-                pdf.multi_cell(0, 6, line[3:])
-                pdf.set_text_color(0, 0, 0)
-                pdf.ln(2)
+                current_subsection = {'title': clean_text(line[3:]), 'content': []}
+                current_section['subsections'].append(current_subsection)
             elif line.startswith('### '):
-                pdf.set_font('Helvetica', 'B', 11)
-                pdf.ln(3)
-                pdf.multi_cell(0, 6, line[4:])
-                pdf.ln(2)
-            elif line.startswith('**') and line.endswith('**'):
-                pdf.set_font('Helvetica', 'B', 10)
-                pdf.multi_cell(0, 5, line.replace('**', ''))
-                pdf.set_font('Helvetica', '', 10)
+                target = current_subsection['content'] if current_subsection else current_section['content']
+                target.append(('subheading', clean_text(line[4:])))
+            elif line.startswith('**') and '**:' in line:
+                parts = line.split('**:', 1)
+                key = clean_text(parts[0].replace('**', '').strip())
+                value = clean_text(parts[1].strip()) if len(parts) > 1 else ''
+                target = current_subsection['content'] if current_subsection else current_section['content']
+                target.append(('keyvalue', key, value))
             elif line.startswith('- ') or line.startswith('* '):
-                pdf.set_font('Helvetica', '', 10)
-                pdf.cell(5, 5, chr(149))  # Bullet
-                pdf.multi_cell(0, 5, line[2:])
-            elif line.startswith('|'):
-                # Simple table row handling
-                pdf.set_font('Helvetica', '', 9)
-                cells = [c.strip() for c in line.split('|') if c.strip() and c.strip() != '---']
-                if cells and not all(c.startswith('-') for c in cells):
-                    col_width = 180 / max(len(cells), 1)
-                    for cell in cells:
-                        pdf.cell(col_width, 6, cell[:25], border=1)
-                    pdf.ln()
-            else:
-                pdf.set_font('Helvetica', '', 10)
-                # Clean markdown formatting
-                clean_line = re.sub(r'\\*\\*(.+?)\\*\\*', r'\\1', line)
-                clean_line = re.sub(r'\\*(.+?)\\*', r'\\1', clean_line)
-                clean_line = re.sub(r'`(.+?)`', r'\\1', clean_line)
-                pdf.multi_cell(0, 5, clean_line)
+                target = current_subsection['content'] if current_subsection else current_section['content']
+                target.append(('bullet', clean))
+            elif line.startswith('|') and not line.startswith('|--'):
+                cells = [clean_text(c.strip()) for c in line.split('|') if c.strip() and not c.strip().startswith('-')]
+                if cells:
+                    target = current_subsection['content'] if current_subsection else current_section['content']
+                    target.append(('tablerow', cells))
+            elif re.match(r'^\\d+\\.\\s', line):
+                target = current_subsection['content'] if current_subsection else current_section['content']
+                target.append(('numbered', clean))
+            elif clean:
+                target = current_subsection['content'] if current_subsection else current_section['content']
+                target.append(('paragraph', clean))
         
-        # Save PDF
+        if current_section['content'] or current_section['subsections']:
+            sections.append(current_section)
+        
+        return sections if sections else [{'title': 'Report Content', 'content': [('paragraph', clean_text(content))], 'subsections': []}]
+    
+    schemes = {
+        'internal': {'primary': (25, 55, 95), 'accent': (0, 120, 180), 'highlight': (255, 200, 50), 'label': 'INTERNAL MEMO'},
+        'external_client': {'primary': (0, 60, 110), 'accent': (0, 140, 100), 'highlight': (0, 180, 80), 'label': 'CLIENT REPORT'},
+        'external_regulatory': {'primary': (50, 50, 50), 'accent': (80, 80, 80), 'highlight': (180, 0, 0), 'label': 'REGULATORY FILING'}
+    }
+    scheme = schemes.get(document_audience, schemes['internal'])
+    
+    timestamp = datetime.now()
+    safe_title = re.sub(r'[^a-zA-Z0-9_]', '_', clean_text(report_title))[:40]
+    pdf_filename = f'{safe_title}_{timestamp.strftime("%Y%m%d_%H%M%S")}.pdf'
+    report_title = clean_text(report_title)
+    
+    class BusinessReport(FPDF):
+        def __init__(self):
+            super().__init__()
+            self.section_num = 0
+            
+        def header(self):
+            if self.page_no() == 1:
+                return
+            self.set_fill_color(*scheme['primary'])
+            self.rect(0, 0, 210, 12, 'F')
+            self.set_text_color(255, 255, 255)
+            self.set_font('Helvetica', '', 8)
+            self.set_xy(15, 4)
+            self.cell(100, 5, 'Snowcrest Asset Management')
+            self.cell(80, 5, report_title[:40], align='R')
+            self.set_y(18)
+            self.set_text_color(0, 0, 0)
+            
+        def footer(self):
+            self.set_y(-15)
+            self.set_draw_color(*scheme['primary'])
+            self.line(15, self.get_y(), 195, self.get_y())
+            self.set_font('Helvetica', '', 8)
+            self.set_text_color(120, 120, 120)
+            self.set_y(-12)
+            self.cell(60, 5, f'Ref: SAM-{timestamp.strftime("%Y%m%d")}-{self.page_no():03d}')
+            self.cell(60, 5, 'CONFIDENTIAL', align='C')
+            self.cell(60, 5, f'Page {self.page_no()}', align='R')
+            
+        def cover_page(self):
+            self.set_fill_color(*scheme['primary'])
+            self.rect(0, 0, 210, 100, 'F')
+            
+            self.set_text_color(255, 255, 255)
+            self.set_font('Helvetica', 'B', 24)
+            self.set_xy(0, 25)
+            self.cell(210, 12, 'SNOWCREST', align='C')
+            self.set_font('Helvetica', '', 14)
+            self.set_xy(0, 40)
+            self.cell(210, 8, 'ASSET MANAGEMENT', align='C')
+            
+            self.set_fill_color(*scheme['highlight'])
+            self.set_xy(65, 60)
+            self.set_font('Helvetica', 'B', 10)
+            self.set_text_color(0, 0, 0) if scheme['highlight'][0] > 100 else self.set_text_color(255, 255, 255)
+            self.cell(80, 8, scheme['label'], align='C', fill=True)
+            
+            self.set_text_color(0, 0, 0)
+            self.set_font('Helvetica', 'B', 18)
+            self.set_xy(20, 115)
+            
+            title_lines = []
+            words = report_title.split()
+            current_line = ''
+            for word in words:
+                test_line = current_line + ' ' + word if current_line else word
+                if len(test_line) > 45:
+                    title_lines.append(current_line)
+                    current_line = word
+                else:
+                    current_line = test_line
+            if current_line:
+                title_lines.append(current_line)
+            
+            for i, line in enumerate(title_lines[:3]):
+                self.set_xy(20, 115 + i * 12)
+                self.cell(170, 10, line)
+            
+            self.set_fill_color(245, 245, 250)
+            self.rect(20, 165, 170, 50, 'F')
+            self.set_draw_color(*scheme['primary'])
+            self.rect(20, 165, 170, 50, 'D')
+            
+            self.set_font('Helvetica', '', 10)
+            self.set_text_color(80, 80, 80)
+            self.set_xy(25, 172)
+            self.cell(40, 6, 'Prepared By:')
+            self.set_font('Helvetica', 'B', 10)
+            self.set_text_color(0, 0, 0)
+            self.cell(120, 6, 'Investment Management Division')
+            
+            self.set_font('Helvetica', '', 10)
+            self.set_text_color(80, 80, 80)
+            self.set_xy(25, 182)
+            self.cell(40, 6, 'Date:')
+            self.set_font('Helvetica', 'B', 10)
+            self.set_text_color(0, 0, 0)
+            self.cell(120, 6, timestamp.strftime('%B %d, %Y'))
+            
+            self.set_font('Helvetica', '', 10)
+            self.set_text_color(80, 80, 80)
+            self.set_xy(25, 192)
+            self.cell(40, 6, 'Classification:')
+            self.set_font('Helvetica', 'B', 10)
+            self.set_text_color(*scheme['primary'])
+            self.cell(120, 6, document_audience.replace('_', ' ').upper())
+            
+            self.set_xy(25, 202)
+            self.set_font('Helvetica', '', 10)
+            self.set_text_color(80, 80, 80)
+            self.cell(40, 6, 'Reference:')
+            self.set_font('Helvetica', 'B', 10)
+            self.set_text_color(0, 0, 0)
+            self.cell(120, 6, f'SAM-RPT-{timestamp.strftime("%Y%m%d-%H%M")}')
+            
+            self.set_fill_color(255, 250, 230)
+            self.set_draw_color(200, 150, 0)
+            self.rect(20, 235, 170, 20, 'FD')
+            self.set_font('Helvetica', 'B', 9)
+            self.set_text_color(150, 100, 0)
+            self.set_xy(25, 240)
+            self.cell(160, 10, 'DEMONSTRATION DOCUMENT - Contains synthetic data for illustration purposes only', align='C')
+            
+        def section_title(self, title):
+            self.section_num += 1
+            self.ln(8)
+            self.set_fill_color(*scheme['primary'])
+            self.set_text_color(255, 255, 255)
+            self.set_font('Helvetica', 'B', 12)
+            self.cell(0, 10, f'  {self.section_num}. {title.upper()}', fill=True)
+            self.ln(12)
+            self.set_text_color(0, 0, 0)
+            
+        def subsection_title(self, title):
+            self.ln(4)
+            self.set_draw_color(*scheme['accent'])
+            self.set_text_color(*scheme['accent'])
+            self.set_font('Helvetica', 'B', 11)
+            self.cell(0, 7, title)
+            self.ln(2)
+            self.line(self.get_x(), self.get_y(), self.get_x() + 50, self.get_y())
+            self.ln(6)
+            self.set_text_color(0, 0, 0)
+            
+        def body_text(self, text):
+            self.set_font('Helvetica', '', 10)
+            self.set_text_color(40, 40, 40)
+            self.multi_cell(0, 5.5, text)
+            self.ln(3)
+            
+        def key_value_pair(self, key, value):
+            self.set_font('Helvetica', 'B', 10)
+            self.set_text_color(80, 80, 80)
+            self.cell(55, 6, key + ':')
+            self.set_font('Helvetica', '', 10)
+            self.set_text_color(0, 0, 0)
+            self.multi_cell(0, 6, str(value))
+            self.ln(1)
+            
+        def bullet_point(self, text):
+            self.set_font('Helvetica', '', 10)
+            self.set_text_color(40, 40, 40)
+            x = self.get_x()
+            self.cell(8, 5.5, chr(149))
+            self.multi_cell(0, 5.5, text[2:] if text.startswith('- ') or text.startswith('* ') else text)
+            
+        def numbered_item(self, text):
+            self.set_font('Helvetica', '', 10)
+            self.set_text_color(40, 40, 40)
+            self.multi_cell(0, 5.5, text)
+            
+        def data_table(self, rows):
+            if not rows:
+                return
+            headers = rows[0] if rows else []
+            data_rows = rows[1:] if len(rows) > 1 else []
+            
+            col_count = len(headers)
+            if col_count == 0:
+                return
+            col_width = 180 / col_count
+            
+            self.set_fill_color(*scheme['primary'])
+            self.set_text_color(255, 255, 255)
+            self.set_font('Helvetica', 'B', 9)
+            for h in headers:
+                self.cell(col_width, 7, str(h)[:20], border=1, align='C', fill=True)
+            self.ln()
+            
+            self.set_text_color(0, 0, 0)
+            self.set_font('Helvetica', '', 9)
+            for i, row in enumerate(data_rows):
+                if i % 2 == 0:
+                    self.set_fill_color(250, 250, 252)
+                else:
+                    self.set_fill_color(255, 255, 255)
+                for cell in row:
+                    self.cell(col_width, 6, str(cell)[:20], border=1, fill=True)
+                self.ln()
+            self.ln(4)
+    
+    sections = parse_content(markdown_content)
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        pdf = BusinessReport()
+        pdf.set_auto_page_break(auto=True, margin=20)
+        
+        pdf.add_page()
+        pdf.cover_page()
+        
+        pdf.add_page()
+        
+        table_buffer = []
+        
+        for section in sections:
+            pdf.section_title(section['title'])
+            
+            for item in section['content']:
+                if item[0] == 'paragraph':
+                    pdf.body_text(item[1])
+                elif item[0] == 'keyvalue':
+                    pdf.key_value_pair(item[1], item[2])
+                elif item[0] == 'bullet':
+                    pdf.bullet_point(item[1])
+                elif item[0] == 'numbered':
+                    pdf.numbered_item(item[1])
+                elif item[0] == 'subheading':
+                    pdf.set_font('Helvetica', 'B', 10)
+                    pdf.cell(0, 7, item[1])
+                    pdf.ln(8)
+                elif item[0] == 'tablerow':
+                    table_buffer.append(item[1])
+                    
+            if table_buffer:
+                pdf.data_table(table_buffer)
+                table_buffer = []
+            
+            for subsection in section['subsections']:
+                pdf.subsection_title(subsection['title'])
+                for item in subsection['content']:
+                    if item[0] == 'paragraph':
+                        pdf.body_text(item[1])
+                    elif item[0] == 'keyvalue':
+                        pdf.key_value_pair(item[1], item[2])
+                    elif item[0] == 'bullet':
+                        pdf.bullet_point(item[1])
+                    elif item[0] == 'numbered':
+                        pdf.numbered_item(item[1])
+                    elif item[0] == 'subheading':
+                        pdf.set_font('Helvetica', 'B', 10)
+                        pdf.cell(0, 7, item[1])
+                        pdf.ln(8)
+                    elif item[0] == 'tablerow':
+                        table_buffer.append(item[1])
+                        
+                if table_buffer:
+                    pdf.data_table(table_buffer)
+                    table_buffer = []
+        
+        pdf.ln(15)
+        pdf.set_draw_color(*scheme['primary'])
+        pdf.line(20, pdf.get_y(), 190, pdf.get_y())
+        pdf.ln(8)
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.cell(0, 6, 'Document Approval')
+        pdf.ln(10)
+        pdf.set_font('Helvetica', '', 9)
+        pdf.cell(90, 5, 'Prepared by: _______________________')
+        pdf.cell(90, 5, 'Approved by: _______________________')
+        pdf.ln(8)
+        pdf.cell(90, 5, 'Date: _______________________')
+        pdf.cell(90, 5, 'Date: _______________________')
+        
         pdf_path = os.path.join(tmpdir, pdf_filename)
         pdf.output(pdf_path)
         
-        # Upload to stage
         stage_path = '@SAM_DEMO.CURATED.SAM_REPORTS_STAGE'
         session.file.put(pdf_path, stage_path, overwrite=True, auto_compress=False)
         
-        # Get presigned URL
         presigned_url = session.sql(
             f"SELECT GET_PRESIGNED_URL('{stage_path}', '{pdf_filename}') AS url"
         ).collect()[0]['URL']
         
-        return f"📄 **Report Generated Successfully**\\n\\n[📥 Download: {report_title}]({presigned_url})\\n\\n*Document Type: {document_audience.replace('_', ' ').title()}*"
+        return f"**Report Generated Successfully**\\n\\n[Download: {report_title}]({presigned_url})\\n\\n*Classification: {document_audience.replace('_', ' ').title()}*\\n*Reference: SAM-RPT-{timestamp.strftime('%Y%m%d-%H%M')}*"
 $$;
 
--- M&A Simulation Tool for Executive Scenario
+-- M&A Simulation Tool
 CREATE OR REPLACE FUNCTION SAM_DEMO.AI.MA_SIMULATION_TOOL(
     target_aum FLOAT,
     target_revenue FLOAT,
@@ -893,16 +927,12 @@ HANDLER = 'simulate_acquisition'
 AS
 $$
 def simulate_acquisition(target_aum: float, target_revenue: float, cost_synergy_pct: float = 0.20) -> dict:
-    """
-    Simulate the financial impact of an acquisition on Snowcrest Asset Management.
-    """
-    # SAM baseline assumptions
+    """Simulate the financial impact of an acquisition."""
     sam_baseline_eps = 2.50
     sam_shares_outstanding = 50_000_000
     sam_current_aum = 12_500_000_000
     sam_operating_margin = 0.35
     
-    # Integration assumptions
     integration_cost_one_time = 30_000_000
     year1_synergy_realization = 0.70
     revenue_synergy_pct = 0.02
@@ -956,27 +986,24 @@ def simulate_acquisition(target_aum: float, target_revenue: float, cost_synergy_
 $$;
 
 -- ============================================================================
--- SECTION 9: Execute Complete Setup
+-- SECTION 10: Execute Setup
 -- ============================================================================
 
--- Run the master setup procedure
+-- Generate all data
 CALL SAM_DEMO.PUBLIC.SETUP_SAM_DEMO(FALSE);
 
--- Create AI components (semantic views and search services)
+-- Create AI components
 CALL SAM_DEMO.PUBLIC.SETUP_AI_COMPONENTS();
 
--- Create Cortex agents
+-- Create agents
 CALL SAM_DEMO.PUBLIC.SETUP_AGENTS();
 
 -- ============================================================================
--- Setup Complete!
+-- SECTION 11: Post-Setup Optimization
 -- ============================================================================
--- 
--- Next Steps:
--- 1. Open Snowflake Intelligence UI
--- 2. Select an agent (e.g., Portfolio Copilot)
--- 3. Try demo prompts:
---    - 'What are my top 10 holdings in SAM Technology & Infrastructure?'
---    - 'Check for concentration breaches across all portfolios'
---    - 'What is the latest research on Microsoft?'
--- ============================================================================
+
+ALTER WAREHOUSE SAM_DEMO_WH SET WAREHOUSE_SIZE = 'MEDIUM';
+ALTER WAREHOUSE SAM_DEMO_WH SUSPEND;
+
+-- Completion message
+SELECT 'Setup complete - SAM demo ready to use in Snowflake Intelligence' AS status;

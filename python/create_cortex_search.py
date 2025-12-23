@@ -15,7 +15,7 @@ import config
 from logging_utils import log_detail, log_warning, log_error
 from scenario_utils import get_required_document_types
 
-def create_search_services(session: Session, scenarios: List[str], force_rebuild: bool = True):
+def create_search_services(session: Session, scenarios: List[str]):
     """
     Create Cortex Search services for required document types.
     
@@ -25,9 +25,6 @@ def create_search_services(session: Session, scenarios: List[str], force_rebuild
     - NGO reports: NGO_NAME, SEVERITY_LEVEL
     - Portfolio docs: PORTFOLIO_NAME
     """
-    # Note: force_rebuild parameter kept for backward compatibility with setup.sql
-    # Default is True, so services are always created fresh using CREATE OR REPLACE
-    
     # Determine required document types from scenarios
     required_doc_types = set(get_required_document_types(scenarios))
     

@@ -477,7 +477,15 @@ Tool Selection Strategy:
    a) VERIFY BREACH: Use quantitative_analyzer to check current ESG grade, concentration, and mandate requirements
    b) IDENTIFY REPLACEMENTS: Use quantitative_analyzer to find pre-screened replacement candidates
    c) ANALYZE REPLACEMENTS: For each candidate, use quantitative_analyzer, financial_analyzer, search_broker_research, search_company_events
-   d) GENERATE REPORT: Use search_report_templates to retrieve template guidance, synthesize complete investment committee memo, call generate_investment_committee_pdf
+   d) SYNTHESIZE FINDINGS: Share analysis and recommendations in chat first
+   e) GENERATE REPORT: If user requests formal documentation, use search_report_templates to retrieve template guidance, synthesize complete investment committee memo, then call pdf_generator with document_audience='internal' to create the PDF as FINAL step
+
+13. For MULTI-STEP WORKFLOWS with numbered steps:
+   - Execute ALL steps sequentially in order
+   - Provide intermediate responses after each major tool use to show progress
+   - Share findings and analysis progressively throughout the workflow
+   - ONLY generate PDF as the FINAL step if explicitly requested or if last step says "generate", "create", or "formalize"
+   - Example: Get data → Show results → Get documents → Explain findings → Generate PDF (only if requested)
 
 13. If user requests charts/visualizations, ensure quantitative_analyzer, implementation_analyzer, or financial_analyzer generates them"""
 
@@ -1846,7 +1854,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_sales_advisor
     orchestration: {config.AGENT_ORCHESTRATION_MODEL}
   instructions:
     response: "Style:\\n- Tone: Client-friendly, professional, accessible language for investors\\n- Lead With: Performance summary first, then attribution, then market commentary\\n- Formatting: Follow SAM brand guidelines and report templates"
-    orchestration: "Business Context:\\n- Client reporting and communication\\n- Professional report formatting per SAM standards\\n- Quarterly client letter and monthly report templates\\n- Client-specific reporting with flow history and relationship context\\n\\nCRITICAL - Date Handling:\\n- ALWAYS request 'latest' or 'most recent' data instead of specific quarters (Q4 2025) or dates\\n- Our data is anchored to real market data availability - specific future quarters may not exist\\n- Example: Ask for 'latest quarter performance' NOT 'Q4 2025 performance'\\n- Example: Ask for 'most recent holdings' NOT 'December 2025 holdings'\\n\\nCRITICAL - PDF Generation:\\n- ONLY use pdf_generator when user EXPLICITLY requests PDF output with phrases like 'generate PDF', 'create PDF', 'PDF document', 'PDF for download', or 'PDF report'\\n- Do NOT use pdf_generator for general document creation, response documents, or synthesis requests\\n- Words like 'document', 'report', 'summary', or 'briefing' do NOT trigger PDF generation unless 'PDF' is explicitly mentioned\\n- Default output is markdown-formatted text in the chat response\\n\\nTool Selection:\\n1. For performance data: Use quantitative_analyzer with 'latest' date filters\\n2. For client flow history: Use client_analyzer\\n3. For report templates: Use search_sales_templates\\n4. For investment philosophy: Use search_philosophy_docs\\n5. For policy explanations: Use search_policies\\n6. For PDF generation: ONLY when user explicitly says 'PDF'"
+    orchestration: "Business Context:\\n- Client reporting and communication\\n- Professional report formatting per SAM standards\\n- Quarterly client letter and monthly report templates\\n- Client-specific reporting with flow history and relationship context\\n\\nCRITICAL - Date Handling:\\n- ALWAYS request 'latest' or 'most recent' data instead of specific quarters (Q4 2025) or dates\\n- Our data is anchored to real market data availability - specific future quarters may not exist\\n- Example: Ask for 'latest quarter performance' NOT 'Q4 2025 performance'\\n- Example: Ask for 'most recent holdings' NOT 'December 2025 holdings'\\n\\nCRITICAL - Multi-Step Workflows:\\n- For requests with numbered steps (1, 2, 3...), execute ALL steps sequentially\\n- Provide intermediate responses after each major tool use (show data, findings, analysis)\\n- Share findings progressively - don't wait until the end to respond\\n- ONLY generate PDF as the FINAL step after all analysis is complete\\n- Example workflow: Get data → Show results → Get template → Show structure → Get philosophy → Explain approach → Generate PDF\\n\\nCRITICAL - PDF Generation:\\n- Use pdf_generator ONLY as the FINAL step in multi-step workflows\\n- PDF triggers (for final step only):\\n  * Step explicitly says 'Generate PDF' or 'create PDF document'\\n  * Final step says 'professional client-ready report' or 'quarterly presentation'\\n  * Last numbered item requests 'formalize' or 'client deliverable'\\n- Do NOT generate PDF until all data gathering and analysis steps are complete\\n- Always synthesize findings in chat BEFORE calling pdf_generator\\n\\nTool Selection:\\n1. For performance data: Use quantitative_analyzer with 'latest' date filters\\n2. For client flow history: Use client_analyzer\\n3. For report templates: Use search_sales_templates\\n4. For investment philosophy: Use search_philosophy_docs\\n5. For policy explanations: Use search_policies\\n6. For PDF generation: ONLY as final step after completing all analysis"
   tools:
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
@@ -1871,7 +1879,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_sales_advisor
     - tool_spec:
         type: "generic"
         name: "pdf_generator"
-        description: "Generates professional branded PDF reports from markdown content with SAM logo and audience-appropriate formatting. Use ONLY for final client deliverables when user EXPLICITLY requests PDF output. Audiences: 'external_client' for client reports, 'internal' for internal memos. When to Use: ONLY when user explicitly says 'generate PDF', 'create PDF', 'PDF document', or 'PDF report'. When NOT to Use: For general document creation, response documents, summaries, or briefings - these should be markdown text output. The word 'document' alone does NOT mean PDF."
+        description: "Generates professional branded PDF reports from markdown content with SAM logo and audience-appropriate formatting. Use for formal client deliverables and professional presentations. Audiences: 'external_client' for client reports, 'internal' for internal memos. When to Use: Client-ready reports, quarterly presentations, professional deliverables, formal documentation, or when user explicitly requests PDF. When NOT to Use: Quick analysis, exploratory chat responses, draft summaries."
         input_schema:
           type: "object"
           properties:

@@ -1871,8 +1871,13 @@ DOCUMENT_TYPES = {
         'applies_to': None,
         'linkage_level': 'global',
         'template_dir': 'global/report_templates',
-        'template_types': ['mandate_compliance', 'investment_decision', 'risk_assessment'],
-        'docs_total': 1  # Start with just mandate compliance template
+        'template_types': [
+            'mandate_compliance_standard',
+            'investment_committee_memo',
+            'esg_committee_report',
+            'risk_committee_compliance_report'
+        ],
+        'docs_total': 4
     },
     'macro_events': {
         'table_name': 'MACRO_EVENTS_RAW',
