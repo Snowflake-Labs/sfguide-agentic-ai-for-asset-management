@@ -316,4 +316,6 @@ This guide represents **the future of enterprise AI in financial services**: a u
 
 Copyright (c) Snowflake Inc. All rights reserved.
 
-Licensed under the Apache 2.0 license.
+The code in this repository is licensed under the [Apache 2.0 License](LICENSE).
+
+The documentation located in the `docs/` directory is separately licensed under the [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0) License](https://creativecommons.org/licenses/by-nc-sa/4.0/). The complete terms of this license are available in the [LICENSE-DATA](LICENSE-DATA) file.
