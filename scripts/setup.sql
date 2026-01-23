@@ -130,31 +130,19 @@ GRANT CREATE SEMANTIC VIEW ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
 GRANT BIND SERVICE ENDPOINT ON ACCOUNT TO ROLE SAM_DEMO_ROLE;
 
 -- ============================================================================
--- SECTION 6: Git Integration
+-- SECTION 6: Git Integration (Public Repository - No Authentication Required)
 -- ============================================================================
 
-CREATE OR REPLACE SECRET SAM_DEMO.PUBLIC.GITHUB_SECRET
-  TYPE = PASSWORD
-  USERNAME = 'user_name'
-  PASSWORD = 'pat_token'
-  COMMENT = 'GitHub PAT for accessing private SAM demo repository';
-
--- Grant secret usage to role
-GRANT USAGE ON SECRET SAM_DEMO.PUBLIC.GITHUB_SECRET TO ROLE SAM_DEMO_ROLE;
-GRANT READ ON SECRET SAM_DEMO.PUBLIC.GITHUB_SECRET TO ROLE SAM_DEMO_ROLE;
-
--- Create API integration for Git (must reference the secret in ALLOWED_AUTHENTICATION_SECRETS)
+-- Create API integration for Git (no authentication needed for public repos)
 CREATE OR REPLACE API INTEGRATION GITHUB_INTEGRATION_SAM_DEMO
   API_PROVIDER = git_https_api
   API_ALLOWED_PREFIXES = ('https://github.com/')
-  ALLOWED_AUTHENTICATION_SECRETS = (SAM_DEMO.PUBLIC.GITHUB_SECRET)
   ENABLED = TRUE
   COMMENT = 'Git integration with GitHub for SAM Demo repository';
 
--- Create Git repository object pointing to the SAM demo repo (with authentication)
+-- Create Git repository object pointing to the public SAM demo repo
 CREATE OR REPLACE GIT REPOSITORY SAM_DEMO.PUBLIC.sam_demo_repo
   API_INTEGRATION = GITHUB_INTEGRATION_SAM_DEMO
-  GIT_CREDENTIALS = SAM_DEMO.PUBLIC.GITHUB_SECRET
   ORIGIN = 'https://github.com/Snowflake-Labs/sfguide-agentic-ai-for-asset-management.git'
   COMMENT = 'Git repository for SAM demo setup files';
 
