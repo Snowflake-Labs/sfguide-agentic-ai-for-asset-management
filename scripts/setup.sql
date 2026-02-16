@@ -36,6 +36,21 @@ USE ROLE ACCOUNTADMIN;
 ALTER SESSION SET query_tag = '{"origin":"sf_sit-is","name":"agentic_ai_for_asset_management","version":{"major":1,"minor":0},"attributes":{"is_quickstart":1,"source":"sql"}}';
 
 -- ============================================================================
+-- Auto-install Snowflake Public Data (Free) from Marketplace
+-- Note: May require manual acceptance on some accounts
+-- ============================================================================
+CREATE WAREHOUSE IF NOT EXISTS SAM_DEMO_WH
+    WAREHOUSE_SIZE = 'XLARGE'
+    AUTO_SUSPEND = 60
+    AUTO_RESUME = TRUE
+    INITIALLY_SUSPENDED = FALSE
+    COMMENT = 'Warehouse for SAM demo operations';
+USE WAREHOUSE SAM_DEMO_WH;
+CALL SYSTEM$REQUEST_LISTING_AND_WAIT('GZTSZ290BV255');
+CALL SYSTEM$ACCEPT_LEGAL_TERMS('DATA_EXCHANGE_LISTING', 'GZTSZ290BV255');
+CREATE DATABASE IF NOT EXISTS SNOWFLAKE_PUBLIC_DATA_FREE FROM LISTING 'GZTSZ290BV255';
+
+-- ============================================================================
 -- SECTION 1: Database and Schemas
 -- ============================================================================
 
@@ -81,15 +96,8 @@ GRANT ROLE SAM_DEMO_ROLE TO ROLE ACCOUNTADMIN;
 GRANT ROLE SAM_DEMO_ROLE TO ROLE SYSADMIN;
 
 -- ============================================================================
--- SECTION 3: Warehouse
+-- SECTION 3: Warehouse Grants
 -- ============================================================================
-
-CREATE WAREHOUSE IF NOT EXISTS SAM_DEMO_WH
-    WAREHOUSE_SIZE = 'LARGE'
-    AUTO_SUSPEND = 60
-    AUTO_RESUME = TRUE
-    INITIALLY_SUSPENDED = TRUE
-    COMMENT = 'Warehouse for SAM demo operations';
 
 -- Grant warehouse permissions
 GRANT USAGE ON WAREHOUSE SAM_DEMO_WH TO ROLE SAM_DEMO_ROLE;
@@ -99,9 +107,6 @@ GRANT MODIFY ON WAREHOUSE SAM_DEMO_WH TO ROLE SAM_DEMO_ROLE;
 -- ============================================================================
 -- SECTION 4: Marketplace Data Access
 -- ============================================================================
-
--- PREREQUISITE: Accept Marketplace listing terms first
--- https://app.snowflake.com/marketplace/listing/GZTSZ290BV255
 
 GRANT IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE_PUBLIC_DATA_FREE TO ROLE SAM_DEMO_ROLE;
 
@@ -128,9 +133,10 @@ GRANT CREATE SEMANTIC VIEW ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
 
 -- Account-level Cortex privileges (required for LLM functions)
 GRANT BIND SERVICE ENDPOINT ON ACCOUNT TO ROLE SAM_DEMO_ROLE;
+GRANT DATABASE ROLE SNOWFLAKE.CORTEX_USER TO ROLE SAM_DEMO_ROLE;
 
 -- ============================================================================
--- SECTION 6: Git Integration (Public Repository - No Authentication Required)
+-- SECTION 6: Git Integration
 -- ============================================================================
 
 -- Create API integration for Git (no authentication needed for public repos)

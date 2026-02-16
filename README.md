@@ -1,8 +1,8 @@
-# Agentic AI for Asset Management
+# Agentic AI for Asset Management Using Snowflake Public Data
 
 ## Overview
 
-**Simulated Asset Management (SAM)** is a fictional multi-asset investment firm managing multiple strategies. This guide showcases how **Snowflake Intelligence** transforms investment management through AI agents that seamlessly orchestrate:
+**Simulated Asset Management (SAM)** is a fictional multi-asset investment firm managing multiple strategies. This guide showcases how **Snowflake Intelligence** transforms investment management through Cortex Agents that seamlessly orchestrate:
 
 - **Structured Data**: Real securities from SEC filings, portfolio holdings, factor exposures, ESG scores
 - **Unstructured Documents**: Broker research reports, earnings transcripts, press releases, policy documents
@@ -24,7 +24,7 @@
 
 By exploring this guide, you'll understand how to:
 
-1. **Build Multi-Tool AI Agents** - Combine Cortex Analyst (structured data) with Cortex Search (documents) in a single conversational interface
+1. **Build Multi-Tool Cortex Agents** - Combine Cortex Analyst (structured data) with Cortex Search (documents) in a single conversational interface
 
 2. **Design Semantic Views** - Create business-friendly data models that translate natural language to SQL automatically
 
@@ -72,50 +72,40 @@ sfguide-agentic-ai-for-asset-management/
 - ACCOUNTADMIN role (for setup)
 - Snowflake Intelligence available
 
-### Step 1: Get Marketplace Data (One-Time)
-
-1. Log in to your Snowflake account
-2. Go to [Snowflake Public Data (Free)](https://app.snowflake.com/marketplace/listing/GZTSZ290BV255)
-3. Click **"Get"** button (top right)
-4. If prompted, enter your **Email** and click **"Save"** to complete your profile
-5. In the "Get it for Free" dialog:
-   - **Database name**: Keep default `Snowflake_Public_Data_Free`
-   - **Which roles can access**: Select `ACCOUNTADMIN` (or your demo role)
-6. Click **"Get"** to install the data share
-
-> **Note**: This creates a shared database `SNOWFLAKE_PUBLIC_DATA_FREE` with 90+ sources of public domain data including SEC filings and financial data. 
-
-### Step 2: Run Setup Script
+### Step 1: Run Setup Script
 
 **Copy and paste** [`scripts/setup.sql`](scripts/setup.sql) into a Snowflake SQL Worksheet and run it.
 
-This automatically creates:
-- CURATED dimension/fact tables and views
-- RAW corpus tables from document templates
-- MARKET_DATA tables with real SEC filings
-- Cortex Search services for document retrieval
-- Cortex Analyst semantic views for structured queries
-- Snowflake Intelligence agents for each business role
+The setup script automatically:
+- Installs [Snowflake Public Data Free](https://app.snowflake.com/marketplace/listing/GZTSZ290BV255) from the Marketplace
+- Creates CURATED dimension/fact tables and views
+- Creates RAW corpus tables from document templates
+- Creates MARKET_DATA tables with real SEC filings
+- Creates Cortex Search services for document retrieval
+- Creates Cortex Analyst semantic views for structured queries
+- Creates Snowflake Intelligence agents for each business role
 
-### Step 3: Access Snowflake Intelligence
+### Step 2: Access Snowflake Intelligence
 
-Navigate to **Snowflake Intelligence** → Choose an agent → Start asking questions!
+1. Switch to role `SAM_DEMO_ROLE` and warehouse `SAM_DEMO_WH`
+2. Navigate to **AI & ML → Snowflake Intelligence** in the left sidebar
+3. Choose an agent → Start asking questions!
 
 ---
 
 ## Cortex Agents
 
-| Agent | Role | Tools | Key Capabilities |
-|-------|------|-------|-----------------|
-| **Portfolio Copilot** | Portfolio Manager | 14 | Holdings, risk, event impact, supply chain, SEC financials |
-| **Research Copilot** | Research Analyst | 8 | Multi-source research, earnings, investment memos |
-| **Thematic Macro Advisor** | Thematic PM | 6 | Theme positioning, macro events, allocation |
-| **Quant Analyst** | Quantitative Analyst | 5 | Factor screening, attribution, validation |
-| **Sales Advisor** | Client Relations | 6 | Client reporting, RFP, onboarding |
-| **ESG Guardian** | ESG Officer | 9 | NGO reports, controversies, engagement |
-| **Compliance Advisor** | Compliance Officer | 6 | Mandate monitoring, breach detection |
-| **Middle Office Copilot** | Operations Manager | 6 | Settlement, reconciliation, NAV, corporate actions |
-| **Executive Command Center** | C-Suite | 9 | Firm KPIs, competitor intel, M&A simulation |
+| Agent | Role | Key Capabilities |
+|-------|------|-----------------|
+| **Portfolio Copilot** | Portfolio Manager | Holdings, risk, event impact, supply chain, SEC financials |
+| **Research Copilot** | Research Analyst | Multi-source research, earnings, investment memos |
+| **Thematic Macro Advisor** | Thematic PM | Theme positioning, macro events, allocation |
+| **Quant Analyst** | Quantitative Analyst | Factor screening, attribution, validation |
+| **Sales Advisor** | Client Relations | Client reporting, RFP, onboarding |
+| **ESG Guardian** | ESG Officer | NGO reports, controversies, engagement |
+| **Compliance Advisor** | Compliance Officer | Mandate monitoring, breach detection |
+| **Middle Office Copilot** | Operations Manager | Settlement, reconciliation, NAV, corporate actions |
+| **Executive Command Center** | C-Suite | Firm KPIs, competitor intel, M&A simulation |
 
 ---
 
@@ -126,9 +116,9 @@ These signature prompts showcase each agent's full orchestration capabilities. F
 ---
 
 ### Portfolio Copilot
-> **Anna, Senior PM** | 14 tools | [Full Scenarios →](docs/demo_scenarios_portfolio_manager.md)
+> **Anna, Senior PM** | [Full Scenarios →](docs/demo_scenarios_portfolio_manager.md)
 
-**Event-Driven Risk Assessment** (9-Tool Orchestration):
+**Event-Driven Risk Assessment**:
 ```
 I just heard about a major earthquake in Taiwan affecting semiconductor production. Can you:
 1. Verify this event and identify affected sectors
@@ -145,7 +135,7 @@ I just heard about a major earthquake in Taiwan affecting semiconductor producti
 ---
 
 ### Research Copilot
-> **David, Research Analyst** | 8 tools | [Full Scenarios →](docs/demo_scenarios_research_analyst.md)
+> **David, Research Analyst** | [Full Scenarios →](docs/demo_scenarios_research_analyst.md)
 
 **Investment Memo Generation**:
 ```
@@ -155,7 +145,7 @@ Generate a comprehensive investment research report for NVIDIA covering financia
 ---
 
 ### Thematic Macro Advisor
-> **Anna, Thematic PM** | 6 tools | [Full Scenarios →](docs/demo_scenarios_thematic_advisor.md)
+> **Anna, Thematic PM** | [Full Scenarios →](docs/demo_scenarios_thematic_advisor.md)
 
 **AI Infrastructure Strategy Development**:
 ```
@@ -170,7 +160,7 @@ I'm developing our Q1 2025 thematic investment strategy around artificial intell
 ---
 
 ### Quant Analyst
-> **Dr. James Chen, Quant** | 5 tools | [Full Scenarios →](docs/demo_scenarios_quant_analyst.md)
+> **Dr. James Chen, Quant** | [Full Scenarios →](docs/demo_scenarios_quant_analyst.md)
 
 **Multi-Factor Screening Strategy**:
 ```
@@ -186,7 +176,7 @@ I'm building a multi-factor stock screening strategy focusing on Value, Quality,
 ---
 
 ### Sales Advisor
-> **James Mitchell, Client Manager** | 6 tools | [Full Scenarios →](docs/demo_scenarios_client_relations.md)
+> **James Mitchell, Client Manager** | [Full Scenarios →](docs/demo_scenarios_client_relations.md)
 
 **Quarterly Client Presentation**:
 ```
@@ -201,7 +191,7 @@ I need to prepare a quarterly client presentation for our SAM ESG Leaders Global
 ---
 
 ### ESG Guardian
-> **Sofia, ESG Officer** | 9 tools | [Full Scenarios →](docs/demo_scenarios_esg_officer.md)
+> **Sofia, ESG Officer** | [Full Scenarios →](docs/demo_scenarios_esg_officer.md)
 
 **Complete ESG Risk Assessment**:
 ```
@@ -211,7 +201,7 @@ Conduct a complete ESG risk assessment for SAM ESG Leaders Global Equity includi
 ---
 
 ### Compliance Advisor
-> **Michael, Compliance Officer** | 6 tools | [Full Scenarios →](docs/demo_scenarios_compliance_officer.md)
+> **Michael, Compliance Officer** | [Full Scenarios →](docs/demo_scenarios_compliance_officer.md)
 
 **Complete Compliance Assessment**:
 ```
@@ -227,38 +217,21 @@ Conduct a complete compliance assessment for SAM Technology & Infrastructure inc
 ---
 
 ### Middle Office Copilot
-> **Sarah, Operations Manager** | 6 tools | [Full Scenarios →](docs/demo_scenarios_middle_office.md)
+> **Sarah, Operations Manager** | [Full Scenarios →](docs/demo_scenarios_middle_office.md)
 
 **End-of-Day Operations Review**:
 ```
-Show me all failed settlements from the past 3 business days and help me understand what's causing them.
-```
-
-```
-Summarize today's reconciliation breaks for all portfolios and flag any that are critical.
-```
-
-```
-What's the status of today's NAV calculation across all funds? Are there any anomalies I need to investigate?
-```
-
-```
-Show me all pending corporate actions for the next 5 business days and highlight any that require immediate processing.
+Give me a complete end-of-day operations summary including failed settlements from the past 3 business days with root cause analysis, today's reconciliation breaks flagged by criticality, NAV calculation status across all funds with any anomalies, and pending corporate actions for the next 5 business days that require immediate processing.
 ```
 
 ---
 
 ### Executive Command Center
-> **Sarah Chen, Head of AM** | 9 tools | [Full Scenarios →](docs/demo_scenarios_executive.md)
+> **Sarah Chen, Head of AM** | [Full Scenarios →](docs/demo_scenarios_executive.md)
 
-**Complete Board Briefing with PDF**:
+**Complete Board Briefing**:
 ```
 Prepare a complete executive briefing for the board covering firm-wide AUM and performance across all strategies, client flow analysis with any concentration concerns, our top and bottom performing strategies with context, and relevant investment philosophy positioning that explains our current strategic direction. Generate a professional PDF for board distribution.
-```
-
-**M&A Simulation**:
-```
-Let's model this. Run a high-level simulation of us acquiring that $50 billion AUM business. Use the revenue figures you found and apply our firm's standard assumptions for cost synergies. What is the projected impact on our earnings per share in the first year?
 ```
 
 ---
@@ -293,7 +266,7 @@ This guide represents **the future of enterprise AI in financial services**: a u
 
 **For Asset Managers**: Imagine a world where your investment professionals spend zero time hunting for data across systems, manually compiling reports, or waiting for Data team to build dashboards. Every question gets an immediate, comprehensive answer that combines portfolio analytics with research, risk metrics with policy guidance, and performance data with client context.
 
-**For Snowflake Practitioners**: This guide provides a complete blueprint for building production-grade AI agents:
+**For Snowflake Practitioners**: This guide provides a complete blueprint for building production-grade Cortex Agents:
 - How to structure semantic views for complex financial data
 - How to design corpus tables for multi-document RAG
 - How to configure agent instructions for different personas
