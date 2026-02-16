@@ -1,0 +1,530 @@
+# Copyright 2026 Snowflake Inc.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Placeholder Contract - SAM Demo Pre-Generated Content
+# Defines all valid placeholders, their types, data sources, and validation rules
+
+# Security Context Placeholders
+security_context:
+  COMPANY_NAME:
+    description: "Company name from DIM_SECURITY.Description"
+    source: "DIM_SECURITY.Description"
+    type: "string"
+    required_for: ["broker_research", "internal_research", "investment_memo", "earnings_transcripts", "press_releases"]
+  
+  TICKER:
+    description: "Stock ticker from DIM_SECURITY.Ticker"
+    source: "DIM_SECURITY.Ticker"
+    type: "string"
+    required_for: ["broker_research", "internal_research", "investment_memo", "earnings_transcripts", "press_releases"]
+  
+  SIC_DESCRIPTION:
+    description: "SIC industry description from DIM_ISSUER.SIC_DESCRIPTION"
+    source: "DIM_ISSUER.SIC_DESCRIPTION"
+    type: "string"
+    required_for: ["broker_research", "internal_research", "investment_memo", "earnings_transcripts", "press_releases", "ngo_reports", "engagement_notes"]
+  
+  ISSUER_NAME:
+    description: "Legal issuer name from DIM_ISSUER.LegalName"
+    source: "DIM_ISSUER.LegalName"
+    type: "string"
+    required_for: ["internal_research", "investment_memo", "ngo_reports", "engagement_notes"]
+  
+  SECURITY_ID:
+    description: "SecurityID from DIM_SECURITY.SecurityID"
+    source: "DIM_SECURITY.SecurityID"
+    type: "integer"
+    required_for: ["broker_research", "internal_research", "investment_memo", "earnings_transcripts", "press_releases"]
+  
+  ISSUER_ID:
+    description: "IssuerID from DIM_ISSUER.IssuerID"
+    source: "DIM_ISSUER.IssuerID"
+    type: "integer"
+    required_for: ["ngo_reports", "engagement_notes"]
+  
+  ASSET_CLASS:
+    description: "Asset class from DIM_SECURITY.AssetClass"
+    source: "DIM_SECURITY.AssetClass"
+    type: "string"
+    required_for: []
+
+# Portfolio Context Placeholders
+portfolio_context:
+  PORTFOLIO_NAME:
+    description: "Portfolio name from DIM_PORTFOLIO.PortfolioName"
+    source: "DIM_PORTFOLIO.PortfolioName"
+    type: "string"
+    required_for: ["ips", "portfolio_review"]
+  
+  PORTFOLIO_ID:
+    description: "PortfolioID from DIM_PORTFOLIO.PortfolioID"
+    source: "DIM_PORTFOLIO.PortfolioID"
+    type: "integer"
+    required_for: ["ips", "portfolio_review"]
+  
+  STRATEGY:
+    description: "Portfolio strategy from DIM_PORTFOLIO.Strategy"
+    source: "DIM_PORTFOLIO.Strategy"
+    type: "string"
+    required_for: ["ips", "portfolio_review"]
+  
+  BASE_CURRENCY:
+    description: "Base currency from DIM_PORTFOLIO.BaseCurrency"
+    source: "DIM_PORTFOLIO.BaseCurrency"
+    type: "string"
+    required_for: ["ips", "portfolio_review"]
+  
+  INCEPTION_DATE:
+    description: "Portfolio inception date from DIM_PORTFOLIO.InceptionDate"
+    source: "DIM_PORTFOLIO.InceptionDate"
+    type: "date"
+    required_for: ["ips"]
+
+# Date and Period Placeholders
+date_context:
+  PUBLISH_DATE:
+    description: "Document publication date (generated)"
+    source: "Generated per document type rules"
+    type: "date"
+    required_for: ["broker_research", "earnings_transcripts", "press_releases", "ngo_reports", "engagement_notes"]
+  
+  REPORT_DATE:
+    description: "Report date for portfolio reviews"
+    source: "Generated based on reporting cycles"
+    type: "date"
+    required_for: ["portfolio_review", "market_data"]
+  
+  FISCAL_QUARTER:
+    description: "Fiscal quarter (e.g., Q3 2024)"
+    source: "Generated for earnings"
+    type: "string"
+    required_for: ["earnings_transcripts", "portfolio_review"]
+  
+  FISCAL_YEAR:
+    description: "Calendar year"
+    source: "Generated"
+    type: "integer"
+    required_for: ["earnings_transcripts"]
+  
+  QUARTER_END_DATE:
+    description: "Last day of fiscal quarter"
+    source: "Calculated from FISCAL_QUARTER"
+    type: "date"
+    required_for: ["earnings_transcripts"]
+
+# Provider and Attribution Placeholders
+provider_context:
+  BROKER_NAME:
+    description: "Fictional broker name"
+    source: "Selected from FICTIONAL_BROKER_NAMES"
+    type: "string"
+    required_for: ["broker_research"]
+    validation: "Must be from fictional providers list"
+  
+  ANALYST_NAME:
+    description: "Analyst identifier"
+    source: "Generated (Analyst_XXX pattern)"
+    type: "string"
+    required_for: ["broker_research", "internal_research"]
+  
+  NGO_NAME:
+    description: "Fictional NGO name"
+    source: "Selected from FICTIONAL_NGO_NAMES by category"
+    type: "string"
+    required_for: ["ngo_reports"]
+    validation: "Must be from fictional providers list"
+  
+  MEETING_TYPE:
+    description: "Engagement meeting type"
+    source: "Selected from [Management Meeting, Shareholder Call, Site Visit]"
+    type: "string"
+    required_for: ["engagement_notes"]
+  
+  RATING:
+    description: "Investment rating"
+    source: "Selected from distribution"
+    type: "string"
+    required_for: ["broker_research"]
+    options: ["Strong Buy", "Buy", "Hold", "Sell", "Strong Sell"]
+  
+  SEVERITY_LEVEL:
+    description: "ESG severity level"
+    source: "Selected with weights"
+    type: "string"
+    required_for: ["ngo_reports"]
+    options: ["High", "Medium", "Low"]
+  
+  CEO_NAME:
+    description: "CEO name for earnings calls"
+    source: "Generated (CEO_XXX pattern)"
+    type: "string"
+    required_for: ["earnings_transcripts"]
+  
+  CFO_NAME:
+    description: "CFO name for earnings calls"
+    source: "Generated (CFO_XXX pattern)"
+    type: "string"
+    required_for: ["earnings_transcripts"]
+
+# Tier 1 Numerics (Light Bounded Values)
+tier1_numerics:
+  YOY_REVENUE_GROWTH_PCT:
+    description: "Year-over-year revenue growth percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+  
+  EBIT_MARGIN_PCT:
+    description: "EBIT margin percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+  
+  PRICE_TARGET_USD:
+    description: "12-month price target in USD"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+  
+  PE_RATIO:
+    description: "Price-to-earnings ratio"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+  
+  QUARTERLY_REVENUE_BILLIONS:
+    description: "Quarterly revenue in billions"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+  
+  QUARTERLY_EPS:
+    description: "Quarterly earnings per share"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+  
+  QTD_RETURN_PCT:
+    description: "Quarter-to-date return percentage"
+    source: "Sampled from bounds"
+    type: "float"
+    tier: 1
+  
+  YTD_RETURN_PCT:
+    description: "Year-to-date return percentage"
+    source: "Sampled from bounds"
+    type: "float"
+    tier: 1
+  
+  BENCHMARK_RETURN_PCT:
+    description: "Benchmark return percentage"
+    source: "Sampled from bounds"
+    type: "float"
+    tier: 1
+
+# Investment Memo Enhanced Placeholders (Broker Research)
+investment_memo_broker_research:
+  TAM_BILLIONS:
+    description: "Total Addressable Market in billions USD"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  SAM_BILLIONS:
+    description: "Serviceable Addressable Market in billions USD"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  MARKET_SHARE_PCT:
+    description: "Current market share percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  MARKET_CAGR_PCT:
+    description: "Market compound annual growth rate"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  NRR_PCT:
+    description: "Net Revenue Retention percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo", "earnings_transcripts_investment_memo"]
+  
+  GRR_PCT:
+    description: "Gross Revenue Retention percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  ENTERPRISE_PCT:
+    description: "Enterprise customer revenue percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  MIDMARKET_PCT:
+    description: "Mid-market customer revenue percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  SMB_PCT:
+    description: "SMB customer revenue percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  CAC_PAYBACK_MONTHS:
+    description: "Customer Acquisition Cost payback period in months"
+    source: "Sampled from sector-specific bounds"
+    type: "integer"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  LTV_CAC_RATIO:
+    description: "Lifetime Value to Customer Acquisition Cost ratio"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  RULE_OF_40_SCORE:
+    description: "Rule of 40 score (growth rate + profit margin)"
+    source: "Sampled from sector-specific bounds"
+    type: "integer"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  COMPETITOR_1:
+    description: "Primary competitor name"
+    source: "Selected from sector competitor list"
+    type: "string"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  COMPETITOR_2:
+    description: "Secondary competitor name"
+    source: "Selected from sector competitor list"
+    type: "string"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+  
+  COMPETITOR_3:
+    description: "Tertiary competitor name"
+    source: "Selected from sector competitor list"
+    type: "string"
+    tier: 1
+    required_for: ["broker_research_investment_memo"]
+
+# Investment Memo Enhanced Placeholders (Earnings Transcripts)
+investment_memo_earnings_transcripts:
+  CUSTOMER_COUNT:
+    description: "Total customer count"
+    source: "Sampled from sector-specific bounds"
+    type: "integer"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  ACV_THOUSANDS:
+    description: "Average Contract Value in thousands USD"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  ENTERPRISE_CUSTOMER_COUNT:
+    description: "Enterprise customer count (>$100K ACV)"
+    source: "Sampled from sector-specific bounds"
+    type: "integer"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  CLOUD_GROWTH_PCT:
+    description: "Cloud revenue growth percentage"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  AI_ADOPTION_PCT:
+    description: "AI feature adoption percentage among customers"
+    source: "Sampled from sector-specific bounds"
+    type: "float"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  NEW_PRODUCT_1:
+    description: "First new product announcement"
+    source: "Generated product name"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  NEW_PRODUCT_2:
+    description: "Second new product announcement"
+    source: "Generated product name"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  RD_FOCUS_AREA:
+    description: "R&D investment focus area"
+    source: "Selected from technology focus areas"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  GEOGRAPHIC_EXPANSION:
+    description: "Geographic expansion commentary"
+    source: "Generated expansion narrative"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  SALES_PRODUCTIVITY_CHANGE:
+    description: "Sales productivity change description"
+    source: "Selected from productivity narratives"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  CHANNEL_UPDATE:
+    description: "Channel partner update commentary"
+    source: "Generated channel narrative"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  NOTABLE_WIN_1:
+    description: "First notable customer win description"
+    source: "Generated customer win narrative"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  NOTABLE_WIN_2:
+    description: "Second notable customer win description"
+    source: "Generated customer win narrative"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+  
+  CHURN_COMMENTARY:
+    description: "Customer churn commentary"
+    source: "Generated churn narrative"
+    type: "string"
+    tier: 1
+    required_for: ["earnings_transcripts_investment_memo"]
+
+# Tier 2 Numerics (Derived from CURATED Tables)
+tier2_numerics:
+  TOP10_WEIGHT_PCT:
+    description: "Sum of top 10 holdings weights"
+    source: "Query FACT_POSITION_DAILY_ABOR"
+    type: "float"
+    tier: 2
+  
+  CONCENTRATION_WARNING:
+    description: "Flag if any position >6.5%"
+    source: "Query FACT_POSITION_DAILY_ABOR"
+    type: "string"
+    tier: 2
+    options: ["YES", "NO"]
+  
+  LARGEST_POSITION_NAME:
+    description: "Company name of largest holding"
+    source: "Query FACT_POSITION_DAILY_ABOR + DIM_SECURITY"
+    type: "string"
+    tier: 2
+  
+  LARGEST_POSITION_WEIGHT:
+    description: "Weight percentage of largest holding"
+    source: "Query FACT_POSITION_DAILY_ABOR"
+    type: "float"
+    tier: 2
+  
+  SECTOR_ALLOCATION_TABLE:
+    description: "Complete sector breakdown"
+    source: "Query FACT_POSITION_DAILY_ABOR + DIM_ISSUER"
+    type: "table"
+    tier: 2
+
+# Conditional Placeholders (Portfolio Review Specific)
+conditional_placeholders:
+  PERFORMANCE_NARRATIVE:
+    description: "Sentence conditional on performance"
+    type: "sentence_conditional"
+    condition: "QTD_RETURN_PCT > 0"
+    options:
+      positive: "Full sentence for positive performance"
+      negative: "Full sentence for negative performance"
+  
+  RELATIVE_PERFORMANCE:
+    description: "Word conditional on benchmark comparison"
+    type: "word_conditional"
+    condition: "QTD_RETURN_PCT > BENCHMARK_RETURN_PCT"
+    options:
+      positive: "outperformed"
+      negative: "underperformed"
+  
+  RISK_COMMENTARY:
+    description: "Sentence based on volatility"
+    type: "sentence_conditional"
+    condition: "TRACKING_ERROR_PCT > 5"
+    options:
+      high: "Full sentence for high tracking error"
+      low: "Full sentence for low tracking error"
+
+# Validation Rules
+validation:
+  required_fields:
+    rule: "All placeholders in template's 'placeholders.required' must be provided"
+    error_message: "Missing required placeholder: {placeholder_name}"
+  
+  unknown_placeholders:
+    rule: "All {{PLACEHOLDER}} patterns must exist in this contract"
+    error_message: "Unknown placeholder {{PLACEHOLDER}} not in contract"
+  
+  word_count:
+    rule: "Rendered document within ±10% of word_count_target"
+    error_message: "Word count {actual} outside target {target} (±10%)"
+    note: "Placeholders excluded from template word count"
+  
+  fictional_providers:
+    rule: "BROKER_NAME and NGO_NAME must be from fictional lists only"
+    error_message: "Real provider name detected: {provider_name}"
+    forbidden_brokers: ["Goldman Sachs", "Morgan Stanley", "J.P. Morgan", "Bank of America", "Barclays", "UBS", "Citigroup", "Credit Suisse", "Deutsche Bank"]
+    forbidden_ngos: ["Greenpeace", "Amnesty International", "Human Rights Watch", "Oxfam", "WWF"]
+  
+  data_types:
+    rule: "Placeholders must resolve to correct data types"
+    error_message: "Type mismatch for {placeholder_name}: expected {expected_type}, got {actual_type}"
+  
+  conditional_structure:
+    rule: "Conditional placeholders must have all required options"
+    error_message: "Conditional placeholder {name} missing option: {missing_option}"
