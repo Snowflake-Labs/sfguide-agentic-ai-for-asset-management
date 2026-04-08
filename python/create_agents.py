@@ -1296,37 +1296,37 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_copilot
       name: "{database_name}.AI.SAM_BROKER_RESEARCH"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_company_events:
       name: "{database_name}.AI.SAM_COMPANY_EVENTS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_press_releases:
       name: "{database_name}.AI.SAM_PRESS_RELEASES"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_macro_events:
       name: "{database_name}.AI.SAM_MACRO_EVENTS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_policies:
       name: "{database_name}.AI.SAM_POLICY_DOCS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_report_templates:
       name: "{database_name}.AI.SAM_REPORT_TEMPLATES"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_sec_filings:
       name: "{database_name}.AI.SAM_REAL_SEC_FILINGS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     pdf_generator:
       execution_environment:
         query_timeout: 60
@@ -1515,17 +1515,17 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_research_copilot
       name: "{database_name}.AI.SAM_BROKER_RESEARCH"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_company_events:
       name: "{database_name}.AI.SAM_COMPANY_EVENTS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_press_releases:
       name: "{database_name}.AI.SAM_PRESS_RELEASES"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     sec_financials:
       execution_environment:
         query_timeout: 30
@@ -1536,7 +1536,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_research_copilot
       name: "{database_name}.AI.SAM_REAL_SEC_FILINGS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     pdf_generator:
       execution_environment:
         query_timeout: 60
@@ -1603,27 +1603,27 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_thematic_macro_advisor
       name: "{database_name}.AI.SAM_BROKER_RESEARCH"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_company_events:
       name: "{database_name}.AI.SAM_COMPANY_EVENTS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_press_releases:
       name: "{database_name}.AI.SAM_PRESS_RELEASES"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_macro_events:
       name: "{database_name}.AI.SAM_MACRO_EVENTS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_sec_filings:
       name: "{database_name}.AI.SAM_REAL_SEC_FILINGS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
   $$;
 """
     session.sql(sql).collect()
@@ -1710,37 +1710,37 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_esg_guardian
       name: "{database_name}.AI.SAM_NGO_REPORTS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_engagement_notes:
       name: "{database_name}.AI.SAM_ENGAGEMENT_NOTES"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_policies:
       name: "{database_name}.AI.SAM_POLICY_DOCS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_press_releases:
       name: "{database_name}.AI.SAM_PRESS_RELEASES"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_company_events:
       name: "{database_name}.AI.SAM_COMPANY_EVENTS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_sec_filings:
       name: "{database_name}.AI.SAM_REAL_SEC_FILINGS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_report_templates:
       name: "{database_name}.AI.SAM_REPORT_TEMPLATES"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     pdf_generator:
       execution_environment:
         query_timeout: 60
@@ -1829,17 +1829,17 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_compliance_advisor
       name: "{database_name}.AI.SAM_POLICY_DOCS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_engagement_notes:
       name: "{database_name}.AI.SAM_ENGAGEMENT_NOTES"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_report_templates:
       name: "{database_name}.AI.SAM_REPORT_TEMPLATES"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     pdf_generator:
       execution_environment:
         query_timeout: 60
@@ -1922,17 +1922,17 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_sales_advisor
       name: "{database_name}.AI.SAM_SALES_TEMPLATES"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_philosophy_docs:
       name: "{database_name}.AI.SAM_PHILOSOPHY_DOCS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_policies:
       name: "{database_name}.AI.SAM_POLICY_DOCS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     client_analyzer:
       execution_environment:
         query_timeout: 30
@@ -2010,12 +2010,12 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_quant_analyst
       name: "{database_name}.AI.SAM_BROKER_RESEARCH"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_company_events:
       name: "{database_name}.AI.SAM_COMPANY_EVENTS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     stock_prices:
       execution_environment:
         query_timeout: 30
@@ -2665,22 +2665,22 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_middle_office_copilot
       name: "{database_name}.AI.SAM_CUSTODIAN_REPORTS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_reconciliation_notes:
       name: "{database_name}.AI.SAM_RECONCILIATION_NOTES"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_ssi_documents:
       name: "{database_name}.AI.SAM_SSI_DOCUMENTS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_ops_procedures:
       name: "{database_name}.AI.SAM_OPS_PROCEDURES"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     pdf_generator:
       execution_environment:
         query_timeout: 60
@@ -3292,12 +3292,12 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_executive_copilot
       name: "{database_name}.AI.SAM_STRATEGY_DOCUMENTS"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     search_press_releases:
       name: "{database_name}.AI.SAM_PRESS_RELEASES"
       id_column: "DOCUMENT_ID"
       title_column: "DOCUMENT_TITLE"
-      max_results: 4
+      max_results: 50
     ma_simulation:
       execution_environment:
         query_timeout: 30
