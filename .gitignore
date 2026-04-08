@@ -151,3 +151,4 @@ temp/
 # Generated files
 generated/
 *.generated.*
+.snowflake/cortex/plans/update-speaker-mapping-sql.plan.md
