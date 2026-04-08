@@ -61,18 +61,19 @@ def build_all(session: Session, test_mode: bool = False):
 
 def build_speaker_mapping(session: Session, test_mode: bool = False):
     """
-    Create speaker mapping table using AI_COMPLETE to identify speakers.
+    Create speaker mapping table using per-speaker-row AI_COMPLETE calls.
+    
+    Pipeline: all_paragraphs -> first_appearances -> with_context -> ai_responses
+    1. Flatten transcript paragraphs and deduplicate
+    2. Find each speaker's first paragraph appearance per event
+    3. Grab the preceding paragraph as introduction context
+    4. Call AI_COMPLETE per speaker row with focused prompt (name/role/company extraction)
     
     Creates SAM_DEMO.RAW.COMP_EVENT_SPEAKER_MAPPING with:
     - SPEAKER_ID: Speaker identifier (SPEAKER_1, SPEAKER_2, etc.)
     - SPEAKER_NAME: Full name of the speaker
     - SPEAKER_ROLE: Role (CEO, CFO, Analyst, Operator, etc.)
     - SPEAKER_COMPANY: Company the speaker represents
-    
-    Filtering:
-    - Joins directly to DIM_ISSUER on PROVIDER_COMPANY_ID for company matching
-    - Filters by YEARS_OF_HISTORY to limit transcript age
-    - For Earnings Calls, prefers SPEAKERS_ANNOTATED over RAW to avoid duplicates
     
     This is an expensive operation that uses LLM calls, so results are cached.
     The table is only rebuilt if it doesn't exist or is empty.
@@ -107,74 +108,89 @@ def build_speaker_mapping(session: Session, test_mode: bool = False):
     # Limit for test mode
     limit_clause = "LIMIT 50" if test_mode else ""
     
-    # Create speaker mapping using AI_COMPLETE
-    # Join directly to DIM_ISSUER on PROVIDER_COMPANY_ID for company matching
-    # Filter by date and transcript type to reduce volume and avoid duplicates
     speaker_mapping_sql = f"""
     CREATE OR REPLACE TABLE {table_path} AS
-    -- Sanitize 'None' strings to NULL for fiscal fields (prevents numeric conversion errors)
+    WITH all_paragraphs AS (
+        SELECT 
+            t.COMPANY_ID,
+            t.CIK,
+            t.COMPANY_NAME,
+            t.PRIMARY_TICKER,
+            t.EVENT_TYPE,
+            t.EVENT_TIMESTAMP,
+            t.FISCAL_PERIOD,
+            t.FISCAL_YEAR,
+            t.TRANSCRIPT_TYPE,
+            p.index AS para_index,
+            p.value:speaker::text AS speaker_id,
+            p.value:text::text AS para_text
+        FROM {source_db}.{source_schema}.{source_table} t
+        INNER JOIN {dim_issuer_table} i ON t.COMPANY_ID = i.PROVIDERCOMPANYID,
+        LATERAL FLATTEN(input => t.TRANSCRIPT:paragraphs) p
+        WHERE t.EVENT_TIMESTAMP >= DATEADD('year', -{years_of_history}, CURRENT_DATE())
+          AND ((t.EVENT_TYPE = 'Earnings Call' AND t.TRANSCRIPT_TYPE = 'SPEAKERS_ANNOTATED') 
+               OR t.EVENT_TYPE != 'Earnings Call')
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY t.COMPANY_ID, t.EVENT_TIMESTAMP, p.index, p.value:speaker::text ORDER BY t.EVENT_TIMESTAMP) = 1
+        {limit_clause}
+    ),
+    first_appearances AS (
+        SELECT *
+        FROM all_paragraphs
+        QUALIFY para_index = MIN(para_index) OVER (PARTITION BY COMPANY_ID, EVENT_TIMESTAMP, speaker_id)
+    ),
+    with_context AS (
+        SELECT 
+            fa.*,
+            prev.para_text AS prev_para_text
+        FROM first_appearances fa
+        LEFT JOIN all_paragraphs prev
+            ON fa.COMPANY_ID = prev.COMPANY_ID
+            AND fa.EVENT_TIMESTAMP = prev.EVENT_TIMESTAMP
+            AND prev.para_index = fa.para_index - 1
+    ),
+    ai_responses AS (
+        SELECT 
+            wc.*,
+            TRY_PARSE_JSON(
+                REGEXP_REPLACE(REGEXP_REPLACE(
+                    AI_COMPLETE('{config.AI_SPEAKER_IDENTIFICATION_MODEL}', CONCAT(
+                        'Task: Extract the name, role, and company of the person who is about to speak in this ',
+                        wc.EVENT_TYPE, ' for ', wc.COMPANY_NAME, ' on ', DATE(wc.EVENT_TIMESTAMP)::VARCHAR, '.\\n\\n',
+                        'You have two text excerpts. Follow these steps:\\n',
+                        'Step 1: Check INTRODUCTION. If it contains a person''s name (e.g. "next question from Brett Simpson, Arete Research"), that IS the speaker. Extract their name, role, and company directly.\\n',
+                        'Step 2: Only if INTRODUCTION does not name anyone, check SPEAKER TEXT for self-identification (e.g. "This is Jeff Su, Director of IR").\\n',
+                        'Step 3: If "Thank you, [Name]" appears in SPEAKER TEXT, note that [Name] is the PREVIOUS person, NOT this speaker.\\n\\n',
+                        'RULES for the returned values:\\n',
+                        '- speaker_name: Full name only (e.g. "Brett Simpson"). No titles, no descriptions.\\n',
+                        '- speaker_role: Short job title only (e.g. "CFO", "VP of IR", "Research Analyst"). Max 5 words. Never quote the transcript.\\n',
+                        '- speaker_company: Company name only (e.g. "JPMorgan", "TSMC"). No descriptions.\\n',
+                        '- If unknown, use empty string "".\\n\\n',
+                        CASE WHEN wc.prev_para_text IS NOT NULL
+                             THEN CONCAT('INTRODUCTION: ', LEFT(wc.prev_para_text, 500), '\\n\\n')
+                             ELSE '' END,
+                        'SPEAKER TEXT: ', LEFT(wc.para_text, 500), '\\n\\n',
+                        'Return ONLY: {{"speaker_name": "...", "speaker_role": "...", "speaker_company": "..."}}'
+                    )),
+                    '^```json\\s*', ''), '\\s*```$', '')
+            ) AS parsed_response
+        FROM with_context wc
+    )
     SELECT 
-        t.company_id,
-        t.cik,
-        t.company_name,
-        t.primary_ticker,
-        t.event_type,
-        t.EVENT_TIMESTAMP,
-        IFF(t.fiscal_period = 'None', NULL, t.fiscal_period) AS fiscal_period,
-        IFF(t.fiscal_year = 'None', NULL, t.fiscal_year) AS fiscal_year,
-        IFF(t.transcript_type = 'None', NULL, t.transcript_type) AS transcript_type,
-        f.value:speaker_id::STRING AS SPEAKER_ID,
-        f.value:speaker_name::STRING AS SPEAKER_NAME,
-        f.value:speaker_role::STRING AS SPEAKER_ROLE,
-        f.value:speaker_company::STRING AS SPEAKER_COMPANY
-    FROM {source_db}.{source_schema}.{source_table} AS t
-    INNER JOIN {dim_issuer_table} i ON t.COMPANY_ID = i.PROVIDERCOMPANYID,
-    LATERAL FLATTEN(
-        input => AI_COMPLETE(
-            model => '{config.AI_SPEAKER_IDENTIFICATION_MODEL}',
-            prompt => CONCAT(
-                'Identify all speakers in this company event transcript. ',
-                'For each speaker, determine their name, role (e.g., CEO, CFO, Analyst, Operator, Moderator), ',
-                'and the company they represent. ',
-                'IMPORTANT: If you cannot determine a speaker''s name, use "Unknown Speaker". ',
-                'If you cannot determine their role, use "Unknown". ',
-                'If you cannot determine their company, use "Unknown". ',
-                'Always provide a value for every field - never leave any field empty. ',
-                'Return a JSON array where each element has "speaker_id", "speaker_name", "speaker_role", and "speaker_company". ',
-                'You MUST always retrun a JSON array with the schema defined below. ',
-                '{{"speakers": [{{"speaker_id": "Speaker identifier like SPEAKER_1. Use Unknown if not found.", "speaker_name": "Full name of the speaker. Use Unknown Speaker if not found.", "speaker_role": "Role such as CEO, CFO, Analyst, Operator. Use Unknown if not found.","speaker_company": "Company the speaker represents. Use Unknown if not found."}}]}}',
-                'Transcript: ',
-                ARRAY_TO_STRING(t.transcript:paragraphs, '\\n')
-            ),
-            model_parameters => {{'temperature': 0}},
-            response_format => {{
-                    'type': 'json',
-                    'schema': {{
-                        'type': 'object',
-                        'properties': {{
-                            'speakers': {{
-                                'type': 'array',
-                                'items': {{
-                                    'type': 'object',
-                                    'properties': {{
-                                        'speaker_id': {{'type': 'string', 'description': 'Speaker identifier like SPEAKER_1. Use Unknown if not found.'}},
-                                        'speaker_name': {{'type': 'string', 'description': 'Full name of the speaker. Use Unknown Speaker if not found.'}},
-                                        'speaker_role': {{'type': 'string', 'description': 'Role such as CEO, CFO, Analyst, Operator. Use Unknown if not found.'}},
-                                        'speaker_company': {{'type': 'string', 'description': 'Company the speaker represents. Use Unknown if not found.'}}
-                                    }}
-                                }}
-                            }}
-                        }},
-                        'required': ['speakers']
-                    }}
-                }}
-        ):speakers
-    ) f
-    WHERE t.EVENT_TIMESTAMP >= DATEADD('year', -{years_of_history}, CURRENT_DATE())
-      AND ((t.EVENT_TYPE = 'Earnings Call' AND t.TRANSCRIPT_TYPE = 'SPEAKERS_ANNOTATED') 
-           OR t.EVENT_TYPE != 'Earnings Call')
-      AND (LENGTH(ARRAY_TO_STRING(t.transcript:paragraphs, '\\n')) / 4)::INTEGER <= 199990
-    {limit_clause}
+        a.COMPANY_ID,
+        a.CIK,
+        a.COMPANY_NAME,
+        a.PRIMARY_TICKER,
+        a.EVENT_TYPE,
+        a.EVENT_TIMESTAMP,
+        IFF(a.FISCAL_PERIOD = 'None', NULL, a.fiscal_period) AS fiscal_period,
+        IFF(a.FISCAL_YEAR = 'None', NULL, a.fiscal_year) AS fiscal_year,
+        IFF(a.TRANSCRIPT_TYPE = 'None', NULL, a.transcript_type) AS transcript_type,
+        CONCAT('SPEAKER_', a.speaker_id) AS SPEAKER_ID,
+        LEFT(a.parsed_response:speaker_name::STRING, 200) AS SPEAKER_NAME,
+        LEFT(a.parsed_response:speaker_role::STRING, 200) AS SPEAKER_ROLE,
+        LEFT(a.parsed_response:speaker_company::STRING, 200) AS SPEAKER_COMPANY
+    FROM ai_responses a
+    WHERE a.parsed_response IS NOT NULL
     """
     
     try:

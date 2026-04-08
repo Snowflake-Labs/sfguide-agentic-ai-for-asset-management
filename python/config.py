@@ -35,7 +35,7 @@ import sys
 # =============================================================================
 
 # Snowflake connection name (from ~/.snowflake/connections.toml)
-DEFAULT_CONNECTION_NAME = 'sfseeurope-mstellwall-aws-us-west3'
+DEFAULT_CONNECTION_NAME = ''
 
 # Seed for reproducible random generation (change to get different deterministic output)
 RNG_SEED = 42
@@ -52,10 +52,10 @@ TEST_MODE_MULTIPLIER = 0.1
 
 # Model used for speaker identification in transcript processing (AI_COMPLETE)
 # Options: 'claude-haiku-4-5', 'claude-sonnet-4', 'llama3.1-8b', etc.
-AI_SPEAKER_IDENTIFICATION_MODEL = 'claude-haiku-4-5'
+AI_SPEAKER_IDENTIFICATION_MODEL = 'openai-gpt-5-nano'
 
 # Model used for agent orchestration (Snowflake Intelligence agents)
-AGENT_ORCHESTRATION_MODEL = 'claude-sonnet-4-5'
+AGENT_ORCHESTRATION_MODEL = 'claude-opus-4-6'
 
 # Model used for text embeddings (Cortex Search, token counting)
 AI_EMBEDDING_MODEL = 'snowflake-arctic-embed-m-v1.5'
