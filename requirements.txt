@@ -1,0 +1,26 @@
+# SAM Demo — Workspace Setup Requirements
+# Install these packages in the Snowflake Workspace notebook service
+# via the Packages panel before running workspace_main.py
+#
+# Note: snowflake-snowpark-python is pre-installed in workspace environments
+
+# YAML parsing (config, templates, rules)
+pyyaml>=6.0
+
+# Markdown → HTML conversion (used by PDF report tool)
+markdown>=3.4.0
+
+# PDF generation (branded reports)
+reportlab>=4.0.0
+
+# -----------------------------------------------------------
+# OPTIONAL: For running ML notebooks (not needed for setup)
+# -----------------------------------------------------------
+# numpy>=1.24.0
+# scikit-learn>=1.3.0
+# xgboost>=2.0.0
+# shap>=0.43.0
+# matplotlib>=3.7.0
+# plotly>=5.18.0
+# scipy>=1.11.0
+# snowflake-ml-python>=1.5.0
