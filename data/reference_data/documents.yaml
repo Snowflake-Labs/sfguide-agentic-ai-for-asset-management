@@ -1,0 +1,342 @@
+# =============================================================================
+# Document Types — Configuration for all document generation
+# =============================================================================
+# Each entry defines a document type with its table, corpus, search service,
+# template directory, and generation parameters.
+#
+# Loaded as: config.REF_DATA['documents']
+# Access:    config.DOCUMENT_TYPES
+
+document_types:
+  broker_research:
+    table_name: BROKER_RESEARCH_RAW
+    corpus_name: PDF_EXTERNAL_CORPUS
+    search_service: SAM_EXTERNAL_DOCS
+    word_count_range:
+    - 700
+    - 1200
+    applies_to: securities
+    linkage_level: security
+    template_dir: security/broker_research
+    variants_per_sector: 3
+    coverage_count: 13
+  company_event_transcripts:
+    table_name: COMPANY_EVENT_TRANSCRIPTS_RAW
+    corpus_name: COMPANY_EVENT_TRANSCRIPTS_CORPUS
+    search_service: SAM_COMPANY_EVENTS
+    word_count_range:
+    - 500
+    - 2000
+    applies_to: securities
+    linkage_level: security
+    source: real
+    coverage_count: 31
+    event_types:
+    - Earnings Call
+    - Update / Briefing
+    - M&A Announcement
+    - Annual General Meeting
+    - Investor / Analyst Day
+    - Special Call
+    chunk_size_tokens: 512
+    speaker_mapping_table: COMP_EVENT_SPEAKER_MAPPING
+  press_releases:
+    table_name: PRESS_RELEASES_RAW
+    corpus_name: PDF_EXTERNAL_CORPUS
+    search_service: SAM_EXTERNAL_DOCS
+    word_count_range:
+    - 250
+    - 400
+    applies_to: securities
+    linkage_level: security
+    template_dir: security/press_releases
+    variants_per_sector: 3
+    coverage_count: 13
+    releases_per_company: 4
+  ngo_reports:
+    table_name: NGO_REPORTS_RAW
+    corpus_name: PDF_EXTERNAL_CORPUS
+    search_service: SAM_EXTERNAL_DOCS
+    word_count_range:
+    - 400
+    - 800
+    applies_to: issuers
+    linkage_level: issuer
+    template_dir: issuer/ngo_reports
+    categories:
+    - environmental
+    - social
+    - governance
+    severity_levels:
+    - high
+    - medium
+    - low
+    coverage_count: 13
+    reports_per_company: 2
+  engagement_notes:
+    table_name: ENGAGEMENT_NOTES_RAW
+    corpus_name: PDF_INTERNAL_CORPUS
+    search_service: SAM_INTERNAL_DOCS
+    word_count_range:
+    - 150
+    - 300
+    applies_to: issuers
+    linkage_level: issuer
+    template_dir: issuer/engagement_notes
+    meeting_types:
+    - management_meeting
+    - shareholder_call
+    - compliance_discussion
+    coverage_count: 13
+    notes_per_company: 1
+  policy_docs:
+    table_name: POLICY_DOCS_RAW
+    corpus_name: PDF_INTERNAL_CORPUS
+    search_service: SAM_INTERNAL_DOCS
+    word_count_range:
+    - 800
+    - 1500
+    applies_to: null
+    linkage_level: global
+    template_dir: global/policy_docs
+    policy_types:
+    - concentration_risk_policy
+    - sustainable_investment_policy
+    - investment_management_agreement
+    docs_total: 3
+  sales_templates:
+    table_name: SALES_TEMPLATES_RAW
+    corpus_name: PDF_INTERNAL_CORPUS
+    search_service: SAM_INTERNAL_DOCS
+    word_count_range:
+    - 800
+    - 1500
+    applies_to: null
+    linkage_level: global
+    template_dir: global/sales_templates
+    template_types:
+    - monthly_client_report
+    - quarterly_client_letter
+    - rfp_response_template
+    - client_onboarding_welcome
+    - client_retention_playbook
+    - product_catalog
+    docs_total: 6
+  philosophy_docs:
+    table_name: PHILOSOPHY_DOCS_RAW
+    corpus_name: PDF_INTERNAL_CORPUS
+    search_service: SAM_INTERNAL_DOCS
+    word_count_range:
+    - 800
+    - 1500
+    applies_to: null
+    linkage_level: global
+    template_dir: global/philosophy_docs
+    philosophy_types:
+    - esg_philosophy
+    - risk_philosophy
+    - brand_guidelines
+    docs_total: 3
+  report_templates:
+    table_name: REPORT_TEMPLATES_RAW
+    corpus_name: PDF_INTERNAL_CORPUS
+    search_service: SAM_INTERNAL_DOCS
+    word_count_range:
+    - 1500
+    - 2500
+    applies_to: null
+    linkage_level: global
+    template_dir: global/report_templates
+    template_types:
+    - mandate_compliance
+    - investment_decision
+    - risk_assessment
+    docs_total: 1
+  macro_events:
+    table_name: MACRO_EVENTS_RAW
+    corpus_name: PDF_INTERNAL_CORPUS
+    search_service: SAM_INTERNAL_DOCS
+    word_count_range:
+    - 400
+    - 800
+    applies_to: null
+    linkage_level: global
+    template_dir: global/macro_events
+    event_types:
+    - NaturalDisaster
+    - Geopolitical
+    - RegulatoryShock
+    - CyberIncident
+    - SupplyDisruption
+    regions:
+    - TW
+    - US
+    - CN
+    - EU
+    - JP
+    severity_levels:
+    - Low
+    - Medium
+    - High
+    - Critical
+    affected_sectors:
+    - Information Technology
+    - Consumer Discretionary
+    - Industrials
+    - Materials
+    docs_total: 1
+    demo_event:
+      event_type: NaturalDisaster
+      region: TW
+      severity: Critical
+      affected_sectors:
+      - Information Technology
+      - Consumer Discretionary
+      title: Major Earthquake Disrupts Taiwan Semiconductor Production
+      impact_description: A 7.2 magnitude earthquake has struck central Taiwan, affecting major semiconductor manufacturing
+        facilities including TSMC fabs. Production halts expected for 2-4 weeks with downstream supply chain impacts on global
+        technology and automotive sectors.
+  custodian_reports:
+    table_name: CUSTODIAN_REPORTS_RAW
+    corpus_name: PDF_INTERNAL_CORPUS
+    search_service: SAM_INTERNAL_DOCS
+    word_count_range:
+    - 500
+    - 800
+    applies_to: portfolios
+    linkage_level: portfolio
+    template_dir: portfolio/custodian_reports
+    report_types:
+    - daily_holdings
+    - cash_statement
+    - transaction_summary
+    portfolios:
+    - SAM Technology & Infrastructure
+    - SAM Global Thematic Growth
+    - SAM Multi-Asset Income
+    - SAM ESG Leaders Global Equity
+    docs_per_portfolio: 3
+  reconciliation_notes:
+    table_name: RECONCILIATION_NOTES_RAW
+    corpus_name: PDF_INTERNAL_CORPUS
+    search_service: SAM_INTERNAL_DOCS
+    word_count_range:
+    - 200
+    - 400
+    applies_to: null
+    linkage_level: global
+    template_dir: global/reconciliation_notes
+    break_types:
+    - position_break
+    - cash_break
+    - price_break
+    - corporate_action_break
+    docs_total: 8
+  ssi_documents:
+    table_name: SSI_DOCUMENTS_RAW
+    corpus_name: PDF_INTERNAL_CORPUS
+    search_service: SAM_INTERNAL_DOCS
+    word_count_range:
+    - 300
+    - 600
+    applies_to: null
+    linkage_level: global
+    template_dir: global/ssi_documents
+    instruction_types:
+    - equity_settlement
+    - fx_settlement
+    - bond_settlement
+    docs_total: 6
+  ops_procedures:
+    table_name: OPS_PROCEDURES_RAW
+    corpus_name: PDF_INTERNAL_CORPUS
+    search_service: SAM_INTERNAL_DOCS
+    word_count_range:
+    - 800
+    - 1500
+    applies_to: null
+    linkage_level: global
+    template_dir: global/ops_procedures
+    procedure_types:
+    - settlement_failure_resolution
+    - nav_calculation_process
+    - reconciliation_workflow
+    docs_total: 3
+  strategy_documents:
+    table_name: STRATEGY_DOCUMENTS_RAW
+    corpus_name: PDF_INTERNAL_CORPUS
+    search_service: SAM_INTERNAL_DOCS
+    word_count_range:
+    - 1100
+    - 1400
+    applies_to: null
+    linkage_level: global
+    template_dir: global/strategy_documents
+    document_types:
+    - strategic_planning_presentation
+    - board_meeting_summary
+    docs_total: 2
+  methodology_docs:
+    table_name: METHODOLOGY_DOCS_RAW
+    corpus_name: PDF_INTERNAL_CORPUS
+    search_service: SAM_INTERNAL_DOCS
+    word_count_range:
+    - 1000
+    - 1800
+    applies_to: null
+    linkage_level: global
+    template_dir: global/methodology_docs
+    document_types:
+    - keyridge_methodology
+    - portfolio_theory_primer
+    - risk_metrics_reference
+    docs_total: 3
+  ips:
+    table_name: IPS_RAW
+    corpus_name: PDF_INTERNAL_CORPUS
+    search_service: SAM_INTERNAL_DOCS
+    word_count_range:
+    - 1800
+    - 2200
+    applies_to: portfolios
+    linkage_level: portfolio
+    template_dir: portfolio/ips
+    risk_profiles:
+    - conservative
+    - moderate
+    - aggressive
+    docs_per_portfolio: 1
+    portfolios:
+    - SAM Global Flagship Multi-Asset
+    - SAM ESG Leaders Global Equity
+    - SAM Global Thematic Growth
+    - SAM Technology & Infrastructure
+    - SAM US Core Equity
+    - SAM Renewable & Climate Solutions
+    - SAM Sustainable Global Equity
+    - SAM AI & Digital Innovation
+    - SAM Global Balanced 60/40
+    - SAM Multi-Asset Income
+    - SAM US Value Equity
+    - SAM Tech Disruptors Equity
+    portfolio_risk_mapping:
+      SAM Global Flagship Multi-Asset: moderate
+      SAM ESG Leaders Global Equity: moderate
+      SAM Global Thematic Growth: aggressive
+      SAM Technology & Infrastructure: aggressive
+      SAM US Core Equity: moderate
+      SAM Renewable & Climate Solutions: moderate
+      SAM Sustainable Global Equity: moderate
+      SAM AI & Digital Innovation: aggressive
+      SAM Global Balanced 60/40: conservative
+      SAM Multi-Asset Income: conservative
+      SAM US Value Equity: moderate
+      SAM Tech Disruptors Equity: aggressive
+  regulatory_docs:
+    table_name: PDF_REGULATORY_RAW
+    corpus_name: PDF_REGULATORY_CORPUS
+    search_service: SAM_REGULATORY_DOCS
+    applies_to: global
+    linkage_level: global
+    source: real
+    docs_total: 14

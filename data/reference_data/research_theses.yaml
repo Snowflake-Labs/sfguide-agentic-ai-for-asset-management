@@ -1,0 +1,337 @@
+# Research Theses — Investment thesis seed data
+#
+# Each thesis tracks a company-level investment hypothesis with key assumptions,
+# validation status, and price targets. Loaded into FACT_RESEARCH_THESES.
+#
+# Stages: SCREENING → RESEARCH → THESIS_DRAFT → ACTIVE → CLOSED
+# Health: GREEN (all assumptions valid), AMBER (some challenged), RED (multiple challenged)
+# Dates use days_ago (relative to build time) for freshness
+
+theses:
+  - issuerid: 9
+    ticker: NVDA
+    company_name: NVIDIA CORP
+    title: "AI Infrastructure Dominance \u2014 Data Centre GPU Monopoly"
+    summary: "NVIDIA maintains >80% share in AI training accelerators with CUDA lock-in creating an insurmountable switching cost moat. Hyperscaler capex guidance confirms multi-year AI buildout with NVDA as primary beneficiary. Revenue growth sustains 50%+ through FY27 as inference demand layer kicks in."
+    recommendation: BUY
+    conviction: HIGH
+    assumptions:
+      - assumption: "AI training capex grows 40%+ annually through 2027"
+        status: VALID
+        evidence: "MSFT/AMZN/GOOG all guided higher capex"
+      - assumption: "CUDA ecosystem prevents meaningful AMD share gains"
+        status: VALID
+        evidence: "MI300X adoption limited to price-sensitive workloads"
+      - assumption: "Gross margins sustain above 70%"
+        status: CHALLENGED
+        evidence: "Blackwell ramp costs pressuring near-term margins to 68%"
+      - assumption: "China restrictions do not materially impact revenue"
+        status: VALID
+        evidence: "Alternative SKUs filling gap, Middle East expanding"
+    stage: ACTIVE
+    health: GREEN
+    validated_days_ago: 3
+    entry_price: 850.00
+    target_price: 1400.00
+    stop_loss: 720.00
+    docs:
+      - doc_title: "NVIDIA CORP Earnings Call - 2026-04-30"
+        source: earnings
+        date: "2026-04-30"
+      - doc_title: "Goldman Sachs - AI Accelerator Market Update"
+        source: broker
+        date: "2026-05-10"
+
+  - issuerid: 4
+    ticker: AAPL
+    company_name: APPLE INC.
+    title: "Services Monetisation Thesis \u2014 Installed Base Yield Expansion"
+    summary: "Apple's 2.2B active device installed base is under-monetised at $22 ARPU vs $45+ potential. Apple Intelligence features drive Services attach rate higher. iPhone replacement cycles stabilising while Services revenue compounds at 15%+ with 70%+ margins."
+    recommendation: BUY
+    conviction: MEDIUM
+    assumptions:
+      - assumption: "Services revenue grows 15%+ annually"
+        status: VALID
+        evidence: "Q2 2026 Services +17% YoY, new record"
+      - assumption: "Apple Intelligence drives upgrade cycle in FY26"
+        status: CHALLENGED
+        evidence: "iPhone sales flat QoQ, AI features not yet driving upgrades"
+      - assumption: "Regulatory risk manageable (App Store fees)"
+        status: VALID
+        evidence: "EU DMA compliance achieved without material revenue impact"
+      - assumption: "China market share holds above 15%"
+        status: CHALLENGED
+        evidence: "Huawei gaining share, Q2 China revenue -4%"
+    stage: ACTIVE
+    health: AMBER
+    validated_days_ago: 7
+    validation_notes: "Two key assumptions challenged: iPhone upgrade cycle from AI and China share. Monitor Q3 guidance closely."
+    entry_price: 195.00
+    target_price: 260.00
+    stop_loss: 170.00
+    docs:
+      - doc_title: "APPLE INC Earnings Call - 2026-04-30"
+        source: earnings
+        date: "2026-04-30"
+      - doc_title: "Morgan Stanley - Apple Services Deep Dive"
+        source: broker
+        date: "2026-05-15"
+
+  - issuerid: 8
+    ticker: MSFT
+    company_name: MICROSOFT CORP
+    title: "Azure AI Cloud Platform Play \u2014 Enterprise AI Gateway"
+    summary: "Microsoft positioned as enterprise AI gateway through Azure OpenAI + Copilot stack. Azure growing 30%+ with AI contributing 8pts of growth. Copilot for M365 driving $30+ incremental ARPU across 400M commercial seats. Operating leverage from cloud scale."
+    recommendation: BUY
+    conviction: HIGH
+    assumptions:
+      - assumption: "Azure growth sustains 28%+ through FY27"
+        status: VALID
+        evidence: "Q3 Azure +31% constant currency, AI acceleration"
+      - assumption: "Copilot seats reach 100M by end FY27"
+        status: VALID
+        evidence: "At 45M seats and accelerating, enterprise rollouts broadening"
+      - assumption: "OpenAI partnership remains exclusive"
+        status: VALID
+        evidence: "Renewed partnership, deeper integration announced"
+      - assumption: "Capex ROI visible within 18 months"
+        status: VALID
+        evidence: "Azure AI revenue exceeding capex payback targets"
+    stage: ACTIVE
+    health: GREEN
+    validated_days_ago: 2
+    entry_price: 420.00
+    target_price: 520.00
+    stop_loss: 380.00
+    docs:
+      - doc_title: "Microsoft Corp Earnings Call Q3 2026"
+        source: earnings
+        date: "2026-04-22"
+      - doc_title: "JP Morgan - Cloud Infrastructure Outlook"
+        source: broker
+        date: "2026-05-08"
+
+  - issuerid: 33
+    ticker: META
+    company_name: "META PLATFORMS, INC."
+    title: "AI-Driven Advertising Efficiency \u2014 Reels Monetisation"
+    summary: "Meta's AI investment paying off through improved ad targeting (Advantage+ suite) and Reels monetisation closing gap to Stories. 3.3B daily active people across family of apps with AI-driven content recommendations increasing engagement 8% YoY."
+    recommendation: BUY
+    conviction: MEDIUM
+    assumptions:
+      - assumption: "Reels monetisation reaches parity with Feed by 2027"
+        status: VALID
+        evidence: "Reels CPM at 75% of Feed, up from 50% last year"
+      - assumption: "AI capex translates to 200bps operating margin expansion"
+        status: CHALLENGED
+        evidence: "Capex guidance raised again, margin expansion delayed to 2027"
+      - assumption: "TikTok regulatory pressure benefits Instagram Reels"
+        status: VALID
+        evidence: "TikTok ban upheld, advertisers diversifying to Reels"
+      - assumption: "Reality Labs losses narrow to <$10B annually"
+        status: CHALLENGED
+        evidence: "Q2 RL losses $4.8B (annualised $19B), no sign of reduction"
+    stage: ACTIVE
+    health: AMBER
+    validated_days_ago: 10
+    validation_notes: "Reality Labs cash burn and capex trajectory concerning. Core ad business strong but margins under pressure from AI and metaverse spending."
+    entry_price: 480.00
+    target_price: 620.00
+    stop_loss: 420.00
+    docs:
+      - doc_title: "META PLATFORMS Earnings Call Q1 2026"
+        source: earnings
+        date: "2026-04-23"
+
+  - issuerid: 3
+    ticker: AMZN
+    company_name: AMAZON COM INC
+    title: "AWS Re-Acceleration + Retail Margin Expansion"
+    summary: "AWS growth re-accelerating to 20%+ as enterprise cloud migrations resume post-optimisation. Retail segment achieving structural margin improvement through regionalised fulfilment, advertising growth (50B+ run rate), and delivery cost per unit declining 5% annually."
+    recommendation: BUY
+    conviction: HIGH
+    assumptions:
+      - assumption: "AWS revenue growth re-accelerates to 22%+ in 2026"
+        status: VALID
+        evidence: "Q1 AWS +21%, Q2 guided to 23%+ on AI workload ramp"
+      - assumption: "Retail operating margins expand to 6%+"
+        status: VALID
+        evidence: "NA retail margins hit 6.2% in Q1, international turning profitable"
+      - assumption: "Advertising business sustains 20%+ growth"
+        status: VALID
+        evidence: "Q1 ads +22%, Prime Video ads contributing new inventory"
+    stage: ACTIVE
+    health: GREEN
+    validated_days_ago: 5
+    entry_price: 185.00
+    target_price: 240.00
+    stop_loss: 160.00
+    docs:
+      - doc_title: "Amazon Q1 2026 Earnings Results"
+        source: earnings
+        date: "2026-04-25"
+
+  - issuerid: 1
+    ticker: AMD
+    company_name: ADVANCED MICRO DEVICES INC
+    title: "AI Inference Alternative \u2014 Price/Performance Challenger"
+    summary: "AMD positioned as credible #2 in AI accelerators with MI300X/MI400 gaining share in inference workloads where CUDA dependency is lower. Data centre segment growing 80%+ with AI GPU revenue on $10B+ run rate."
+    recommendation: BUY
+    conviction: MEDIUM
+    assumptions:
+      - assumption: "MI400 achieves 15%+ share in inference market by 2027"
+        status: VALID
+        evidence: "MI300X deployed at major hyperscalers, MI400 sampling"
+      - assumption: "ROCm software ecosystem matures for enterprise"
+        status: CHALLENGED
+        evidence: "Developer adoption still 10:1 in favour of CUDA"
+      - assumption: "Data centre revenue reaches $15B in FY26"
+        status: VALID
+        evidence: "Q1 DC revenue $3.8B, tracking to $15B+ annualised"
+    stage: ACTIVE
+    health: GREEN
+    validated_days_ago: 8
+    entry_price: 155.00
+    target_price: 210.00
+    stop_loss: 130.00
+    docs:
+      - doc_title: "AMD Q1 2026 Earnings Call"
+        source: earnings
+        date: "2026-04-29"
+
+  - issuerid: 41
+    ticker: TSLA
+    company_name: "TESLA, INC."
+    title: "Autonomous Driving Platform Value Unlock"
+    summary: "Tesla's FSD supervised rollout and upcoming robotaxi launch represent a platform shift from vehicle manufacturer to autonomous mobility provider. If FSD reaches Level 4 at scale, per-vehicle lifetime value increases 3x through software revenue and ride-hailing economics."
+    recommendation: HOLD
+    conviction: LOW
+    assumptions:
+      - assumption: "FSD achieves Level 4 regulatory approval by 2027"
+        status: CHALLENGED
+        evidence: "No regulatory framework in place, safety data insufficient for L4"
+      - assumption: "Robotaxi launch generates $5B+ annual revenue by 2028"
+        status: CHALLENGED
+        evidence: "Launch delayed, unit economics unproven at scale"
+      - assumption: "Auto margins recover above 20%"
+        status: CHALLENGED
+        evidence: "Q1 auto gross margin 16.3%, price cuts continuing"
+    stage: ACTIVE
+    health: RED
+    validated_days_ago: 1
+    validation_notes: "Multiple key assumptions challenged. FSD timeline slipping, margins compressed, competition intensifying. Downgrade thesis to HOLD pending robotaxi proof of concept."
+    entry_price: 250.00
+    target_price: 350.00
+    stop_loss: 180.00
+    docs:
+      - doc_title: "Tesla Q1 2026 Earnings"
+        source: earnings
+        date: "2026-04-22"
+
+  - issuerid: 2
+    ticker: GOOGL
+    company_name: ALPHABET INC.
+    title: "Search AI Transition \u2014 Gemini Monetisation"
+    summary: "Alphabet successfully transitioning Search to AI Overviews while maintaining ad economics. Cloud (GCP) growing 30%+ with Gemini API adoption. YouTube premium + ads generating $45B+ annually with Shorts monetisation improving."
+    recommendation: BUY
+    conviction: MEDIUM
+    assumptions:
+      - assumption: "AI Overviews maintain search ad revenue per query"
+        status: VALID
+        evidence: "Q1 Search revenue +14%, no cannibalization visible"
+      - assumption: "GCP growth sustains 28%+ through 2027"
+        status: VALID
+        evidence: "Q1 GCP +29%, Gemini API driving new workloads"
+      - assumption: "Antitrust remedies do not structurally impair Search"
+        status: CHALLENGED
+        evidence: "DOJ remedy proposal includes browser default restrictions"
+    stage: RESEARCH
+    health: GREEN
+    validated_days_ago: 12
+
+  - issuerid: 45
+    ticker: V
+    company_name: VISA INC.
+    title: "Cross-Border Recovery + Value-Added Services Growth"
+    summary: "Visa benefiting from secular shift to digital payments with cross-border volumes exceeding pre-COVID levels. Value-added services (risk, identity, open banking) growing 20%+ and now represent 25% of revenue at higher margins."
+    assumptions:
+      - assumption: "Cross-border volume growth sustains 15%+ through FY27"
+        status: VALID
+        evidence: "International travel fully recovered, e-commerce cross-border expanding"
+      - assumption: "Value-added services reach 30% of revenue by 2027"
+        status: VALID
+        evidence: "VAS at 26% of revenue and accelerating with new products"
+    stage: SCREENING
+    health: GREEN
+
+  - issuerid: 466
+    ticker: UNH
+    company_name: UNITEDHEALTH GROUP INC
+    title: "Healthcare Platform Convergence \u2014 Optum Flywheel"
+    summary: "UnitedHealth's integrated model (insurance + care delivery + pharmacy + data) creates sustainable competitive advantage. Optum Health growing 15%+ with value-based care contracts expanding margins as patient outcomes improve."
+    assumptions:
+      - assumption: "Medical cost ratio (MCR) stays below 84%"
+        status: VALID
+        evidence: "MCR at 83.2% in Q1, utilisation trends manageable"
+      - assumption: "Optum revenue growth sustains 12%+"
+        status: VALID
+        evidence: "Q1 Optum +14%, new care delivery sites accelerating"
+    stage: SCREENING
+    health: GREEN
+
+  - issuerid: 5
+    ticker: AVGO
+    company_name: BROADCOM INC.
+    title: "Custom AI Accelerator + VMware Integration"
+    summary: "Broadcom positioned uniquely in custom AI silicon (TPUs for Google, Trainium for AWS) AND enterprise software (VMware). AI revenue doubling annually while VMware integration unlocking $8B cost synergies and transitioning to subscription."
+    recommendation: BUY
+    conviction: HIGH
+    assumptions:
+      - assumption: "Custom AI accelerator revenue reaches $12B in FY26"
+        status: VALID
+        evidence: "Q1 AI rev $4.1B, accelerating with new customer wins"
+      - assumption: "VMware subscription transition completes by FY27"
+        status: VALID
+        evidence: "60% of VMware revenue now subscription, ahead of plan"
+      - assumption: "Operating margins expand to 65%+ post-integration"
+        status: VALID
+        evidence: "Q1 EBITDA margin 64%, VMware synergies flowing through"
+    stage: THESIS_DRAFT
+    health: GREEN
+    validated_days_ago: 4
+    entry_price: 180.00
+    target_price: 240.00
+    stop_loss: 155.00
+    docs:
+      - doc_title: "Broadcom Q1 FY26 Earnings"
+        source: earnings
+        date: "2026-03-06"
+
+  - issuerid: 7
+    ticker: INTC
+    company_name: INTEL CORP
+    title: "Foundry Turnaround \u2014 18A Process Node"
+    summary: "Intel's foundry strategy represents binary outcome: if 18A process node achieves competitive parity with TSMC N2, Intel Foundry could capture $10B+ external revenue by 2028. High risk but government subsidies (CHIPS Act) de-risk capital requirements."
+    recommendation: HOLD
+    conviction: LOW
+    assumptions:
+      - assumption: "18A process yields reach production-ready levels by H2 2026"
+        status: CHALLENGED
+        evidence: "18A yields below target, limited external customer wins so far"
+      - assumption: "Intel Products group stabilises market share"
+        status: CHALLENGED
+        evidence: "Desktop/laptop share declining, server share at all-time low"
+      - assumption: "CHIPS Act funding provides 3-year cash runway"
+        status: VALID
+        evidence: "$8.5B in grants secured, disbursement on schedule"
+    stage: RESEARCH
+    health: AMBER
+    validated_days_ago: 15
+    validation_notes: "Key technology assumption (18A yields) not yet validated. Continue monitoring but do not advance to active thesis until yield data confirms."
+    docs:
+      - doc_title: "Intel Q1 2026 Earnings"
+        source: earnings
+        date: "2026-04-24"
+      - doc_title: "Bernstein - Intel Foundry Assessment"
+        source: broker
+        date: "2026-05-01"

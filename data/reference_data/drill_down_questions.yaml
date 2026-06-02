@@ -1,0 +1,550 @@
+# Drill-Down Questions — Context-aware follow-up prompts
+#
+# These are displayed as clickable action buttons when a user interacts with
+# entities in the cockpit UI. Each question is resolved with template variables
+# from the entity context (e.g. {ticker}, {portfolioName}, {borrowerName}).
+#
+# Fields:
+#   entity_type: The UI entity type this question applies to
+#   sort_order: Display order within the entity type
+#   label: Short button label
+#   headline: Subtitle shown below the label (can contain template vars)
+#   prompt_template: Full prompt sent to the agent (with template vars)
+#   icon: Lucide icon name
+
+questions:
+  # ─── Equity Holdings ─────────────────────────────────────────────────────────
+  - entity_type: HOLDING
+    sort_order: 1
+    label: Company overview
+    headline: "Company overview for {ticker}"
+    prompt_template: "Tell me about {ticker} - {description} in our portfolio"
+    icon: FileText
+
+  - entity_type: HOLDING
+    sort_order: 2
+    label: Latest earnings call
+    headline: "Earnings call for {description}"
+    prompt_template: "What were the key highlights from {description} latest earnings call?"
+    icon: FileText
+
+  - entity_type: HOLDING
+    sort_order: 3
+    label: SEC filings
+    headline: "SEC filings for {ticker}"
+    prompt_template: "Summarise the latest 10-K risk factors for {ticker}"
+    icon: FileText
+
+  - entity_type: HOLDING
+    sort_order: 4
+    label: ESG rating
+    headline: "ESG rating for {ticker}"
+    prompt_template: "What is the ESG rating and any controversies for {ticker}?"
+    icon: Sparkles
+
+  - entity_type: HOLDING
+    sort_order: 5
+    label: Supply chain
+    headline: "Supply chain for {ticker}"
+    prompt_template: "Show me the key supply chain dependencies for {ticker}"
+    icon: GitBranch
+
+  - entity_type: HOLDING
+    sort_order: 6
+    label: Factor exposures
+    headline: "Factor exposures for {ticker}"
+    prompt_template: "What are the factor exposures for {ticker}?"
+    icon: BarChart3
+
+  # ─── Sector Attribution ──────────────────────────────────────────────────────
+  - entity_type: SECTOR
+    sort_order: 1
+    label: Explain attribution
+    headline: "Attribution for {value}"
+    prompt_template: "Explain the {value} attribution for {portfolioName}: allocation {allocationEffect}, selection {selectionEffect}"
+    icon: BarChart3
+
+  - entity_type: SECTOR
+    sort_order: 2
+    label: Holdings in sector
+    headline: "Holdings in {value}"
+    prompt_template: "Show me all holdings in the {value} sector with weights and returns"
+    icon: Briefcase
+
+  - entity_type: SECTOR
+    sort_order: 3
+    label: Benchmark comparison
+    headline: "Benchmark comparison for {value}"
+    prompt_template: "How does our {value} allocation compare to the benchmark?"
+    icon: TrendingUp
+
+  - entity_type: SECTOR
+    sort_order: 4
+    label: Historical trend
+    headline: "Attribution trend for {value}"
+    prompt_template: "Show the attribution trend for {value} over the last 6 months"
+    icon: TrendingUp
+
+  # ─── Compliance Alerts ───────────────────────────────────────────────────────
+  - entity_type: ALERT
+    sort_order: 1
+    label: Investigate
+    headline: "Investigate {alertType}"
+    prompt_template: "Tell me about the {alertType} for {securityName} in {portfolioName}"
+    icon: AlertCircle
+
+  - entity_type: ALERT
+    sort_order: 2
+    label: Remediation options
+    headline: "Remediation for {alertType}"
+    prompt_template: "What are the options to remediate the {alertType} for {securityName}?"
+    icon: FileCheck
+
+  - entity_type: ALERT
+    sort_order: 3
+    label: Historical breaches
+    headline: "History for {securityName}"
+    prompt_template: "Has {securityName} had similar breaches before?"
+    icon: Clock
+
+  - entity_type: ALERT
+    sort_order: 4
+    label: Impact analysis
+    headline: "Impact of {alertType}"
+    prompt_template: "What is the portfolio impact if we address this {alertType}?"
+    icon: BarChart3
+
+  # ─── Market Movers ──────────────────────────────────────────────────────────
+  - entity_type: MARKET_MOVER
+    sort_order: 1
+    label: What happened?
+    headline: "{ticker} movement"
+    prompt_template: "What is driving {ticker} ({description}) {change} today?"
+    icon: TrendingUp
+
+  - entity_type: MARKET_MOVER
+    sort_order: 2
+    label: Latest earnings
+    headline: "Earnings for {description}"
+    prompt_template: "What did {description} management say in the latest earnings call?"
+    icon: FileText
+
+  - entity_type: MARKET_MOVER
+    sort_order: 3
+    label: Recent news
+    headline: "News for {ticker}"
+    prompt_template: "What are the latest press releases about {ticker}?"
+    icon: FileText
+
+  - entity_type: MARKET_MOVER
+    sort_order: 4
+    label: Portfolio exposure
+    headline: "Exposure to {ticker}"
+    prompt_template: "What is our portfolio exposure to {ticker}?"
+    icon: Briefcase
+
+  # ─── AI Insights ────────────────────────────────────────────────────────────
+  - entity_type: INSIGHT
+    sort_order: 1
+    label: Elaborate
+    headline: "Elaborate on {insightType}"
+    prompt_template: "Follow up on this {insightType} for {portfolioName}: What should I do about these findings?"
+    icon: Sparkles
+
+  - entity_type: INSIGHT
+    sort_order: 2
+    label: Action plan
+    headline: "Action plan for {insightType}"
+    prompt_template: "Based on this {insightType}, what specific actions should I take for {portfolioName}?"
+    icon: Target
+
+  - entity_type: INSIGHT
+    sort_order: 3
+    label: Historical context
+    headline: "History of {insightType}"
+    prompt_template: "Has this type of {insightType} occurred before for {portfolioName}?"
+    icon: Clock
+
+  # ─── Credit Borrowers ───────────────────────────────────────────────────────
+  - entity_type: BORROWER
+    sort_order: 1
+    label: Credit analysis
+    headline: "Credit analysis for {borrowerName}"
+    prompt_template: "Analyse the credit position for borrower {borrowerName} in the {sector} sector. Show leverage trend, covenant status, and any concerns."
+    icon: FileText
+
+  - entity_type: BORROWER
+    sort_order: 2
+    label: Covenant status
+    headline: "Covenant compliance for {borrowerName}"
+    prompt_template: "What is the current covenant compliance status for {borrowerName}? Show headroom for each covenant."
+    icon: FileCheck
+
+  - entity_type: BORROWER
+    sort_order: 3
+    label: Rate sensitivity
+    headline: "Rate sensitivity for {borrowerName}"
+    prompt_template: "Analyse the rate sensitivity for {borrowerName}. What is the floating rate exposure and SOFR impact?"
+    icon: TrendingUp
+
+  - entity_type: BORROWER
+    sort_order: 4
+    label: Comparable deals
+    headline: "Market comparables for {borrowerName}"
+    prompt_template: "How does the {borrowerName} facility compare to sector benchmarks for spread, leverage, and coverage?"
+    icon: BarChart3
+
+  - entity_type: BORROWER
+    sort_order: 5
+    label: Deterioration risk
+    headline: "Deterioration risk for {borrowerName}"
+    prompt_template: "Is {borrowerName} showing signs of deterioration? Check financial trends and any early warning signals."
+    icon: AlertTriangle
+
+  # ─── Covenant Monitoring ─────────────────────────────────────────────────────
+  - entity_type: COVENANT
+    sort_order: 1
+    label: Headroom trend
+    headline: "Headroom trend for {covenantType}"
+    prompt_template: "Show the headroom trend for {covenantType} at {borrowerName} over the last 8 quarters. Is it deteriorating?"
+    icon: TrendingUp
+
+  - entity_type: COVENANT
+    sort_order: 2
+    label: Breach risk
+    headline: "Breach probability for {covenantType}"
+    prompt_template: "What is the probability of breaching {covenantType} for {borrowerName} in the next 90 days based on the trajectory?"
+    icon: AlertCircle
+
+  - entity_type: COVENANT
+    sort_order: 3
+    label: Waiver analysis
+    headline: "Waiver options for {borrowerName}"
+    prompt_template: "Should we request a covenant waiver for {borrowerName}? What are the precedents and implications?"
+    icon: FileCheck
+
+  - entity_type: COVENANT
+    sort_order: 4
+    label: Peer comparison
+    headline: "Peer covenant levels"
+    prompt_template: "How does {borrowerName} {covenantType} compare to peer borrowers in the same sector?"
+    icon: BarChart3
+
+  # ─── Credit Deal Pipeline ────────────────────────────────────────────────────
+  - entity_type: DEAL
+    sort_order: 1
+    label: Deal analysis
+    headline: "Analysis for {borrowerName}"
+    prompt_template: "Analyse the credit deal for {borrowerName}. Compare spread and leverage to sector benchmarks."
+    icon: FileText
+
+  - entity_type: DEAL
+    sort_order: 2
+    label: Term sheet review
+    headline: "Term sheet for {borrowerName}"
+    prompt_template: "Review the proposed terms for {borrowerName}. Are these terms competitive?"
+    icon: FileCheck
+
+  - entity_type: DEAL
+    sort_order: 3
+    label: Sector benchmarks
+    headline: "Sector comparison for {borrowerName}"
+    prompt_template: "Show sector benchmark data for {sector}. How does this deal compare on spread, default rate, and recovery?"
+    icon: BarChart3
+
+  - entity_type: DEAL
+    sort_order: 4
+    label: IC memo draft
+    headline: "IC memo for {borrowerName}"
+    prompt_template: "Draft an investment committee memo outline for the {borrowerName} credit deal."
+    icon: FileText
+
+  # ─── PE Portfolio Companies ──────────────────────────────────────────────────
+  - entity_type: PORTCO
+    sort_order: 1
+    label: 100-day plan status
+    headline: "Value creation plan for {companyName}"
+    prompt_template: "Show the 100-day value creation plan for {companyName}. What is on track and what is at risk?"
+    icon: Target
+
+  - entity_type: PORTCO
+    sort_order: 2
+    label: Board pack summary
+    headline: "Latest board pack for {companyName}"
+    prompt_template: "Summarise the latest board pack for {companyName}. What are the key financial metrics and management commentary?"
+    icon: FileText
+
+  - entity_type: PORTCO
+    sort_order: 3
+    label: Exit readiness
+    headline: "Exit assessment for {companyName}"
+    prompt_template: "Assess exit readiness for {companyName}. What is the current MOIC, market comps, and buyer appetite?"
+    icon: TrendingUp
+
+  - entity_type: PORTCO
+    sort_order: 4
+    label: KPI trends
+    headline: "KPI trends for {companyName}"
+    prompt_template: "Show the revenue, EBITDA, and leverage trends for {companyName} over the last 4 quarters."
+    icon: BarChart3
+
+  - entity_type: PORTCO
+    sort_order: 5
+    label: Operational risks
+    headline: "Risk assessment for {companyName}"
+    prompt_template: "What are the key operational risks for {companyName}? Any concerns from recent board packs or expert calls?"
+    icon: AlertTriangle
+
+  # ─── PE Deal Pipeline ────────────────────────────────────────────────────────
+  - entity_type: PE_DEAL
+    sort_order: 1
+    label: Due diligence
+    headline: "DD analysis for {targetName}"
+    prompt_template: "Run a preliminary due diligence analysis on {targetName} in the {sector} sector. Compare to recent deals."
+    icon: FileText
+
+  - entity_type: PE_DEAL
+    sort_order: 2
+    label: Valuation comps
+    headline: "Valuation for {targetName}"
+    prompt_template: "How does the EV/EBITDA for {targetName} compare to recent {sector} transactions and public comps?"
+    icon: BarChart3
+
+  - entity_type: PE_DEAL
+    sort_order: 3
+    label: Value creation thesis
+    headline: "Value creation for {targetName}"
+    prompt_template: "What is the value creation thesis for {targetName}? Identify operational improvement, revenue growth, and margin expansion opportunities."
+    icon: Target
+
+  - entity_type: PE_DEAL
+    sort_order: 4
+    label: Expert perspectives
+    headline: "Expert views on {targetName}"
+    prompt_template: "Search expert network calls related to {targetName} or the {sector} sector. What do industry experts say?"
+    icon: Users
+
+  # ─── Portfolio Attribution Deep Dives ────────────────────────────────────────
+  - entity_type: PORTFOLIO_ATTRIBUTION
+    sort_order: 1
+    label: Performance Decomposition
+    headline: "Brinson allocation vs selection effects"
+    prompt_template: "Break down the performance attribution for {portfolioName} versus S&P 500 for the most recent quarter. What drove our performance?"
+    icon: BarChart3
+
+  - entity_type: PORTFOLIO_ATTRIBUTION
+    sort_order: 2
+    label: Hidden Factor Analysis
+    headline: "Detect unintended concentrations"
+    prompt_template: "Run a hidden factor analysis on {portfolioName}. Are there any unintended factor concentrations or thematic risks that aren't visible in the standard sector allocation?"
+    icon: Search
+
+  - entity_type: PORTFOLIO_ATTRIBUTION
+    sort_order: 3
+    label: Stress Test
+    headline: "COVID/GFC/Rate Hike scenarios"
+    prompt_template: "Run a stress test on {portfolioName} against the COVID crash scenario. How would the current portfolio perform in a similar event? Which positions are most vulnerable?"
+    icon: AlertTriangle
+
+  - entity_type: PORTFOLIO_ATTRIBUTION
+    sort_order: 4
+    label: Regime Analysis
+    headline: "Current regime + positioning"
+    prompt_template: "What is the current market regime? Show me how {portfolioName} is positioned relative to the regime and whether any rotation is needed."
+    icon: TrendingUp
+
+  # ─── Strategy (Executive) ────────────────────────────────────────────────────
+  - entity_type: STRATEGY
+    sort_order: 1
+    label: Performance drivers
+    headline: "What drove {strategyName}?"
+    prompt_template: "Explain the performance drivers for {strategyName} this quarter. What contributed most to returns versus the benchmark?"
+    icon: TrendingUp
+
+  - entity_type: STRATEGY
+    sort_order: 2
+    label: Client flows
+    headline: "Flow trends for {strategyName}"
+    prompt_template: "Show client flow trends for {strategyName}. Who is allocating and who is redeeming? Any concentration risk?"
+    icon: Users
+
+  - entity_type: STRATEGY
+    sort_order: 3
+    label: Factor exposure
+    headline: "Factor exposures for {strategyName}"
+    prompt_template: "What are the current factor exposures for {strategyName}? Are there any unintended tilts developing?"
+    icon: Layers
+
+  - entity_type: STRATEGY
+    sort_order: 4
+    label: Peer comparison
+    headline: "Peer ranking for {strategyName}"
+    prompt_template: "How does {strategyName} rank against peers on risk-adjusted return, tracking error, and information ratio?"
+    icon: BarChart3
+
+  # ─── Client (Executive) ──────────────────────────────────────────────────────
+  - entity_type: CLIENT
+    sort_order: 1
+    label: Client overview
+    headline: "Overview of {clientName}"
+    prompt_template: "Give me a full overview of {clientName}: AUM, mandates, flow history, and relationship health."
+    icon: Users
+
+  - entity_type: CLIENT
+    sort_order: 2
+    label: Retention risk
+    headline: "Retention risk for {clientName}"
+    prompt_template: "Assess the retention risk for {clientName}. Are there signs of reduced engagement or outflows? What retention strategies should we consider?"
+    icon: AlertTriangle
+
+  - entity_type: CLIENT
+    sort_order: 3
+    label: Mandate review
+    headline: "Mandates for {clientName}"
+    prompt_template: "Show all mandates for {clientName} with benchmark, fee basis, and performance since inception."
+    icon: FileText
+
+  - entity_type: CLIENT
+    sort_order: 4
+    label: Flow history
+    headline: "Flow history for {clientName}"
+    prompt_template: "Show the subscription and redemption history for {clientName} over the past 12 months. Are there any patterns?"
+    icon: TrendingUp
+
+  # ─── Settlements (Operations) ──────────────────────────────────────────────────
+  - entity_type: SETTLEMENT
+    sort_order: 1
+    label: Failure details
+    headline: "Settlement failure for {counterparty}"
+    prompt_template: "Investigate the failed settlement with {counterparty}. What is the failure reason, how long has it been outstanding, and what resolution steps are recommended?"
+    icon: AlertTriangle
+
+  - entity_type: SETTLEMENT
+    sort_order: 2
+    label: Counterparty history
+    headline: "Counterparty {counterparty} reliability"
+    prompt_template: "Analyse the settlement history for counterparty {counterparty}. What is their failure rate and are there systemic issues we should escalate?"
+    icon: Users
+
+  - entity_type: SETTLEMENT
+    sort_order: 3
+    label: Aging analysis
+    headline: "Settlement aging for {portfolioName}"
+    prompt_template: "Show the settlement aging analysis for {portfolioName}. How many trades are aging beyond T+2 and what is the value at risk?"
+    icon: Clock
+
+  - entity_type: SETTLEMENT
+    sort_order: 4
+    label: Value at risk
+    headline: "Unsettled exposure for {portfolioName}"
+    prompt_template: "Calculate the total unsettled exposure for {portfolioName}. Break down by currency, counterparty, and days outstanding."
+    icon: DollarSign
+
+  # ─── Reconciliation Breaks (Operations) ────────────────────────────────────────
+  - entity_type: BREAK
+    sort_order: 1
+    label: Break investigation
+    headline: "Investigate break in {portfolioName}"
+    prompt_template: "Investigate the reconciliation break in {portfolioName}. What is the break type, the difference amount, and the most likely root cause? Suggest resolution steps."
+    icon: Search
+
+  - entity_type: BREAK
+    sort_order: 2
+    label: Resolution guidance
+    headline: "How to resolve {breakType} break"
+    prompt_template: "Provide resolution guidance for a {breakType} reconciliation break. What are the standard remediation steps and which team should own the resolution?"
+    icon: CheckCircle
+
+  - entity_type: BREAK
+    sort_order: 3
+    label: Historic patterns
+    headline: "Break history for {portfolioName}"
+    prompt_template: "Show the reconciliation break history for {portfolioName}. Are there recurring patterns by break type or timing? What preventive actions should we take?"
+    icon: BarChart3
+
+  - entity_type: BREAK
+    sort_order: 4
+    label: Custodian comparison
+    headline: "Internal vs custodian position"
+    prompt_template: "Compare our internal position record with the custodian for this security in {portfolioName}. Where does the discrepancy originate?"
+    icon: Scale
+
+  # ─── ESG Holdings (Risk & Compliance) ──────────────────────────────────────────
+  - entity_type: ESG_HOLDING
+    sort_order: 1
+    label: ESG deep dive
+    headline: "ESG analysis for {securityName}"
+    prompt_template: "Provide a detailed ESG analysis for {securityName}. Cover environmental, social, and governance scores individually. What are the specific risk factors and any improvement trajectory?"
+    icon: Leaf
+
+  - entity_type: ESG_HOLDING
+    sort_order: 2
+    label: Controversy check
+    headline: "Controversies for {securityName}"
+    prompt_template: "Are there any active ESG controversies for {securityName}? Check for environmental incidents, governance failures, social issues, or regulatory actions."
+    icon: AlertTriangle
+
+  - entity_type: ESG_HOLDING
+    sort_order: 3
+    label: Engagement plan
+    headline: "Engagement status for {securityName}"
+    prompt_template: "What is our engagement strategy for {securityName} given its current ESG rating? Have there been previous engagements and what were the outcomes?"
+    icon: MessageCircle
+
+  - entity_type: ESG_HOLDING
+    sort_order: 4
+    label: Peer comparison
+    headline: "ESG peers for {securityName}"
+    prompt_template: "Compare the ESG profile of {securityName} against sector peers. Where does it rank and what best practices could it adopt from leaders?"
+    icon: Users
+
+  # ─── Factors (Quant) ───────────────────────────────────────────────────────────
+  - entity_type: FACTOR
+    sort_order: 1
+    label: Factor attribution
+    headline: "Attribution for {factorName}"
+    prompt_template: "Show the performance attribution for factor {factorName}. What has been the return contribution over 1M, 3M, and YTD? Is the factor signal strengthening or weakening?"
+    icon: BarChart3
+
+  - entity_type: FACTOR
+    sort_order: 2
+    label: IC analysis
+    headline: "Information Coefficient for {factorName}"
+    prompt_template: "Analyse the Information Coefficient trend for {factorName}. Is IC decaying? Show the rolling IC over the past 12 months and compare to long-term average."
+    icon: TrendingUp
+
+  - entity_type: FACTOR
+    sort_order: 3
+    label: Exposure drift
+    headline: "Exposure drift for {factorName}"
+    prompt_template: "What is our current exposure to {factorName} vs target? Has it drifted and what trades would be needed to restore the target loading?"
+    icon: Activity
+
+  - entity_type: FACTOR
+    sort_order: 4
+    label: Regime sensitivity
+    headline: "{factorName} regime behaviour"
+    prompt_template: "How does {factorName} behave across different market regimes? Show historical returns by regime type and the current regime implication for our exposure."
+    icon: Layers
+
+  # ─── Regime (Quant) ────────────────────────────────────────────────────────────
+  - entity_type: REGIME
+    sort_order: 1
+    label: Regime details
+    headline: "Current {regime} regime"
+    prompt_template: "Explain the current {regime} market regime. What indicators define it, how long do they typically last, and what portfolio positioning is optimal?"
+    icon: Activity
+
+  - entity_type: REGIME
+    sort_order: 2
+    label: Transition history
+    headline: "Transition from {regime}"
+    prompt_template: "Show the historical transitions from {regime} regime. Which regimes typically follow, what are the early warning signals, and how should we prepare?"
+    icon: GitBranch
+
+  - entity_type: REGIME
+    sort_order: 3
+    label: Portfolio impact
+    headline: "Impact of {regime} on portfolio"
+    prompt_template: "What is the expected portfolio impact of the current {regime} regime? Which positions benefit and which are vulnerable? Should we adjust our factor tilts?"
+    icon: Shield

@@ -1,0 +1,363 @@
+# =============================================================================
+# Agent Evaluations — Tool-Service Mappings and Evaluation Datasets
+# =============================================================================
+# TOOL_SERVICE_MAP: Maps agent tools to their backing Cortex services.
+# AGENT_EVALUATIONS: Question banks with ground truth for agent testing.
+#
+# Loaded as: config.REF_DATA['evaluations']
+
+tool_service_map:
+  portfolio_copilot:
+    quantitative_analyzer:
+      type: cortex_analyst
+      service: SAM_ANALYST_VIEW
+    financial_analyzer:
+      type: cortex_analyst
+      service: SAM_SEC_FINANCIALS_VIEW
+    implementation_analyzer:
+      type: cortex_analyst
+      service: SAM_IMPLEMENTATION_VIEW
+    supply_chain_analyzer:
+      type: cortex_analyst
+      service: SAM_SUPPLY_CHAIN_VIEW
+    stock_prices:
+      type: cortex_analyst
+      service: SAM_STOCK_PRICES_VIEW
+    sec_financials:
+      type: cortex_analyst
+      service: SAM_SEC_FINANCIALS_VIEW
+    search_broker_research:
+      type: cortex_search
+      service: SAM_EXTERNAL_DOCS
+    search_company_events:
+      type: cortex_search
+      service: SAM_COMPANY_EVENTS
+    search_press_releases:
+      type: cortex_search
+      service: SAM_EXTERNAL_DOCS
+    search_macro_events:
+      type: cortex_search
+      service: SAM_INTERNAL_DOCS
+    search_policies:
+      type: cortex_search
+      service: SAM_INTERNAL_DOCS
+    search_report_templates:
+      type: cortex_search
+      service: SAM_INTERNAL_DOCS
+    search_ips_documents:
+      type: cortex_search
+      service: SAM_INTERNAL_DOCS
+    search_sec_filings:
+      type: cortex_search
+      service: SAM_REAL_SEC_FILINGS
+    pdf_generator:
+      type: generic
+  research_copilot:
+    financial_analyzer:
+      type: cortex_analyst
+      service: SAM_SEC_FINANCIALS_VIEW
+    fundamentals_analyzer:
+      type: cortex_analyst
+      service: SAM_FUNDAMENTALS_VIEW
+    sec_financials:
+      type: cortex_analyst
+      service: SAM_SEC_FINANCIALS_VIEW
+    search_broker_research:
+      type: cortex_search
+      service: SAM_EXTERNAL_DOCS
+    search_company_events:
+      type: cortex_search
+      service: SAM_COMPANY_EVENTS
+    search_press_releases:
+      type: cortex_search
+      service: SAM_EXTERNAL_DOCS
+    search_sec_filings:
+      type: cortex_search
+      service: SAM_REAL_SEC_FILINGS
+    pdf_generator:
+      type: generic
+agent_evaluations:
+  portfolio_copilot:
+    agent_name: AM_portfolio_copilot
+    dataset_version: v1
+    questions:
+    - input_query: What is META's current ESG rating in SAM AI & Digital Innovation?
+      ground_truth_type: static
+      ground_truth_output: META has an ESG grade of CCC with an overall score of 10 out of 100. This is below the BBB minimum
+        threshold required by the ESG mandate. The low rating is driven by governance concerns related to data privacy practices
+        and content moderation.
+      category: core_use_case
+      expected_tools:
+      - quantitative_analyzer
+    - input_query: Which holdings have ESG scores below BBB across all portfolios?
+      ground_truth_type: static
+      ground_truth_output: 'Four companies have ESG grades below the BBB threshold: INTC (Intel) with grade BB and score 35,
+        IBM with grade BB and score 38, CSCO (Cisco) with grade B and score 22, and META with grade CCC and score 10.'
+      category: core_use_case
+      expected_tools:
+      - quantitative_analyzer
+    - input_query: What are the supply chain dependencies for TSMC?
+      ground_truth_type: static
+      ground_truth_output: 'TSMC (TSM) has three major customer dependencies: Apple (AAPL) representing 30% revenue dependency,
+        NVIDIA (NVDA) representing 25% revenue dependency, and AMD representing 18% revenue dependency. All three are classified
+        as High criticality tier.'
+      category: core_use_case
+      expected_tools:
+      - supply_chain_analyzer
+    - input_query: What are the IPS equity allocation limits for SAM Global Balanced 60/40?
+      ground_truth_type: static
+      ground_truth_output: 'SAM Global Balanced 60/40 has a conservative IPS risk profile with the following constraints:
+        maximum equity allocation of 25%, minimum fixed income allocation of 65%, and maximum single issuer concentration
+        of 5%.'
+      category: core_use_case
+      expected_tools:
+      - search_ips_documents
+    - input_query: What is our firm's single issuer concentration limit?
+      ground_truth_type: static
+      ground_truth_output: The firm's single issuer concentration limit is 7% of portfolio market value as a hard breach threshold,
+        with a warning threshold at 6.5%.
+      category: tool_routing
+      expected_tools:
+      - search_policies
+    - input_query: Is there a compliance breach for META in SAM AI & Digital Innovation?
+      ground_truth_type: static
+      ground_truth_output: Yes, there is an ESG downgrade compliance breach for META in the SAM AI & Digital Innovation portfolio.
+        META's ESG rating was downgraded from A to CCC, which is below the BBB minimum threshold. The breach has a 30-day
+        remediation deadline.
+      category: core_use_case
+      expected_tools:
+      - quantitative_analyzer
+    - input_query: What are the top 10 holdings by market value in SAM Technology & Infrastructure as of {max_date}?
+      ground_truth_type: dynamic
+      validation_query: "\n                    SELECT i.PrimaryTicker AS Ticker, i.LegalName,\n                          \
+        \ ROUND(p.PORTFOLIOWEIGHT * 100, 2) AS WeightPct,\n                           ROUND(p.MARKETVALUE_BASE, 0) AS MarketValue\n\
+        \                    FROM {database}.CURATED.FACT_POSITION_DAILY_ABOR p\n                    JOIN {database}.CURATED.DIM_PORTFOLIO\
+        \ dp ON p.PORTFOLIOID = dp.PORTFOLIOID\n                    JOIN {database}.CURATED.DIM_SECURITY s ON p.SECURITYID\
+        \ = s.SECURITYID\n                    JOIN {database}.CURATED.DIM_ISSUER i ON s.ISSUERID = i.ISSUERID\n          \
+        \          WHERE dp.PORTFOLIONAME = 'SAM Technology & Infrastructure'\n                      AND p.HOLDINGDATE = '{max_date}'\n\
+        \                    ORDER BY p.MARKETVALUE_BASE DESC\n                    LIMIT 10\n                "
+      ground_truth_template: 'The top 10 holdings in SAM Technology & Infrastructure as of {max_date} by market value are:
+        {validation_result}'
+      category: core_use_case
+      expected_tools:
+      - quantitative_analyzer
+    - input_query: Show the sector allocation breakdown for SAM Global Flagship Multi-Asset as of {max_date}
+      ground_truth_type: dynamic
+      validation_query: "\n                    SELECT i.GICS_SECTOR AS Sector,\n                           ROUND(SUM(p.PORTFOLIOWEIGHT)\
+        \ * 100, 2) AS WeightPct\n                    FROM {database}.CURATED.FACT_POSITION_DAILY_ABOR p\n               \
+        \     JOIN {database}.CURATED.DIM_PORTFOLIO dp ON p.PORTFOLIOID = dp.PORTFOLIOID\n                    JOIN {database}.CURATED.DIM_SECURITY\
+        \ s ON p.SECURITYID = s.SECURITYID\n                    JOIN {database}.CURATED.DIM_ISSUER i ON s.ISSUERID = i.ISSUERID\n\
+        \                    WHERE dp.PORTFOLIONAME = 'SAM Global Flagship Multi-Asset'\n                      AND p.HOLDINGDATE\
+        \ = '{max_date}'\n                    GROUP BY i.GICS_SECTOR\n                    ORDER BY WeightPct DESC\n      \
+        \          "
+      ground_truth_template: 'Sector allocation for SAM Global Flagship Multi-Asset as of {max_date}: {validation_result}'
+      category: core_use_case
+      expected_tools:
+      - quantitative_analyzer
+    - input_query: How many securities does SAM ESG Leaders Global Equity hold as of {max_date}?
+      ground_truth_type: dynamic
+      validation_query: "\n                    SELECT COUNT(DISTINCT p.SECURITYID) AS NumPositions\n                    FROM\
+        \ {database}.CURATED.FACT_POSITION_DAILY_ABOR p\n                    JOIN {database}.CURATED.DIM_PORTFOLIO dp ON p.PORTFOLIOID\
+        \ = dp.PORTFOLIOID\n                    WHERE dp.PORTFOLIONAME = 'SAM ESG Leaders Global Equity'\n               \
+        \       AND p.HOLDINGDATE = '{max_date}'\n                "
+      ground_truth_template: SAM ESG Leaders Global Equity holds {validation_result} positions as of {max_date}.
+      category: core_use_case
+      expected_tools:
+      - quantitative_analyzer
+    - input_query: What is Apple's latest closing stock price as of {max_date}?
+      ground_truth_type: dynamic
+      validation_query: "\n                    SELECT ROUND(sp.PRICE_CLOSE, 2) AS PRICE_CLOSE, sp.PRICE_DATE\n           \
+        \         FROM {database}.MARKET_DATA.FACT_STOCK_PRICES sp\n                    JOIN {database}.CURATED.DIM_SECURITY\
+        \ s ON sp.SECURITYID = s.SECURITYID\n                    JOIN {database}.CURATED.DIM_ISSUER i ON s.ISSUERID = i.ISSUERID\n\
+        \                    WHERE i.PRIMARYTICKER = 'AAPL'\n                      AND sp.PRICE_DATE = '{max_price_date}'\n\
+        \                "
+      ground_truth_template: Apple (AAPL) closed at ${validation_result} on {max_price_date}.
+      category: core_use_case
+      expected_tools:
+      - stock_prices
+    - input_query: What is the total market value of SAM Technology & Infrastructure as of {max_date}?
+      ground_truth_type: dynamic
+      validation_query: "\n                    SELECT ROUND(SUM(p.MARKETVALUE_BASE), 0) AS TotalMarketValue\n            \
+        \        FROM {database}.CURATED.FACT_POSITION_DAILY_ABOR p\n                    JOIN {database}.CURATED.DIM_PORTFOLIO\
+        \ dp ON p.PORTFOLIOID = dp.PORTFOLIOID\n                    WHERE dp.PORTFOLIONAME = 'SAM Technology & Infrastructure'\n\
+        \                      AND p.HOLDINGDATE = '{max_date}'\n                "
+      ground_truth_template: The total market value of SAM Technology & Infrastructure as of {max_date} is ${validation_result}.
+      category: core_use_case
+      expected_tools:
+      - quantitative_analyzer
+    - input_query: What did Apple's CEO say about AI strategy in the last earnings call?
+      ground_truth_type: static
+      ground_truth_output: The response should contain information from Apple's earnings call transcript discussing AI strategy,
+        sourced from the company events search tool.
+      category: tool_routing
+      expected_tools:
+      - search_company_events
+    - input_query: What is the analyst consensus rating on NVIDIA?
+      ground_truth_type: static
+      ground_truth_output: The response should contain broker research analyst views and ratings on NVIDIA, sourced from the
+        broker research search tool.
+      category: tool_routing
+      expected_tools:
+      - search_broker_research
+    - input_query: What does the IPS say about fixed income allocation for SAM Multi-Asset Income?
+      ground_truth_type: static
+      ground_truth_output: The response should contain IPS constraints for SAM Multi-Asset Income, sourced from the IPS documents
+        search tool.
+      category: tool_routing
+      expected_tools:
+      - search_ips_documents
+    - input_query: Show me NVIDIA's stock price performance over the last 3 months as of {max_date}
+      ground_truth_type: static
+      ground_truth_output: The response should contain NVIDIA stock price data over a 3-month period, sourced from the stock
+        prices tool, not the quantitative analyzer.
+      category: tool_routing
+      expected_tools:
+      - stock_prices
+    - input_query: Show holdings for SAM Nonexistent Portfolio as of {max_date}
+      ground_truth_type: static
+      ground_truth_output: The agent should indicate that SAM Nonexistent Portfolio was not found or does not exist, and may
+        suggest valid portfolio names.
+      category: edge_case
+      expected_tools:
+      - quantitative_analyzer
+    - input_query: Tell me about Apple
+      ground_truth_type: static
+      ground_truth_output: 'The response should combine information from multiple tools: portfolio holdings data showing Apple
+        positions, and possibly research or financial data about Apple. The agent should use at least the quantitative analyzer
+        and potentially search tools.'
+      category: ambiguous
+      expected_tools:
+      - quantitative_analyzer
+      - search_broker_research
+  research_copilot:
+    agent_name: AM_research_copilot
+    dataset_version: v1
+    questions:
+    - input_query: What is Microsoft's latest quarterly revenue and operating margin from SEC filings?
+      ground_truth_type: dynamic
+      validation_query: "\n                    SELECT f.FISCAL_YEAR, f.FISCAL_PERIOD,\n                           ROUND(f.REVENUE,\
+        \ 0) AS REVENUE,\n                           ROUND(f.OPERATING_MARGIN_PCT, 2) AS OPERATING_MARGIN_PCT\n          \
+        \          FROM {database}.MARKET_DATA.FACT_SEC_FINANCIALS f\n                    JOIN {database}.CURATED.DIM_ISSUER\
+        \ i ON f.ISSUERID = i.ISSUERID\n                    WHERE i.PRIMARYTICKER = 'MSFT'\n                      AND f.FISCAL_PERIOD\
+        \ != 'FY'\n                    ORDER BY f.FISCAL_YEAR DESC, f.PERIOD_END_DATE DESC\n                    LIMIT 1\n\
+        \                "
+      ground_truth_template: 'Microsoft''s latest quarterly financials from SEC filings: {validation_result}'
+      category: core_use_case
+      expected_tools:
+      - financial_analyzer
+    - input_query: Show me Apple's revenue trend over the past 4 quarters
+      ground_truth_type: dynamic
+      validation_query: "\n                    SELECT f.FISCAL_YEAR, f.FISCAL_PERIOD,\n                           ROUND(f.REVENUE,\
+        \ 0) AS REVENUE\n                    FROM {database}.MARKET_DATA.FACT_SEC_FINANCIALS f\n                    JOIN {database}.CURATED.DIM_ISSUER\
+        \ i ON f.ISSUERID = i.ISSUERID\n                    WHERE i.PRIMARYTICKER = 'AAPL'\n                      AND f.FISCAL_PERIOD\
+        \ != 'FY'\n                    ORDER BY f.FISCAL_YEAR DESC, f.PERIOD_END_DATE DESC\n                    LIMIT 4\n\
+        \                "
+      ground_truth_template: 'Apple''s revenue over the past 4 quarters: {validation_result}'
+      category: core_use_case
+      expected_tools:
+      - sec_financials
+    - input_query: What is NVIDIA's revenue breakdown by business segment?
+      ground_truth_type: dynamic
+      validation_query: "\n                    SELECT seg.BUSINESS_SEGMENT, ROUND(seg.SEGMENT_REVENUE, 0) AS Revenue\n   \
+        \                 FROM {database}.MARKET_DATA.FACT_SEC_SEGMENTS seg\n                    JOIN {database}.CURATED.DIM_ISSUER\
+        \ i ON seg.ISSUERID = i.ISSUERID\n                    WHERE i.PRIMARYTICKER = 'NVDA'\n                    ORDER BY\
+        \ seg.FISCAL_YEAR DESC, seg.PERIOD_END_DATE DESC, seg.SEGMENT_REVENUE DESC\n                    LIMIT 10\n       \
+        \         "
+      ground_truth_template: 'NVIDIA''s revenue breakdown by segment: {validation_result}'
+      category: core_use_case
+      expected_tools:
+      - sec_financials
+    - input_query: What are the consensus EPS estimates for Apple?
+      ground_truth_type: dynamic
+      validation_query: "\n                    SELECT e.ESTIMATE_YEAR, e.FISCAL_QUARTER, e.DATA_ITEM_ID,\n               \
+        \            ROUND(e.CONSENSUS_MEAN, 2) AS ConsensusMean,\n                           e.NUM_ESTIMATES AS NumAnalysts\n\
+        \                    FROM {database}.MARKET_DATA.FACT_ESTIMATE_CONSENSUS e\n                    JOIN {database}.CURATED.DIM_ISSUER\
+        \ i ON e.ISSUERID = i.ISSUERID\n                    WHERE i.PRIMARYTICKER = 'AAPL'\n                      AND e.DATA_ITEM_ID\
+        \ = 1001\n                    ORDER BY e.ESTIMATE_YEAR DESC, e.FISCAL_QUARTER DESC\n                    LIMIT 4\n\
+        \                "
+      ground_truth_template: 'Apple consensus EPS estimates: {validation_result}'
+      category: core_use_case
+      expected_tools:
+      - fundamentals_analyzer
+    - input_query: What is the current analyst consensus rating for Microsoft?
+      ground_truth_type: dynamic
+      validation_query: "\n                    SELECT e.ESTIMATE_YEAR, e.FISCAL_QUARTER, e.DATA_ITEM_ID,\n               \
+        \            ROUND(e.CONSENSUS_MEAN, 2) AS ConsensusMean,\n                           e.NUM_ESTIMATES AS NumAnalysts\n\
+        \                    FROM {database}.MARKET_DATA.FACT_ESTIMATE_CONSENSUS e\n                    JOIN {database}.CURATED.DIM_ISSUER\
+        \ i ON e.ISSUERID = i.ISSUERID\n                    WHERE i.PRIMARYTICKER = 'MSFT'\n                    ORDER BY e.ESTIMATE_YEAR\
+        \ DESC, e.FISCAL_QUARTER DESC\n                    LIMIT 1\n                "
+      ground_truth_template: 'Microsoft analyst consensus rating: {validation_result}'
+      category: core_use_case
+      expected_tools:
+      - fundamentals_analyzer
+    - input_query: Show me TSMC's gross margin trend from SEC filings
+      ground_truth_type: dynamic
+      validation_query: "\n                    SELECT f.FISCAL_YEAR, f.FISCAL_PERIOD,\n                           ROUND(f.GROSS_MARGIN_PCT,\
+        \ 2) AS GROSS_MARGIN_PCT,\n                           ROUND(f.REVENUE, 0) AS REVENUE,\n                          \
+        \ ROUND(f.GROSS_PROFIT, 0) AS GROSS_PROFIT\n                    FROM {database}.MARKET_DATA.FACT_SEC_FINANCIALS f\n\
+        \                    JOIN {database}.CURATED.DIM_ISSUER i ON f.ISSUERID = i.ISSUERID\n                    WHERE i.PRIMARYTICKER\
+        \ = 'TSM'\n                      AND f.FISCAL_PERIOD != 'FY'\n                    ORDER BY f.FISCAL_YEAR DESC, f.PERIOD_END_DATE\
+        \ DESC\n                    LIMIT 4\n                "
+      ground_truth_template: 'TSMC gross margin data from SEC filings: {validation_result}'
+      category: core_use_case
+      expected_tools:
+      - financial_analyzer
+    - input_query: What did NVIDIA management say about data centre demand in the latest earnings call?
+      ground_truth_type: static
+      ground_truth_output: The response should contain excerpts from NVIDIA's earnings call transcript discussing data centre
+        demand, sourced from the company events search tool.
+      category: tool_routing
+      expected_tools:
+      - search_company_events
+    - input_query: What do analysts think about Apple's services growth?
+      ground_truth_type: static
+      ground_truth_output: The response should contain analyst perspectives on Apple's services segment, sourced from the
+        broker research search tool.
+      category: tool_routing
+      expected_tools:
+      - search_broker_research
+    - input_query: Show me the revenue segment breakdown for NVIDIA from SEC filings
+      ground_truth_type: static
+      ground_truth_output: The response should show NVIDIA's revenue by business segment from SEC filing data, sourced from
+        the sec_financials tool rather than the fundamentals_analyzer.
+      category: tool_routing
+      expected_tools:
+      - sec_financials
+    - input_query: What is the latest broker research on AI chip market dynamics?
+      ground_truth_type: static
+      ground_truth_output: The response should contain broker research discussing AI chip market dynamics, semiconductor demand,
+        and competitive positioning among chip makers.
+      category: core_use_case
+      expected_tools:
+      - search_broker_research
+    - input_query: Summarise recent press releases from Snowflake about product launches
+      ground_truth_type: static
+      ground_truth_output: The response should contain summaries of Snowflake press releases related to product announcements
+        and launches.
+      category: core_use_case
+      expected_tools:
+      - search_press_releases
+    - input_query: What are the key risk factors from TSMC's latest SEC filing?
+      ground_truth_type: static
+      ground_truth_output: The response should contain risk factor information from TSMC's SEC filings, covering geopolitical
+        risks, supply chain concentration, and technology risks.
+      category: core_use_case
+      expected_tools:
+      - search_sec_filings
+    - input_query: Create a comprehensive research report on XYZ Corp including financial analysis and analyst views
+      ground_truth_type: static
+      ground_truth_output: The agent should indicate that XYZ Corp is not found in the coverage universe or that no data is
+        available for this company.
+      category: edge_case
+      expected_tools:
+      - financial_analyzer
+    - input_query: Tell me everything about Microsoft
+      ground_truth_type: static
+      ground_truth_output: 'The response should combine information from multiple tools: SEC financial data, analyst estimates,
+        broker research views, and possibly earnings call commentary. The agent should use multiple tools to provide a comprehensive
+        view.'
+      category: ambiguous
+      expected_tools:
+      - financial_analyzer
+      - search_broker_research
+      - search_company_events

@@ -1,0 +1,139 @@
+# =============================================================================
+# Demo Clients — Institutional clients for Sales Advisor & Executive scenarios
+# =============================================================================
+# These clients are prioritized in DIM_CLIENT generation with their exact names.
+# Categories: standard (established), at_risk (declining flows), new (recently onboarded)
+#
+# Loaded as: config.REF_DATA['clients']
+# Access:    config.DEMO_CLIENTS
+
+clients:
+  meridian:
+    client_name: Meridian Capital Partners
+    client_type: Pension
+    region: North America
+    aum_range:
+    - 400000000
+    - 500000000
+    priority: 1
+    category: standard
+  blackrock_pension:
+    client_name: Blackrock Pension Trust
+    client_type: Pension
+    region: North America
+    aum_range:
+    - 350000000
+    - 450000000
+    priority: 2
+    category: standard
+  yale_endowment:
+    client_name: Yale University Endowment
+    client_type: Endowment
+    region: North America
+    aum_range:
+    - 300000000
+    - 400000000
+    priority: 3
+    category: standard
+  gates_foundation:
+    client_name: Gates Foundation Trust
+    client_type: Foundation
+    region: North America
+    aum_range:
+    - 250000000
+    - 350000000
+    priority: 4
+    category: standard
+  axa_insurance:
+    client_name: AXA Insurance General Account
+    client_type: Insurance
+    region: Europe
+    aum_range:
+    - 200000000
+    - 300000000
+    priority: 5
+    category: standard
+  toyota_pension:
+    client_name: Toyota Motor Pension Fund
+    client_type: Corporate
+    region: Asia Pacific
+    aum_range:
+    - 150000000
+    - 250000000
+    priority: 6
+    category: standard
+  rockefeller_family:
+    client_name: Rockefeller Family Office
+    client_type: Family Office
+    region: North America
+    aum_range:
+    - 100000000
+    - 200000000
+    priority: 7
+    category: standard
+  norway_sovereign:
+    client_name: Norwegian Sovereign Wealth Fund
+    client_type: Pension
+    region: Europe
+    aum_range:
+    - 450000000
+    - 500000000
+    priority: 8
+    category: standard
+  pacific_pension:
+    client_name: Pacific Coast Pension Fund
+    client_type: Pension
+    region: North America
+    aum_range:
+    - 180000000
+    - 220000000
+    priority: 9
+    category: at_risk
+    flow_pattern: declining
+    decline_reason: Manager consolidation initiative - reviewing all external relationships
+  alpine_endowment:
+    client_name: Alpine University Endowment
+    client_type: Endowment
+    region: North America
+    aum_range:
+    - 80000000
+    - 120000000
+    priority: 10
+    category: at_risk
+    flow_pattern: declining
+    decline_reason: Board concerns about recent relative performance vs peers
+  metro_insurance:
+    client_name: Metropolitan Insurance Group
+    client_type: Insurance
+    region: Europe
+    aum_range:
+    - 120000000
+    - 160000000
+    priority: 11
+    category: at_risk
+    flow_pattern: declining
+    decline_reason: New CIO conducting comprehensive manager review
+  midwest_foundation:
+    client_name: Midwest Community Foundation
+    client_type: Foundation
+    region: North America
+    aum_range:
+    - 50000000
+    - 75000000
+    priority: 12
+    category: new
+    days_since_onboard: 45
+    onboard_status: in_progress
+    initial_allocation: SAM ESG Leaders Global Equity
+  nordic_family_office:
+    client_name: Nordic Heritage Family Office
+    client_type: Family Office
+    region: Europe
+    aum_range:
+    - 35000000
+    - 50000000
+    priority: 13
+    category: new
+    days_since_onboard: 21
+    onboard_status: in_progress
+    initial_allocation: SAM Global Thematic Growth

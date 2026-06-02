@@ -1,0 +1,102 @@
+# Portfolio Managers — PM dimension seed data
+#
+# Maps PMs to portfolios for the executive leadership cockpit.
+# Each PM manages 1-3 portfolios. The assignment table links them.
+#
+# Teams: Growth Equities, Sustainable Strategies, Multi-Asset Solutions, 
+#        Fundamental Value, Fixed Income & Alternatives
+
+managers:
+  - pm_id: 1
+    name: "David Chen"
+    title: "Senior Portfolio Manager"
+    team: "Growth Equities"
+    hire_date: "2018-03-15"
+    email: "d.chen@sam-demo.com"
+    aum_capacity: 25000000000
+
+  - pm_id: 2
+    name: "Sarah Mitchell"
+    title: "Head of ESG Investments"
+    team: "Sustainable Strategies"
+    hire_date: "2016-09-01"
+    email: "s.mitchell@sam-demo.com"
+    aum_capacity: 22000000000
+
+  - pm_id: 3
+    name: "James Rodriguez"
+    title: "Portfolio Manager"
+    team: "Multi-Asset Solutions"
+    hire_date: "2020-01-10"
+    email: "j.rodriguez@sam-demo.com"
+    aum_capacity: 18000000000
+
+  - pm_id: 4
+    name: "Emily Nakamura"
+    title: "Senior Portfolio Manager"
+    team: "Fundamental Value"
+    hire_date: "2015-06-22"
+    email: "e.nakamura@sam-demo.com"
+    aum_capacity: 15000000000
+
+  - pm_id: 5
+    name: "Marcus Thompson"
+    title: "Portfolio Manager"
+    team: "Growth Equities"
+    hire_date: "2021-04-05"
+    email: "m.thompson@sam-demo.com"
+    aum_capacity: 12000000000
+
+  - pm_id: 6
+    name: "Olivia Park"
+    title: "Head of Multi-Asset"
+    team: "Multi-Asset Solutions"
+    hire_date: "2017-11-20"
+    email: "o.park@sam-demo.com"
+    aum_capacity: 20000000000
+
+# Portfolio assignments (Lead PM for each portfolio)
+assignments:
+  - portfolio_name: "SAM Tech Disruptors Equity"
+    pm_id: 1
+    role: "Lead"
+
+  - portfolio_name: "SAM AI & Digital Innovation"
+    pm_id: 1
+    role: "Lead"
+
+  - portfolio_name: "SAM Technology & Infrastructure"
+    pm_id: 5
+    role: "Lead"
+
+  - portfolio_name: "SAM ESG Leaders Global Equity"
+    pm_id: 2
+    role: "Lead"
+
+  - portfolio_name: "SAM Sustainable Global Equity"
+    pm_id: 2
+    role: "Lead"
+
+  - portfolio_name: "SAM Renewable & Climate Solutions"
+    pm_id: 2
+    role: "Lead"
+
+  - portfolio_name: "SAM Global Flagship Multi-Asset"
+    pm_id: 3
+    role: "Lead"
+
+  - portfolio_name: "SAM Global Balanced 60/40"
+    pm_id: 6
+    role: "Lead"
+
+  - portfolio_name: "SAM US Value Equity"
+    pm_id: 4
+    role: "Lead"
+
+  - portfolio_name: "SAM US Core Equity"
+    pm_id: 4
+    role: "Lead"
+
+  - portfolio_name: "SAM Multi-Asset Income"
+    pm_id: 6
+    role: "Lead"
