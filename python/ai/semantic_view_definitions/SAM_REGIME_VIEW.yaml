@@ -1,0 +1,220 @@
+name: SAM_REGIME_VIEW
+description: "ML-based market regime detection: GMM model classifying daily market conditions as RISK_ON, TRANSITIONAL, or RISK_OFF"
+tables:
+  - name: benchmark_returns
+    synonyms:
+      - benchmark returns
+      - index returns
+      - market returns
+    description: "Daily benchmark index returns (SPX, ACWI, etc.)."
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: FACT_BENCHMARK_RETURNS
+    primary_key:
+      columns:
+        - benc_pk_date
+        - benc_pk_benchmark_id
+    dimensions:
+      - name: benc_pk_benchmark_id
+        description: "BENCHMARK_ID for benchmark_returns"
+        expr: BENCHMARK_ID
+        data_type: "NUMBER(38,0)"
+      - name: benchmark_code
+        synonyms:
+          - benchmark
+          - index
+        description: "Benchmark index code (SPX, ACWI, RUT, NDX, AGG)"
+        expr: BENCHMARK_CODE
+        data_type: VARCHAR(7)
+    time_dimensions:
+      - name: benc_pk_date
+        description: "DATE for benchmark_returns"
+        expr: DATE
+        data_type: DATE
+    facts:
+      - name: daily_return
+        description: "Daily security return"
+        expr: DAILY_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: total_daily_return
+        synonyms:
+          - daily return
+          - benchmark return
+          - index return
+        description: Daily benchmark return
+        expr: SUM(daily_return)
+        access_modifier: public_access
+  - name: regime_predictions
+    synonyms:
+      - regime
+      - market regime
+      - regime predictions
+      - regime classification
+    description: "ML-based market regime predictions from GMM model. Classifies each trading day as RISK_ON, TRANSITIONAL, or RISK_OFF with cluster probabilities."
+    base_table:
+      database: {{DATABASE}}
+      schema: ML
+      table: FACT_REGIME_PREDICTIONS
+    primary_key:
+      columns:
+        - prediction_date
+    dimensions:
+      - name: model_version
+        description: Version identifier of the regime model used for scoring
+        expr: MODEL_VERSION
+        data_type: VARCHAR(50)
+      - name: regime_label
+        synonyms:
+          - regime
+          - regime type
+          - market regime
+        description: "Market regime classification: RISK_ON, TRANSITIONAL, or RISK_OFF"
+        expr: REGIME_LABEL
+        data_type: VARCHAR(20)
+        is_enum: true
+        sample_values:
+          - "RISK_ON"
+          - "TRANSITIONAL"
+          - "RISK_OFF"
+    time_dimensions:
+      - name: regi_pk_date
+        description: "DATE for regime_predictions"
+        expr: "DATE"
+        data_type: DATE
+    facts:
+      - name: cluster_0_probability
+        description: "Probability of regime cluster 0"
+        expr: CLUSTER_0_PROB
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: cluster_1_probability
+        description: "Probability of regime cluster 1"
+        expr: CLUSTER_1_PROB
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: cluster_2_probability
+        description: "Probability of regime cluster 2"
+        expr: CLUSTER_2_PROB
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: momentum_20d
+        description: "Twenty-day price momentum"
+        expr: MOMENTUM_20D
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: realised_vol_20d
+        description: "Twenty-day realised volatility"
+        expr: REALISED_VOL_20D
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: regime_probability
+        description: "Probability assigned to the regime classification"
+        expr: REGIME_PROBABILITY
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: vix_level
+        description: "VIX index level"
+        expr: VIX_LEVEL
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_cluster_0_probability
+        description: Probability of belonging to cluster 0
+        expr: AVG(cluster_0_probability)
+        access_modifier: public_access
+      - name: average_cluster_1_probability
+        description: Probability of belonging to cluster 1
+        expr: AVG(cluster_1_probability)
+        access_modifier: public_access
+      - name: average_cluster_2_probability
+        description: Probability of belonging to cluster 2
+        expr: AVG(cluster_2_probability)
+        access_modifier: public_access
+      - name: average_momentum_20d
+        synonyms:
+          - momentum
+          - 20 day momentum
+          - short term momentum
+        description: 20-day cumulative SPX return (momentum signal)
+        expr: AVG(momentum_20d)
+        access_modifier: public_access
+      - name: average_realised_vol_20d
+        synonyms:
+          - realised vol
+          - realized volatility
+          - actual volatility
+        description: 20-day realised volatility of SPX returns
+        expr: AVG(realised_vol_20d)
+        access_modifier: public_access
+      - name: average_regime_probability
+        synonyms:
+          - confidence
+          - probability
+          - regime confidence
+        description: Maximum cluster probability (confidence of regime classification)
+        expr: AVG(regime_probability)
+        access_modifier: public_access
+      - name: average_vix_level
+        synonyms:
+          - vix
+          - vix level
+          - implied vol
+        description: VIX level at time of prediction
+        expr: AVG(vix_level)
+        access_modifier: public_access
+    time_dimensions:
+      - name: prediction_date
+        synonyms:
+          - date
+          - trading date
+        description: Trading date of the regime prediction
+        expr: '"DATE"'
+        data_type: DATE
+  - name: vix_daily
+    synonyms:
+      - vix
+      - volatility index
+      - implied volatility
+    description: "Daily VIX data (close, high, low) for volatility context."
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: FACT_VIX_DAILY
+    primary_key:
+      columns:
+        - vix_pk_date
+    time_dimensions:
+      - name: vix_pk_date
+        description: "DATE for vix_daily"
+        expr: DATE
+        data_type: DATE
+    facts:
+      - name: vix_close
+        description: "VIX closing level"
+        expr: VIX_CLOSE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_vix_close
+        synonyms:
+          - vix close
+          - vix closing
+        description: VIX closing level
+        expr: AVG(vix_close)
+        access_modifier: public_access
+relationships:
+  - name: benchmark_to_regime
+    left_table: benchmark_returns
+    right_table: regime_predictions
+    relationship_columns:
+      - left_column: benc_pk_date
+        right_column: prediction_date
+  - name: vix_to_regime
+    left_table: vix_daily
+    right_table: regime_predictions
+    relationship_columns:
+      - left_column: vix_pk_date
+        right_column: prediction_date

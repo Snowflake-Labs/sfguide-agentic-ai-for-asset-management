@@ -13,11 +13,11 @@ placeholders:
 123 Financial District  
 London, EC2N 2AN, United Kingdom  
 +44 20 1234 5678  
-www.sam-demo.example
+www.snowcrestam.com
 
 **Dated**: 31 March 2024
 
-This brochure provides information about the qualifications and business practices of Simulated Asset Management. If you have any questions about the contents of this brochure, please contact us at compliance@sam-demo.example or +44 20 1234 5678.
+This brochure provides information about the qualifications and business practices of Simulated Asset Management. If you have any questions about the contents of this brochure, please contact us at compliance@snowcrestam.com or +44 20 1234 5678.
 
 The information in this brochure has not been approved or verified by the United States Securities and Exchange Commission or by any state securities authority.
 
@@ -353,7 +353,7 @@ Conflicts of interest in proxy voting are resolved by independent third-party re
 
 ### C. Obtaining Proxy Voting Records
 
-Clients may request information about how we voted their proxies by contacting us at compliance@sam-demo.example.
+Clients may request information about how we voted their proxies by contacting us at compliance@snowcrestam.com.
 
 ### D. Class Action Lawsuits
 

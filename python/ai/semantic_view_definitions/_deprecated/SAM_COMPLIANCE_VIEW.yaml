@@ -1,0 +1,313 @@
+name: SAM_COMPLIANCE_VIEW
+description: "Compliance semantic view for monitoring concentration breaches, ESG violations, and mandate compliance tracking"
+tables:
+  - name: alerts
+    synonyms:
+      - breaches
+      - violations
+      - compliance_alerts
+      - warnings
+    description: "Compliance alerts including concentration breaches, ESG violations, and mandate compliance issues"
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_COMPLIANCE_ALERTS
+    primary_key:
+      columns:
+        - aler_pk_alertid
+    dimensions:
+      - name: aler_pk_securityid
+        description: "SECURITYID for alerts"
+        expr: "SECURITYID"
+        data_type: "NUMBER(38,0)"
+      - name: aler_pk_portfolioid
+        description: "PORTFOLIOID for alerts"
+        expr: "PORTFOLIOID"
+        data_type: "NUMBER(38,0)"
+      - name: aler_pk_alertid
+        description: "ALERTID for alerts"
+        expr: ALERTID
+        data_type: "NUMBER(38,0)"
+      - name: alert_type
+        synonyms:
+          - breach_type
+          - violation_type
+          - issue_type
+        description: "Type of compliance alert: CONCENTRATION_BREACH, CONCENTRATION_WARNING, ESG_DOWNGRADE"
+        expr: ALERTTYPE
+        data_type: VARCHAR(50)
+      - name: current_value
+        synonyms:
+          - actual_value
+          - current_level
+          - position_weight
+        description: The current value that triggered the breach
+        expr: CURRENTVALUE
+        data_type: VARCHAR(50)
+      - name: alert_description
+        synonyms:
+          - breach_description
+          - details
+        description: Detailed description of the compliance alert
+        expr: ALERTDESCRIPTION
+        data_type: VARCHAR(16777216)
+      - name: requires_action
+        synonyms:
+          - needs_action
+          - action_required
+          - pending_action
+        description: Whether this alert requires remediation action
+        expr: REQUIRESACTION
+        data_type: BOOLEAN
+      - name: resolution_notes
+        synonyms:
+          - remediation_notes
+          - action_taken
+        description: Notes on how the alert was resolved
+        expr: RESOLUTIONNOTES
+        data_type: VARCHAR(16777216)
+      - name: resolved_by
+        synonyms:
+          - remediated_by
+          - closed_by
+        description: Person who resolved the alert
+        expr: RESOLVEDBY
+        data_type: VARCHAR(100)
+      - name: alert_severity
+        synonyms:
+          - breach_severity
+          - priority
+          - level
+        description: "Alert severity: WARNING or BREACH"
+        expr: ALERTSEVERITY
+        data_type: VARCHAR(20)
+      - name: threshold_value
+        synonyms:
+          - limit
+          - threshold
+          - original_value
+          - limit_value
+        description: The policy threshold or original value that was breached
+        expr: ORIGINALVALUE
+        data_type: VARCHAR(50)
+    facts:
+      - name: current_value_numeric
+        synonyms:
+          - actual_value_raw
+          - current_level_raw
+        description: The current value that triggered the breach (raw per-alert value)
+        expr: CURRENTVALUE
+        data_type: VARCHAR(50)
+        access_modifier: public_access
+      - name: threshold_value_numeric
+        synonyms:
+          - policy_limit
+        description: The policy threshold value that was breached (raw per-alert value)
+        expr: ORIGINALVALUE
+        data_type: VARCHAR(50)
+        access_modifier: public_access
+    metrics:
+      - name: active_alerts
+        synonyms:
+          - open_alerts
+          - unresolved_alerts
+          - active_breaches
+          - pending_alerts
+        description: Count of active/unresolved alerts
+        expr: COUNT(CASE WHEN RESOLVEDDATE IS NULL THEN 1 END)
+        access_modifier: public_access
+      - name: breach_count
+        synonyms:
+          - breaches
+          - violations
+        description: Count of breaches (severity = BREACH)
+        expr: COUNT(CASE WHEN ALERTSEVERITY = 'BREACH' THEN 1 END)
+        access_modifier: public_access
+      - name: concentration_breaches
+        synonyms:
+          - position_breaches
+          - concentration_violations
+        description: Count of concentration breach alerts
+        expr: COUNT(CASE WHEN ALERTTYPE = 'CONCENTRATION_BREACH' THEN 1 END)
+        access_modifier: public_access
+      - name: concentration_warnings
+        synonyms:
+          - position_warnings
+        description: Count of concentration warning alerts
+        expr: COUNT(CASE WHEN ALERTTYPE = 'CONCENTRATION_WARNING' THEN 1 END)
+        access_modifier: public_access
+      - name: days_since_alert
+        synonyms:
+          - alert_age
+          - days_outstanding
+          - time_open
+        description: Days since earliest alert in selection
+        expr: "DATEDIFF(day, MIN(ALERTDATE), CURRENT_DATE())"
+        access_modifier: public_access
+      - name: days_to_deadline
+        synonyms:
+          - days_remaining
+          - time_to_deadline
+        description: Days until earliest action deadline
+        expr: "DATEDIFF(day, CURRENT_DATE(), MIN(ACTIONDEADLINE))"
+        access_modifier: public_access
+      - name: esg_violations
+        synonyms:
+          - esg_breaches
+          - esg_downgrades
+        description: Count of ESG-related violations
+        expr: COUNT(CASE WHEN ALERTTYPE = 'ESG_DOWNGRADE' THEN 1 END)
+        access_modifier: public_access
+      - name: resolved_alerts
+        synonyms:
+          - closed_alerts
+          - resolved_breaches
+          - remediated_alerts
+        description: Count of resolved alerts
+        expr: COUNT(CASE WHEN RESOLVEDDATE IS NOT NULL THEN 1 END)
+        access_modifier: public_access
+      - name: total_alerts
+        synonyms:
+          - alert_count
+          - total_breaches
+          - issue_count
+        description: Total count of compliance alerts
+        expr: COUNT(DISTINCT ALERTID)
+        access_modifier: public_access
+      - name: warning_count
+        synonyms:
+          - warnings
+        description: Count of warnings (severity = WARNING)
+        expr: COUNT(CASE WHEN ALERTSEVERITY = 'WARNING' THEN 1 END)
+        access_modifier: public_access
+    time_dimensions:
+      - name: action_deadline
+        synonyms:
+          - deadline
+          - due_date
+          - remediation_deadline
+        description: Deadline for remediation action (typically 30 days from alert)
+        expr: ACTIONDEADLINE
+        data_type: DATE
+      - name: alert_date
+        synonyms:
+          - breach_date
+          - violation_date
+          - detection_date
+          - date
+        description: Date the alert/breach was detected
+        expr: ALERTDATE
+        data_type: DATE
+      - name: alert_month
+        synonyms:
+          - month
+          - monthly
+        description: Monthly aggregation for breach trend analysis
+        expr: "DATE_TRUNC('MONTH', ALERTDATE)"
+        data_type: DATE
+      - name: resolved_date
+        synonyms:
+          - resolution_date
+          - closed_date
+          - remediated_date
+        description: Date the alert was resolved (NULL if still active)
+        expr: RESOLVEDDATE
+        data_type: DATE
+  - name: portfolios
+    synonyms:
+      - funds
+      - strategies
+    description: Portfolio information
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_PORTFOLIO
+    primary_key:
+      columns:
+        - port_pk_portfolioid
+    dimensions:
+      - name: port_pk_portfolioid
+        description: "PORTFOLIOID for portfolios"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: portfolio_name
+        synonyms:
+          - fund_name
+          - fund
+        description: "Portfolio name. All names start with \"SAM \" prefix, e.g. \"SAM Technology & Infrastructure\"."
+        expr: PORTFOLIONAME
+        data_type: VARCHAR(134217728)
+        is_enum: true
+        sample_values:
+          - SAM Technology & Infrastructure
+          - SAM ESG Leaders Global Equity
+          - SAM Global Flagship Multi-Asset
+          - SAM US Core Equity
+          - SAM Renewable & Climate Solutions
+          - SAM Sustainable Global Equity
+          - SAM AI & Digital Innovation
+          - SAM Global Balanced 60/40
+          - SAM Tech Disruptors Equity
+          - SAM US Value Equity
+          - SAM Multi-Asset Income
+      - name: strategy
+        synonyms:
+          - investment_strategy
+          - portfolio_strategy
+        description: Investment strategy
+        expr: STRATEGY
+        data_type: VARCHAR(134217728)
+  - name: securities
+    synonyms:
+      - stocks
+      - instruments
+      - holdings
+    description: Security master data
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_SECURITY
+    primary_key:
+      columns:
+        - secu_pk_securityid
+    dimensions:
+      - name: secu_pk_securityid
+        description: "SECURITYID for securities"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: security_name
+        synonyms:
+          - company_name
+          - company
+        description: Security/company name
+        expr: DESCRIPTION
+        data_type: VARCHAR(16777216)
+      - name: ticker
+        synonyms:
+          - ticker_symbol
+          - symbol
+          - stock
+        description: Trading ticker
+        expr: TICKER
+        data_type: VARCHAR(16777216)
+relationships:
+  - name: alerts_to_portfolios
+    left_table: alerts
+    right_table: portfolios
+    relationship_columns:
+      - left_column: aler_pk_portfolioid
+        right_column: port_pk_portfolioid
+  - name: alerts_to_securities
+    left_table: alerts
+    right_table: securities
+    relationship_columns:
+      - left_column: aler_pk_securityid
+        right_column: secu_pk_securityid
+module_custom_instructions:
+  sql_generation: "For breach queries, filter to last 30 days by default unless a specific time period is requested. Always show both active and resolved breaches unless the user specifically asks for one. When showing breaches, include the threshold_value and current_value to show the extent of the breach. Order by alert_date descending (most recent first) unless otherwise specified. alert_severity values: WARNING, BREACH. alert_type values: CONCENTRATION_BREACH, CONCENTRATION_WARNING, ESG_DOWNGRADE. Active alerts have resolved_date IS NULL."
+  question_categorization: "If users ask about 'breaches' or 'violations', treat as compliance alert queries. If users mention 'concentration', filter to CONCENTRATION_BREACH or CONCENTRATION_WARNING alert_type values. If users mention 'ESG', filter to ESG_DOWNGRADE alert_type. If users ask about 'active' or 'pending' alerts, filter where resolved_date IS NULL."
+verified_queries:
+  - name: ALERT_SUMMARY
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_COMPLIANCE_VIEW METRICS total_alerts, active_alerts, breach_count, warning_count)"
+    question: What are the compliance alerts?
+    use_as_onboarding_question: true

@@ -1,0 +1,134 @@
+name: SAM_STRESS_SCENARIOS_VIEW
+description: "Stress scenario semantic view for crisis simulation and tail risk analysis. Includes historical scenarios (2008 Financial Crisis, COVID-19, Tech Bubble) and hypothetical scenarios (Stagflation, China Crisis, Climate Shock). Use to understand portfolio vulnerability to extreme market conditions."
+tables:
+  - name: scenarios
+    synonyms:
+      - stress_tests
+      - crisis_scenarios
+      - tail_risk
+    description: Predefined stress scenarios for portfolio stress testing
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_STRESS_SCENARIOS
+    primary_key:
+      columns:
+        - scen_pk_scenario_id
+    dimensions:
+      - name: scen_pk_scenario_id
+        description: "SCENARIO_ID for scenarios"
+        expr: SCENARIO_ID
+        data_type: "NUMBER(38,0)"
+      - name: scenario_description
+        synonyms:
+          - scenario_desc
+          - explanation
+        description: Scenario description
+        expr: DESCRIPTION
+        data_type: VARCHAR(500)
+      - name: historical_reference
+        synonyms:
+          - historical_analog
+          - past_event
+        description: Historical event reference for scenario
+        expr: HISTORICAL_REFERENCE
+        data_type: VARCHAR(200)
+      - name: scenario_name
+        synonyms:
+          - stress_test_name
+          - scenario
+        description: Stress scenario name
+        expr: SCENARIO_NAME
+        data_type: VARCHAR(100)
+      - name: scenario_type
+        synonyms:
+          - stress_type
+          - crisis_type
+        description: "Scenario type (Market Crash, Rate Shock, Geopolitical, etc.)"
+        expr: SCENARIO_TYPE
+        data_type: VARCHAR(50)
+      - name: severity
+        synonyms:
+          - stress_level
+          - magnitude
+        description: "Scenario severity (Moderate, Severe, Extreme)"
+        expr: SEVERITY
+        data_type: VARCHAR(20)
+  - name: shocks
+    synonyms:
+      - factor_shocks
+      - scenario_shocks
+      - stress_assumptions
+    description: Factor shocks applied in each stress scenario
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_SCENARIO_SHOCKS
+    primary_key:
+      columns:
+        - shoc_pk_scenario_id
+        - factor_name
+    dimensions:
+      - name: shoc_pk_scenario_id
+        description: "SCENARIO_ID for shocks"
+        expr: SCENARIO_ID
+        data_type: "NUMBER(38,0)"
+      - name: factor_name
+        synonyms:
+          - risk_factor
+          - stressed_factor
+        description: Factor being shocked
+        expr: FACTOR_NAME
+        data_type: VARCHAR(10)
+    facts:
+      - name: confidence_level
+        expr: CONFIDENCE_LEVEL
+        data_type: "NUMBER(3,2)"
+        access_modifier: public_access
+      - name: factor_shock
+        expr: FACTOR_SHOCK
+        data_type: "NUMBER(3,2)"
+        access_modifier: public_access
+    metrics:
+      - name: average_confidence_level
+        synonyms:
+          - confidence
+          - prob_level
+        description: Average confidence level for shocks
+        expr: AVG(confidence_level)
+        access_modifier: public_access
+      - name: average_factor_shock
+        synonyms:
+          - average_shock
+          - mean_impact
+        description: Average factor shock magnitude
+        expr: AVG(factor_shock)
+        access_modifier: public_access
+      - name: max_factor_shock
+        synonyms:
+          - worst_shock
+          - max_impact
+        description: Maximum factor shock in scenario
+        expr: MAX(factor_shock)
+        access_modifier: public_access
+      - name: min_factor_shock
+        synonyms:
+          - mildest_shock
+          - min_impact
+        description: Minimum factor shock in scenario
+        expr: MIN(factor_shock)
+        access_modifier: public_access
+      - name: shock_count
+        synonyms:
+          - num_factors_shocked
+          - factor_count
+        description: Number of factors shocked in scenario
+        expr: COUNT(*)
+        access_modifier: public_access
+relationships:
+  - name: shocks_to_scenarios
+    left_table: shocks
+    right_table: scenarios
+    relationship_columns:
+      - left_column: shoc_pk_scenario_id
+        right_column: scen_pk_scenario_id

@@ -102,7 +102,7 @@ Escalated to counterparty management
 ---
 
 **Report Reference:** SAM-MO-RECON-2024-12-31  
-**Transaction Operations:** transactions@sam-demo.example  
+**Transaction Operations:** transactions@snowcrestam.com  
 **Report Generated:** 31 December 2024 18:00 GMT  
 **Next Report Due:** 31 January 2025
 

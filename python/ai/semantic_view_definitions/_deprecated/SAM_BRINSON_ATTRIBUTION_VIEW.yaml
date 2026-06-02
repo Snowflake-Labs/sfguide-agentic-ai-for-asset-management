@@ -1,0 +1,454 @@
+name: SAM_BRINSON_ATTRIBUTION_VIEW
+description: "Brinson attribution semantic view for performance decomposition into allocation, selection, and interaction effects. Supports multi-level analysis by sector, country, and industry. Includes multi-period linked attribution (QTD, YTD, trailing 12M) using Frongello base-period adjustment."
+tables:
+  - name: brinson_sector
+    synonyms:
+      - sector_attribution
+      - sector_brinson
+      - sector_effects
+    description: "Sector-level Brinson attribution with allocation, selection, interaction effects"
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_BRINSON_BY_SECTOR
+    primary_key:
+      columns:
+        - brin_pk_date
+        - brin_pk_portfolioid
+        - sector
+    dimensions:
+      - name: brin_pk_portfolioid
+        description: "PORTFOLIOID for brinson_sector"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: sector
+        synonyms:
+          - gics_sector
+          - industry_sector
+          - sector_name
+        description: GICS sector for attribution
+        expr: SECTOR
+        data_type: VARCHAR(22)
+    time_dimensions:
+      - name: brin_pk_date
+        description: "DATE for brinson_sector"
+        expr: DATE
+        data_type: DATE
+    facts:
+      - name: benchmark_weight
+        expr: BENCHMARK_WEIGHT
+        data_type: "NUMBER(3,2)"
+        access_modifier: public_access
+      - name: portfolio_weight
+        expr: PORTFOLIO_WEIGHT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: sector_allocation_effect
+        expr: ALLOCATION_EFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: sector_interaction_effect
+        expr: INTERACTION_EFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: sector_selection_effect
+        expr: SELECTION_EFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_benchmark_weight
+        synonyms:
+          - index_weight
+          - benchmark_allocation
+        description: Benchmark weight in sector
+        expr: AVG(benchmark_weight)
+        access_modifier: public_access
+      - name: average_portfolio_weight
+        synonyms:
+          - fund_weight
+          - portfolio_allocation
+        description: Portfolio weight in sector
+        expr: AVG(portfolio_weight)
+        access_modifier: public_access
+      - name: total_sector_allocation_effect
+        description: Allocation effect for specific sector
+        expr: SUM(sector_allocation_effect)
+        access_modifier: public_access
+      - name: total_sector_interaction_effect
+        description: Interaction effect for specific sector
+        expr: SUM(sector_interaction_effect)
+        access_modifier: public_access
+      - name: total_sector_selection_effect
+        description: Selection effect for specific sector
+        expr: SUM(sector_selection_effect)
+        access_modifier: public_access
+  - name: brinson_summary
+    synonyms:
+      - brinson
+      - attribution
+      - active_return
+      - performance_attribution
+    description: Portfolio-level Brinson attribution decomposition
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_BRINSON_ATTRIBUTION
+    primary_key:
+      columns:
+        - attribution_date
+        - brin_pk_portfolioid
+    dimensions:
+      - name: brin_pk_portfolioid
+        description: "PORTFOLIOID for brinson_summary"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+    facts:
+      - name: active_return
+        expr: ACTIVE_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: allocation_effect
+        expr: ALLOCATION_EFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: interaction_effect
+        expr: INTERACTION_EFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: selection_effect
+        expr: SELECTION_EFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: total_benchmark_return
+        expr: TOTAL_BENCHMARK_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: total_portfolio_return
+        expr: TOTAL_PORTFOLIO_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: total_active_return
+        synonyms:
+          - excess_return
+          - alpha
+          - outperformance
+        description: Portfolio return minus benchmark return (equals allocation + selection + interaction)
+        expr: SUM(active_return)
+        access_modifier: public_access
+      - name: total_allocation_effect
+        synonyms:
+          - sector_allocation
+          - weight_effect
+        description: Return from sector weight differences vs benchmark
+        expr: SUM(allocation_effect)
+        access_modifier: public_access
+      - name: total_interaction_effect
+        synonyms:
+          - combined_effect
+        description: Combined allocation and selection effect
+        expr: SUM(interaction_effect)
+        access_modifier: public_access
+      - name: total_selection_effect
+        synonyms:
+          - stock_selection
+          - security_selection
+        description: Return from security selection within sectors
+        expr: SUM(selection_effect)
+        access_modifier: public_access
+      - name: sum_benchmark_return
+        synonyms:
+          - benchmark_return
+          - index_return
+        description: Total benchmark return for period (sum of daily returns)
+        expr: SUM(total_benchmark_return)
+        access_modifier: public_access
+      - name: sum_portfolio_return
+        synonyms:
+          - portfolio_return
+          - fund_return
+        description: Total portfolio return for period (sum of daily returns)
+        expr: SUM(total_portfolio_return)
+        access_modifier: public_access
+    time_dimensions:
+      - name: attribution_date
+        synonyms:
+          - period_date
+          - analysis_date
+        description: Date of attribution analysis
+        expr: DATE
+        data_type: DATE
+  - name: portfolios
+    synonyms:
+      - funds
+      - strategies
+    description: Portfolio reference data
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_PORTFOLIO
+    primary_key:
+      columns:
+        - portfolio_id
+    dimensions:
+      - name: portfolio_id
+        synonyms:
+          - fund_id
+          - portfolio_number
+        description: Numeric portfolio identifier (1-11)
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: portfolio_name
+        synonyms:
+          - fund_name
+          - strategy_name
+          - Flagship
+          - Global Flagship
+          - Multi-Asset
+        description: "Portfolio name - SAM Global Flagship Multi-Asset is the flagship portfolio (ID=2). All names start with \"SAM \" prefix, e.g. \"SAM Technology & Infrastructure\", \"SAM Global Flagship Multi-Asset\"."
+        expr: PORTFOLIONAME
+        data_type: VARCHAR(134217728)
+      - name: strategy
+        synonyms:
+          - investment_style
+          - strategy_type
+        description: Investment strategy type
+        expr: STRATEGY
+        data_type: VARCHAR(134217728)
+  - name: multi_level_detail
+    synonyms:
+      - multi_level
+      - country_attribution
+      - industry_attribution
+    description: Multi-level Brinson attribution by sector, country, or industry with drill-down support
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: FACT_BRINSON_ATTRIBUTION_DETAIL
+    primary_key:
+      columns:
+        - detail_date
+        - mult_pk_portfolioid
+        - grouping_dimension
+        - grouping_value
+    dimensions:
+      - name: mult_pk_portfolioid
+        description: "PORTFOLIOID for multi_level_detail"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: grouping_dimension
+        description: "Attribution decomposition level: SECTOR, COUNTRY, or INDUSTRY"
+        expr: GROUPINGDIMENSION
+        data_type: VARCHAR(30)
+      - name: grouping_value
+        synonyms:
+          - group_name
+          - attribution_group
+        description: "Value within the grouping dimension (e.g. 'Information Technology', 'US', 'Semiconductors')"
+        expr: GROUPINGVALUE
+        data_type: VARCHAR(200)
+      - name: parent_grouping_value
+        synonyms:
+          - parent_group
+          - drill_up
+        description: "Parent group for drill-down hierarchy (e.g. 'Information Technology' is parent of 'Semiconductors' industry)"
+        expr: PARENTGROUPINGVALUE
+        data_type: VARCHAR(200)
+    facts:
+      - name: detail_allocation_effect
+        expr: ALLOCATIONEFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: detail_selection_effect
+        expr: SELECTIONEFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: detail_interaction_effect
+        expr: INTERACTIONEFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: detail_total_effect
+        expr: TOTALEFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: detail_portfolio_weight
+        expr: PORTFOLIOWEIGHT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: detail_benchmark_weight
+        expr: BENCHMARKWEIGHT
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: total_detail_allocation_effect
+        description: Sum of allocation effects across multi-level groups
+        expr: SUM(detail_allocation_effect)
+        access_modifier: public_access
+      - name: total_detail_selection_effect
+        description: Sum of selection effects across multi-level groups
+        expr: SUM(detail_selection_effect)
+        access_modifier: public_access
+      - name: total_detail_total_effect
+        description: Total effect across multi-level groups
+        expr: SUM(detail_total_effect)
+        access_modifier: public_access
+      - name: average_detail_portfolio_weight
+        description: Average portfolio weight across periods
+        expr: AVG(detail_portfolio_weight)
+        access_modifier: public_access
+      - name: average_detail_benchmark_weight
+        description: Average benchmark weight across periods
+        expr: AVG(detail_benchmark_weight)
+        access_modifier: public_access
+    time_dimensions:
+      - name: detail_date
+        description: Date of multi-level attribution analysis
+        expr: DATE
+        data_type: DATE
+  - name: linked_attribution
+    synonyms:
+      - linked
+      - period_attribution
+      - qtd_attribution
+      - ytd_attribution
+    description: Multi-period linked attribution using Frongello base-period adjustment (QTD, YTD, trailing 12M)
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: FACT_BRINSON_LINKED
+    primary_key:
+      columns:
+        - period_end
+        - period_type
+        - link_pk_portfolioid
+        - linked_grouping_dimension
+        - linked_grouping_value
+    dimensions:
+      - name: link_pk_portfolioid
+        description: "PORTFOLIOID for linked_attribution"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: period_type
+        synonyms:
+          - aggregation_period
+          - time_horizon
+        description: "Linked period type: QTD, YTD, or TRAILING_12M"
+        expr: PERIODTYPE
+        data_type: VARCHAR(20)
+      - name: linked_grouping_dimension
+        description: "Grouping dimension for linked attribution: SECTOR, COUNTRY, or INDUSTRY"
+        expr: GROUPINGDIMENSION
+        data_type: VARCHAR(30)
+      - name: linked_grouping_value
+        description: "Group value within the linked attribution dimension"
+        expr: GROUPINGVALUE
+        data_type: VARCHAR(200)
+    facts:
+      - name: linked_allocation
+        expr: LINKEDALLOCATION
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: linked_selection
+        expr: LINKEDSELECTION
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: linked_interaction
+        expr: LINKEDINTERACTION
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: linked_total_effect
+        expr: LINKEDTOTALEFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: compounded_active_return
+        expr: COMPOUNDEDACTIVERETURN
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: total_linked_allocation
+        description: Sum of linked allocation effects
+        expr: SUM(linked_allocation)
+        access_modifier: public_access
+      - name: total_linked_selection
+        description: Sum of linked selection effects
+        expr: SUM(linked_selection)
+        access_modifier: public_access
+      - name: total_linked_total_effect
+        description: Sum of linked total effects
+        expr: SUM(linked_total_effect)
+        access_modifier: public_access
+    time_dimensions:
+      - name: period_end
+        synonyms:
+          - linked_date
+        description: End date of the linked attribution period
+        expr: PERIODEND
+        data_type: DATE
+relationships:
+  - name: sector_to_portfolio
+    left_table: brinson_sector
+    right_table: portfolios
+    relationship_columns:
+      - left_column: brin_pk_portfolioid
+        right_column: portfolio_id
+  - name: sector_to_summary
+    left_table: brinson_sector
+    right_table: brinson_summary
+    relationship_columns:
+      - left_column: brin_pk_date
+        right_column: attribution_date
+      - left_column: brin_pk_portfolioid
+        right_column: brin_pk_portfolioid
+  - name: summary_to_portfolio
+    left_table: brinson_summary
+    right_table: portfolios
+    relationship_columns:
+      - left_column: brin_pk_portfolioid
+        right_column: portfolio_id
+  - name: multi_level_to_portfolio
+    left_table: multi_level_detail
+    right_table: portfolios
+    relationship_columns:
+      - left_column: mult_pk_portfolioid
+        right_column: portfolio_id
+  - name: linked_to_portfolio
+    left_table: linked_attribution
+    right_table: portfolios
+    relationship_columns:
+      - left_column: link_pk_portfolioid
+        right_column: portfolio_id
+module_custom_instructions:
+  sql_generation: "Data is at MONTHLY granularity (month-end dates). CRITICAL DATE HANDLING: For \"most recent quarter\" or \"last quarter\", use attribution_date > DATEADD('month', -3, (SELECT MAX(attribution_date) FROM table)) to get exactly 3 months. SUM all metrics for period totals. The Brinson identity ALWAYS holds: active_return = allocation_effect + selection_effect + interaction_effect. When filtering by portfolio: Always use portfolio_name dimension with ILIKE. MULTI-LEVEL ATTRIBUTION: The multi_level_detail table contains attribution by SECTOR, COUNTRY, and INDUSTRY. Filter by grouping_dimension to select the level. Example: WHERE grouping_dimension = 'COUNTRY'. For drill-down, filter by parent_grouping_value (e.g. WHERE grouping_dimension = 'INDUSTRY' AND parent_grouping_value = 'Information Technology'). LINKED ATTRIBUTION: The linked_attribution table has pre-computed QTD, YTD, and TRAILING_12M linked effects using Frongello base-period adjustment. Filter by period_type and linked_grouping_dimension. These linked effects account for compounding and sum correctly to the compounded active return."
+verified_queries:
+  - name: QUARTERLY_BRINSON_SUMMARY
+    sql: "SELECT __portfolios.portfolio_name, MIN(__brinson_summary.attribution_date) AS PERIOD_START, MAX(__brinson_summary.attribution_date) AS PERIOD_END, COUNT(__brinson_summary.attribution_date) AS NUM_MONTHS, SUM(__brinson_summary.sum_portfolio_return) AS sum_portfolio_return, SUM(__brinson_summary.sum_benchmark_return) AS sum_benchmark_return, SUM(__brinson_summary.total_active_return) AS total_active_return, SUM(__brinson_summary.ALLOCATION_EFFECT) AS ALLOCATION_EFFECT, SUM(__brinson_summary.SELECTION_EFFECT) AS SELECTION_EFFECT, SUM(__brinson_summary.INTERACTION_EFFECT) AS INTERACTION_EFFECT FROM __brinson_summary JOIN __portfolios ON __brinson_summary.PORTFOLIOID = __portfolios.PORTFOLIOID WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __brinson_summary.attribution_date > DATEADD('month', -3, (SELECT MAX(__brinson_summary.attribution_date) FROM __brinson_summary)) GROUP BY __portfolios.portfolio_name"
+    question: Break down the performance attribution for SAM Global Flagship portfolio versus S&P 500 for the most recent quarter. What drove performance?
+    use_as_onboarding_question: true
+  - name: SECTOR_ATTRIBUTION_BREAKDOWN
+    sql: "SELECT __brinson_sector.sector, AVG(__brinson_sector.average_portfolio_weight) AS AVG_average_portfolio_weight, AVG(__brinson_sector.average_benchmark_weight) AS AVG_average_benchmark_weight, SUM(__brinson_sector.ALLOCATION_EFFECT) AS ALLOCATION_EFFECT, SUM(__brinson_sector.SELECTION_EFFECT) AS SELECTION_EFFECT, SUM(__brinson_sector.INTERACTION_EFFECT) AS INTERACTION_EFFECT, SUM(__brinson_sector.ALLOCATION_EFFECT) + SUM(__brinson_sector.SELECTION_EFFECT) + SUM(__brinson_sector.INTERACTION_EFFECT) AS TOTAL_EFFECT FROM __brinson_sector JOIN __portfolios ON __brinson_sector.PORTFOLIOID = __portfolios.PORTFOLIOID WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __brinson_sector.attribution_date > DATEADD('month', -3, (SELECT MAX(__brinson_sector.attribution_date) FROM __brinson_sector)) GROUP BY __brinson_sector.sector ORDER BY ABS(SUM(__brinson_sector.ALLOCATION_EFFECT) + SUM(__brinson_sector.SELECTION_EFFECT) + SUM(__brinson_sector.INTERACTION_EFFECT)) DESC"
+    question: Which sectors contributed most to performance last quarter? Show allocation and selection effects by sector.
+    use_as_onboarding_question: true
+  - name: MONTHLY_ATTRIBUTION_TREND
+    sql: "SELECT __brinson_summary.attribution_date, SUM(__brinson_summary.sum_portfolio_return) AS PORTFOLIO_RETURN, SUM(__brinson_summary.sum_benchmark_return) AS BENCHMARK_RETURN, SUM(__brinson_summary.total_active_return) AS total_active_return, SUM(__brinson_summary.ALLOCATION_EFFECT) AS ALLOCATION_EFFECT, SUM(__brinson_summary.SELECTION_EFFECT) AS SELECTION_EFFECT, SUM(__brinson_summary.INTERACTION_EFFECT) AS INTERACTION_EFFECT FROM __brinson_summary JOIN __portfolios ON __brinson_summary.PORTFOLIOID = __portfolios.PORTFOLIOID WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __brinson_summary.attribution_date > DATEADD('month', -6, (SELECT MAX(__brinson_summary.attribution_date) FROM __brinson_summary)) GROUP BY __brinson_summary.attribution_date ORDER BY __brinson_summary.attribution_date"
+    question: Show me the monthly attribution trend for SAM Global Flagship over the last 6 months.
+    use_as_onboarding_question: false
+  - name: PORTFOLIO_WEIGHT_COMPARISON
+    sql: "SELECT __brinson_sector.sector, AVG(__brinson_sector.average_portfolio_weight) AS average_portfolio_weight, AVG(__brinson_sector.average_benchmark_weight) AS average_benchmark_weight, AVG(__brinson_sector.average_portfolio_weight) - AVG(__brinson_sector.average_benchmark_weight) AS ACTIVE_WEIGHT FROM __brinson_sector JOIN __portfolios ON __brinson_sector.PORTFOLIOID = __portfolios.PORTFOLIOID WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __brinson_sector.attribution_date = (SELECT MAX(__brinson_sector.attribution_date) FROM __brinson_sector) GROUP BY __brinson_sector.sector ORDER BY ACTIVE_WEIGHT DESC"
+    question: Compare the portfolio weights versus benchmark weights by sector for SAM Global Flagship.
+    use_as_onboarding_question: false
+  - name: ALL_PORTFOLIOS_ACTIVE_RETURN
+    sql: "SELECT __portfolios.portfolio_name, SUM(__brinson_summary.total_active_return) AS total_active_return, SUM(__brinson_summary.ALLOCATION_EFFECT) AS ALLOCATION_EFFECT, SUM(__brinson_summary.SELECTION_EFFECT) AS SELECTION_EFFECT, SUM(__brinson_summary.INTERACTION_EFFECT) AS INTERACTION_EFFECT FROM __brinson_summary JOIN __portfolios ON __brinson_summary.PORTFOLIOID = __portfolios.PORTFOLIOID WHERE __brinson_summary.attribution_date > DATEADD('month', -3, (SELECT MAX(__brinson_summary.attribution_date) FROM __brinson_summary)) GROUP BY __portfolios.portfolio_name ORDER BY total_active_return DESC"
+    question: Compare active returns across all portfolios for the most recent quarter.
+    use_as_onboarding_question: false
+  - name: COUNTRY_ATTRIBUTION_BREAKDOWN
+    sql: "SELECT __multi_level_detail.grouping_value, SUM(__multi_level_detail.ALLOCATIONEFFECT) AS ALLOCATION_EFFECT, SUM(__multi_level_detail.SELECTIONEFFECT) AS SELECTION_EFFECT, SUM(__multi_level_detail.INTERACTIONEFFECT) AS INTERACTION_EFFECT, SUM(__multi_level_detail.TOTALEFFECT) AS TOTAL_EFFECT FROM __multi_level_detail JOIN __portfolios ON __multi_level_detail.PORTFOLIOID = __portfolios.PORTFOLIOID WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __multi_level_detail.grouping_dimension = 'COUNTRY' AND __multi_level_detail.detail_date > DATEADD('month', -3, (SELECT MAX(__multi_level_detail.detail_date) FROM __multi_level_detail)) GROUP BY __multi_level_detail.grouping_value ORDER BY ABS(SUM(__multi_level_detail.TOTALEFFECT)) DESC"
+    question: Show attribution by country for SAM Global Flagship. Which countries drove outperformance?
+    use_as_onboarding_question: true
+  - name: INDUSTRY_DRILL_DOWN
+    sql: "SELECT __multi_level_detail.grouping_value AS INDUSTRY, __multi_level_detail.parent_grouping_value AS SECTOR, SUM(__multi_level_detail.ALLOCATIONEFFECT) AS ALLOCATION_EFFECT, SUM(__multi_level_detail.SELECTIONEFFECT) AS SELECTION_EFFECT, SUM(__multi_level_detail.TOTALEFFECT) AS TOTAL_EFFECT FROM __multi_level_detail JOIN __portfolios ON __multi_level_detail.PORTFOLIOID = __portfolios.PORTFOLIOID WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __multi_level_detail.grouping_dimension = 'INDUSTRY' AND __multi_level_detail.parent_grouping_value = 'Information Technology' AND __multi_level_detail.detail_date > DATEADD('month', -3, (SELECT MAX(__multi_level_detail.detail_date) FROM __multi_level_detail)) GROUP BY __multi_level_detail.grouping_value, __multi_level_detail.parent_grouping_value ORDER BY ABS(SUM(__multi_level_detail.TOTALEFFECT)) DESC"
+    question: Drill down into Information Technology — what industries contributed to performance?
+    use_as_onboarding_question: false
+  - name: YTD_LINKED_ATTRIBUTION
+    sql: "SELECT __linked_attribution.linked_grouping_value, SUM(__linked_attribution.LINKEDALLOCATION) AS LINKED_ALLOCATION, SUM(__linked_attribution.LINKEDSELECTION) AS LINKED_SELECTION, SUM(__linked_attribution.LINKEDINTERACTION) AS LINKED_INTERACTION, SUM(__linked_attribution.LINKEDTOTALEFFECT) AS LINKED_TOTAL FROM __linked_attribution JOIN __portfolios ON __linked_attribution.PORTFOLIOID = __portfolios.PORTFOLIOID WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __linked_attribution.period_type = 'YTD' AND __linked_attribution.linked_grouping_dimension = 'SECTOR' AND __linked_attribution.period_end = (SELECT MAX(__linked_attribution.period_end) FROM __linked_attribution) GROUP BY __linked_attribution.linked_grouping_value ORDER BY ABS(SUM(__linked_attribution.LINKEDTOTALEFFECT)) DESC"
+    question: Show the YTD linked attribution by sector for SAM Global Flagship.
+    use_as_onboarding_question: true

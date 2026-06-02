@@ -1,0 +1,193 @@
+name: SAM_SEC_SEGMENTS_VIEW
+description: "SEC revenue segment breakdowns by geography (Europe, Americas, Asia Pacific), business unit, customer, and legal entity. Use GEOGRAPHY dimension to analyze regional revenue (e.g., BlackRock European division revenue). Use company_name to filter by company."
+tables:
+  - name: issuers
+    synonyms:
+      - companies
+      - firms
+      - corporations
+      - entities
+    description: Company/issuer master data
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_ISSUER
+    primary_key:
+      columns:
+        - issu_pk_issuerid
+    dimensions:
+      - name: issu_pk_issuerid
+        description: "ISSUERID for issuers"
+        expr: ISSUERID
+        data_type: "NUMBER(38,0)"
+      - name: CIK
+        synonyms:
+          - cik_number
+          - sec_id
+        description: SEC Central Index Key
+        expr: CIK
+        data_type: VARCHAR(16777216)
+      - name: company_name
+        synonyms:
+          - company
+          - firm_name
+          - corporation
+          - issuer
+          - entity
+          - name
+        description: "Company legal name for filtering (e.g., NVIDIA CORP, APPLE INC., MICROSOFT CORP)"
+        expr: LEGALNAME
+        data_type: VARCHAR(16777216)
+      - name: GICS_SECTOR
+        synonyms:
+          - gics
+          - gics_sector
+          - sector
+          - sector_classification
+        description: GICS Level 1 sector classification
+        expr: GICS_SECTOR
+        data_type: VARCHAR(16777216)
+      - name: INDUSTRY
+        synonyms:
+          - industry
+        description: Industry classification (SIC)
+        expr: SIC_DESCRIPTION
+        data_type: VARCHAR(16777216)
+      - name: TICKER
+        synonyms:
+          - ticker
+          - symbol
+          - stock_symbol
+          - stock
+        description: "Stock ticker symbol for filtering (e.g., NVDA, AAPL, MSFT)"
+        expr: PrimaryTicker
+        data_type: VARCHAR(16777216)
+  - name: segments
+    synonyms:
+      - revenue_segments
+      - geographic_segments
+      - business_segments
+      - regional_revenue
+    description: "Revenue segment breakdowns by geography, business unit, customer, and legal entity from SEC filings"
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: FACT_SEC_SEGMENTS
+    primary_key:
+      columns:
+        - segm_pk_segment_id
+    dimensions:
+      - name: segm_pk_issuerid
+        description: "ISSUERID for segments"
+        expr: "ISSUERID"
+        data_type: "NUMBER(38,0)"
+      - name: segm_pk_segment_id
+        description: "SEGMENT_ID for segments"
+        expr: SEGMENT_ID
+        data_type: "NUMBER(38,0)"
+      - name: business_segment
+        synonyms:
+          - segment
+          - business_unit
+          - division
+          - product_line
+        description: "Business segment (product, service, brand)"
+        expr: BUSINESS_SEGMENT
+        data_type: VARCHAR(16777216)
+      - name: business_sub_segment
+        synonyms:
+          - subsegment
+          - sub_segment
+        description: Business sub-segment
+        expr: BUSINESS_SUBSEGMENT
+        data_type: VARCHAR(16777216)
+      - name: CUSTOMER
+        synonyms:
+          - major_customer
+          - key_customer
+        description: Major customer name if reported
+        expr: CUSTOMER
+        data_type: VARCHAR(16777216)
+      - name: fiscal_period
+        synonyms:
+          - quarter
+          - period
+          - q
+        description: "Fiscal period (FY, Q1, Q2, Q3, Q4)"
+        expr: FISCAL_PERIOD
+        data_type: VARCHAR(16777216)
+      - name: fiscal_year
+        synonyms:
+          - year
+          - fy
+          - fiscal
+        description: Fiscal year
+        expr: FISCAL_YEAR
+        data_type: "NUMBER(38,0)"
+      - name: GEOGRAPHY
+        synonyms:
+          - geography
+          - region
+          - geo
+          - location
+          - geographic_region
+          - europe
+          - americas
+          - asia
+        description: "Geographic segment (Europe, Americas, Asia Pacific, etc.)"
+        expr: GEOGRAPHY
+        data_type: VARCHAR(16777216)
+      - name: legal_entity
+        synonyms:
+          - subsidiary
+        description: Legal entity or subsidiary
+        expr: LEGAL_ENTITY
+        data_type: VARCHAR(16777216)
+    facts:
+      - name: segment_revenue
+        expr: SEGMENT_REVENUE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: SEGMENT_COUNT
+        synonyms:
+          - number_of_segments
+        description: Number of segment records
+        expr: COUNT(DISTINCT SEGMENT_ID)
+        access_modifier: public_access
+      - name: total_segment_revenue
+        synonyms:
+          - geographic_revenue
+          - regional_revenue
+          - division_revenue
+          - european_revenue
+          - americas_revenue
+        description: "Revenue by segment (geography, business unit, etc.)"
+        expr: SUM(segment_revenue)
+        access_modifier: public_access
+    time_dimensions:
+      - name: period_end_date
+        synonyms:
+          - period_end
+          - end_date
+        description: Period end date
+        expr: PERIOD_END_DATE
+        data_type: DATE
+relationships:
+  - name: segments_to_issuers
+    left_table: segments
+    right_table: issuers
+    relationship_columns:
+      - left_column: segm_pk_issuerid
+        right_column: issu_pk_issuerid
+module_custom_instructions:
+  sql_generation: "CRITICAL PERIOD OVERLAP: FACT_SEC_SEGMENTS contains BOTH annual (fiscal_period='FY') and quarterly (Q1-Q4) rows per company per segment. For fiscal year totals, ALWAYS filter fiscal_period = 'FY'. Summing segment revenue without this filter doubles the actual values because FY total equals Q1+Q2+Q3+Q4. CRITICAL SEGMENT HIERARCHY: SEC XBRL segment data includes hierarchical overlaps. Parent segments (e.g. COMPUTE AND NETWORKING for NVIDIA) contain child segments (COMPUTE + NETWORKING). DATA CENTER may be nearly identical to its parent category. NEVER sum segment_revenue across all business segments for a company - this will overcount by 2-3x due to parent/child overlap. Always query specific named segments individually, or present individual segment values rather than summing all. When showing segment breakdowns, list each segment with its revenue rather than computing a total. For geographic breakdowns, individual geographies (UNITED STATES, TAIWAN, etc.) generally do not overlap and can be summed. However, some companies report a catch-all NULL geography row that represents the company total - exclude NULL geography rows when summing geographic segments."
+verified_queries:
+  - name: GEOGRAPHIC_REVENUE
+    sql: "SELECT __issuers.company_name, __segments.fiscal_year, __segments.fiscal_period, __segments.GEOGRAPHY, SUM(__segments.SEGMENT_REVENUE) AS total_segment_revenue FROM __segments JOIN __issuers ON (__segments.IssuerID = __issuers.IssuerID) WHERE __segments.fiscal_period = 'FY' AND __segments.GEOGRAPHY IS NOT NULL GROUP BY __issuers.company_name, __segments.fiscal_year, __segments.fiscal_period, __segments.GEOGRAPHY ORDER BY total_segment_revenue DESC"
+    question: What is the geographic revenue breakdown for a company?
+    use_as_onboarding_question: true
+  - name: BUSINESS_SEGMENT_REVENUE
+    sql: "SELECT __issuers.company_name, __segments.fiscal_year, __segments.fiscal_period, __segments.business_segment, SUM(__segments.SEGMENT_REVENUE) AS total_segment_revenue FROM __segments JOIN __issuers ON (__segments.IssuerID = __issuers.IssuerID) WHERE __segments.fiscal_period = 'FY' AND __segments.business_segment IS NOT NULL GROUP BY __issuers.company_name, __segments.fiscal_year, __segments.fiscal_period, __segments.business_segment ORDER BY total_segment_revenue DESC"
+    question: What are the business segment revenues?
+    use_as_onboarding_question: true

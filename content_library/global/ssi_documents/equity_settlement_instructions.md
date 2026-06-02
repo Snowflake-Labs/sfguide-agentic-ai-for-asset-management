@@ -69,8 +69,8 @@ All splits, dividends processed automatically via custodian feed
 Withholding tax reclaim via custodian
 
 ## Contact Information
-**Operations Desk:** ops.desk@sam-demo.example / +44-20-7123-4570  
-**Settlements Team:** settlements@sam-demo.example  
+**Operations Desk:** ops.desk@snowcrestam.com / +44-20-7123-4570  
+**Settlements Team:** settlements@snowcrestam.com  
 **After Hours Emergency:** +44 20 7123 4567 (24/7)
 
 ---

@@ -1,0 +1,1109 @@
+name: SAM_ATTRIBUTION_VIEW
+description: "Consolidated attribution domain view covering Brinson performance decomposition (allocation, selection, interaction effects by sector/country/industry), factor attribution (7 systematic factors), hidden factor detection (5 AI-discovered latent risks), rolling analytics (drift tracking, cumulative paths), anomaly detection (8 risk alert types), cross-portfolio peer learning (alpha persistence, repeatable alpha sources), and currency attribution (local/FX/AVU decomposition). Supports multi-level drill-down, linked multi-period attribution (QTD/YTD/trailing 12M), and regime-conditional analysis."
+tables:
+  - name: brinson_sector
+    synonyms:
+      - sector_attribution
+      - sector_brinson
+      - sector_effects
+    description: "Sector-level Brinson attribution with allocation, selection, interaction effects"
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: FACT_BRINSON_BY_SECTOR
+    primary_key:
+      columns:
+        - sector_date
+        - bri_portfolioid
+        - sector
+    dimensions:
+      - name: bri_portfolioid
+        description: "PORTFOLIOID key for brinson_sector"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: sector
+        synonyms:
+          - gics_sector
+          - industry_sector
+          - sector_name
+        description: GICS sector for attribution
+        expr: SECTOR
+        data_type: VARCHAR(22)
+    facts:
+      - name: sector_benchmark_weight
+        description: Benchmark weight in sector
+        expr: BENCHMARK_WEIGHT
+        data_type: "NUMBER(3,2)"
+        access_modifier: public_access
+      - name: sector_portfolio_weight
+        description: Portfolio weight in sector
+        expr: PORTFOLIO_WEIGHT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: sector_allocation_effect
+        description: Allocation effect for this sector
+        expr: ALLOCATION_EFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: sector_interaction_effect
+        description: Interaction effect for this sector
+        expr: INTERACTION_EFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: sector_selection_effect
+        description: Selection effect for this sector
+        expr: SELECTION_EFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_sector_benchmark_weight
+        synonyms:
+          - index_weight
+          - benchmark_allocation
+        description: Benchmark weight in sector
+        expr: AVG(sector_benchmark_weight)
+        access_modifier: public_access
+      - name: average_sector_portfolio_weight
+        synonyms:
+          - fund_weight
+          - portfolio_allocation
+        description: Portfolio weight in sector
+        expr: AVG(sector_portfolio_weight)
+        access_modifier: public_access
+      - name: total_sector_allocation_effect
+        description: Allocation effect for specific sector
+        expr: SUM(sector_allocation_effect)
+        access_modifier: public_access
+      - name: total_sector_interaction_effect
+        description: Interaction effect for specific sector
+        expr: SUM(sector_interaction_effect)
+        access_modifier: public_access
+      - name: total_sector_selection_effect
+        description: Selection effect for specific sector
+        expr: SUM(sector_selection_effect)
+        access_modifier: public_access
+    time_dimensions:
+      - name: sector_date
+        description: Date of sector-level attribution
+        expr: DATE
+        data_type: DATE
+  - name: brinson_summary
+    synonyms:
+      - brinson
+      - attribution
+      - active_return
+      - performance_attribution
+    description: Portfolio-level Brinson attribution decomposition
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: FACT_BRINSON_ATTRIBUTION
+    primary_key:
+      columns:
+        - attribution_date
+        - bri_portfolioid
+    dimensions:
+      - name: bri_portfolioid
+        description: "PORTFOLIOID key for brinson_summary"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+    facts:
+      - name: active_return
+        description: "Active return (portfolio minus benchmark)"
+        expr: ACTIVE_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: allocation_effect
+        description: "Brinson allocation effect (over/underweight contribution)"
+        expr: ALLOCATION_EFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: interaction_effect
+        description: "Brinson interaction (cross) effect"
+        expr: INTERACTION_EFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: selection_effect
+        description: "Brinson security selection effect within each group"
+        expr: SELECTION_EFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: total_benchmark_return
+        description: "Total benchmark return for the attribution period"
+        expr: TOTAL_BENCHMARK_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: total_portfolio_return
+        description: "Total portfolio return for the attribution period"
+        expr: TOTAL_PORTFOLIO_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: total_active_return
+        synonyms:
+          - excess_return
+          - alpha
+          - outperformance
+        description: Portfolio return minus benchmark return (equals allocation + selection + interaction)
+        expr: SUM(active_return)
+        access_modifier: public_access
+      - name: total_allocation_effect
+        synonyms:
+          - weight_effect
+        description: Return from sector weight differences vs benchmark
+        expr: SUM(allocation_effect)
+        access_modifier: public_access
+      - name: total_interaction_effect
+        description: Combined allocation and selection effect
+        expr: SUM(interaction_effect)
+        access_modifier: public_access
+      - name: total_selection_effect
+        synonyms:
+          - stock_selection
+          - security_selection
+        description: Return from security selection within sectors
+        expr: SUM(selection_effect)
+        access_modifier: public_access
+      - name: sum_benchmark_return
+        synonyms:
+          - benchmark_return
+          - index_return
+        description: Total benchmark return for period
+        expr: SUM(total_benchmark_return)
+        access_modifier: public_access
+      - name: sum_portfolio_return
+        synonyms:
+          - portfolio_return
+          - fund_return
+        description: Total portfolio return for period
+        expr: SUM(total_portfolio_return)
+        access_modifier: public_access
+    time_dimensions:
+      - name: attribution_date
+        synonyms:
+          - period_date
+          - analysis_date
+        description: Date of attribution analysis
+        expr: DATE
+        data_type: DATE
+  - name: portfolios
+    synonyms:
+      - funds
+      - strategies
+    description: Portfolio reference data (shared dimension across all attribution tables)
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: DIM_PORTFOLIO
+    primary_key:
+      columns:
+        - portfolio_id
+    dimensions:
+      - name: portfolio_id
+        synonyms:
+          - fund_id
+          - portfolio_number
+        description: Numeric portfolio identifier (1-11)
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: portfolio_name
+        synonyms:
+          - fund_name
+          - strategy_name
+        description: "Portfolio name - all names start with \"SAM \" prefix, e.g. \"SAM Technology & Infrastructure\", \"SAM Global Flagship Multi-Asset\"."
+        expr: PORTFOLIONAME
+        data_type: VARCHAR(134217728)
+      - name: strategy
+        synonyms:
+          - investment_style
+          - strategy_type
+        description: Investment strategy type
+        expr: STRATEGY
+        data_type: VARCHAR(134217728)
+        is_enum: true
+        sample_values:
+          - "Core"
+          - "ESG"
+          - "Growth"
+          - "Income"
+          - "Multi-Asset"
+          - "Value"
+  - name: multi_level_detail
+    synonyms:
+      - multi_level
+      - country_attribution
+      - industry_attribution
+    description: Multi-level Brinson attribution by sector, country, or industry with drill-down support
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: FACT_BRINSON_ATTRIBUTION_DETAIL
+    primary_key:
+      columns:
+        - detail_date
+        - mul_portfolioid
+        - grouping_dimension
+        - grouping_value
+    dimensions:
+      - name: mul_portfolioid
+        description: "PORTFOLIOID key for multi_level_detail"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: grouping_dimension
+        description: "Attribution decomposition level: SECTOR, COUNTRY, or INDUSTRY"
+        expr: GROUPINGDIMENSION
+        data_type: VARCHAR(30)
+        is_enum: true
+        sample_values:
+          - "SECTOR"
+          - "COUNTRY"
+          - "INDUSTRY"
+      - name: grouping_value
+        synonyms:
+          - group_name
+          - attribution_group
+        description: "Value within the grouping dimension (e.g. 'Information Technology', 'US', 'Semiconductors')"
+        expr: GROUPINGVALUE
+        data_type: VARCHAR(200)
+      - name: parent_grouping_value
+        synonyms:
+          - parent_group
+          - drill_up
+        description: "Parent group for drill-down hierarchy (e.g. 'Information Technology' is parent of 'Semiconductors')"
+        expr: PARENTGROUPINGVALUE
+        data_type: VARCHAR(200)
+    facts:
+      - name: detail_allocation_effect
+        description: "Detail-level allocation effect (country/industry within sector)"
+        expr: ALLOCATIONEFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: detail_selection_effect
+        description: "Detail-level selection effect"
+        expr: SELECTIONEFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: detail_interaction_effect
+        description: "Detail-level interaction effect"
+        expr: INTERACTIONEFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: detail_total_effect
+        description: "Detail-level total attribution effect"
+        expr: TOTALEFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: detail_portfolio_weight
+        description: "Detail-level portfolio weight"
+        expr: PORTFOLIOWEIGHT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: detail_benchmark_weight
+        description: "Detail-level benchmark weight"
+        expr: BENCHMARKWEIGHT
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: total_detail_allocation_effect
+        description: Sum of allocation effects across multi-level groups
+        expr: SUM(detail_allocation_effect)
+        access_modifier: public_access
+      - name: total_detail_selection_effect
+        description: Sum of selection effects across multi-level groups
+        expr: SUM(detail_selection_effect)
+        access_modifier: public_access
+      - name: total_detail_total_effect
+        description: Total effect across multi-level groups
+        expr: SUM(detail_total_effect)
+        access_modifier: public_access
+      - name: average_detail_portfolio_weight
+        description: Average portfolio weight across periods
+        expr: AVG(detail_portfolio_weight)
+        access_modifier: public_access
+      - name: average_detail_benchmark_weight
+        description: Average benchmark weight across periods
+        expr: AVG(detail_benchmark_weight)
+        access_modifier: public_access
+    time_dimensions:
+      - name: detail_date
+        description: Date of multi-level attribution analysis
+        expr: DATE
+        data_type: DATE
+  - name: linked_attribution
+    synonyms:
+      - linked
+      - period_attribution
+      - qtd_attribution
+      - ytd_attribution
+    description: Multi-period linked attribution using Frongello base-period adjustment (QTD, YTD, trailing 12M)
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: FACT_BRINSON_LINKED
+    primary_key:
+      columns:
+        - period_end
+        - period_type
+        - lin_portfolioid
+        - linked_grouping_dimension
+        - linked_grouping_value
+    dimensions:
+      - name: lin_portfolioid
+        description: "PORTFOLIOID key for linked_attribution"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: period_type
+        synonyms:
+          - aggregation_period
+          - time_horizon
+        description: "Linked period type: QTD, YTD, or TRAILING_12M"
+        expr: PERIODTYPE
+        data_type: VARCHAR(20)
+        is_enum: true
+        sample_values:
+          - "MONTHLY"
+          - "QTD"
+          - "YTD"
+          - "TRAILING_12M"
+      - name: linked_grouping_dimension
+        description: "Grouping dimension for linked attribution: SECTOR, COUNTRY, or INDUSTRY"
+        expr: GROUPINGDIMENSION
+        data_type: VARCHAR(30)
+      - name: linked_grouping_value
+        description: Group value within the linked attribution dimension
+        expr: GROUPINGVALUE
+        data_type: VARCHAR(200)
+    facts:
+      - name: linked_allocation
+        description: "Multi-period linked allocation effect"
+        expr: LINKEDALLOCATION
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: linked_selection
+        description: "Multi-period linked selection effect"
+        expr: LINKEDSELECTION
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: linked_interaction
+        description: "Multi-period linked interaction effect"
+        expr: LINKEDINTERACTION
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: linked_total_effect
+        description: "Multi-period linked total attribution effect"
+        expr: LINKEDTOTALEFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: compounded_active_return
+        description: "Compounded multi-period active return"
+        expr: COMPOUNDEDACTIVERETURN
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: total_linked_allocation
+        description: Sum of linked allocation effects
+        expr: SUM(linked_allocation)
+        access_modifier: public_access
+      - name: total_linked_selection
+        description: Sum of linked selection effects
+        expr: SUM(linked_selection)
+        access_modifier: public_access
+      - name: total_linked_total_effect
+        description: Sum of linked total effects
+        expr: SUM(linked_total_effect)
+        access_modifier: public_access
+    time_dimensions:
+      - name: period_end
+        synonyms:
+          - linked_date
+        description: End date of the linked attribution period
+        expr: PERIODEND
+        data_type: DATE
+  - name: factor_attribution
+    synonyms:
+      - factor_returns
+      - factor_contribution
+      - factor_analysis
+      - systematic_factors
+    description: "Factor-based performance attribution showing factor exposures and contributions for 7 factors: Market, Value, Growth, Momentum, Quality, Size, Volatility"
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: FACT_FACTOR_ATTRIBUTION
+    primary_key:
+      columns:
+        - factor_date
+        - fac_portfolioid
+        - factor_name
+    dimensions:
+      - name: fac_portfolioid
+        description: "PORTFOLIOID key for factor_attribution"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: factor_name
+        synonyms:
+          - factor
+          - risk_factor
+          - systematic_factor
+        description: "Factor name (Market, Value, Growth, Momentum, Quality, Size, Volatility)"
+        expr: FACTOR_NAME
+        data_type: VARCHAR(10)
+        is_enum: true
+        sample_values:
+          - "Growth"
+          - "Market"
+          - "Momentum"
+          - "Quality"
+          - "Size"
+          - "Value"
+          - "Volatility"
+    facts:
+      - name: factor_contribution
+        description: Return contribution from this factor exposure
+        expr: FACTOR_CONTRIBUTION
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: factor_return
+        description: Factor return (premium) for the period
+        expr: FACTOR_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: portfolio_factor_exposure
+        description: Portfolio exposure (loading/beta) to this factor
+        expr: PORTFOLIO_FACTOR_EXPOSURE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_factor_return
+        synonyms:
+          - factor_premium
+          - factor_spread
+        description: Average factor return
+        expr: AVG(factor_return)
+        access_modifier: public_access
+      - name: average_portfolio_factor_exposure
+        synonyms:
+          - beta
+          - factor_loading
+          - factor_exposure
+        description: Average portfolio exposure to factor
+        expr: AVG(portfolio_factor_exposure)
+        access_modifier: public_access
+      - name: total_factor_contribution
+        synonyms:
+          - factor_performance
+          - systematic_return
+        description: Total return contribution from factor exposure
+        expr: SUM(factor_contribution)
+        access_modifier: public_access
+    time_dimensions:
+      - name: factor_date
+        description: Date of factor attribution
+        expr: DATE
+        data_type: DATE
+  - name: hidden_factors
+    synonyms:
+      - latent_factors
+      - unpriced_risks
+      - hidden_exposures
+      - alternative_factors
+    description: "AI-detected hidden factor exposures: AI_Exposure, Reshoring_Benefit, Rate_Convexity, Climate_Transition, Geopolitical_Risk"
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: FACT_HIDDEN_FACTOR_EXPOSURES
+    primary_key:
+      columns:
+        - hidden_factor_date
+        - hid_portfolioid
+        - hidden_factor_name
+    dimensions:
+      - name: hid_portfolioid
+        description: "PORTFOLIOID key for hidden_factors"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: hidden_factor_name
+        synonyms:
+          - hidden_factor
+          - latent_factor
+          - alternative_factor
+        description: "Hidden factor name (AI_Exposure, Reshoring_Benefit, Rate_Convexity, Climate_Transition, Geopolitical_Risk)"
+        expr: FACTOR_NAME
+        data_type: VARCHAR(18)
+        is_enum: true
+        sample_values:
+          - "AI_Exposure"
+          - "Climate_Transition"
+          - "Geopolitical_Risk"
+          - "Rate_Convexity"
+          - "Reshoring_Benefit"
+      - name: hidden_factor_description
+        synonyms:
+          - factor_desc
+        description: Description of hidden factor
+        expr: DESCRIPTION
+        data_type: VARCHAR(81)
+    facts:
+      - name: explanatory_power
+        description: Variance explained by this hidden factor (R-squared contribution)
+        expr: EXPLANATORY_POWER
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: hidden_factor_exposure
+        description: Portfolio exposure to this hidden factor
+        expr: FACTOR_EXPOSURE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_explanatory_power
+        description: Average explanatory power per hidden factor
+        expr: AVG(explanatory_power)
+        access_modifier: public_access
+      - name: average_hidden_factor_exposure
+        synonyms:
+          - hidden_beta
+          - latent_exposure
+        description: Average hidden factor exposure
+        expr: AVG(hidden_factor_exposure)
+        access_modifier: public_access
+      - name: max_hidden_factor_exposure
+        synonyms:
+          - peak_hidden_exposure
+        description: Maximum hidden factor exposure
+        expr: MAX(hidden_factor_exposure)
+        access_modifier: public_access
+      - name: total_explanatory_power
+        synonyms:
+          - variance_explained
+        description: Total variance explained by hidden factors
+        expr: SUM(explanatory_power)
+        access_modifier: public_access
+    time_dimensions:
+      - name: hidden_factor_date
+        description: Date of hidden factor analysis
+        expr: DATE
+        data_type: DATE
+  - name: rolling
+    synonyms:
+      - rolling_attribution
+      - factor_drift
+      - exposure_path
+      - contribution_path
+    description: "Rolling factor analytics with exposure drift, cumulative contributions, and regime classification"
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: V_FACTOR_ROLLING_ANALYTICS
+    primary_key:
+      columns:
+        - rolling_date
+        - rol_portfolioid
+        - rolling_factor_name
+    dimensions:
+      - name: rol_portfolioid
+        description: "PORTFOLIOID key for rolling"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: rolling_factor_name
+        synonyms:
+          - rolling_factor
+        description: "Factor name for rolling analytics (Market, Value, Growth, Momentum, Quality, Size, Volatility)"
+        expr: FACTOR_NAME
+        data_type: VARCHAR(10)
+      - name: market_regime
+        synonyms:
+          - risk_regime
+          - market_state
+        description: "Monthly market regime (RISK_ON, RISK_OFF, TRANSITIONAL, NEUTRAL)"
+        expr: MARKET_REGIME
+        data_type: VARCHAR(12)
+        is_enum: true
+        sample_values:
+          - "RISK_ON"
+          - "RISK_OFF"
+          - "TRANSITIONAL"
+      - name: volatility_regime
+        synonyms:
+          - vol_regime
+          - vix_regime
+        description: "Monthly volatility regime (LOW_VOL, NORMAL, ELEVATED, HIGH_VOL)"
+        expr: VOLATILITY_REGIME
+        data_type: VARCHAR(8)
+        is_enum: true
+        sample_values:
+          - "LOW_VOL"
+          - "NORMAL"
+          - "ELEVATED"
+          - "HIGH_VOL"
+    facts:
+      - name: rolling_contribution
+        description: Monthly factor contribution
+        expr: CONTRIBUTION
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: cumulative_contribution
+        description: Running total of factor contribution from start
+        expr: CUMULATIVE_CONTRIBUTION
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: rolling_exposure
+        description: Current factor exposure
+        expr: EXPOSURE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: exposure_drift
+        description: Current exposure minus 6-month trailing average
+        expr: EXPOSURE_DRIFT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: rolling_3m_contribution
+        description: Trailing 3-month factor contribution
+        expr: ROLLING_3M_CONTRIBUTION
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: rolling_6m_contribution
+        description: Trailing 6-month factor contribution
+        expr: ROLLING_6M_CONTRIBUTION
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_rolling_contribution
+        description: Average factor contribution
+        expr: AVG(rolling_contribution)
+        access_modifier: public_access
+      - name: average_rolling_exposure
+        description: Average factor exposure
+        expr: AVG(rolling_exposure)
+        access_modifier: public_access
+      - name: average_exposure_drift
+        synonyms:
+          - mean_drift
+        description: Average exposure drift from 6-month trailing average
+        expr: AVG(exposure_drift)
+        access_modifier: public_access
+      - name: max_cumulative_contribution
+        synonyms:
+          - final_cumulative
+        description: Latest cumulative contribution value
+        expr: MAX(cumulative_contribution)
+        access_modifier: public_access
+      - name: max_drift_zscore
+        synonyms:
+          - peak_drift
+        description: Maximum absolute drift z-score
+        expr: MAX(ABS(EXPOSURE_DRIFT_ZSCORE))
+        access_modifier: public_access
+      - name: total_rolling_contribution
+        description: Total factor contribution
+        expr: SUM(rolling_contribution)
+        access_modifier: public_access
+    time_dimensions:
+      - name: rolling_date
+        description: Date of rolling analytics
+        expr: DATE
+        data_type: DATE
+  - name: anomalies
+    synonyms:
+      - anomaly_alerts
+      - risk_flags
+      - attribution_anomalies
+      - drift_alerts
+    description: "Monthly attribution anomaly detection: FACTOR_DRIFT_ALERT, CONCENTRATION_ALERT, SINGLE_FACTOR_DOMINANCE, STYLE_INCONSISTENCY, ATTRIBUTION_SPIKE, ALLOCATION_DRIFT_ALERT, SELECTION_REVERSAL_ALERT, WEIGHT_CONCENTRATION_ALERT"
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: V_ATTRIBUTION_ANOMALIES
+    primary_key:
+      columns:
+        - anomaly_date
+        - ano_portfolioid
+    dimensions:
+      - name: ano_portfolioid
+        description: "PORTFOLIOID key for anomalies"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: anomaly_severity
+        synonyms:
+          - risk_level
+          - alert_level
+        description: "Overall anomaly severity: HIGH (3+ flags), MEDIUM (1-2), LOW (0)"
+        expr: ANOMALY_SEVERITY
+        data_type: VARCHAR(6)
+        is_enum: true
+        sample_values:
+          - "LOW"
+          - "MEDIUM"
+          - "HIGH"
+      - name: concentrated_sector
+        description: Sector with concentration alert (if any)
+        expr: CONCENTRATED_SECTOR
+        data_type: VARCHAR(22)
+      - name: dominant_factor
+        description: Factor dominating returns (if single-factor dominance alert)
+        expr: DOMINANT_FACTOR
+        data_type: VARCHAR(10)
+      - name: drift_factor
+        description: Factor with drift alert (if any)
+        expr: DRIFT_FACTOR
+        data_type: VARCHAR(134217728)
+      - name: allocation_drift_group
+        description: Sector with allocation weight drift
+        expr: ALLOCATION_DRIFT_GROUP
+        data_type: VARCHAR(200)
+      - name: reversal_sector
+        description: Sector where selection effect reversed sign
+        expr: REVERSAL_SECTOR
+        data_type: VARCHAR(200)
+      - name: heavy_weight_group
+        description: Sector with portfolio weight exceeding 40%
+        expr: HEAVY_WEIGHT_GROUP
+        data_type: VARCHAR(200)
+    facts:
+      - name: drift_magnitude
+        description: Magnitude of factor drift
+        expr: DRIFT_MAGNITUDE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: concentration_count
+        description: Count of sector concentration alerts
+        expr: SUM(CASE WHEN CONCENTRATION_ALERT THEN 1 ELSE 0 END)
+        access_modifier: public_access
+      - name: dominance_count
+        description: Count of single-factor dominance alerts
+        expr: SUM(CASE WHEN SINGLE_FACTOR_DOMINANCE THEN 1 ELSE 0 END)
+        access_modifier: public_access
+      - name: drift_alert_count
+        description: Count of factor drift alerts
+        expr: SUM(CASE WHEN FACTOR_DRIFT_ALERT THEN 1 ELSE 0 END)
+        access_modifier: public_access
+      - name: high_severity_count
+        synonyms:
+          - critical_alerts
+        description: Count of HIGH severity anomalies
+        expr: SUM(CASE WHEN ANOMALY_SEVERITY = 'HIGH' THEN 1 ELSE 0 END)
+        access_modifier: public_access
+      - name: anomaly_portfolio_count
+        description: Number of portfolios analysed
+        expr: COUNT(DISTINCT PORTFOLIOID)
+        access_modifier: public_access
+      - name: spike_count
+        description: Count of attribution spike alerts
+        expr: SUM(CASE WHEN ATTRIBUTION_SPIKE THEN 1 ELSE 0 END)
+        access_modifier: public_access
+      - name: style_alert_count
+        description: Count of style inconsistency alerts
+        expr: SUM(CASE WHEN STYLE_INCONSISTENCY THEN 1 ELSE 0 END)
+        access_modifier: public_access
+      - name: allocation_drift_count
+        description: Count of allocation drift alerts
+        expr: SUM(CASE WHEN ALLOCATION_DRIFT_ALERT THEN 1 ELSE 0 END)
+        access_modifier: public_access
+      - name: selection_reversal_count
+        description: Count of selection reversal alerts
+        expr: SUM(CASE WHEN SELECTION_REVERSAL_ALERT THEN 1 ELSE 0 END)
+        access_modifier: public_access
+      - name: weight_concentration_count
+        description: Count of weight concentration alerts
+        expr: SUM(CASE WHEN WEIGHT_CONCENTRATION_ALERT THEN 1 ELSE 0 END)
+        access_modifier: public_access
+    time_dimensions:
+      - name: anomaly_date
+        description: Date of anomaly analysis
+        expr: DATE
+        data_type: DATE
+  - name: peers
+    synonyms:
+      - cross_portfolio
+      - peer_comparison
+      - portfolio_ranking
+      - strategy_comparison
+    description: Cross-portfolio attribution analytics for peer learning and alpha source identification (trailing 12-month statistics)
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: V_CROSS_PORTFOLIO_ANALYTICS
+    primary_key:
+      columns:
+        - pee_portfolioid
+    dimensions:
+      - name: pee_portfolioid
+        description: "PORTFOLIOID key for peers"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: best_factor_source
+        synonyms:
+          - strongest_factor
+        description: Factor with highest average contribution over trailing 12 months
+        expr: BEST_FACTOR_SOURCE
+        data_type: VARCHAR(134217728)
+      - name: best_selection_sector
+        synonyms:
+          - top_selection_sector
+        description: Sector with highest average stock selection effect
+        expr: BEST_SELECTION_SECTOR
+        data_type: VARCHAR(22)
+      - name: worst_factor_source
+        synonyms:
+          - weakest_factor
+        description: Factor with lowest average contribution over trailing 12 months
+        expr: WORST_FACTOR_SOURCE
+        data_type: VARCHAR(134217728)
+    facts:
+      - name: allocation_consistency
+        description: Allocation effect consistency (lower = more repeatable)
+        expr: ALLOCATION_CONSISTENCY
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: alpha_persistence
+        description: Percentage of months with positive active return (trailing 12M)
+        expr: ALPHA_PERSISTENCE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: peer_avg_active_return
+        description: Average active return over trailing 12 months
+        expr: AVG_ACTIVE_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: peer_avg_allocation_effect
+        description: Average allocation effect over trailing 12 months
+        expr: AVG_ALLOCATION_EFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: peer_avg_selection_effect
+        description: Average selection effect over trailing 12 months
+        expr: AVG_SELECTION_EFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: selection_consistency
+        description: Selection effect consistency (lower = more repeatable)
+        expr: SELECTION_CONSISTENCY
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_alpha_persistence
+        description: Average alpha persistence across portfolios
+        expr: AVG(alpha_persistence)
+        access_modifier: public_access
+      - name: average_peer_active_return
+        description: Average active return across portfolios
+        expr: AVG(peer_avg_active_return)
+        access_modifier: public_access
+      - name: max_alpha_persistence
+        synonyms:
+          - best_hit_rate
+        description: Highest alpha persistence across portfolios
+        expr: MAX(alpha_persistence)
+        access_modifier: public_access
+      - name: min_allocation_consistency
+        synonyms:
+          - most_consistent_allocation
+        description: Best (lowest) allocation consistency
+        expr: MIN(allocation_consistency)
+        access_modifier: public_access
+      - name: min_selection_consistency
+        synonyms:
+          - most_consistent_selection
+        description: Best (lowest) selection consistency
+        expr: MIN(selection_consistency)
+        access_modifier: public_access
+  - name: currency_attribution
+    synonyms:
+      - fx_attribution
+      - currency_effects
+      - currency_decomposition
+    description: Return decomposition into local currency return, FX return, and asset value uncertainty (cross-term)
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: FACT_CURRENCY_ATTRIBUTION
+    primary_key:
+      columns:
+        - currency_date
+        - cur_portfolioid
+        - cur_securityid
+    dimensions:
+      - name: cur_securityid
+        description: "SECURITYID key for currency_attribution"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: cur_portfolioid
+        description: "PORTFOLIOID key for currency_attribution"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: local_currency
+        synonyms:
+          - trading_currency
+          - security_currency
+        description: Currency of the security
+        expr: LOCALCURRENCY
+        data_type: VARCHAR(10)
+      - name: base_currency
+        synonyms:
+          - reporting_currency
+        description: Base currency of the portfolio (USD)
+        expr: BASECURRENCY
+        data_type: VARCHAR(10)
+    facts:
+      - name: local_return
+        description: Return in the security's local currency
+        expr: LOCALRETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: fx_return
+        description: Currency return component (change in exchange rate)
+        expr: FXRETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: avu_return
+        synonyms:
+          - cross_term
+          - asset_value_uncertainty
+        description: Asset Value Uncertainty cross-term (R_local x R_fx)
+        expr: AVURETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: base_return
+        description: Total return in portfolio base currency (local + fx + avu)
+        expr: BASERETURN
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_local_return
+        description: Average local currency return
+        expr: AVG(local_return)
+        access_modifier: public_access
+      - name: average_fx_return
+        description: Average FX return component
+        expr: AVG(fx_return)
+        access_modifier: public_access
+      - name: total_fx_impact
+        synonyms:
+          - currency_impact
+          - fx_effect
+        description: Total FX impact across all positions
+        expr: SUM(fx_return)
+        access_modifier: public_access
+    time_dimensions:
+      - name: currency_date
+        description: Date of currency attribution
+        expr: DATE
+        data_type: DATE
+  - name: securities
+    description: Security reference data for currency attribution drill-down
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: DIM_SECURITY
+    primary_key:
+      columns:
+        - sec_securityid
+    dimensions:
+      - name: sec_securityid
+        description: "SECURITYID key for securities"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: security_ticker
+        description: Security ticker symbol
+        expr: TICKER
+        data_type: VARCHAR(20)
+      - name: security_description
+        description: Security name/description
+        expr: DESCRIPTION
+        data_type: VARCHAR(134217728)
+relationships:
+  - name: sector_to_portfolio
+    left_table: brinson_sector
+    right_table: portfolios
+    relationship_columns:
+      - left_column: bri_portfolioid
+        right_column: portfolio_id
+  - name: sector_to_summary
+    left_table: brinson_sector
+    right_table: brinson_summary
+    relationship_columns:
+      - left_column: sector_date
+        right_column: attribution_date
+      - left_column: bri_portfolioid
+        right_column: bri_portfolioid
+  - name: summary_to_portfolio
+    left_table: brinson_summary
+    right_table: portfolios
+    relationship_columns:
+      - left_column: bri_portfolioid
+        right_column: portfolio_id
+  - name: multi_level_to_portfolio
+    left_table: multi_level_detail
+    right_table: portfolios
+    relationship_columns:
+      - left_column: mul_portfolioid
+        right_column: portfolio_id
+  - name: linked_to_portfolio
+    left_table: linked_attribution
+    right_table: portfolios
+    relationship_columns:
+      - left_column: lin_portfolioid
+        right_column: portfolio_id
+  - name: factor_to_portfolio
+    left_table: factor_attribution
+    right_table: portfolios
+    relationship_columns:
+      - left_column: fac_portfolioid
+        right_column: portfolio_id
+  - name: hidden_to_portfolio
+    left_table: hidden_factors
+    right_table: portfolios
+    relationship_columns:
+      - left_column: hid_portfolioid
+        right_column: portfolio_id
+  - name: currency_to_portfolio
+    left_table: currency_attribution
+    right_table: portfolios
+    relationship_columns:
+      - left_column: cur_portfolioid
+        right_column: portfolio_id
+  - name: currency_to_security
+    left_table: currency_attribution
+    right_table: securities
+    relationship_columns:
+      - left_column: cur_securityid
+        right_column: sec_securityid
+module_custom_instructions:
+  sql_generation: "CONSOLIDATED ATTRIBUTION DOMAIN VIEW — covers Brinson, factor, hidden factor, rolling analytics, anomaly detection, peer learning, and currency attribution.\n\nDATA GRANULARITY: All data is MONTHLY (month-end dates). Each fact table has different grain:\n- brinson_summary: portfolio-month\n- brinson_sector: portfolio-sector-month\n- multi_level_detail: portfolio-dimension-group-month\n- linked_attribution: portfolio-period-dimension-group (QTD/YTD/TRAILING_12M)\n- factor_attribution: portfolio-factor-month\n- hidden_factors: portfolio-factor-month\n- rolling: portfolio-factor-month (pre-joined with drift and regime)\n- anomalies: portfolio-month (pre-aggregated alerts)\n- peers: portfolio (trailing 12M snapshot)\n- currency_attribution: portfolio-security-month\n\nCRITICAL DATE HANDLING: For 'most recent quarter' or 'last quarter', use date > DATEADD('month', -3, (SELECT MAX(date) FROM table)). Use > not >= to get exactly 3 months.\n\nBRINSON IDENTITY: active_return = allocation_effect + selection_effect + interaction_effect (ALWAYS holds).\n\nMULTI-LEVEL: Filter multi_level_detail by grouping_dimension ('SECTOR', 'COUNTRY', 'INDUSTRY'). For drill-down, filter by parent_grouping_value.\n\nLINKED ATTRIBUTION: Filter by period_type and linked_grouping_dimension. Pre-computed with Frongello adjustment.\n\nFACTOR ATTRIBUTION: 7 factors — Market, Value, Growth, Momentum, Quality, Size, Volatility. factor_contribution = portfolio_factor_exposure * factor_return.\n\nHIDDEN FACTORS: 5 factors — AI_Exposure, Reshoring_Benefit, Rate_Convexity, Climate_Transition, Geopolitical_Risk.\n\nROLLING: Pre-joined view with exposure_drift (current minus 6M average), EXPOSURE_DRIFT_ZSCORE, cumulative paths, and regime labels.\n\nANOMALIES: 8 alert types with severity scoring. Filter by anomaly_severity for priority.\n\nPEERS: Trailing 12M snapshot — one row per portfolio. No date filter needed.\n\nCURRENCY: base_return = local_return + fx_return + avu_return.\n\nWhen filtering by portfolio: Always use portfolio_name dimension with ILIKE for flexible matching."
+verified_queries:
+  - name: QUARTERLY_BRINSON_SUMMARY
+    sql: "SELECT __portfolios.portfolio_name, MIN(__brinson_summary.attribution_date) AS PERIOD_START, MAX(__brinson_summary.attribution_date) AS PERIOD_END, COUNT(__brinson_summary.attribution_date) AS NUM_MONTHS, SUM(__brinson_summary.total_portfolio_return) AS sum_portfolio_return, SUM(__brinson_summary.total_benchmark_return) AS sum_benchmark_return, SUM(__brinson_summary.active_return) AS total_active_return, SUM(__brinson_summary.allocation_effect) AS ALLOCATION_EFFECT, SUM(__brinson_summary.selection_effect) AS SELECTION_EFFECT, SUM(__brinson_summary.interaction_effect) AS INTERACTION_EFFECT FROM __brinson_summary JOIN __portfolios ON __brinson_summary.bri_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __brinson_summary.attribution_date > DATEADD('month', -3, (SELECT MAX(attribution_date) FROM __brinson_summary)) GROUP BY __portfolios.portfolio_name"
+    question: Break down the performance attribution for SAM Global Flagship portfolio versus S&P 500 for the most recent quarter. What drove performance?
+    use_as_onboarding_question: true
+  - name: sector_ATTRIBUTION_BREAKDOWN
+    sql: "SELECT __brinson_sector.sector, AVG(__brinson_sector.sector_portfolio_weight) AS AVG_PORTFOLIO_WEIGHT, AVG(__brinson_sector.sector_benchmark_weight) AS AVG_BENCHMARK_WEIGHT, SUM(__brinson_sector.sector_allocation_effect) AS ALLOCATION_EFFECT, SUM(__brinson_sector.sector_selection_effect) AS SELECTION_EFFECT, SUM(__brinson_sector.sector_interaction_effect) AS INTERACTION_EFFECT, SUM(__brinson_sector.sector_allocation_effect) + SUM(__brinson_sector.sector_selection_effect) + SUM(__brinson_sector.sector_interaction_effect) AS TOTAL_EFFECT FROM __brinson_sector JOIN __portfolios ON __brinson_sector.bri_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __brinson_sector.sector_date > DATEADD('month', -3, (SELECT MAX(sector_date) FROM __brinson_sector)) GROUP BY __brinson_sector.sector ORDER BY ABS(TOTAL_EFFECT) DESC"
+    question: Which sectors contributed most to performance last quarter? Show allocation and selection effects by sector.
+    use_as_onboarding_question: true
+  - name: country_ATTRIBUTION_BREAKDOWN
+    sql: "SELECT __multi_level_detail.grouping_value, SUM(__multi_level_detail.detail_allocation_effect) AS ALLOCATION_EFFECT, SUM(__multi_level_detail.detail_selection_effect) AS SELECTION_EFFECT, SUM(__multi_level_detail.detail_interaction_effect) AS INTERACTION_EFFECT, SUM(__multi_level_detail.detail_total_effect) AS TOTAL_EFFECT FROM __multi_level_detail JOIN __portfolios ON __multi_level_detail.mul_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __multi_level_detail.grouping_dimension = 'COUNTRY' AND __multi_level_detail.detail_date > DATEADD('month', -3, (SELECT MAX(detail_date) FROM __multi_level_detail)) GROUP BY __multi_level_detail.grouping_value ORDER BY ABS(SUM(__multi_level_detail.detail_total_effect)) DESC"
+    question: Show attribution by country for SAM Global Flagship. Which countries drove outperformance?
+    use_as_onboarding_question: true
+  - name: YTD_LINKED_ATTRIBUTION
+    sql: "SELECT __linked_attribution.linked_grouping_value, SUM(__linked_attribution.linked_allocation) AS LINKED_ALLOCATION, SUM(__linked_attribution.linked_selection) AS LINKED_SELECTION, SUM(__linked_attribution.linked_interaction) AS LINKED_INTERACTION, SUM(__linked_attribution.linked_total_effect) AS LINKED_TOTAL FROM __linked_attribution JOIN __portfolios ON __linked_attribution.lin_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __linked_attribution.period_type = 'YTD' AND __linked_attribution.linked_grouping_dimension = 'SECTOR' AND __linked_attribution.period_end = (SELECT MAX(period_end) FROM __linked_attribution) GROUP BY __linked_attribution.linked_grouping_value ORDER BY ABS(SUM(__linked_attribution.linked_total_effect)) DESC"
+    question: Show the YTD linked attribution by sector for SAM Global Flagship.
+    use_as_onboarding_question: true
+  - name: FACTOR_EXPOSURE_SUMMARY
+    sql: "SELECT __factor_attribution.factor_name, AVG(__factor_attribution.portfolio_factor_exposure) AS AVG_EXPOSURE, AVG(__factor_attribution.factor_return) AS AVG_FACTOR_RETURN, SUM(__factor_attribution.factor_contribution) AS TOTAL_CONTRIBUTION FROM __factor_attribution JOIN __portfolios ON __factor_attribution.fac_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __factor_attribution.factor_date > DATEADD('month', -3, (SELECT MAX(factor_date) FROM __factor_attribution)) GROUP BY __factor_attribution.factor_name ORDER BY ABS(SUM(__factor_attribution.factor_contribution)) DESC"
+    question: What factor exposures drove our returns? Show the contribution from all systematic factors.
+    use_as_onboarding_question: true
+  - name: ANOMALY_SCAN
+    sql: "SELECT __anomalies.anomaly_severity, __anomalies.drift_factor, __anomalies.drift_magnitude, __anomalies.concentrated_sector, __anomalies.dominant_factor FROM __anomalies WHERE __anomalies.anomaly_date = (SELECT MAX(anomaly_date) FROM __anomalies) ORDER BY CASE __anomalies.anomaly_severity WHEN 'HIGH' THEN 1 WHEN 'MEDIUM' THEN 2 ELSE 3 END"
+    question: Run an anomaly scan across all portfolios. Flag anything concerning.
+    use_as_onboarding_question: true
+  - name: PEER_RANKING
+    sql: "SELECT __peers.alpha_persistence, __peers.peer_avg_active_return, __peers.peer_avg_allocation_effect, __peers.peer_avg_selection_effect, __peers.allocation_consistency, __peers.selection_consistency, __peers.best_factor_source, __peers.worst_factor_source, __peers.best_selection_sector FROM __peers ORDER BY __peers.alpha_persistence DESC"
+    question: Rank all portfolios by alpha persistence and show their best and worst factor sources.
+    use_as_onboarding_question: false
+  - name: ROLLING_DRIFT_ALL
+    sql: "SELECT __rolling.rolling_factor_name, __rolling.rolling_exposure, __rolling.exposure_drift FROM __rolling WHERE __rolling.rolling_date = (SELECT MAX(rolling_date) FROM __rolling) ORDER BY ABS(__rolling.exposure_drift) DESC"
+    question: Show the current exposure drift for all factors across all portfolios.
+    use_as_onboarding_question: false
+  - name: currency_IMPACT
+    sql: "SELECT __currency_attribution.local_currency, COUNT(*) AS POSITION_COUNT, AVG(__currency_attribution.local_return) AS AVG_LOCAL_RETURN, AVG(__currency_attribution.fx_return) AS AVG_FX_RETURN, AVG(__currency_attribution.avu_return) AS AVG_AVU_RETURN FROM __currency_attribution JOIN __portfolios ON __currency_attribution.cur_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __currency_attribution.currency_date > DATEADD('month', -3, (SELECT MAX(currency_date) FROM __currency_attribution)) GROUP BY __currency_attribution.local_currency ORDER BY POSITION_COUNT DESC"
+    question: How much of our return came from currency effects? Show the FX impact by currency.
+    use_as_onboarding_question: false

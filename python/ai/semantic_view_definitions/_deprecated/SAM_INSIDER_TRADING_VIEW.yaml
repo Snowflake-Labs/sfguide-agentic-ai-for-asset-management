@@ -1,0 +1,132 @@
+name: SAM_INSIDER_TRADING_VIEW
+description: "SEC Form 4 insider trading transactions for demo companies. Tracks executive buys/sells, transaction volumes, and ownership changes. Use for insider sentiment analysis, compliance monitoring, and executive confidence signals."
+tables:
+  - name: insider_transactions
+    synonyms:
+      - insider_trading
+      - form_4
+      - insider_buys
+      - insider_sells
+      - executive_trading
+    description: "SEC Form 4 insider buy/sell transactions with share volumes and prices"
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: FACT_INSIDER_TRANSACTIONS
+    primary_key:
+      columns:
+        - insi_pk_insider_tx_id
+    dimensions:
+      - name: insi_pk_insider_tx_id
+        description: "INSIDER_TX_ID for insider_transactions"
+        expr: INSIDER_TX_ID
+        data_type: "NUMBER(38,0)"
+      - name: issuer_name
+        synonyms:
+          - company_name
+          - company
+        description: "Company name of the issuer"
+        expr: ISSUER_NAME
+        data_type: VARCHAR(16777216)
+      - name: insider_ticker
+        synonyms:
+          - ticker
+          - symbol
+          - stock
+        description: "Stock ticker symbol"
+        expr: TICKER
+        data_type: VARCHAR(16777216)
+      - name: form_type
+        synonyms:
+          - filing_type
+          - sec_form
+        description: "SEC form type (Form 4, Form 4/A)"
+        expr: FORM_TYPE
+        data_type: VARCHAR(16777216)
+      - name: security_type
+        description: "Type of security transacted"
+        expr: SECURITY_TYPE
+        data_type: VARCHAR(16777216)
+      - name: security_title
+        description: "Title of the security"
+        expr: SECURITY_TITLE
+        data_type: VARCHAR(16777216)
+      - name: transaction_type
+        synonyms:
+          - trade_type
+        description: "Transaction type code"
+        expr: TRANSACTION_TYPE
+        data_type: VARCHAR(16777216)
+      - name: transaction_action
+        synonyms:
+          - action
+          - buy_sell
+        description: "Transaction action (Acquired/Disposed)"
+        expr: TRANSACTION_ACTION
+        data_type: VARCHAR(16777216)
+      - name: ownership
+        synonyms:
+          - ownership_type
+        description: "Direct or indirect ownership"
+        expr: OWNERSHIP
+        data_type: VARCHAR(16777216)
+      - name: cik
+        description: "SEC Central Index Key"
+        expr: CIK
+        data_type: VARCHAR(16777216)
+    facts:
+      - name: transaction_shares
+        synonyms:
+          - shares
+          - volume
+          - quantity
+        description: "Number of shares transacted"
+        expr: TRANSACTION_SHARES
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: transaction_price
+        synonyms:
+          - price
+          - price_per_share
+        description: "Price per share of transaction"
+        expr: TRANSACTION_PRICE_PER_SHARE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: post_transaction_shares
+        synonyms:
+          - shares_owned
+          - remaining_shares
+        description: "Shares owned after transaction"
+        expr: POST_TRANSACTION_SHARES_OWNED
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: total_transaction_shares
+        synonyms:
+          - total_shares
+          - total_volume
+        description: "Total shares transacted"
+        expr: SUM(transaction_shares)
+        access_modifier: public_access
+      - name: total_transaction_value
+        synonyms:
+          - total_value
+          - dollar_volume
+        description: "Total dollar value of transactions"
+        expr: SUM(transaction_shares * transaction_price)
+        access_modifier: public_access
+      - name: transaction_count
+        synonyms:
+          - trade_count
+          - number_of_trades
+        description: "Count of insider transactions"
+        expr: COUNT(*)
+        access_modifier: public_access
+    time_dimensions:
+      - name: transaction_date
+        synonyms:
+          - trade_date
+          - date
+        description: "Date of insider transaction"
+        expr: TRANSACTION_DATE
+        data_type: DATE

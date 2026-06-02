@@ -1,0 +1,780 @@
+name: SAM_ANALYST_VIEW
+description: "Multi-asset semantic view for portfolio analytics with issuer hierarchy, ESG scores, performance returns, factor exposures, benchmark weights, and benchmark performance returns for portfolio vs benchmark comparison"
+tables:
+  - name: benchmarks
+    synonyms:
+      - indices
+      - indexes
+      - benchmark_master
+    description: Benchmark/index master data
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_BENCHMARK
+    primary_key:
+      columns:
+        - benc_pk_benchmarkid
+    dimensions:
+      - name: benc_pk_benchmarkid
+        description: "BENCHMARKID for benchmarks"
+        expr: BENCHMARKID
+        data_type: "NUMBER(38,0)"
+      - name: benchmark_name
+        synonyms:
+          - benchmark
+          - index_name
+          - index
+        description: "Benchmark/index name: S&P 500, MSCI ACWI, Nasdaq 100"
+        expr: BENCHMARKNAME
+        data_type: VARCHAR(134217728)
+  - name: benchmark_holdings
+    synonyms:
+      - benchmark_positions
+      - index_holdings
+      - benchmark_weights
+    description: Benchmark constituent holdings and weights
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_BENCHMARK_HOLDINGS
+    primary_key:
+      columns:
+        - benc_pk_holding_date
+        - benc_pk_benchmarkid
+        - benc_pk_securityid
+    time_dimensions:
+      - name: benc_pk_holding_date
+        description: "HOLDING_DATE for benchmark_holdings"
+        expr: HOLDING_DATE
+        data_type: DATE
+    dimensions:
+      - name: benc_pk_securityid
+        description: "SECURITYID for benchmark_holdings"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: benc_pk_benchmarkid
+        description: "BENCHMARKID for benchmark_holdings"
+        expr: BENCHMARKID
+        data_type: "NUMBER(38,0)"
+    facts:
+      - name: benchmark_weight
+        expr: BENCHMARK_WEIGHT
+        data_type: "NUMBER(16,10)"
+        access_modifier: public_access
+    metrics:
+      - name: total_benchmark_weight
+        synonyms:
+          - benchmark_allocation
+          - index_weight
+          - benchmark_percentage
+        description: Benchmark constituent weight
+        expr: SUM(benchmark_weight)
+        access_modifier: public_access
+  - name: benchmark_performance
+    synonyms:
+      - benchmark_returns
+      - index_returns
+      - index_performance
+    description: "Benchmark-level performance returns (MTD, QTD, YTD) for comparison with portfolio returns"
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_BENCHMARK_PERFORMANCE
+    primary_key:
+      columns:
+        - benc_pk_benchmarkperfid
+    time_dimensions:
+      - name: benchmark_performance_date
+        synonyms:
+          - benchmark_date
+          - index_date
+        description: Benchmark performance measurement date
+        expr: PerformanceDate
+        data_type: DATE
+    dimensions:
+      - name: benc_pk_benchmarkid
+        description: "BENCHMARKID for benchmark_performance"
+        expr: "BENCHMARKID"
+        data_type: "NUMBER(38,0)"
+      - name: benc_pk_benchmarkperfid
+        description: "BENCHMARKPERFID for benchmark_performance"
+        expr: BENCHMARKPERFID
+        data_type: "NUMBER(38,0)"
+    facts:
+      - name: benchmark_annualized_return_pct
+        expr: ANNUALIZED_RETURN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: benchmark_mtd_return_pct
+        expr: MTD_RETURN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: benchmark_qtd_return_pct
+        expr: QTD_RETURN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: benchmark_ytd_return_pct
+        expr: YTD_RETURN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_benchmark_annualized_return_pct
+        synonyms:
+          - benchmark_annualized
+          - index_annualized
+          - benchmark_1y_return
+        description: Benchmark annualized return percentage
+        expr: AVG(benchmark_annualized_return_pct)
+        access_modifier: public_access
+      - name: average_benchmark_mtd_return_pct
+        synonyms:
+          - benchmark_mtd
+          - index_mtd
+          - benchmark_monthly_return
+          - index_monthly_return
+        description: Benchmark month-to-date return percentage
+        expr: AVG(benchmark_mtd_return_pct)
+        access_modifier: public_access
+      - name: average_benchmark_qtd_return_pct
+        synonyms:
+          - benchmark_qtd
+          - index_qtd
+          - benchmark_quarterly_return
+          - index_quarterly_return
+        description: Benchmark quarter-to-date return percentage
+        expr: AVG(benchmark_qtd_return_pct)
+        access_modifier: public_access
+      - name: average_benchmark_ytd_return_pct
+        synonyms:
+          - benchmark_ytd
+          - index_ytd
+          - benchmark_annual_return
+          - index_annual_return
+        description: Benchmark year-to-date return percentage
+        expr: AVG(benchmark_ytd_return_pct)
+        access_modifier: public_access
+  - name: factor_exposures
+    synonyms:
+      - factors
+      - loadings
+      - exposures
+      - factor_data
+    description: "Factor exposures and loadings (Value, Growth, Quality, Momentum, etc.)"
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_FACTOR_EXPOSURES
+    primary_key:
+      columns:
+        - fact_pk_securityid
+        - exposure_date
+        - factor_name
+    dimensions:
+      - name: fact_pk_securityid
+        description: "SECURITYID for factor_exposures"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: factor_name
+        synonyms:
+          - factor
+          - factor_type
+          - loading_type
+        description: "Factor name: Market, Size, Value, Momentum, Growth, Quality, Volatility"
+        expr: FACTOR_NAME
+        data_type: VARCHAR(10)
+    time_dimensions:
+      - name: exposure_date
+        synonyms:
+          - factor_date
+          - loading_date
+        description: Factor exposure measurement date
+        expr: EXPOSURE_DATE
+        data_type: DATE
+    facts:
+      - name: exposure_value
+        expr: EXPOSURE_VALUE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: r_squared
+        expr: R_SQUARED
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_r_squared
+        synonyms:
+          - model_fit
+          - factor_rsq
+        description: Factor model R-squared
+        expr: AVG(r_squared)
+        access_modifier: public_access
+      - name: average_growth_exposure
+        synonyms:
+          - growth
+          - growth_factor
+          - growth_loading
+        description: Growth factor exposure
+        expr: AVG(CASE WHEN FACTOR_NAME = 'Growth' THEN EXPOSURE_VALUE ELSE NULL END)
+        access_modifier: public_access
+      - name: average_momentum_exposure
+        synonyms:
+          - momentum
+          - momentum_factor
+          - momentum_loading
+        description: Momentum factor exposure
+        expr: AVG(CASE WHEN FACTOR_NAME = 'Momentum' THEN EXPOSURE_VALUE ELSE NULL END)
+        access_modifier: public_access
+      - name: average_quality_exposure
+        synonyms:
+          - quality
+          - quality_factor
+          - quality_loading
+        description: Quality factor exposure
+        expr: AVG(CASE WHEN FACTOR_NAME = 'Quality' THEN EXPOSURE_VALUE ELSE NULL END)
+        access_modifier: public_access
+      - name: total_exposure_value
+        synonyms:
+          - factor_loading
+          - loading
+          - factor_score
+        description: Factor exposure value
+        expr: SUM(exposure_value)
+        access_modifier: public_access
+      - name: average_value_exposure
+        synonyms:
+          - value
+          - value_factor
+          - value_loading
+        description: Value factor exposure
+        expr: AVG(CASE WHEN FACTOR_NAME = 'Value' THEN EXPOSURE_VALUE ELSE NULL END)
+        access_modifier: public_access
+  - name: holdings
+    synonyms:
+      - positions
+      - investments
+      - allocations
+    description: Daily portfolio holdings with ESG scores. Each holding includes latest Overall ESG grade and score. When no time period is provided always get the latest value by date.
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: V_HOLDINGS_WITH_ESG
+    primary_key:
+      columns:
+        - holding_date
+        - hold_pk_portfolioid
+        - hold_pk_securityid
+    dimensions:
+      - name: hold_pk_securityid
+        description: "SECURITYID for holdings"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: hold_pk_portfolioid
+        description: "PORTFOLIOID for holdings"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: esg_grade
+        synonyms:
+          - esg_rating
+          - sustainability_grade
+          - overall_esg_grade
+        description: "Overall ESG grade on MSCI scale: AAA/AA/A (leader), BBB/BB/B (average), CCC (laggard). ESG-labelled portfolios require minimum BBB."
+        expr: ESG_GRADE
+        data_type: VARCHAR(3)
+    facts:
+      - name: esg_score
+        expr: ESG_SCORE
+        data_type: "NUMBER(11,6)"
+        access_modifier: public_access
+      - name: market_value_base
+        expr: MarketValue_Base
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: mtd_return_pct
+        expr: MTD_RETURN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: portfolio_weight
+        expr: PortfolioWeight
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: qtd_return_pct
+        expr: QTD_RETURN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: ytd_return_pct
+        expr: YTD_RETURN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_esg_score
+        synonyms:
+          - esg_score
+          - sustainability_score
+          - esg_rating_value
+          - overall_esg_score
+        description: Overall ESG score (0-100 scale)
+        expr: AVG(esg_score)
+        access_modifier: public_access
+      - name: average_mtd_return_pct
+        synonyms:
+          - monthly_return
+          - mtd_performance
+          - month_to_date_return
+          - monthly_performance
+        description: Month-to-date return percentage for positions
+        expr: AVG(mtd_return_pct)
+        access_modifier: public_access
+      - name: average_qtd_return_pct
+        synonyms:
+          - quarterly_return
+          - qtd_performance
+          - quarter_to_date_return
+          - quarterly_performance
+        description: Quarter-to-date return percentage for positions
+        expr: AVG(qtd_return_pct)
+        access_modifier: public_access
+      - name: average_ytd_return_pct
+        synonyms:
+          - ytd_return
+          - ytd_performance
+          - year_to_date_return
+          - annual_performance
+        description: Year-to-date return percentage for positions
+        expr: AVG(ytd_return_pct)
+        access_modifier: public_access
+      - name: HOLDING_COUNT
+        synonyms:
+          - position_count
+          - number_of_holdings
+          - holding_count
+          - count
+        description: Count of portfolio positions
+        expr: COUNT(SecurityID)
+        access_modifier: public_access
+      - name: total_issuer_exposure
+        synonyms:
+          - issuer_total
+          - issuer_value
+          - issuer_exposure
+        description: Total exposure to issuer across all securities
+        expr: SUM(market_value_base)
+        access_modifier: public_access
+      - name: max_portfolio_weight
+        synonyms:
+          - largest_position
+          - max_weight
+          - concentration
+        description: Largest single position weight
+        expr: MAX(portfolio_weight)
+        access_modifier: public_access
+      - name: PORTFOLIO_WEIGHT_PCT
+        synonyms:
+          - weight_percent
+          - allocation_percent
+          - percentage_weight
+        description: Portfolio weight as percentage
+        expr: SUM(portfolio_weight) * 100
+        access_modifier: public_access
+      - name: total_market_value_base
+        synonyms:
+          - exposure
+          - total_exposure
+          - aum
+          - market_value
+          - position_value
+        description: Total market value in portfolio base currency (USD)
+        expr: SUM(market_value_base)
+        access_modifier: public_access
+      - name: total_portfolio_weight
+        synonyms:
+          - weight
+          - allocation
+          - portfolio_weight
+        description: Portfolio weight as decimal
+        expr: SUM(portfolio_weight)
+        access_modifier: public_access
+    time_dimensions:
+      - name: holding_date
+        synonyms:
+          - position_date
+          - as_of_date
+          - date
+        description: Holdings as-of date
+        expr: HoldingDate
+        data_type: DATE
+      - name: HOLDING_MONTH
+        synonyms:
+          - month
+          - monthly
+          - month_end
+        description: Monthly aggregation of holding dates for trend analysis
+        expr: "DATE_TRUNC('MONTH', HOLDINGDATE)"
+        data_type: DATE
+      - name: HOLDING_QUARTER
+        synonyms:
+          - quarter
+          - quarterly
+          - quarter_end
+        description: Quarterly aggregation for quarterly reporting
+        expr: "DATE_TRUNC('QUARTER', HOLDINGDATE)"
+        data_type: DATE
+  - name: issuers
+    synonyms:
+      - entities
+      - corporates
+    description: Issuer and corporate hierarchy data
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_ISSUER
+    primary_key:
+      columns:
+        - issu_pk_issuerid
+    dimensions:
+      - name: issu_pk_issuerid
+        description: "ISSUERID for issuers"
+        expr: ISSUERID
+        data_type: "NUMBER(38,0)"
+      - name: country_of_incorporation
+        synonyms:
+          - domicile
+          - country_of_risk
+          - country
+        description: "Country of incorporation using 2-letter ISO codes (e.g., TW for Taiwan, US for United States, GB for United Kingdom)"
+        expr: COUNTRYOFINCORPORATION
+        data_type: VARCHAR(16777216)
+      - name: GICS_SECTOR
+        synonyms:
+          - gics
+          - gics_sector
+          - sector
+          - sector_classification
+          - sector_allocation
+        description: "GICS Level 1 sector classification (e.g., Information Technology, Health Care, Financials, Consumer Discretionary). Use for sector allocation analysis and concentration risk."
+        expr: GICS_SECTOR
+        data_type: VARCHAR(16777216)
+      - name: INDUSTRY
+        synonyms:
+          - industry
+          - industry_type
+          - sic_industry
+          - business_type
+          - industry_description
+          - industry_classification
+        description: "SIC industry classification with granular descriptions (e.g., Semiconductors and related devices, Computer programming services, Motor vehicles and car bodies). Use this for industry-level filtering and analysis."
+        expr: SIC_DESCRIPTION
+        data_type: VARCHAR(16777216)
+      - name: legal_name
+        synonyms:
+          - issuer_name
+          - company_name
+        description: Legal issuer name
+        expr: LEGALNAME
+        data_type: VARCHAR(16777216)
+  - name: portfolios
+    synonyms:
+      - funds
+      - strategies
+      - mandates
+    description: Investment portfolios and fund information
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_PORTFOLIO
+    primary_key:
+      columns:
+        - port_pk_portfolioid
+    dimensions:
+      - name: port_pk_benchmarkid
+        description: "BENCHMARKID for portfolios"
+        expr: "BENCHMARKID"
+        data_type: "NUMBER(38,0)"
+      - name: port_pk_portfolioid
+        description: "PORTFOLIOID for portfolios"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: portfolio_name
+        synonyms:
+          - fund_name
+          - strategy_name
+        description: "Portfolio or fund name. All portfolio names start with \"SAM \" prefix, e.g. \"SAM Technology & Infrastructure\", \"SAM ESG Leaders Global Equity\", \"SAM Global Flagship Multi-Asset\", \"SAM US Core Equity\", \"SAM Renewable & Climate Solutions\", \"SAM Sustainable Global Equity\", \"SAM AI & Digital Innovation\", \"SAM Global Balanced 60/40\", \"SAM Tech Disruptors Equity\", \"SAM US Value Equity\", \"SAM Multi-Asset Income\". Always include the \"SAM \" prefix when filtering."
+        expr: PortfolioName
+        data_type: VARCHAR(134217728)
+        is_enum: true
+        sample_values:
+          - SAM Technology & Infrastructure
+          - SAM ESG Leaders Global Equity
+          - SAM Global Flagship Multi-Asset
+          - SAM US Core Equity
+          - SAM Renewable & Climate Solutions
+          - SAM Sustainable Global Equity
+          - SAM AI & Digital Innovation
+          - SAM Global Balanced 60/40
+          - SAM Tech Disruptors Equity
+          - SAM US Value Equity
+          - SAM Multi-Asset Income
+      - name: STRATEGY
+        synonyms:
+          - investment_strategy
+          - portfolio_strategy
+          - strategy_type
+          - value_strategy
+          - growth_strategy
+        description: "Investment strategy: Value, Growth, ESG, Core, Multi-Asset, Income"
+        expr: Strategy
+        data_type: VARCHAR(134217728)
+  - name: portfolio_benchmark
+    synonyms:
+      - portfolio_vs_benchmark
+      - performance_comparison
+      - relative_performance
+      - active_returns
+    description: Pre-joined portfolio returns with benchmark returns for side-by-side comparison. Includes active returns (portfolio - benchmark).
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: V_PORTFOLIO_BENCHMARK_COMPARISON
+    primary_key:
+      columns:
+        - port_pk_portfolioid
+        - COMPARISON_DATE
+    dimensions:
+      - name: port_pk_portfolioid
+        description: "PORTFOLIOID for portfolio_benchmark"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: COMPARISON_BENCHMARK
+        synonyms:
+          - compared_benchmark
+          - performance_benchmark
+        description: Benchmark name in comparison view
+        expr: BenchmarkName
+        data_type: VARCHAR(134217728)
+      - name: COMPARISON_PORTFOLIO
+        synonyms:
+          - compared_portfolio
+          - performance_portfolio
+        description: Portfolio name in comparison view
+        expr: PortfolioName
+        data_type: VARCHAR(134217728)
+    facts:
+      - name: active_qtd_return
+        expr: ACTIVE_QTD_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: active_ytd_return
+        expr: ACTIVE_YTD_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: benchmark_qtd_return
+        expr: BENCHMARK_QTD_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: benchmark_ytd_return
+        expr: BENCHMARK_YTD_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: portfolio_aum
+        expr: PORTFOLIO_AUM
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: portfolio_qtd_return
+        expr: PORTFOLIO_QTD_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: portfolio_ytd_return
+        expr: PORTFOLIO_YTD_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_active_qtd_return
+        synonyms:
+          - relative_qtd
+          - outperformance_qtd
+          - alpha_qtd
+        description: Active QTD return (portfolio - benchmark)
+        expr: AVG(active_qtd_return)
+        access_modifier: public_access
+      - name: average_active_ytd_return
+        synonyms:
+          - relative_ytd
+          - outperformance_ytd
+          - alpha_ytd
+        description: Active YTD return (portfolio - benchmark)
+        expr: AVG(active_ytd_return)
+        access_modifier: public_access
+      - name: average_benchmark_qtd_return
+        synonyms:
+          - benchmark_qtd_vs_portfolio
+          - compared_benchmark_qtd
+        description: Benchmark QTD return in comparison view
+        expr: AVG(benchmark_qtd_return)
+        access_modifier: public_access
+      - name: average_benchmark_ytd_return
+        synonyms:
+          - benchmark_ytd_vs_portfolio
+          - compared_benchmark_ytd
+        description: Benchmark YTD return in comparison view
+        expr: AVG(benchmark_ytd_return)
+        access_modifier: public_access
+      - name: average_portfolio_qtd_return
+        synonyms:
+          - portfolio_qtd_vs_benchmark
+          - compared_portfolio_qtd
+        description: Portfolio QTD return in comparison view
+        expr: AVG(portfolio_qtd_return)
+        access_modifier: public_access
+      - name: average_portfolio_ytd_return
+        synonyms:
+          - portfolio_ytd_vs_benchmark
+          - compared_portfolio_ytd
+        description: Portfolio YTD return in comparison view
+        expr: AVG(portfolio_ytd_return)
+        access_modifier: public_access
+      - name: total_portfolio_aum
+        synonyms:
+          - compared_aum
+          - performance_aum
+        description: Portfolio AUM in comparison view
+        expr: SUM(portfolio_aum)
+        access_modifier: public_access
+    time_dimensions:
+      - name: COMPARISON_DATE
+        synonyms:
+          - comparison_date
+          - performance_date
+        description: Date for portfolio vs benchmark comparison
+        expr: PerformanceDate
+        data_type: DATE
+  - name: securities
+    synonyms:
+      - companies
+      - stocks
+      - bonds
+      - instruments
+    description: Master security reference data
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_SECURITY
+    primary_key:
+      columns:
+        - secu_pk_securityid
+    dimensions:
+      - name: secu_pk_issuerid
+        description: "ISSUERID for securities"
+        expr: "ISSUERID"
+        data_type: "NUMBER(38,0)"
+      - name: secu_pk_securityid
+        description: "SECURITYID for securities"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: asset_class
+        synonyms:
+          - instrument_type
+          - security_type
+        description: "Asset class: Equity, Corporate Bond, ETF"
+        expr: AssetClass
+        data_type: VARCHAR(6)
+      - name: security_description
+        synonyms:
+          - company
+          - security_name
+          - description
+        description: Security description or company name
+        expr: Description
+        data_type: VARCHAR(16777216)
+      - name: TICKER
+        synonyms:
+          - ticker_symbol
+          - symbol
+          - primary_ticker
+        description: Primary trading symbol
+        expr: Ticker
+        data_type: VARCHAR(16777216)
+relationships:
+  - name: benchmark_to_securities
+    left_table: benchmark_holdings
+    right_table: securities
+    relationship_columns:
+      - left_column: benc_pk_securityid
+        right_column: secu_pk_securityid
+  - name: benchmark_perf_to_benchmarks
+    left_table: benchmark_performance
+    right_table: benchmarks
+    relationship_columns:
+      - left_column: benc_pk_benchmarkid
+        right_column: benc_pk_benchmarkid
+  - name: factors_to_securities
+    left_table: factor_exposures
+    right_table: securities
+    relationship_columns:
+      - left_column: fact_pk_securityid
+        right_column: secu_pk_securityid
+  - name: holdings_to_portfolios
+    left_table: holdings
+    right_table: portfolios
+    relationship_columns:
+      - left_column: hold_pk_portfolioid
+        right_column: port_pk_portfolioid
+  - name: holdings_to_securities
+    left_table: holdings
+    right_table: securities
+    relationship_columns:
+      - left_column: hold_pk_securityid
+        right_column: secu_pk_securityid
+  - name: portfolios_to_benchmarks
+    left_table: portfolios
+    right_table: benchmarks
+    relationship_columns:
+      - left_column: port_pk_benchmarkid
+        right_column: benc_pk_benchmarkid
+  - name: securities_to_issuers
+    left_table: securities
+    right_table: issuers
+    relationship_columns:
+      - left_column: secu_pk_issuerid
+        right_column: issu_pk_issuerid
+module_custom_instructions:
+  sql_generation: "PORTFOLIO NAME FILTERING: All portfolio names start with the prefix \"SAM \" (e.g., \"SAM Technology & Infrastructure\", not \"Technology & Infrastructure\"). When filtering by portfolio name, ALWAYS include the \"SAM \" prefix. Use exact match with the full name, or use ILIKE with the SAM prefix: portfolio_name ILIKE 'SAM %Technology%'. Common aliases: Tech/Technology = \"SAM Technology & Infrastructure\", ESG/ESG Leaders = \"SAM ESG Leaders Global Equity\", Flagship = \"SAM Global Flagship Multi-Asset\", Balanced/60-40 = \"SAM Global Balanced 60/40\". CRITICAL: Always filter holdings to the latest date unless the user explicitly requests historical data or trends. Use WHERE holding_date = (SELECT MAX(holding_date) FROM holdings) in EVERY query that does not have an explicit date filter or date dimension. This prevents aggregation across multiple months which causes incorrect totals. ANNUAL REVIEW / YEAR-END QUERIES: For last calendar year or annual review questions, filter to December 31 of the most recent complete year. IMPORTANT: Use a simple non-correlated scalar subquery - do NOT reference the outer table alias inside the subquery. CORRECT pattern: WHERE holding_date = (SELECT MAX(sub.holding_date) FROM {{DATABASE}}.CURATED.V_HOLDINGS_WITH_ESG sub WHERE EXTRACT(MONTH FROM sub.holding_date) = 12 AND EXTRACT(DAY FROM sub.holding_date) = 31). WRONG pattern: WHERE h.holding_date = (SELECT MAX(holding_date) FROM ... WHERE EXTRACT(MONTH FROM h.holding_date) = 12) - this creates a correlated subquery that returns wrong results. The ytd_return_pct on Dec 31 represents the full calendar year return. Use this pattern for year-end top holdings, sector allocation, and annual performance reports. For portfolio weight calculations, always multiply by 100 to show percentages. When calculating issuer exposure, aggregate market_value_base across all securities of the same issuer. Always round market values to 2 decimal places and portfolio weights to 1 decimal place. ESG scores are on a 0-100 scale. ESG grades follow MSCI scale: AAA/AA/A (leader), BBB/BB/B (average), CCC (laggard). When filtering ESG leaders, use esg_grade IN ('AAA', 'AA', 'A'). For ESG laggards, use esg_grade IN ('CCC', 'B', 'BB'). Factor exposures are available for all equity securities across Value, Growth, Quality, Momentum, Size, Market, and Volatility factors. For benchmark comparison questions (portfolio vs benchmark returns), use the portfolio_benchmark table which provides pre-joined data with active_qtd_return and active_ytd_return already calculated."
+  question_categorization: "IMPORTANT: Unless the user explicitly asks for historical trends or time series data, always assume they want current holdings (latest date only). If users ask about 'funds' or 'portfolios', treat these as the same concept referring to investment portfolios. ESG data and performance returns are included directly in holdings. For performance questions, use the qtd_return_pct, ytd_return_pct, or mtd_return_pct metrics. For multi-section report requests, focus on the most important section (typically top holdings with performance metrics) rather than trying to combine incompatible result sets. For factor analysis questions (value, growth, momentum, quality), use the factor_exposures metrics. Factor data is available for all equity securities. For benchmark performance questions (benchmark returns, index performance, how did the benchmark do), use benchmark_qtd_return_pct, benchmark_ytd_return_pct, benchmark_mtd_return_pct metrics from benchmark_performance table. For portfolio vs benchmark comparison questions, use the portfolio_benchmark table metrics: average_portfolio_qtd_return, average_portfolio_ytd_return, average_benchmark_qtd_return, average_benchmark_ytd_return, average_active_qtd_return, average_active_ytd_return. These provide side-by-side comparison in a single row with active return calculation."
+verified_queries:
+  - name: PORTFOLIO_HOLDINGS
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_ANALYST_VIEW METRICS total_market_value_base, PORTFOLIO_WEIGHT_PCT, HOLDING_COUNT)"
+    question: What are the portfolio holdings?
+    use_as_onboarding_question: true
+  - name: ESG_SCORES
+    sql: SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_ANALYST_VIEW METRICS average_esg_score DIMENSIONS esg_grade)
+    question: What are the ESG scores?
+    use_as_onboarding_question: true
+  - name: PORTFOLIO_RETURNS
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_ANALYST_VIEW METRICS average_qtd_return_pct, average_ytd_return_pct, average_mtd_return_pct)"
+    question: What are the portfolio returns?
+    use_as_onboarding_question: false
+  - name: FACTOR_EXPOSURES
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_ANALYST_VIEW METRICS average_value_exposure, average_growth_exposure, average_momentum_exposure, average_quality_exposure DIMENSIONS factor_name)"
+    question: What are the factor exposures?
+    use_as_onboarding_question: false
+  - name: BENCHMARK_PERFORMANCE
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_ANALYST_VIEW METRICS average_benchmark_qtd_return_pct, average_benchmark_ytd_return_pct DIMENSIONS benchmark_name)"
+    question: What is the benchmark performance?
+    use_as_onboarding_question: true
+  - name: PORTFOLIO_VS_BENCHMARK
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_ANALYST_VIEW METRICS average_portfolio_qtd_return, average_portfolio_ytd_return, average_benchmark_qtd_return, average_benchmark_ytd_return, average_active_qtd_return, average_active_ytd_return DIMENSIONS COMPARISON_PORTFOLIO, COMPARISON_BENCHMARK)"
+    question: How does portfolio performance compare to benchmark?
+    use_as_onboarding_question: true
+  - name: LAST_CALENDAR_YEAR_PERFORMANCE
+    sql: "SELECT __portfolios.portfolio_name, __holdings.holding_date, AVG(__holdings.ytd_return_pct) AS average_ytd_return_pct FROM __holdings JOIN __portfolios ON (__holdings.hold_pk_portfolioid = __portfolios.port_pk_portfolioid) WHERE __holdings.holding_date = (SELECT MAX(holding_date) FROM __holdings WHERE EXTRACT(MONTH FROM holding_date) = 12 AND EXTRACT(DAY FROM holding_date) = 31) GROUP BY __portfolios.portfolio_name, __holdings.holding_date ORDER BY average_ytd_return_pct DESC"
+    question: What was the full year performance for the last calendar year?
+    use_as_onboarding_question: false
+  - name: YEAR_END_TOP_HOLDINGS
+    sql: "SELECT __portfolios.portfolio_name, __securities.security_description, __securities.TICKER, SUM(__holdings.market_value_base) AS total_market_value_base, SUM(__holdings.portfolio_weight) * 100 AS PORTFOLIO_WEIGHT_PCT, __holdings.holding_date FROM __holdings JOIN __portfolios ON (__holdings.hold_pk_portfolioid = __portfolios.port_pk_portfolioid) JOIN __securities ON (__holdings.hold_pk_securityid = __securities.secu_pk_securityid) WHERE __holdings.holding_date = (SELECT MAX(holding_date) FROM __holdings WHERE EXTRACT(MONTH FROM holding_date) = 12 AND EXTRACT(DAY FROM holding_date) = 31) GROUP BY __portfolios.portfolio_name, __securities.security_description, __securities.TICKER, __holdings.holding_date ORDER BY total_market_value_base DESC"
+    question: What were the top holdings at year end for the last calendar year?
+    use_as_onboarding_question: false
+  - name: YEAR_END_SECTOR_ALLOCATION
+    sql: "SELECT __portfolios.portfolio_name, __issuers.INDUSTRY AS Sector, SUM(__holdings.market_value_base) AS Sector_Value, SUM(__holdings.portfolio_weight) * 100 AS Sector_Weight FROM __holdings JOIN __portfolios ON (__holdings.hold_pk_portfolioid = __portfolios.port_pk_portfolioid) JOIN __securities ON (__holdings.hold_pk_securityid = __securities.secu_pk_securityid) JOIN __issuers ON (__securities.secu_pk_issuerid = __issuers.issu_pk_issuerid) WHERE __holdings.holding_date = (SELECT MAX(holding_date) FROM __holdings WHERE EXTRACT(MONTH FROM holding_date) = 12 AND EXTRACT(DAY FROM holding_date) = 31) GROUP BY __portfolios.portfolio_name, __issuers.INDUSTRY ORDER BY Sector_Weight DESC"
+    question: What was the sector allocation at year end for the last calendar year?
+    use_as_onboarding_question: false
+  - name: PORTFOLIO_ANNUAL_REVIEW
+    sql: "SELECT __portfolios.portfolio_name, AVG(__holdings.ytd_return_pct) AS Full_Year_Return, SUM(__holdings.market_value_base) AS Total_AUM, COUNT(__holdings.hold_pk_securityid) AS HOLDING_COUNT FROM __holdings JOIN __portfolios ON (__holdings.hold_pk_portfolioid = __portfolios.port_pk_portfolioid) WHERE __holdings.holding_date = (SELECT MAX(holding_date) FROM __holdings WHERE EXTRACT(MONTH FROM holding_date) = 12 AND EXTRACT(DAY FROM holding_date) = 31) GROUP BY __portfolios.portfolio_name ORDER BY Total_AUM DESC"
+    question: "Provide a comprehensive annual review for the last calendar year including performance, top holdings, and sector allocation"
+    use_as_onboarding_question: false

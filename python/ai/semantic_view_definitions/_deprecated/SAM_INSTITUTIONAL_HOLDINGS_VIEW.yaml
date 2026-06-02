@@ -1,0 +1,120 @@
+name: SAM_INSTITUTIONAL_HOLDINGS_VIEW
+description: "SEC 13F institutional holdings for demo companies. Tracks institutional ownership by major investors (Vanguard, BlackRock, State Street, etc.) with quarterly filings. Use for ownership analysis, institutional sentiment, concentration risk, and smart money flows."
+tables:
+  - name: institutional_holdings
+    synonyms:
+      - sec_13f
+      - institutional_ownership
+      - fund_holdings
+      - institutional_positions
+    description: "Quarterly SEC 13F institutional ownership filings with market values and share counts"
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: FACT_INSTITUTIONAL_HOLDINGS
+    primary_key:
+      columns:
+        - inst_pk_holding_id
+    dimensions:
+      - name: inst_pk_holding_id
+        description: "HOLDING_ID for institutional_holdings"
+        expr: HOLDING_ID
+        data_type: "NUMBER(38,0)"
+      - name: institution_name
+        synonyms:
+          - fund_name
+          - manager_name
+          - investor
+          - holder
+        description: "Name of the institutional investor/filing manager"
+        expr: INSTITUTION_NAME
+        data_type: VARCHAR(16777216)
+      - name: holding_ticker
+        synonyms:
+          - ticker
+          - symbol
+          - stock
+        description: "Stock ticker of the held security"
+        expr: TICKER
+        data_type: VARCHAR(16777216)
+      - name: security_name
+        synonyms:
+          - holding_name
+          - stock_name
+        description: "Name of the held security"
+        expr: SECURITY_NAME
+        data_type: VARCHAR(16777216)
+      - name: put_call
+        description: "Put/Call indicator for options"
+        expr: PUT_CALL
+        data_type: VARCHAR(16777216)
+      - name: investment_discretion
+        description: "Investment discretion type"
+        expr: INVESTMENT_DISCRETION
+        data_type: VARCHAR(16777216)
+      - name: asset_class
+        description: "Asset class of the holding"
+        expr: ASSET_CLASS
+        data_type: VARCHAR(16777216)
+      - name: reporting_quarter
+        synonyms:
+          - quarter
+        description: "Reporting period quarter (1-4)"
+        expr: REPORTING_PERIOD_QUARTER
+        data_type: NUMBER(38,0)
+      - name: reporting_year
+        synonyms:
+          - year
+        description: "Reporting period year"
+        expr: REPORTING_PERIOD_YEAR
+        data_type: NUMBER(38,0)
+    facts:
+      - name: market_value_usd
+        synonyms:
+          - market_value
+          - value
+          - position_value
+        description: "Market value of holding in USD"
+        expr: MARKET_VALUE_USD
+        data_type: NUMBER(38,0)
+        access_modifier: public_access
+      - name: shares_held
+        synonyms:
+          - shares
+          - quantity
+          - position_size
+        description: "Number of shares held"
+        expr: SHARES_HELD
+        data_type: NUMBER(38,0)
+        access_modifier: public_access
+    metrics:
+      - name: total_market_value
+        synonyms:
+          - total_value
+          - aum
+          - total_holdings_value
+        description: "Total market value across holdings"
+        expr: SUM(market_value_usd)
+        access_modifier: public_access
+      - name: total_shares
+        synonyms:
+          - total_position
+          - aggregate_shares
+        description: "Total shares held"
+        expr: SUM(shares_held)
+        access_modifier: public_access
+      - name: institution_count
+        synonyms:
+          - holder_count
+          - investor_count
+        description: "Number of distinct institutional holders"
+        expr: COUNT(DISTINCT institution_name)
+        access_modifier: public_access
+    time_dimensions:
+      - name: filing_date
+        synonyms:
+          - report_date
+          - date
+        description: "Date the 13F filing was submitted"
+        expr: FILING_DATE
+        data_type: DATE

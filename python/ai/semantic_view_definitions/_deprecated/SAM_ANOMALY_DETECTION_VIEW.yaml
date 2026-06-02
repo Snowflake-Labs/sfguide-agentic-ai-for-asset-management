@@ -1,0 +1,161 @@
+name: SAM_ANOMALY_DETECTION_VIEW
+description: "Attribution anomaly detection view for identifying risk flags across portfolios. Eight anomaly types: FACTOR_DRIFT_ALERT (exposure >2σ from trailing average), CONCENTRATION_ALERT (single sector >60% of active return), SINGLE_FACTOR_DOMINANCE (one factor >70% of systematic return), STYLE_INCONSISTENCY (strategy name vs actual exposure mismatch), ATTRIBUTION_SPIKE (monthly return >2σ from trailing), ALLOCATION_DRIFT_ALERT (sector weight >2σ from 6M rolling average), SELECTION_REVERSAL_ALERT (selection effect flips sign vs trailing 3M), WEIGHT_CONCENTRATION_ALERT (single sector >40% of portfolio weight)."
+tables:
+  - name: anomalies
+    synonyms:
+      - anomaly_alerts
+      - risk_flags
+      - attribution_anomalies
+      - drift_alerts
+    description: Monthly attribution anomaly detection flags per portfolio with severity scoring
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: V_ATTRIBUTION_ANOMALIES
+    primary_key:
+      columns:
+        - analysis_date
+        - portfolio_id
+    dimensions:
+      - name: anomaly_severity
+        synonyms:
+          - risk_level
+          - alert_level
+        description: "Overall anomaly severity: HIGH (3+ flags), MEDIUM (1-2 flags), LOW (0 flags)"
+        expr: ANOMALY_SEVERITY
+        data_type: VARCHAR(6)
+      - name: concentrated_sector
+        synonyms:
+          - dominant_sector
+          - sector_concentration
+        description: Sector with concentration alert (if any)
+        expr: CONCENTRATED_SECTOR
+        data_type: VARCHAR(22)
+      - name: dominant_factor
+        synonyms:
+          - single_factor
+          - dominant_driver
+        description: Factor dominating returns (if single-factor dominance alert)
+        expr: DOMINANT_FACTOR
+        data_type: VARCHAR(10)
+      - name: drift_factor
+        synonyms:
+          - drifting_factor
+          - changed_factor
+        description: Factor with drift alert (if any)
+        expr: DRIFT_FACTOR
+        data_type: VARCHAR(134217728)
+      - name: allocation_drift_group
+        description: Sector with allocation weight drift (>2σ from 6M average)
+        expr: ALLOCATION_DRIFT_GROUP
+        data_type: VARCHAR(200)
+      - name: reversal_sector
+        description: Sector where selection effect reversed sign vs trailing 3M
+        expr: REVERSAL_SECTOR
+        data_type: VARCHAR(200)
+      - name: heavy_weight_group
+        description: Sector with portfolio weight exceeding 40%
+        expr: HEAVY_WEIGHT_GROUP
+        data_type: VARCHAR(200)
+      - name: portfolio_id
+        synonyms:
+          - fund_id
+        description: Portfolio identifier
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: portfolio_name
+        synonyms:
+          - fund_name
+        description: Portfolio name. All names start with "SAM " prefix.
+        expr: PORTFOLIONAME
+        data_type: VARCHAR(134217728)
+      - name: strategy
+        synonyms:
+          - investment_style
+          - strategy_type
+        description: Investment strategy
+        expr: STRATEGY
+        data_type: VARCHAR(134217728)
+    facts:
+      - name: drift_magnitude
+        synonyms:
+          - drift_amount
+          - drift_size
+        description: Magnitude of factor drift (raw per-portfolio-date value)
+        expr: DRIFT_MAGNITUDE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: concentration_count
+        synonyms:
+          - num_concentration_alerts
+        description: Count of sector concentration alerts
+        expr: SUM(CASE WHEN CONCENTRATION_ALERT THEN 1 ELSE 0 END)
+        access_modifier: public_access
+      - name: dominance_count
+        synonyms:
+          - num_dominance_alerts
+        description: Count of single-factor dominance alerts
+        expr: SUM(CASE WHEN SINGLE_FACTOR_DOMINANCE THEN 1 ELSE 0 END)
+        access_modifier: public_access
+      - name: drift_alert_count
+        synonyms:
+          - num_drift_alerts
+          - drift_flags
+        description: Count of factor drift alerts
+        expr: SUM(CASE WHEN FACTOR_DRIFT_ALERT THEN 1 ELSE 0 END)
+        access_modifier: public_access
+      - name: high_severity_count
+        synonyms:
+          - critical_alerts
+          - high_risk
+        description: Count of HIGH severity anomalies
+        expr: SUM(CASE WHEN ANOMALY_SEVERITY = 'HIGH' THEN 1 ELSE 0 END)
+        access_modifier: public_access
+      - name: portfolio_count
+        synonyms:
+          - num_portfolios
+        description: Number of portfolios analysed
+        expr: COUNT(DISTINCT PORTFOLIOID)
+        access_modifier: public_access
+      - name: spike_count
+        synonyms:
+          - num_spike_alerts
+          - return_spikes
+        description: Count of attribution spike alerts
+        expr: SUM(CASE WHEN ATTRIBUTION_SPIKE THEN 1 ELSE 0 END)
+        access_modifier: public_access
+      - name: style_alert_count
+        synonyms:
+          - num_style_alerts
+          - style_drift
+        description: Count of style inconsistency alerts
+        expr: SUM(CASE WHEN STYLE_INCONSISTENCY THEN 1 ELSE 0 END)
+        access_modifier: public_access
+      - name: allocation_drift_count
+        description: Count of allocation drift alerts (sector weight >2σ from rolling average)
+        expr: SUM(CASE WHEN ALLOCATION_DRIFT_ALERT THEN 1 ELSE 0 END)
+        access_modifier: public_access
+      - name: selection_reversal_count
+        description: Count of selection reversal alerts (selection effect flipped sign)
+        expr: SUM(CASE WHEN SELECTION_REVERSAL_ALERT THEN 1 ELSE 0 END)
+        access_modifier: public_access
+      - name: weight_concentration_count
+        description: Count of weight concentration alerts (single sector >40% of portfolio)
+        expr: SUM(CASE WHEN WEIGHT_CONCENTRATION_ALERT THEN 1 ELSE 0 END)
+        access_modifier: public_access
+    time_dimensions:
+      - name: analysis_date
+        synonyms:
+          - month
+        description: Date of anomaly analysis
+        expr: DATE
+        data_type: DATE
+verified_queries:
+  - name: ANOMALY_SCAN
+    sql: "SELECT __anomalies.portfolio_name, __anomalies.strategy, __anomalies.anomaly_severity, __anomalies.FACTOR_DRIFT_ALERT, __anomalies.drift_factor, __anomalies.drift_magnitude, __anomalies.CONCENTRATION_ALERT, __anomalies.concentrated_sector, __anomalies.SINGLE_FACTOR_DOMINANCE, __anomalies.dominant_factor, __anomalies.STYLE_INCONSISTENCY, __anomalies.ATTRIBUTION_SPIKE FROM __anomalies WHERE __anomalies.analysis_date = (SELECT MAX(__anomalies.analysis_date) FROM __anomalies) ORDER BY CASE __anomalies.anomaly_severity WHEN 'HIGH' THEN 1 WHEN 'MEDIUM' THEN 2 ELSE 3 END"
+    question: Show all anomaly alerts for the latest month across all portfolios ordered by severity
+    use_as_onboarding_question: true
+  - name: HIGH_SEVERITY
+    sql: "SELECT __anomalies.portfolio_name, __anomalies.strategy, __anomalies.drift_factor, __anomalies.drift_magnitude, __anomalies.concentrated_sector, __anomalies.dominant_factor FROM __anomalies WHERE __anomalies.analysis_date = (SELECT MAX(__anomalies.analysis_date) FROM __anomalies) AND __anomalies.anomaly_severity = 'HIGH'"
+    question: Which portfolios have HIGH severity anomalies in the latest month?

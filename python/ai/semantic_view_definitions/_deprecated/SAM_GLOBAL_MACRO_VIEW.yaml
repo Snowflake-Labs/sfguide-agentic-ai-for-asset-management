@@ -1,0 +1,257 @@
+name: SAM_GLOBAL_MACRO_VIEW
+description: "Global macroeconomic and climate data. Includes: BIS central bank policy rates, FX rates vs USD, FRED US economic indicators (GDP, CPI, unemployment), and Climate Watch country-level GHG emissions by sector. Use for macro regime context, currency attribution, economic analysis, and ESG country emissions."
+tables:
+  - name: econ_indicators
+    synonyms:
+      - economic_indicators
+      - fred_data
+      - us_economy
+      - gdp_data
+      - inflation_data
+      - unemployment
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: FACT_ECONOMIC_INDICATORS
+    primary_key:
+      columns:
+        - econ_pk_indicator_id
+    dimensions:
+      - name: econ_pk_indicator_id
+        description: "INDICATOR_ID for econ_indicators"
+        expr: INDICATOR_ID
+        data_type: "NUMBER(38,0)"
+      - name: econ_country
+        synonyms:
+          - economy
+        description: Country for economic indicator (US)
+        expr: COUNTRY
+        data_type: VARCHAR(2)
+      - name: indicator_name
+        synonyms:
+          - metric_name
+          - variable
+        description: Name of economic indicator
+        expr: INDICATOR_NAME
+        data_type: VARCHAR(16777216)
+      - name: indicator_type
+        synonyms:
+          - category
+          - metric_type
+        description: "Type: GDP, INFLATION, UNEMPLOYMENT, INTEREST_RATE, EMPLOYMENT"
+        expr: INDICATOR_TYPE
+        data_type: VARCHAR(13)
+      - name: measure
+        synonyms:
+          - measurement
+        description: Measurement description
+        expr: MEASURE
+        data_type: VARCHAR(16777216)
+      - name: unit
+        synonyms:
+          - measurement_unit
+        description: Unit of measurement
+        expr: UNIT
+        data_type: VARCHAR(16777216)
+    facts:
+      - name: indicator_value
+        expr: VALUE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_indicator_value
+        synonyms:
+          - metric_value
+          - economic_value
+        description: Value of economic indicator
+        expr: AVG(indicator_value)
+        access_modifier: public_access
+    time_dimensions:
+      - name: economic_indicator_date
+        synonyms:
+          - indicator_date
+        description: Date of economic indicator observation
+        expr: DATE
+        data_type: DATE
+  - name: fx_rates
+    synonyms:
+      - exchange_rates
+      - currency_rates
+      - forex
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: FACT_FX_RATES
+    primary_key:
+      columns:
+        - fx_r_pk_fx_rate_id
+    dimensions:
+      - name: fx_r_pk_fx_rate_id
+        description: "FX_RATE_ID for fx_rates"
+        expr: FX_RATE_ID
+        data_type: "NUMBER(38,0)"
+      - name: base_currency
+        synonyms:
+          - from_currency
+        description: Base currency (USD)
+        expr: BASE_CURRENCY_ID
+        data_type: VARCHAR(16777216)
+      - name: quote_currency
+        synonyms:
+          - to_currency
+          - target_currency
+        description: Quote currency code
+        expr: QUOTE_CURRENCY_ID
+        data_type: VARCHAR(16777216)
+    facts:
+      - name: fx_rate
+        expr: FX_RATE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_fx_rate
+        synonyms:
+          - exchange_rate
+          - dollar_rate
+          - currency_rate
+        description: Exchange rate vs USD
+        expr: AVG(fx_rate)
+        access_modifier: public_access
+    time_dimensions:
+      - name: fx_rate_date
+        synonyms:
+          - exchange_date
+        description: Date of FX rate observation
+        expr: DATE
+        data_type: DATE
+  - name: policy_rates
+    synonyms:
+      - central_bank_rates
+      - interest_rates
+      - bis_rates
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: FACT_POLICY_RATES
+    primary_key:
+      columns:
+        - poli_pk_rate_id
+    dimensions:
+      - name: poli_pk_rate_id
+        description: "RATE_ID for policy_rates"
+        expr: RATE_ID
+        data_type: "NUMBER(38,0)"
+      - name: policy_country
+        synonyms:
+          - nation
+          - central_bank_country
+        description: Country of central bank
+        expr: COUNTRY
+        data_type: VARCHAR(16777216)
+      - name: rate_name
+        synonyms:
+          - rate_type
+          - policy_type
+        description: Name of policy rate instrument
+        expr: VARIABLE_NAME
+        data_type: VARCHAR(16777216)
+    facts:
+      - name: policy_rate
+        expr: POLICY_RATE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_policy_rate
+        synonyms:
+          - interest_rate
+          - base_rate
+          - central_bank_rate
+        description: Central bank policy rate percentage
+        expr: AVG(policy_rate)
+        access_modifier: public_access
+    time_dimensions:
+      - name: policy_rate_date
+        synonyms:
+          - rate_date
+          - observation_date
+        description: Date of policy rate observation
+        expr: DATE
+        data_type: DATE
+  - name: country_emissions
+    synonyms:
+      - ghg_emissions
+      - carbon_emissions
+      - climate_data
+      - greenhouse_gas
+    description: "Country-level greenhouse gas emissions from Climate Watch (CO2, CH4, N2O, F-gases) by sector"
+    base_table:
+      database: "{{DATABASE}}"
+      schema: MARKET_DATA
+      table: FACT_COUNTRY_EMISSIONS
+    primary_key:
+      columns:
+        - coun_pk_emission_id
+    dimensions:
+      - name: coun_pk_emission_id
+        description: "EMISSION_ID for country_emissions"
+        expr: EMISSION_ID
+        data_type: "NUMBER(38,0)"
+      - name: country_iso3
+        synonyms:
+          - country
+          - nation
+          - country_code
+        description: "ISO3 country code (USA, CHN, GBR, etc.)"
+        expr: COUNTRY_ISO3
+        data_type: VARCHAR(16777216)
+      - name: emission_type
+        synonyms:
+          - gas_type
+          - ghg_type
+        description: "Type of greenhouse gas (CO2, CH4, N2O, F-Gas, All GHG)"
+        expr: EMISSION_TYPE
+        data_type: VARCHAR(16777216)
+      - name: emission_sector
+        synonyms:
+          - sector
+          - source_sector
+        description: "Emissions sector (Energy, Agriculture, Industrial Processes, Waste, Total excluding LUCF, Total including LUCF)"
+        expr: SECTOR
+        data_type: VARCHAR(16777216)
+      - name: emission_unit
+        description: "Unit of measurement"
+        expr: UNIT
+        data_type: VARCHAR(16777216)
+    facts:
+      - name: emissions_tco2e
+        synonyms:
+          - emissions
+          - carbon_tonnes
+        description: "Emissions in tonnes CO2 equivalent"
+        expr: EMISSIONS_TCO2E
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: emissions_mt_co2e
+        synonyms:
+          - emissions_megatonnes
+          - mt_co2
+        description: "Emissions in megatonnes CO2 equivalent"
+        expr: EMISSIONS_MT_CO2E
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: total_emissions
+        synonyms:
+          - aggregate_emissions
+          - sum_emissions
+        description: "Total emissions in tonnes CO2 equivalent"
+        expr: SUM(emissions_tco2e)
+        access_modifier: public_access
+    time_dimensions:
+      - name: emission_year_date
+        synonyms:
+          - year
+          - emission_date
+        description: "Year of emission measurement"
+        expr: YEAR_DATE
+        data_type: DATE

@@ -156,7 +156,7 @@ The FCA introduced Consumer Duty as a paradigm shift in consumer protection regu
 ---
 
 **Questions**: Contact Chief Compliance Officer  
-compliance@sam-demo.example
+compliance@snowcrestam.com
 
 *Simulated Asset Management Regulatory Update — FCA Consumer Duty — Internal Distribution*
 

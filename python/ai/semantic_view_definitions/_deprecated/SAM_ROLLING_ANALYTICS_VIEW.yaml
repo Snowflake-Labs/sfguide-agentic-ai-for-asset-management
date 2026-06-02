@@ -1,0 +1,155 @@
+name: SAM_ROLLING_ANALYTICS_VIEW
+description: "Rolling factor analytics view for tracking factor exposure drift, cumulative contribution paths, and regime-conditional performance. Key columns: EXPOSURE_DRIFT (current minus 6-month trailing average), EXPOSURE_DRIFT_ZSCORE (drift normalised by trailing stddev), CUMULATIVE_CONTRIBUTION (running total), ROLLING_3M/6M_CONTRIBUTION (trailing sums)."
+tables:
+  - name: rolling
+    synonyms:
+      - rolling_attribution
+      - factor_drift
+      - exposure_path
+      - contribution_path
+    description: "Rolling factor analytics with exposure drift, cumulative contributions, and regime classification"
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: V_FACTOR_ROLLING_ANALYTICS
+    primary_key:
+      columns:
+        - analysis_date
+        - portfolio_id
+        - factor_name
+    dimensions:
+      - name: factor_name
+        synonyms:
+          - factor
+          - risk_factor
+        description: "Factor name (Market, Value, Growth, Momentum, Quality, Size, Volatility)"
+        expr: FACTOR_NAME
+        data_type: VARCHAR(10)
+      - name: market_regime
+        synonyms:
+          - risk_regime
+          - market_state
+        description: "Monthly market regime (RISK_ON, RISK_OFF, TRANSITIONAL, NEUTRAL)"
+        expr: MARKET_REGIME
+        data_type: VARCHAR(12)
+      - name: portfolio_id
+        synonyms:
+          - fund_id
+        description: Portfolio identifier
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: portfolio_name
+        synonyms:
+          - fund_name
+        description: "Portfolio name. All names start with \"SAM \" prefix, e.g. \"SAM Technology & Infrastructure\"."
+        expr: PORTFOLIONAME
+        data_type: VARCHAR(134217728)
+      - name: strategy
+        synonyms:
+          - investment_style
+          - strategy_type
+        description: Investment strategy
+        expr: STRATEGY
+        data_type: VARCHAR(134217728)
+      - name: volatility_regime
+        synonyms:
+          - vol_regime
+          - vix_regime
+        description: "Monthly volatility regime (LOW_VOL, NORMAL, ELEVATED, HIGH_VOL)"
+        expr: VOLATILITY_REGIME
+        data_type: VARCHAR(8)
+    facts:
+      - name: contribution
+        expr: CONTRIBUTION
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: cumulative_contribution
+        expr: CUMULATIVE_CONTRIBUTION
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: exposure
+        expr: EXPOSURE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: exposure_drift
+        expr: EXPOSURE_DRIFT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: rolling_3m_contribution
+        expr: ROLLING_3M_CONTRIBUTION
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: rolling_6m_contribution
+        expr: ROLLING_6M_CONTRIBUTION
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_contribution
+        synonyms:
+          - avg_factor_contribution
+          - mean_contribution
+        description: Average factor contribution
+        expr: AVG(contribution)
+        access_modifier: public_access
+      - name: average_exposure
+        synonyms:
+          - mean_loading
+        description: Average factor exposure
+        expr: AVG(exposure)
+        access_modifier: public_access
+      - name: average_exposure_drift
+        synonyms:
+          - mean_drift
+        description: Average exposure drift from 6-month trailing average
+        expr: AVG(exposure_drift)
+        access_modifier: public_access
+      - name: average_rolling_3m_contribution
+        synonyms:
+          - rolling_3month
+          - trailing_3m
+        description: Average rolling 3-month contribution
+        expr: AVG(rolling_3m_contribution)
+        access_modifier: public_access
+      - name: average_rolling_6m_contribution
+        synonyms:
+          - rolling_6month
+          - trailing_6m
+        description: Average rolling 6-month contribution
+        expr: AVG(rolling_6m_contribution)
+        access_modifier: public_access
+      - name: max_cumulative_contribution
+        synonyms:
+          - final_cumulative
+          - total_path
+        description: Latest cumulative contribution value
+        expr: MAX(cumulative_contribution)
+        access_modifier: public_access
+      - name: max_drift_zscore
+        synonyms:
+          - peak_drift
+          - max_zscore
+        description: Maximum absolute drift z-score
+        expr: MAX(ABS(EXPOSURE_DRIFT_ZSCORE))
+        access_modifier: public_access
+      - name: total_contribution
+        synonyms:
+          - total_factor_contribution
+          - cumulative
+        description: Total factor contribution
+        expr: SUM(contribution)
+        access_modifier: public_access
+    time_dimensions:
+      - name: analysis_date
+        synonyms:
+          - month
+        description: Date of factor attribution
+        expr: DATE
+        data_type: DATE
+verified_queries:
+  - name: ROLLING_DRIFT_ALL
+    sql: "SELECT __rolling.portfolio_name, __rolling.factor_name, __rolling.exposure, __rolling.EXPOSURE_6M_AVG, __rolling.exposure_drift, __rolling.EXPOSURE_DRIFT_ZSCORE FROM __rolling WHERE __rolling.analysis_date = (SELECT MAX(__rolling.analysis_date) FROM __rolling) ORDER BY ABS(__rolling.EXPOSURE_DRIFT_ZSCORE) DESC"
+    question: Show the current exposure drift z-scores for all factors across all portfolios in the latest month
+    use_as_onboarding_question: true
+  - name: ROLLING_PATH
+    sql: "SELECT __rolling.analysis_date, __rolling.factor_name, __rolling.contribution, __rolling.cumulative_contribution, __rolling.market_regime FROM __rolling WHERE __rolling.portfolio_name = 'SAM Global Flagship Multi-Asset' ORDER BY __rolling.analysis_date, __rolling.factor_name"
+    question: Show the cumulative contribution path for all systematic factors for SAM Global Flagship Multi-Asset

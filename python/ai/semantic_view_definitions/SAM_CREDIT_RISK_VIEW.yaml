@@ -1,0 +1,173 @@
+name: SAM_CREDIT_RISK_VIEW
+description: ML-based credit risk scores with SHAP explainability for private credit borrowers
+tables:
+  - name: borrowers
+    synonyms:
+      - credit borrowers
+      - companies
+    description: "Borrower reference data with sector, geography, sponsor."
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_CREDIT_BORROWER
+    primary_key:
+      columns:
+        - borr_pk_borrowerid
+    dimensions:
+      - name: borr_pk_borrowerid
+        description: "BORROWERID for borrowers"
+        expr: BORROWERID
+        data_type: "NUMBER(38,0)"
+      - name: borrower_name
+        synonyms:
+          - company name
+          - name
+        description: Name of the borrower
+        expr: BorrowerName
+        data_type: VARCHAR(255)
+      - name: credit_rating
+        synonyms:
+          - rating
+        description: External credit rating
+        expr: CreditRating
+        data_type: VARCHAR(10)
+      - name: geography
+        synonyms:
+          - region
+          - location
+        description: Geographic region
+        expr: Geography
+        data_type: VARCHAR(50)
+      - name: sector
+        synonyms:
+          - industry
+        description: Industry sector of the borrower
+        expr: Sector
+        data_type: VARCHAR(100)
+  - name: risk_scores
+    synonyms:
+      - credit risk
+      - pd scores
+      - default probability
+    description: ML-based probability of default scores from XGBoost model. Each borrower scored quarterly with PD and risk rating.
+    base_table:
+      database: {{DATABASE}}
+      schema: ML
+      table: FACT_CREDIT_RISK_SCORES
+    primary_key:
+      columns:
+        - risk_pk_borrower_id
+        - quarter_date
+    dimensions:
+      - name: risk_pk_borrower_id
+        description: "BORROWER_ID for risk_scores"
+        expr: BORROWER_ID
+        data_type: "NUMBER(38,0)"
+      - name: model_version
+        description: Model version used for scoring
+        expr: MODEL_VERSION
+        data_type: VARCHAR(50)
+      - name: risk_rating
+        synonyms:
+          - rating
+          - risk category
+          - risk tier
+        description: "Risk rating bucket: LOW_RISK, MODERATE, ELEVATED, HIGH_RISK"
+        expr: RISK_RATING
+        data_type: VARCHAR(20)
+    facts:
+      - name: pd_score
+        description: "Probability of default score (0-1)"
+        expr: PD_SCORE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_pd_score
+        synonyms:
+          - pd
+          - probability of default
+          - default probability
+          - risk score
+        description: Predicted probability of default (0 to 1). Higher = more risky.
+        expr: AVG(pd_score)
+        access_modifier: public_access
+    time_dimensions:
+      - name: quarter_date
+        synonyms:
+          - quarter
+          - date
+          - report date
+        description: Quarter end date for the risk score
+        expr: QUARTER_DATE
+        data_type: DATE
+  - name: shap_explanations
+    synonyms:
+      - shap
+      - feature importance
+      - risk drivers
+      - explanations
+    description: SHAP values explaining which features drive each borrower risk score.
+    base_table:
+      database: {{DATABASE}}
+      schema: ML
+      table: FACT_CREDIT_SHAP_EXPLANATIONS
+    primary_key:
+      columns:
+        - shap_pk_borrower_id
+        - shap_pk_quarter_date
+        - feature_name
+    dimensions:
+      - name: shap_pk_borrower_id
+        description: "BORROWER_ID for shap_explanations"
+        expr: BORROWER_ID
+        data_type: "NUMBER(38,0)"
+      - name: feature_name
+        synonyms:
+          - feature
+          - risk driver
+          - factor
+        description: Name of the feature driving the risk score
+        expr: FEATURE_NAME
+        data_type: VARCHAR(100)
+    time_dimensions:
+      - name: shap_pk_quarter_date
+        description: "QUARTER_DATE for shap_explanations"
+        expr: QUARTER_DATE
+        data_type: DATE
+    facts:
+      - name: feature_value
+        description: "Value of the feature used in credit risk prediction"
+        expr: FEATURE_VALUE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: shap_value
+        description: "SHAP value for the feature"
+        expr: SHAP_VALUE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_feature_value
+        description: Actual feature value for this borrower-quarter
+        expr: AVG(feature_value)
+        access_modifier: public_access
+      - name: average_shap_value
+        synonyms:
+          - shap value
+          - importance
+          - contribution
+        description: SHAP value showing feature contribution to prediction. Positive pushes toward default.
+        expr: AVG(shap_value)
+        access_modifier: public_access
+relationships:
+  - name: scores_to_borrowers
+    left_table: risk_scores
+    right_table: borrowers
+    relationship_columns:
+      - left_column: risk_pk_borrower_id
+        right_column: borr_pk_borrowerid
+  - name: shap_to_borrowers
+    left_table: shap_explanations
+    right_table: borrowers
+    relationship_columns:
+      - left_column: shap_pk_borrower_id
+        right_column: borr_pk_borrowerid

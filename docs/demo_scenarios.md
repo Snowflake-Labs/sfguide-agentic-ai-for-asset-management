@@ -1,116 +1,108 @@
 # SAM Demo - Scenario Scripts
 
-Complete demo scenarios organized by role and agent, with step-by-step conversations, expected responses, and data flows.
-
-## Demo Scenarios by Role
-
-This documentation is organized by business role, with each role having dedicated scenario documentation:
-
-### [Portfolio Manager Scenarios](demo_scenarios_portfolio_manager.md)
-**Agents**: Portfolio Copilot, Thematic Macro Advisor
-
-**Scenarios**:
-- **Portfolio Copilot - Portfolio Insights & Benchmarking**: Complete portfolio analysis workflow from holdings review to actionable investment decisions with integrated risk management
-- **Portfolio Copilot - Real-Time Event Impact & Second-Order Risk Verification**: Event-driven risk assessment combining direct exposure with multi-hop supply chain dependency analysis
-- **Portfolio Copilot - AI-Assisted Mandate Compliance & Security Replacement**: Automated compliance workflow from breach detection to replacement analysis and committee documentation
-- **Thematic Macro Advisor - Investment Theme Analysis**: Cross-portfolio thematic positioning with emerging opportunity identification and integrated investment strategy development
-
-**Key Capabilities**: Multi-tool hybrid analysis combining quantitative portfolio data with qualitative research, real-time event impact assessment, mandate compliance automation, and thematic investment strategy development.
-
-**Additional Scenarios**: See also [Thematic Advisor Scenarios](demo_scenarios_thematic_advisor.md) for additional Thematic Macro Advisor scenarios including AI Infrastructure Strategy Development.
+Complete demo scenarios organized by scenario (matching `config.SCENARIOS`), with step-by-step conversations, expected responses, and data flows.
 
 ---
 
-### [Research Analyst Scenarios](demo_scenarios_research_analyst.md)
-**Agent**: Research Copilot
+## Scenarios Overview
 
-**Scenarios**:
-- **Research Copilot - Document Research & Analysis**: Multi-source research synthesis combining financial analysis with broker research, earnings transcripts, and press releases for complete investment thesis development
-- **Research Copilot - Earnings Intelligence Extensions**: Automated earnings analysis integrating financial metrics with sentiment analysis and strategic commentary evolution tracking
+| Scenario | Agent | Demo Surface | Doc |
+|----------|-------|--------------|-----|
+| `portfolio_management` | `AM_portfolio_management_copilot` | Cockpit + SI | [Portfolio Management](demo_scenarios_portfolio_management.md) |
+| `research` | `AM_research_copilot` | SI | [Research](demo_scenarios_research.md) |
+| `risk_compliance` | `AM_risk_compliance_copilot` | SI | [Risk & Compliance](demo_scenarios_risk_compliance.md) |
+| `client_advisory` | `AM_client_advisory_copilot` | SI | [Client Advisory](demo_scenarios_client_advisory.md) |
+| `operations` | `AM_operations_copilot` | SI | [Operations](demo_scenarios_operations.md) |
+| `executive_leadership` | `AM_executive_leadership_copilot` | SI | [Executive Leadership](demo_scenarios_executive_leadership.md) |
+| `private_equity` | `AM_private_equity_copilot` | Cockpit + SI | [Private Equity](demo_scenarios_private_equity.md) |
+| `private_credit` | `AM_private_credit_copilot` | Cockpit + SI | [Private Credit](demo_scenarios_private_credit.md) |
+| `market_regime_ml` | *(ML notebook)* | Notebook | [ML Scenarios](demo_scenarios_ml.md#market-regime-detection) |
+| `factor_workflow_ml` | *(ML notebook)* | Notebook | [ML Scenarios](demo_scenarios_ml.md#factor-model-workflow) |
+| `credit_risk_ml` | *(ML notebook)* | Notebook | [ML Scenarios](demo_scenarios_ml.md#credit-risk-scoring) |
 
-**Key Capabilities**: Hybrid analytics platform combining Cortex Analyst structured data analysis with Cortex Search document intelligence, comprehensive data integration across financial fundamentals and research documents, intelligent financial analysis with earnings surprises and ratio comparisons.
-
----
-
-### [Quantitative Analyst Scenarios](demo_scenarios_quant_analyst.md)
-**Agent**: Quant Analyst
-
-**Scenarios**:
-- **Quant Analyst - Factor Analysis & Performance Attribution**: Systematic factor screening, portfolio impact analysis, factor evolution tracking, and fundamental validation for complete quantitative investment process
-
-**Key Capabilities**: Pre-built factor metrics for instant analysis, 5 years of monthly factor exposure data for time-series analysis, complete 7-factor model (Market, Size, Value, Growth, Momentum, Quality, Volatility), research integration combining quantitative factor models with fundamental validation.
-
----
-
-### [Client Relations Scenarios](demo_scenarios_client_relations.md)
-**Agent**: Sales Advisor
-
-**Scenarios**:
-- **Sales Advisor - Complete Client Communications Package**: Unified catch-all workflow combining quarterly letters, portfolio analytics, performance metrics, and investment philosophy for comprehensive client communications
-- **Sales Advisor - RFP Response Preparation**: Institutional RFP response generation with firm capabilities, investment philosophy, track record, and fee structures
-- **Sales Advisor - Client Onboarding Package**: Welcome materials, key contacts, investment policy summaries, and next steps for newly onboarded clients
-- **Sales Advisor - At-Risk Client Analysis**: Flow pattern analysis identifying redemption trends with retention strategies and engagement recommendations
-- **Sales Advisor - Product Cross-Sell Opportunity**: Client suitability analysis matching investment needs to available strategies with revenue impact projections
-- **Sales Advisor - Client Segmentation and Prioritisation**: AUM-based client prioritisation with engagement history, relationship health scoring, and opportunity identification
-
-**Key Capabilities**: Multi-source integration of portfolio data with templates and philosophy, template intelligence for automated formatting and brand consistency, compliance automation ensuring regulatory standards, brand integration weaving investment philosophy into performance narratives, client flow pattern analysis for proactive retention, product matching and cross-sell intelligence.
-
-**Additional Scenarios**: See also [Sales Scenarios](demo_scenarios_sales.md) for additional Sales Advisor scenarios including Quarterly Client Presentation and New Client Onboarding Workflow.
+**SI** = Snowflake Intelligence, **Cockpit** = PM Cockpit (SPCS app)
 
 ---
 
-### [Risk & Compliance Officer Scenarios](demo_scenarios_risk_compliance.md)
-**Agents**: ESG Guardian, Compliance Advisor
+## Agent Scenarios (8 agents)
 
-**Scenarios**:
-- **ESG Guardian - ESG Risk Monitoring & Policy Compliance**: Proactive controversy scanning with engagement history review and policy compliance assessment for comprehensive ESG governance
-- **Compliance Advisor - Mandate Monitoring & Breach Detection**: Automated breach detection with policy documentation, remediation planning, and audit-ready documentation for continuous compliance
+### [Portfolio Management](demo_scenarios_portfolio_management.md)
+**Agent**: `AM_portfolio_management_copilot`
 
-**Key Capabilities**: Proactive ESG risk monitoring across multiple NGO sources, comprehensive engagement tracking and commitment monitoring, automated compliance checking with policy-based action guidance, real-time monitoring across all portfolios and mandates, sophisticated remediation planning with market impact considerations.
+The primary demo agent — covers portfolio management, attribution analysis, factor/quant strategy, thematic investing, and portfolio modelling. Demonstrated via the PM Cockpit SPCS app or Snowflake Intelligence directly.
 
-**Additional Scenarios**: 
-- See [ESG Officer Scenarios](demo_scenarios_esg_officer.md) for 6 additional ESG Guardian scenarios including Comprehensive ESG Risk Review, Daily ESG Controversy Scanning, ESG Rating Monitor, Company ESG Response Analysis, Stewardship & Engagement Review, and Complete ESG Risk Assessment.
-- See [Compliance Officer Scenarios](demo_scenarios_compliance_officer.md) for 5 additional Compliance Advisor scenarios including Portfolio Compliance Audit, Daily Concentration Limit Monitoring, Policy Requirements Lookup, Breach Remediation Tracking, and Complete Compliance Assessment.
-
----
-
-### [Middle Office Operations Scenarios](demo_scenarios_middle_office.md)
-**Agent**: Middle Office Copilot
-
-**Scenarios**:
-- **Middle Office Copilot - NAV Calculation & Settlement Monitoring**: Real-time operations intelligence across settlement monitoring, reconciliation break investigation, NAV calculation status, and corporate action processing
-
-**Key Capabilities**: Continuous monitoring across all middle office functions (settlement, reconciliation, NAV, corporate actions, cash), automated root cause analysis with specific remediation recommendations, cross-functional integration linking operational issues for comprehensive root cause identification, severity-based prioritization by business impact and regulatory urgency.
+| Part | Coverage |
+|------|----------|
+| Portfolio Management | Holdings review, company analysis, event-driven risk, mandate compliance |
+| Attribution & Risk Decomposition | Brinson deep dive, macro regime, sector attribution, hidden factors, stress tests |
+| Quantitative / Factor Analysis | Multi-factor screening, factor strategy, ad-hoc regression |
+| Thematic Strategy | AI infrastructure, yield curve, thematic catch-all |
+| Portfolio Modelling | IPS-driven construction, retirement planning, Monte Carlo, optimisation |
 
 ---
 
-### [Executive Leadership Scenarios](demo_scenarios_executive.md)
-**Agent**: Executive Copilot (Executive Command Center)
+### [Research](demo_scenarios_research.md)
+**Agent**: `AM_research_copilot`
 
-**Scenarios**:
-- **Executive Copilot - Holistic Business Performance Review**: Real-time firm-wide KPI dashboard with client flow drill-down, strategic document context, and executive summary synthesis for management committee preparation
-- **Executive Copilot - Strategic Competitor Analysis & M&A Simulation**: Competitor intelligence gathering from SEC filings, M&A financial modeling with firm-specific assumptions, and executive memo generation for strategic opportunities
-
-**Key Capabilities**: Single pane of glass view across firm-wide KPIs, client analytics, and strategic documents. Real-time competitor intelligence from SEC filings. M&A simulation tool with automatic EPS accretion modeling. Executive memo generation with professional formatting. Connects operational data to strategic priorities for C-suite decision-making.
+Document research and analysis — broker research synthesis, earnings intelligence, investment memos, insider/institutional ownership.
 
 ---
 
-## Using This Documentation
+### [Risk & Compliance](demo_scenarios_risk_compliance.md)
+**Agent**: `AM_risk_compliance_copilot`
 
-### For Demonstrations
-1. Review the persona and business challenge to set context
-2. Follow the step-by-step demo flow with exact user inputs
-3. Use talking points to emphasize key capabilities
-4. Reference scenario wrap-ups for business impact and technical differentiators
+Mandate compliance monitoring, ESG risk assessment, breach remediation, stewardship, and regulatory reporting.
 
-### For Development
-- Each scenario documents required tools and data sources
-- Expected responses provide validation criteria for agent behavior
-- Technical differentiators highlight unique Snowflake capabilities
-- Tools Used sections map to agent tool configurations
+| Part | Coverage |
+|------|----------|
+| Compliance Monitoring | Concentration limits, policy lookup, breach tracking, insider surveillance |
+| ESG Risk & Stewardship | ESG reviews, controversy scanning, rating monitoring, engagement, SFDR/taxonomy |
 
-### For Training
-- Business context setup provides realistic user scenarios
-- Multi-step workflows demonstrate complete business processes
-- Scenario wrap-ups emphasize business outcomes and competitive advantages
-- Key features highlighted sections focus on demonstrable capabilities
+---
+
+### [Client Advisory](demo_scenarios_client_advisory.md)
+**Agent**: `AM_client_advisory_copilot`
+
+Client relationship management — strategy Q&A, performance stories, RFP responses, onboarding, at-risk analysis, segmentation.
+
+---
+
+### [Operations](demo_scenarios_operations.md)
+**Agent**: `AM_operations_copilot`
+
+Middle office operations monitoring — NAV calculation, settlement failures, reconciliation breaks, corporate actions.
+
+---
+
+### [Executive Leadership](demo_scenarios_executive_leadership.md)
+**Agent**: `AM_executive_leadership_copilot`
+
+Firm-wide KPIs, strategic M&A analysis, competitor intelligence, board-ready briefings.
+
+---
+
+### [Private Equity](demo_scenarios_private_equity.md)
+**Agent**: `AM_private_equity_copilot`
+
+Private equity deal sourcing, due diligence, portfolio company monitoring, value creation tracking, and fund-level reporting.
+
+---
+
+### [Private Credit](demo_scenarios_private_credit.md)
+**Agent**: `AM_private_credit_copilot`
+
+Credit portfolio monitoring, covenant tracking, rate sensitivity, deal pipeline screening, and ML credit risk scoring.
+
+---
+
+## ML Scenarios (3 notebooks)
+
+### [ML Development](demo_scenarios_ml.md)
+
+Notebook-based ML workflows — no agent, demoed via Snowflake Notebooks.
+
+| Scenario | Notebook | Description |
+|----------|----------|-------------|
+| `market_regime_ml` | Market Regime Detection | GMM regime classification via Feature Store |
+| `factor_workflow_ml` | Factor Model Workflow | XGBoost factor return prediction |
+| `credit_risk_ml` | Credit Risk Scoring | XGBoost PD model with SHAP explainability |

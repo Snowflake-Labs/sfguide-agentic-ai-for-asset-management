@@ -64,7 +64,7 @@ Manual entry step identified as improvement opportunity
 ---
 
 **Investigated By:** Sarah Mitchell, Operations Manager  
-**Corporate Actions Team:** corporateactions@sam-demo.example  
+**Corporate Actions Team:** corporateactions@snowcrestam.com  
 **Reference:** SET-2024-12-156  
 **Status:** Under Investigation
 

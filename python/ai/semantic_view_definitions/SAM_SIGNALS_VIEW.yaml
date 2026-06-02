@@ -1,0 +1,217 @@
+name: SAM_SIGNALS_VIEW
+description: "AI-detected portfolio signals from three extraction tiers: pure SQL (price moves, regime changes, compliance, factor drift), Cortex AI (transcript NLP, SEC risk factor delta), and agent enrichment (supply chain, thesis challenge). Each signal has urgency scoring, impact estimates in basis points, confidence levels, and provenance tracking."
+tables:
+  - name: signals
+    synonyms:
+      - signal_feed
+      - alerts
+      - notifications
+      - intelligence
+      - proactive_signals
+    description: All AI-detected signals across portfolios with urgency, impact, and provenance
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: FACT_SIGNALS
+    primary_key:
+      columns:
+        - sig_pk_signalid
+    dimensions:
+      - name: sig_pk_signalid
+        description: "SIGNAL_ID for signals"
+        expr: SIGNAL_ID
+        data_type: "NUMBER(38,0)"
+      - name: source_type
+        synonyms:
+          - signal_source
+          - data_source
+          - extraction_source
+        description: "Source of the signal: price_action, volume_spike, regime_change, yield_curve, compliance, esg_downgrade, insider_cluster, institutional_exit, sector_rotation, cross_asset, factor_drift, attribution_anomaly, transcript_nlp, sec_risk_delta, supply_chain, thesis_challenge"
+        expr: SOURCE_TYPE
+        data_type: VARCHAR(50)
+        is_enum: true
+        sample_values:
+          - "price_action"
+          - "compliance"
+          - "regime_change"
+          - "factor_drift"
+          - "attribution_anomaly"
+          - "transcript_nlp"
+          - "insider_cluster"
+      - name: entity_type
+        synonyms:
+          - target_type
+          - subject_type
+        description: "What the signal is about: SECURITY, PORTFOLIO, MARKET, MACRO"
+        expr: ENTITY_TYPE
+        data_type: VARCHAR(50)
+        is_enum: true
+        sample_values:
+          - "SECURITY"
+          - "PORTFOLIO"
+          - "MARKET"
+          - "MACRO"
+      - name: entity_name
+        synonyms:
+          - ticker
+          - portfolio_name
+          - security
+          - subject
+        description: "Name of the entity (ticker for securities, portfolio name for portfolios, or market indicator)"
+        expr: ENTITY_NAME
+        data_type: VARCHAR(255)
+      - name: signal_type
+        synonyms:
+          - category
+          - signal_category
+          - type
+        description: "Signal category: risk_alert, compliance, thesis_challenge, opportunity, regime_shift, informational"
+        expr: SIGNAL_TYPE
+        data_type: VARCHAR(50)
+        is_enum: true
+        sample_values:
+          - "risk_alert"
+          - "compliance"
+          - "thesis_challenge"
+          - "informational"
+      - name: headline
+        synonyms:
+          - title
+          - summary
+          - signal_headline
+        description: "One-line signal summary"
+        expr: HEADLINE
+        data_type: VARCHAR(500)
+      - name: detail
+        synonyms:
+          - description
+          - full_text
+          - analysis
+        description: "Full signal analysis paragraph"
+        expr: DETAIL
+        data_type: VARCHAR(10000)
+      - name: urgency
+        synonyms:
+          - priority
+          - urgency_level
+          - time_sensitivity
+        description: "Time sensitivity: immediate, today, this_week, background"
+        expr: URGENCY
+        data_type: VARCHAR(20)
+        is_enum: true
+        sample_values:
+          - "immediate"
+          - "today"
+          - "this_week"
+          - "background"
+      - name: status
+        synonyms:
+          - signal_status
+          - read_status
+        description: "Current status: new, viewed, acted_on, dismissed, expired"
+        expr: STATUS
+        data_type: VARCHAR(20)
+        is_enum: true
+        sample_values:
+          - "new"
+          - "viewed"
+          - "dismissed"
+      - name: extraction_tier
+        synonyms:
+          - processing_tier
+          - tier
+        description: "How the signal was generated: sql (pure SQL), cortex_ai (AI_COMPLETE), agent (DATA_AGENT_RUN)"
+        expr: EXTRACTION_TIER
+        data_type: VARCHAR(10)
+        is_enum: true
+        sample_values:
+          - "sql"
+          - "cortex_ai"
+          - "agent"
+      - name: source_chain
+        synonyms:
+          - provenance
+          - chain
+        description: "Signal provenance chain showing how the event cascades to portfolio impact"
+        expr: SOURCE_CHAIN
+        data_type: VARCHAR(1000)
+    time_dimensions:
+      - name: created_at
+        synonyms:
+          - signal_date
+          - generated_at
+          - timestamp
+        description: "When the signal was created"
+        expr: CREATED_AT
+        data_type: TIMESTAMP_NTZ
+    facts:
+      - name: confidence
+        synonyms:
+          - confidence_score
+          - certainty
+        description: "Model confidence 0.0-1.0"
+        expr: CONFIDENCE
+        data_type: FLOAT
+      - name: impact_estimate_bps
+        synonyms:
+          - impact
+          - basis_points
+          - estimated_impact
+          - bps
+        description: "Estimated portfolio impact in basis points"
+        expr: IMPACT_ESTIMATE_BPS
+        data_type: FLOAT
+    metrics:
+      - name: signal_count
+        description: "Total number of signals"
+        expr: COUNT(SIGNAL_ID)
+        access_modifier: public_access
+      - name: unread_count
+        synonyms:
+          - new_signals
+          - unread_signals
+        description: "Number of signals with status = new"
+        expr: COUNT_IF(STATUS = 'new')
+        access_modifier: public_access
+      - name: immediate_count
+        synonyms:
+          - urgent_signals
+          - critical_count
+        description: "Number of signals with urgency = immediate"
+        expr: COUNT_IF(URGENCY = 'immediate')
+        access_modifier: public_access
+      - name: avg_confidence
+        description: "Average confidence score across signals"
+        expr: AVG(CONFIDENCE)
+        access_modifier: public_access
+      - name: avg_impact_bps
+        synonyms:
+          - average_impact
+          - mean_impact
+        description: "Average estimated impact in basis points"
+        expr: AVG(IMPACT_ESTIMATE_BPS)
+        access_modifier: public_access
+      - name: total_impact_bps
+        synonyms:
+          - sum_impact
+          - cumulative_impact
+        description: "Sum of all estimated impacts in basis points"
+        expr: SUM(IMPACT_ESTIMATE_BPS)
+        access_modifier: public_access
+verified_queries:
+  - name: UNREAD_SIGNALS
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_SIGNALS_VIEW METRICS unread_count)"
+    question: How many unread signals are there?
+    use_as_onboarding_question: true
+  - name: URGENT_SIGNALS
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_SIGNALS_VIEW METRICS signal_count, avg_confidence, avg_impact_bps DIMENSIONS headline, signal_type, entity_name, urgency WHERE urgency = 'immediate')"
+    question: What are the most urgent signals?
+    use_as_onboarding_question: true
+  - name: SIGNALS_BY_SOURCE
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_SIGNALS_VIEW METRICS signal_count, avg_confidence DIMENSIONS source_type)"
+    question: Show me signals by source type
+    use_as_onboarding_question: false
+  - name: HIGH_IMPACT_RISK_ALERTS
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_SIGNALS_VIEW METRICS avg_impact_bps, avg_confidence DIMENSIONS headline, entity_name, urgency WHERE signal_type = 'risk_alert')"
+    question: What risk alerts have the highest impact?
+    use_as_onboarding_question: true

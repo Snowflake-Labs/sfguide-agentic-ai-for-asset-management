@@ -1,0 +1,772 @@
+name: SAM_CREDIT_PORTFOLIO_VIEW
+description: "Private credit portfolio semantic view. Covers borrower profiles, facility terms, quarterly financials, covenant compliance tracking, deal pipeline, and sector benchmarks. Use for leverage analysis, covenant monitoring, rate sensitivity, deal screening, and portfolio analytics."
+tables:
+  - name: benchmarks
+    synonyms:
+      - sector_benchmarks
+      - market_data
+      - sector_spreads
+      - defaults
+    description: "Credit market sector benchmarks including spreads, default rates, and issuance volumes"
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: FACT_CREDIT_SECTOR_BENCHMARKS
+    primary_key:
+      columns:
+        - benc_pk_benchmarkid
+    dimensions:
+      - name: benc_pk_benchmarkid
+        description: "BENCHMARKID for benchmarks"
+        expr: BENCHMARKID
+        data_type: "NUMBER(38,0)"
+      - name: benchmark_sector
+        synonyms:
+          - benchmark_industry
+          - market_sector
+        description: Sector for benchmark comparison
+        expr: SECTOR
+        data_type: VARCHAR(100)
+      - name: benchmark_source
+        synonyms:
+          - data_source
+          - provider
+          - vendor
+        description: "Benchmark data source: PitchBook LCD, Bloomberg, S&P Capital IQ"
+        expr: SOURCE
+        data_type: VARCHAR(50)
+    facts:
+      - name: avg_interest_coverage
+        description: "Average interest coverage ratio across portfolio"
+        expr: AVGINTERESTCOVERAGE
+        data_type: "NUMBER(6,2)"
+        access_modifier: public_access
+      - name: avg_spread_bps
+        description: "Average spread in basis points across portfolio"
+        expr: AVGSPREAD_BPS
+        data_type: "NUMBER(38,0)"
+        access_modifier: public_access
+      - name: default_rate_pct
+        description: "Portfolio default rate as percentage"
+        expr: DEFAULTRATE_PCT
+        data_type: "NUMBER(6,2)"
+        access_modifier: public_access
+      - name: median_leverage
+        description: "Median leverage ratio across borrowers"
+        expr: MEDIANLEVERAGE
+        data_type: "NUMBER(6,2)"
+        access_modifier: public_access
+      - name: recovery_rate_pct
+        description: "Expected recovery rate as percentage"
+        expr: RECOVERYRATE_PCT
+        data_type: "NUMBER(6,2)"
+        access_modifier: public_access
+    metrics:
+      - name: average_sector_interest_coverage
+        synonyms:
+          - sector_coverage
+          - benchmark_icr
+          - sector_interest_coverage
+          - market_coverage
+        description: Sector average interest coverage ratio from market benchmarks
+        expr: AVG(avg_interest_coverage)
+        access_modifier: public_access
+      - name: average_sector_spread_bps
+        synonyms:
+          - market_spread
+          - benchmark_spread
+          - sector_spread
+        description: Average sector credit spread in basis points
+        expr: AVG(avg_spread_bps)
+        access_modifier: public_access
+      - name: average_default_rate_pct
+        synonyms:
+          - default_rate
+          - sector_default
+          - credit_losses
+        description: Sector default rate percentage
+        expr: AVG(default_rate_pct)
+        access_modifier: public_access
+      - name: average_sector_median_leverage
+        synonyms:
+          - sector_leverage
+          - benchmark_leverage
+          - market_leverage
+        description: Sector median leverage multiple from market benchmarks
+        expr: AVG(median_leverage)
+        access_modifier: public_access
+      - name: average_recovery_rate_pct
+        synonyms:
+          - recovery
+          - recovery_rate
+          - lgd
+        description: Sector recovery rate percentage
+        expr: AVG(recovery_rate_pct)
+        access_modifier: public_access
+    time_dimensions:
+      - name: benchmark_report_date
+        synonyms:
+          - benchmark_date
+          - market_date
+        description: Benchmark reporting date (quarterly)
+        expr: REPORTDATE
+        data_type: DATE
+  - name: borrowers
+    synonyms:
+      - credits
+      - companies
+      - issuers
+      - obligors
+    description: "Private credit borrower companies with sector, sponsor, and rating information"
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_CREDIT_BORROWER
+    primary_key:
+      columns:
+        - borr_pk_borrowerid
+    dimensions:
+      - name: borr_pk_borrowerid
+        description: "BORROWERID for borrowers"
+        expr: BORROWERID
+        data_type: "NUMBER(38,0)"
+      - name: borrower_name
+        synonyms:
+          - borrower
+          - company
+          - issuer
+          - name
+        description: Name of the borrower company
+        expr: BORROWERNAME
+        data_type: VARCHAR(255)
+      - name: borrower_status
+        synonyms:
+          - watchlist
+          - credit_status
+        description: "Borrower status: Active or Watchlist"
+        expr: STATUS
+        data_type: VARCHAR(20)
+        is_enum: true
+        sample_values:
+          - "ACTIVE"
+          - "WATCHLIST"
+          - "DEFAULT"
+      - name: credit_rating
+        synonyms:
+          - rating
+          - credit_quality
+          - risk_rating
+        description: "Credit rating: BB, BB-, B+, B, B-"
+        expr: CREDITRATING
+        data_type: VARCHAR(10)
+      - name: geography
+        synonyms:
+          - region
+          - market
+          - country
+        description: Borrower geography
+        expr: GEOGRAPHY
+        data_type: VARCHAR(50)
+      - name: sector
+        synonyms:
+          - industry
+          - vertical
+        description: "Borrower sector: Healthcare, Technology, Industrials, Consumer, Energy, Materials"
+        expr: SECTOR
+        data_type: VARCHAR(100)
+      - name: sponsor
+        synonyms:
+          - pe_sponsor
+          - financial_sponsor
+          - owner
+          - backer
+        description: Private equity sponsor backing the borrower
+        expr: SPONSOR
+        data_type: VARCHAR(100)
+      - name: subsector
+        synonyms:
+          - sub_sector
+          - sub_industry
+          - niche
+        description: Borrower sub-sector
+        expr: SUBSECTOR
+        data_type: VARCHAR(100)
+      - name: fund_name
+        synonyms:
+          - credit_fund
+          - fund
+          - portfolio
+          - fund_portfolio
+        description: Credit fund the borrower belongs to
+        expr: FUNDNAME
+        data_type: VARCHAR(255)
+        sample_values:
+          - "SAM Direct Lending Fund III"
+          - "SAM Opportunistic Credit Fund"
+          - "SAM Structured Credit Fund"
+  - name: covenants
+    synonyms:
+      - compliance
+      - covenant_tests
+      - breaches
+      - waivers
+    description: Covenant compliance tracking with breach flags and waiver status
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_CREDIT_COVENANT_TRACKING
+    primary_key:
+      columns:
+        - cove_pk_facilityid
+        - covenant_type
+        - test_date
+    dimensions:
+      - name: cove_pk_facilityid
+        description: "FACILITYID for covenants"
+        expr: FACILITYID
+        data_type: "NUMBER(38,0)"
+      - name: breach_flag
+        synonyms:
+          - breach
+          - default
+          - violation
+        description: Whether covenant was breached
+        expr: BREACHFLAG
+        data_type: BOOLEAN
+      - name: covenant_status
+        synonyms:
+          - compliance_status
+          - covenant_result
+          - test_result
+        description: "Covenant test status: Compliant, Tight, Breach, Waiver Granted, Equity Cure"
+        expr: STATUS
+        data_type: VARCHAR(134217728)
+        is_enum: true
+        sample_values:
+          - "COMPLIANT"
+          - "BREACH"
+          - "WAIVER"
+      - name: covenant_type
+        synonyms:
+          - covenant
+          - test
+          - financial_covenant
+        description: "Covenant type: Max Total Leverage, Min Interest Coverage, Min Fixed Charge Coverage, Max CapEx"
+        expr: COVENANTTYPE
+        data_type: VARCHAR(134217728)
+      - name: equity_cure_available
+        synonyms:
+          - equity_cure
+          - cure_available
+          - cure_exercised
+        description: Whether equity cure was available/exercised
+        expr: EQUITYCUREAVAILABLE
+        data_type: BOOLEAN
+      - name: notes
+        synonyms:
+          - covenant_notes
+          - commentary
+          - observation
+        description: Covenant test notes including breach details and monitoring comments
+        expr: NOTES
+        data_type: VARCHAR(134217728)
+      - name: test_date
+        synonyms:
+          - covenant_date
+          - compliance_date
+        description: Covenant test date (monthly). To find the latest test date use MAX(test_date). There is no LATEST_TEST_DATE column.
+        expr: TESTDATE
+        data_type: VARCHAR(134217728)
+      - name: waiver_granted
+        synonyms:
+          - waiver_approved
+          - waiver_given
+        description: Whether a covenant waiver was granted
+        expr: WAIVERGRANTED
+        data_type: BOOLEAN
+      - name: waiver_requested
+        synonyms:
+          - waiver_request
+          - requested_waiver
+        description: Whether a covenant waiver was requested
+        expr: WAIVERREQUESTED
+        data_type: BOOLEAN
+    facts:
+      - name: actual_value
+        synonyms:
+          - actual
+          - tested_value
+          - covenant_actual
+          - measured_value
+        description: Actual tested value for the covenant (e.g. actual leverage of 5.8x)
+        expr: ACTUALVALUE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: covenant_threshold
+        synonyms:
+          - threshold
+          - covenant_limit
+          - covenant_level
+          - limit
+        description: Covenant threshold value (e.g. max leverage of 6.0x or min ICR of 2.0x)
+        expr: COVENANTTHRESHOLD
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: headroom
+        synonyms:
+          - covenant_headroom
+          - cushion
+          - buffer
+          - slack
+        description: Covenant headroom percentage
+        expr: HEADROOM_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: breach_count
+        synonyms:
+          - breaches
+          - violations
+          - defaults
+          - covenant_breaches
+        description: Number of covenant breaches
+        expr: COUNT(CASE WHEN covenants.breach_flag = TRUE THEN 1 END)
+        access_modifier: public_access
+  - name: facilities
+    synonyms:
+      - loans
+      - tranches
+      - credit_facilities
+      - debt
+    description: "Credit facilities with terms, pricing, and structure details"
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_CREDIT_FACILITY
+    primary_key:
+      columns:
+        - faci_pk_facilityid
+    dimensions:
+      - name: faci_pk_borrowerid
+        description: "BORROWERID for facilities"
+        expr: "BORROWERID"
+        data_type: "NUMBER(38,0)"
+      - name: faci_pk_facilityid
+        description: "FACILITYID for facilities"
+        expr: FACILITYID
+        data_type: "NUMBER(38,0)"
+      - name: call_protection
+        synonyms:
+          - call_prot
+          - prepayment
+          - early_repayment
+        description: Call protection terms
+        expr: CALLPROTECTION
+        data_type: VARCHAR(100)
+      - name: facility_type
+        synonyms:
+          - loan_type
+          - tranche
+          - structure
+          - instrument
+        description: "Facility type: Term Loan B, Unitranche, Revolver, Delayed Draw TL"
+        expr: FACILITYTYPE
+        data_type: VARCHAR(50)
+        is_enum: true
+        sample_values:
+          - "TERM_LOAN"
+          - "REVOLVER"
+          - "DELAYED_DRAW"
+      - name: pik_toggle
+        synonyms:
+          - pik
+          - payment_in_kind
+          - pik_option
+        description: Whether facility has PIK toggle option
+        expr: PIKTOGGLE
+        data_type: BOOLEAN
+      - name: rate_type
+        synonyms:
+          - rate
+          - coupon
+          - interest_rate
+        description: Interest rate type e.g. SOFR + 425bps
+        expr: RATETYPE
+        data_type: VARCHAR(50)
+        is_enum: true
+        sample_values:
+          - "FLOATING"
+          - "FIXED"
+    facts:
+      - name: commitment_mm
+        description: "Total commitment amount in millions"
+        expr: COMMITMENT_MM
+        data_type: "NUMBER(12,2)"
+        access_modifier: public_access
+      - name: drawn_mm
+        description: "Drawn amount in millions"
+        expr: DRAWN_MM
+        data_type: "NUMBER(12,2)"
+        access_modifier: public_access
+      - name: spread_bps
+        description: "Spread in basis points above reference rate"
+        expr: SPREAD_BPS
+        data_type: "NUMBER(38,0)"
+        access_modifier: public_access
+    metrics:
+      - name: average_spread_bps
+        synonyms:
+          - spread
+          - credit_spread
+          - pricing
+          - basis_points
+        description: Credit spread in basis points over SOFR
+        expr: AVG(spread_bps)
+        access_modifier: public_access
+      - name: total_commitment_mm
+        synonyms:
+          - commitment
+          - facility_size
+          - total_commitment
+          - loan_size
+        description: Total facility commitment in millions USD
+        expr: SUM(commitment_mm)
+        access_modifier: public_access
+      - name: total_drawn_mm
+        synonyms:
+          - drawn
+          - outstanding
+          - funded
+          - utilised
+        description: Amount drawn/outstanding in millions USD
+        expr: SUM(drawn_mm)
+        access_modifier: public_access
+  - name: financials
+    synonyms:
+      - quarterly_results
+      - performance
+      - earnings
+    description: Quarterly financial metrics for borrowers including leverage and coverage ratios
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_CREDIT_BORROWER_FINANCIALS
+    primary_key:
+      columns:
+        - fina_pk_borrowerid
+        - report_date
+    dimensions:
+      - name: fina_pk_borrowerid
+        description: "BORROWERID for financials"
+        expr: BORROWERID
+        data_type: "NUMBER(38,0)"
+      - name: report_date
+        synonyms:
+          - quarter
+          - period
+          - financial_date
+        description: Financial reporting date (quarterly)
+        expr: REPORTDATE
+        data_type: VARCHAR(134217728)
+    facts:
+      - name: ebitda_margin
+        description: "EBITDA margin as percentage of revenue"
+        expr: EBITDA_MARGIN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: ebitda_mm
+        description: "EBITDA in millions"
+        expr: EBITDA_MM
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: fixed_charge_coverage
+        description: "Fixed charge coverage ratio"
+        expr: FIXEDCHARGECOVERAGE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: free_cash_flow_mm
+        description: "Free cash flow in millions"
+        expr: FREECASHFLOW_MM
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: interest_coverage
+        description: "Interest coverage ratio (EBITDA / interest expense)"
+        expr: INTERESTCOVERAGE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: net_leverage
+        description: "Net leverage ratio (net debt / EBITDA)"
+        expr: NETLEVERAGE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: revenue_mm
+        description: "Revenue in millions"
+        expr: REVENUE_MM
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: total_leverage
+        description: "Total leverage ratio (total debt / EBITDA)"
+        expr: TOTALLEVERAGE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_ebitda_margin
+        synonyms:
+          - margin
+          - ebitda_margin_pct
+          - profitability_margin
+        description: EBITDA margin percentage
+        expr: AVG(ebitda_margin)
+        access_modifier: public_access
+      - name: average_fixed_charge_coverage
+        synonyms:
+          - fccr
+          - fixed_charge
+        description: Fixed charge coverage ratio
+        expr: AVG(fixed_charge_coverage)
+        access_modifier: public_access
+      - name: average_interest_coverage
+        synonyms:
+          - icr
+          - debt_service
+          - coverage_ratio
+        description: Interest coverage ratio (EBITDA / Interest)
+        expr: AVG(interest_coverage)
+        access_modifier: public_access
+      - name: average_net_leverage
+        synonyms:
+          - net_debt_ebitda
+        description: Net leverage ratio
+        expr: AVG(net_leverage)
+        access_modifier: public_access
+      - name: average_total_leverage
+        synonyms:
+          - leverage
+          - debt_to_ebitda
+          - gearing
+        description: Total leverage ratio (Net Debt / EBITDA)
+        expr: AVG(total_leverage)
+        access_modifier: public_access
+      - name: total_ebitda_mm
+        synonyms:
+          - ebitda
+          - earnings
+          - operating_income
+          - profitability
+        description: Quarterly EBITDA in millions USD
+        expr: SUM(ebitda_mm)
+        access_modifier: public_access
+      - name: total_free_cash_flow_mm
+        synonyms:
+          - fcf
+          - free_cash_flow
+          - cash_generation
+        description: Free cash flow in millions USD
+        expr: SUM(free_cash_flow_mm)
+        access_modifier: public_access
+      - name: total_revenue_mm
+        synonyms:
+          - revenue
+          - sales
+          - turnover
+          - top_line
+        description: Quarterly revenue in millions USD
+        expr: SUM(revenue_mm)
+        access_modifier: public_access
+  - name: pipeline
+    synonyms:
+      - deals
+      - new_deals
+      - origination
+      - opportunities
+    description: "New deal pipeline with pricing, leverage, and stage information"
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_CREDIT_DEAL_PIPELINE
+    primary_key:
+      columns:
+        - pipe_pk_dealid
+    dimensions:
+      - name: pipe_pk_dealid
+        description: "DEALID for pipeline"
+        expr: DEALID
+        data_type: "NUMBER(38,0)"
+      - name: deal_stage
+        synonyms:
+          - stage
+          - pipeline_stage
+          - deal_status
+        description: "Deal stage: Screening, Term Sheet, Due Diligence, Commitment, Allocation, Mandate"
+        expr: DEALSTAGE
+        data_type: VARCHAR(50)
+        is_enum: true
+        sample_values:
+          - "SCREENING"
+          - "DUE_DILIGENCE"
+          - "IC_REVIEW"
+          - "NEGOTIATION"
+          - "CLOSED"
+          - "PASSED"
+      - name: deal_type
+        synonyms:
+          - transaction_type
+          - deal_structure
+        description: "Deal type: LBO, Refinancing, Add-on, Incremental TL"
+        expr: DEALTYPE
+        data_type: VARCHAR(50)
+        is_enum: true
+        sample_values:
+          - "Platform"
+          - "Add-on"
+          - "Carve-out"
+          - "Take-Private"
+          - "Growth Capital"
+      - name: pipeline_facility_type
+        synonyms:
+          - pipeline_loan_type
+          - pipeline_structure
+        description: Proposed facility type for pipeline deals
+        expr: FACILITYTYPE
+        data_type: VARCHAR(50)
+      - name: pipeline_sector
+        synonyms:
+          - pipeline_industry
+          - deal_sector
+        description: Sector of pipeline deal target
+        expr: SECTOR
+        data_type: VARCHAR(100)
+      - name: pipeline_sponsor
+        synonyms:
+          - deal_sponsor
+        description: Sponsor for pipeline deal
+        expr: SPONSOR
+        data_type: VARCHAR(100)
+      - name: pipeline_sub_sector
+        synonyms:
+          - deal_sub_sector
+        description: Sub-sector of pipeline deal target
+        expr: SUBSECTOR
+        data_type: VARCHAR(100)
+      - name: target_name
+        synonyms:
+          - pipeline_target
+          - deal_name
+          - target_company
+        description: Target company name for pipeline deals
+        expr: TARGETNAME
+        data_type: VARCHAR(255)
+    facts:
+      - name: deal_size_mm
+        description: "Deal size in millions"
+        expr: DEALSIZE_MM
+        data_type: "NUMBER(12,2)"
+        access_modifier: public_access
+      - name: expected_leverage
+        description: "Expected leverage multiple"
+        expr: EXPECTEDLEVERAGE
+        data_type: "NUMBER(6,2)"
+        access_modifier: public_access
+      - name: pipeline_spread_bps
+        description: "Pipeline deal spread in basis points"
+        expr: SPREAD_BPS
+        data_type: "NUMBER(38,0)"
+        access_modifier: public_access
+    metrics:
+      - name: average_expected_leverage
+        synonyms:
+          - pipeline_leverage
+          - proposed_leverage
+        description: Expected leverage for pipeline deals
+        expr: AVG(expected_leverage)
+        access_modifier: public_access
+      - name: average_pipeline_spread_bps
+        synonyms:
+          - pipeline_spread
+          - proposed_spread
+          - deal_spread
+          - deal_pricing
+          - proposed_pricing
+        description: Proposed credit spread in basis points for pipeline deals
+        expr: AVG(pipeline_spread_bps)
+        access_modifier: public_access
+      - name: deal_count
+        synonyms:
+          - pipeline_count
+          - number_of_deals
+          - deal_flow
+        description: Number of pipeline deals
+        expr: COUNT(pipeline.DEALID)
+        access_modifier: public_access
+      - name: total_deal_size_mm
+        synonyms:
+          - pipeline_size
+          - deal_volume
+          - origination_volume
+        description: Pipeline deal size in millions USD
+        expr: SUM(deal_size_mm)
+        access_modifier: public_access
+    time_dimensions:
+      - name: expected_close_date
+        synonyms:
+          - close_date
+          - expected_close
+          - target_close
+          - closing_date
+        description: Expected close date for pipeline deals
+        expr: EXPECTEDCLOSE
+        data_type: DATE
+relationships:
+  - name: covenants_to_facilities
+    left_table: covenants
+    right_table: facilities
+    relationship_columns:
+      - left_column: cove_pk_facilityid
+        right_column: faci_pk_facilityid
+  - name: facilities_to_borrowers
+    left_table: facilities
+    right_table: borrowers
+    relationship_columns:
+      - left_column: faci_pk_borrowerid
+        right_column: borr_pk_borrowerid
+  - name: financials_to_borrowers
+    left_table: financials
+    right_table: borrowers
+    relationship_columns:
+      - left_column: fina_pk_borrowerid
+        right_column: borr_pk_borrowerid
+module_custom_instructions:
+  sql_generation: "There is no LATEST_TEST_DATE column. To get the latest or most recent test date, use MAX(test_date) or ORDER BY test_date DESC LIMIT 1. test_date is a VARCHAR column. For latest financials use MAX(report_date). Round all monetary values to 2 decimal places. Round percentages to 1 decimal place. Round ratios like leverage and coverage to 1 decimal place. CRITICAL: The pipeline table contains prospective deals with expected_close_date dates in the FUTURE. NEVER filter pipeline deals by expected_close_date <= CURRENT_DATE or any date restriction on expected_close_date. Pipeline queries should only filter by deal_stage (e.g. Term Sheet, Screening, Due Diligence). All pipeline deals are active and relevant regardless of their expected close date."
+verified_queries:
+  - name: PORTFOLIO_FLOATING_RATE_EXPOSURE
+    sql: "SELECT __facilities.facility_type, COUNT(*) AS facility_count, SUM(__facilities.COMMITMENT_MM) AS total_commitment_mm, SUM(__facilities.DRAWN_MM) AS total_drawn_mm, AVG(__facilities.SPREAD_BPS) AS average_spread_bps FROM __facilities GROUP BY __facilities.facility_type ORDER BY total_commitment_mm DESC"
+    question: "Give me a summary of our credit portfolio floating rate exposure - total commitments, drawn amounts, weighted average spread, and breakdown by facility type"
+    use_as_onboarding_question: true
+  - name: BORROWER_FINANCIALS_AND_COVENANTS
+    sql: "SELECT __borrowers.borrower_name, __borrowers.credit_rating, __borrowers.borrower_status, __financials.report_date, SUM(__financials.revenue_mm) AS revenue_mm, SUM(__financials.ebitda_mm) AS ebitda_mm, AVG(__financials.total_leverage) AS total_leverage, AVG(__financials.interest_coverage) AS interest_coverage, AVG(__financials.fixed_charge_coverage) AS fixed_charge_coverage FROM __financials JOIN __borrowers ON (__financials.fin_borrower_id = __borrowers.borrower_id) WHERE __financials.report_date = (SELECT MAX(__financials.report_date) FROM __financials) GROUP BY __borrowers.borrower_name, __borrowers.credit_rating, __borrowers.borrower_status, __financials.report_date ORDER BY __borrowers.borrower_name"
+    question: "Show me the current financial position and covenant status for a specific borrower including interest coverage, leverage, and covenant headroom"
+    use_as_onboarding_question: false
+  - name: COVENANT_BREACHES_AND_TIGHT_HEADROOM
+    sql: "SELECT __covenants.covenant_type, __covenants.covenant_status, __covenants.breach_flag, __covenants.covenant_threshold, __covenants.actual_value, __covenants.headroom, __covenants.waiver_requested, __covenants.waiver_granted, __covenants.test_date, __facilities.facility_type, __borrowers.borrower_name, __borrowers.credit_rating FROM __covenants JOIN __facilities ON (__covenants.FACILITYID = __facilities.FACILITYID) JOIN __borrowers ON (__facilities.fac_borrower_id = __borrowers.borrower_id) WHERE __covenants.test_date = (SELECT MAX(__covenants.TESTDATE) FROM __covenants) AND (__covenants.breach_flag = TRUE OR __covenants.headroom < 10) ORDER BY __covenants.headroom ASC"
+    question: Show me all current covenant breaches and any borrowers with covenant headroom below 10 percent
+    use_as_onboarding_question: true
+  - name: BORROWER_COVENANT_TRAJECTORY
+    sql: "SELECT __covenants.test_date, __covenants.covenant_type, __covenants.covenant_threshold, __covenants.actual_value, __covenants.headroom, __covenants.covenant_status, __covenants.breach_flag, __covenants.waiver_requested, __covenants.waiver_granted, __covenants.equity_cure_available, __covenants.notes, __borrowers.borrower_name FROM __covenants JOIN __facilities ON (__covenants.FACILITYID = __facilities.FACILITYID) JOIN __borrowers ON (__facilities.fac_borrower_id = __borrowers.borrower_id) ORDER BY __borrowers.borrower_name, __covenants.covenant_type, __covenants.test_date"
+    question: "Show me the detailed covenant tracking for a borrower over the last 4 quarters with trajectory of leverage, interest coverage, and headroom"
+    use_as_onboarding_question: false
+  - name: DEAL_PIPELINE_OVERVIEW
+    sql: "SELECT __pipeline.target_name, __pipeline.pipeline_sector, __pipeline.pipeline_sub_sector, __pipeline.pipeline_sponsor, __pipeline.deal_type, __pipeline.pipeline_facility_type, __pipeline.deal_stage, SUM(__pipeline.DEALSIZE_MM) AS deal_size_mm, AVG(__pipeline.SPREAD_BPS) AS spread_bps, AVG(__pipeline.EXPECTEDLEVERAGE) AS expected_leverage, __pipeline.expected_close_date FROM __pipeline GROUP BY __pipeline.target_name, __pipeline.pipeline_sector, __pipeline.pipeline_sub_sector, __pipeline.pipeline_sponsor, __pipeline.deal_type, __pipeline.pipeline_facility_type, __pipeline.deal_stage, __pipeline.expected_close_date ORDER BY __pipeline.expected_close_date ASC"
+    question: "Show me the current deal pipeline with stage, sector, size, spread, and expected leverage sorted by expected close date"
+    use_as_onboarding_question: true
+  - name: TERM_SHEET_DEALS_VS_PORTFOLIO_BENCHMARKS
+    sql: "SELECT __pipeline.target_name, __pipeline.pipeline_sector, SUM(__pipeline.DEALSIZE_MM) AS deal_size_mm, AVG(__pipeline.SPREAD_BPS) AS proposed_spread_bps, (SELECT AVG(__facilities.SPREAD_BPS) FROM __facilities) AS portfolio_avg_spread, (SELECT AVG(__benchmarks.AVGSPREAD_BPS) FROM __benchmarks WHERE __benchmarks.benchmark_sector = __pipeline.pipeline_sector) AS sector_benchmark_spread, AVG(__pipeline.EXPECTEDLEVERAGE) AS proposed_leverage, (SELECT AVG(__benchmarks.MEDIANLEVERAGE) FROM __benchmarks WHERE __benchmarks.benchmark_sector = __pipeline.pipeline_sector) AS sector_median_leverage, (SELECT AVG(__financials.total_leverage) FROM __financials WHERE __financials.report_date = (SELECT MAX(__financials.report_date) FROM __financials)) AS portfolio_avg_leverage, CASE WHEN AVG(__pipeline.SPREAD_BPS) < (SELECT AVG(__facilities.SPREAD_BPS) FROM __facilities) THEN 'TIGHT SPREAD' ELSE 'OK' END AS spread_flag, CASE WHEN AVG(__pipeline.EXPECTEDLEVERAGE) > (SELECT AVG(__benchmarks.MEDIANLEVERAGE) FROM __benchmarks WHERE __benchmarks.benchmark_sector = __pipeline.pipeline_sector) THEN 'HIGH LEVERAGE' ELSE 'OK' END AS leverage_flag FROM __pipeline WHERE __pipeline.deal_stage = 'Term Sheet' GROUP BY __pipeline.target_name, __pipeline.pipeline_sector ORDER BY proposed_spread_bps DESC"
+    question: "For the deals at Term Sheet stage, compare their proposed spread and leverage against our current portfolio average and the relevant sector benchmarks. Flag any deals that are tighter than portfolio average or above sector median leverage."
+    use_as_onboarding_question: false
+  - name: BORROWER_QUARTERLY_FINANCIAL_TREND
+    sql: "SELECT __borrowers.borrower_name, __financials.report_date, SUM(__financials.revenue_mm) AS revenue_mm, SUM(__financials.ebitda_mm) AS ebitda_mm, AVG(__financials.ebitda_margin) AS ebitda_margin, SUM(__financials.free_cash_flow_mm) AS free_cash_flow_mm, AVG(__financials.total_leverage) AS total_leverage, AVG(__financials.net_leverage) AS net_leverage FROM __financials JOIN __borrowers ON (__financials.fin_borrower_id = __borrowers.borrower_id) GROUP BY __borrowers.borrower_name, __financials.report_date ORDER BY __borrowers.borrower_name, __financials.report_date"
+    question: "What is the quarterly financial trend for a borrower over the last 4 quarters showing revenue, EBITDA, margin, free cash flow, and leverage"
+    use_as_onboarding_question: false
+  - name: TECHNOLOGY_SECTOR_BENCHMARK_COMPARISON
+    sql: "SELECT __borrowers.borrower_name, __borrowers.sector, AVG(__facilities.SPREAD_BPS) AS portfolio_spread_bps, AVG(__financials.total_leverage) AS portfolio_leverage, AVG(__financials.interest_coverage) AS portfolio_icr, (SELECT AVG(__benchmarks.AVGSPREAD_BPS) FROM __benchmarks WHERE __benchmarks.benchmark_sector = 'Technology') AS sector_avg_spread, (SELECT AVG(__benchmarks.DEFAULTRATE_PCT) FROM __benchmarks WHERE __benchmarks.benchmark_sector = 'Technology') AS sector_default_rate, (SELECT AVG(__benchmarks.RECOVERYRATE_PCT) FROM __benchmarks WHERE __benchmarks.benchmark_sector = 'Technology') AS sector_recovery_rate FROM __facilities JOIN __borrowers ON (__facilities.fac_borrower_id = __borrowers.borrower_id) JOIN __financials ON (__financials.fin_borrower_id = __borrowers.borrower_id) WHERE __borrowers.sector = 'Technology' AND __financials.report_date = (SELECT MAX(__financials.report_date) FROM __financials) GROUP BY __borrowers.borrower_name, __borrowers.sector ORDER BY portfolio_spread_bps DESC"
+    question: "Compare our Technology sector exposure against the latest Technology sector benchmarks for spread, leverage, and default rates"
+    use_as_onboarding_question: false

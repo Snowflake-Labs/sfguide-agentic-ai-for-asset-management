@@ -1,0 +1,134 @@
+name: SAM_FACTOR_ATTRIBUTION_VIEW
+description: "Factor attribution semantic view for understanding systematic risk contributions. Analyzes how portfolio factor exposures (Market, Value, Growth, Momentum, Quality, Size, Volatility) drive returns."
+tables:
+  - name: factor_attribution
+    synonyms:
+      - factor_returns
+      - factor_contribution
+      - factor_analysis
+    description: Factor-based performance attribution showing factor exposures and contributions
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_FACTOR_ATTRIBUTION
+    primary_key:
+      columns:
+        - attribution_date
+        - fact_pk_portfolioid
+        - factor_name
+    dimensions:
+      - name: fact_pk_portfolioid
+        description: "PORTFOLIOID for factor_attribution"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: factor_name
+        synonyms:
+          - factor
+          - risk_factor
+          - systematic_factor
+        description: "Factor name (Market, Value, Growth, Momentum, Quality, Size, Volatility)"
+        expr: FACTOR_NAME
+        data_type: VARCHAR(10)
+    facts:
+      - name: factor_contribution
+        expr: FACTOR_CONTRIBUTION
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: factor_return
+        expr: FACTOR_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: portfolio_factor_exposure
+        expr: PORTFOLIO_FACTOR_EXPOSURE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_factor_return
+        synonyms:
+          - factor_premium
+          - factor_spread
+        description: Average factor return
+        expr: AVG(factor_return)
+        access_modifier: public_access
+      - name: average_portfolio_factor_exposure
+        synonyms:
+          - beta
+          - factor_loading
+          - exposure
+        description: Average portfolio exposure to factor
+        expr: AVG(portfolio_factor_exposure)
+        access_modifier: public_access
+      - name: total_factor_contribution
+        synonyms:
+          - factor_performance
+          - systematic_return
+        description: Total return contribution from factor exposure
+        expr: SUM(factor_contribution)
+        access_modifier: public_access
+    time_dimensions:
+      - name: attribution_date
+        synonyms:
+          - factor_date
+        description: Date of factor attribution
+        expr: DATE
+        data_type: DATE
+  - name: portfolios
+    synonyms:
+      - funds
+      - strategies
+    description: Portfolio reference data
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_PORTFOLIO
+    primary_key:
+      columns:
+        - port_pk_portfolioid
+    dimensions:
+      - name: port_pk_portfolioid
+        description: "PORTFOLIOID for portfolios"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: portfolio_name
+        synonyms:
+          - fund_name
+        description: "Portfolio name. All names start with \"SAM \" prefix, e.g. \"SAM Technology & Infrastructure\"."
+        expr: PORTFOLIONAME
+        data_type: VARCHAR(134217728)
+      - name: strategy
+        synonyms:
+          - investment_style
+          - strategy_type
+        description: Investment strategy
+        expr: STRATEGY
+        data_type: VARCHAR(134217728)
+relationships:
+  - name: attribution_to_portfolio
+    left_table: factor_attribution
+    right_table: portfolios
+    relationship_columns:
+      - left_column: fact_pk_portfolioid
+        right_column: port_pk_portfolioid
+module_custom_instructions:
+  sql_generation: "Data is at MONTHLY granularity (month-end dates). Each row is one portfolio-factor-month. CRITICAL DATE HANDLING: For \"most recent quarter\" or \"last quarter\", use attribution_date > DATEADD('month', -3, (SELECT MAX(attribution_date) FROM table)) to get exactly 3 months (use > not >=, because DATEADD month-3 from a month-end gives the prior month-end which would be a 4th month). factor_contribution = portfolio_factor_exposure * factor_return exactly. Use SUM for contributions across months, AVG for exposures. 7 factors: Market, Value, Growth, Momentum, Quality, Size, Volatility. When filtering by portfolio: Always use portfolio_name dimension with ILIKE for flexible matching. Example: portfolio_name ILIKE '%Flagship%' for SAM Global Flagship Multi-Asset."
+verified_queries:
+  - name: FACTOR_EXPOSURE_SUMMARY
+    sql: "SELECT __factor_attribution.factor_name, AVG(__factor_attribution.PORTFOLIO_FACTOR_EXPOSURE) AS AVG_EXPOSURE, AVG(__factor_attribution.FACTOR_RETURN) AS average_factor_return, SUM(__factor_attribution.FACTOR_CONTRIBUTION) AS TOTAL_CONTRIBUTION FROM __factor_attribution JOIN __portfolios ON __factor_attribution.PORTFOLIOID = __portfolios.PORTFOLIOID WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __factor_attribution.attribution_date > DATEADD('month', -3, (SELECT MAX(__factor_attribution.attribution_date) FROM __factor_attribution)) GROUP BY __factor_attribution.factor_name ORDER BY ABS(SUM(__factor_attribution.FACTOR_CONTRIBUTION)) DESC"
+    question: What factor exposures drove our returns? Show me the contribution from all systematic factors.
+    use_as_onboarding_question: true
+  - name: QUARTERLY_FACTOR_CONTRIBUTION
+    sql: "SELECT __factor_attribution.factor_name, AVG(__factor_attribution.PORTFOLIO_FACTOR_EXPOSURE) AS AVG_EXPOSURE, SUM(__factor_attribution.FACTOR_RETURN) AS CUMULATIVE_FACTOR_RETURN, SUM(__factor_attribution.FACTOR_CONTRIBUTION) AS TOTAL_CONTRIBUTION FROM __factor_attribution JOIN __portfolios ON __factor_attribution.PORTFOLIOID = __portfolios.PORTFOLIOID WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __factor_attribution.attribution_date >= '2026-01-01' AND __factor_attribution.attribution_date <= '2026-03-31' GROUP BY __factor_attribution.factor_name ORDER BY TOTAL_CONTRIBUTION DESC"
+    question: Show the total factor contributions for the most recent quarter for SAM Global Flagship.
+    use_as_onboarding_question: true
+  - name: MONTHLY_FACTOR_TREND
+    sql: "SELECT __factor_attribution.attribution_date, __factor_attribution.factor_name, SUM(__factor_attribution.FACTOR_CONTRIBUTION) AS FACTOR_CONTRIBUTION FROM __factor_attribution JOIN __portfolios ON __factor_attribution.PORTFOLIOID = __portfolios.PORTFOLIOID WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __factor_attribution.attribution_date > DATEADD('month', -6, (SELECT MAX(__factor_attribution.attribution_date) FROM __factor_attribution)) GROUP BY __factor_attribution.attribution_date, __factor_attribution.factor_name ORDER BY __factor_attribution.attribution_date, __factor_attribution.factor_name"
+    question: Show the monthly factor contribution trend for SAM Global Flagship over the last 6 months.
+    use_as_onboarding_question: false
+  - name: CROSS_PORTFOLIO_FACTOR_COMPARISON
+    sql: "SELECT __portfolios.portfolio_name, AVG(__factor_attribution.PORTFOLIO_FACTOR_EXPOSURE) AS AVG_MARKET_EXPOSURE, SUM(__factor_attribution.FACTOR_CONTRIBUTION) AS TOTAL_MARKET_CONTRIBUTION FROM __factor_attribution JOIN __portfolios ON __factor_attribution.PORTFOLIOID = __portfolios.PORTFOLIOID WHERE __factor_attribution.factor_name = 'Market' AND __factor_attribution.attribution_date > DATEADD('month', -3, (SELECT MAX(__factor_attribution.attribution_date) FROM __factor_attribution)) GROUP BY __portfolios.portfolio_name ORDER BY TOTAL_MARKET_CONTRIBUTION DESC"
+    question: Compare factor exposures across all portfolios for the Market factor.
+    use_as_onboarding_question: false
+  - name: TOTAL_SYSTEMATIC_RETURN
+    sql: "SELECT SUM(__factor_attribution.FACTOR_CONTRIBUTION) AS TOTAL_SYSTEMATIC_RETURN, COUNT(DISTINCT __factor_attribution.attribution_date) AS NUM_MONTHS FROM __factor_attribution JOIN __portfolios ON __factor_attribution.PORTFOLIOID = __portfolios.PORTFOLIOID WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __factor_attribution.attribution_date >= '2026-01-01' AND __factor_attribution.attribution_date <= '2026-03-31'"
+    question: What is the total systematic return from all factors for SAM Global Flagship this quarter?
+    use_as_onboarding_question: false

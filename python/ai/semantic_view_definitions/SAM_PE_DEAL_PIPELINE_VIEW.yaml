@@ -1,0 +1,221 @@
+name: SAM_PE_DEAL_PIPELINE_VIEW
+description: "PE deal pipeline semantic view for deal sourcing, screening, and due diligence. Query active deals, filter by stage/sector/geography, and analyze valuations."
+tables:
+  - name: deals
+    synonyms:
+      - pipeline
+      - opportunities
+      - targets
+      - acquisitions
+    description: "Active PE deal pipeline with target companies, valuations, and deal stages"
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_DEAL_PIPELINE
+    primary_key:
+      columns:
+        - deal_pk_dealid
+    dimensions:
+      - name: deal_pk_dealid
+        description: "DEALID for deals"
+        expr: DEALID
+        data_type: "NUMBER(38,0)"
+      - name: deal_lead
+        synonyms:
+          - team_lead
+          - principal
+          - partner
+        description: Deal team lead responsible for the opportunity
+        expr: DEALTEAMLEAD
+        data_type: VARCHAR(100)
+      - name: deal_stage
+        synonyms:
+          - stage
+          - status
+          - phase
+          - deal_status
+        description: "Current deal stage: Screening, Indicative Offer, Due Diligence, SPA, Signed, Closed"
+        expr: DEALSTAGE
+        data_type: VARCHAR(50)
+        is_enum: true
+        sample_values:
+          - "SCREENING"
+          - "DUE_DILIGENCE"
+          - "IC_REVIEW"
+          - "NEGOTIATION"
+          - "CLOSED"
+          - "PASSED"
+      - name: deal_type
+        synonyms:
+          - transaction_type
+          - deal_structure
+          - acquisition_type
+        description: "Type of transaction: Carve-out, Take-Private, Growth Capital, Platform, Add-on"
+        expr: DEALTYPE
+        data_type: VARCHAR(50)
+        is_enum: true
+        sample_values:
+          - "Platform"
+          - "Add-on"
+          - "Carve-out"
+          - "Take-Private"
+          - "Growth Capital"
+      - name: geography
+        synonyms:
+          - region
+          - market
+          - location
+          - country
+        description: Geographic region of the target
+        expr: GEOGRAPHY
+        data_type: VARCHAR(50)
+      - name: key_risks
+        synonyms:
+          - risks
+          - concerns
+          - issues
+          - risk_factors
+        description: Key risks identified in due diligence
+        expr: KEYRISKS
+        data_type: VARCHAR(16777216)
+      - name: sector
+        synonyms:
+          - industry
+          - vertical
+        description: Target company sector
+        expr: SECTOR
+        data_type: VARCHAR(100)
+      - name: strategic_rationale
+        synonyms:
+          - rationale
+          - thesis
+          - investment_thesis
+          - strategy
+        description: Strategic rationale for the investment
+        expr: STRATEGICRATIONALE
+        data_type: VARCHAR(16777216)
+      - name: subsector
+        synonyms:
+          - sub_sector
+          - sub_industry
+          - niche
+        description: Target company sub-sector
+        expr: SUBSECTOR
+        data_type: VARCHAR(100)
+      - name: target_company
+        synonyms:
+          - target
+          - company
+          - acquisition_target
+          - target_name
+        description: Name of the target company
+        expr: TARGETCOMPANYNAME
+        data_type: VARCHAR(255)
+    facts:
+      - name: competing_bidders
+        description: "Number of competing bidders"
+        expr: COMPETINGBIDDERS
+        data_type: "NUMBER(38,0)"
+        access_modifier: public_access
+      - name: enterprise_value_mm
+        description: "Enterprise value in millions"
+        expr: ENTERPRISEVALUE_MM
+        data_type: "NUMBER(12,2)"
+        access_modifier: public_access
+      - name: ev_ebitda_multiple
+        description: "EV/EBITDA valuation multiple"
+        expr: EV_EBITDA_MULTIPLE
+        data_type: "NUMBER(6,2)"
+        access_modifier: public_access
+      - name: ev_revenue_multiple
+        description: "EV/Revenue valuation multiple"
+        expr: EV_REVENUE_MULTIPLE
+        data_type: "NUMBER(6,2)"
+        access_modifier: public_access
+      - name: revenue_growth_pct
+        description: "Year-over-year revenue growth percentage"
+        expr: REVENUEGROWTHPCT
+        data_type: "NUMBER(6,2)"
+        access_modifier: public_access
+      - name: target_ebitda_mm
+        description: "Target company EBITDA in millions"
+        expr: TARGETEBITDA_MM
+        data_type: "NUMBER(12,2)"
+        access_modifier: public_access
+      - name: target_revenue_mm
+        description: "Target company revenue in millions"
+        expr: TARGETREVENUE_MM
+        data_type: "NUMBER(12,2)"
+        access_modifier: public_access
+    metrics:
+      - name: average_competing_bidders
+        synonyms:
+          - competition
+          - bidders
+          - competitive_tension
+        description: Number of competing bidders
+        expr: AVG(competing_bidders)
+        access_modifier: public_access
+      - name: average_ev_ebitda_multiple
+        synonyms:
+          - multiple
+          - ebitda_multiple
+          - valuation_multiple
+          - ev_ebitda
+        description: EV/EBITDA valuation multiple
+        expr: AVG(ev_ebitda_multiple)
+        access_modifier: public_access
+      - name: average_ev_revenue_multiple
+        synonyms:
+          - revenue_multiple
+          - ev_revenue
+          - sales_multiple
+        description: EV/Revenue valuation multiple
+        expr: AVG(ev_revenue_multiple)
+        access_modifier: public_access
+      - name: average_revenue_growth_pct
+        synonyms:
+          - growth
+          - growth_rate
+          - revenue_growth
+          - yoy_growth
+        description: Revenue growth percentage
+        expr: AVG(revenue_growth_pct)
+        access_modifier: public_access
+      - name: deal_count
+        synonyms:
+          - count
+          - number_of_deals
+          - pipeline_count
+          - opportunities
+        description: Number of deals in pipeline
+        expr: COUNT(DEALID)
+        access_modifier: public_access
+      - name: total_enterprise_value_mm
+        synonyms:
+          - EV
+          - valuation
+          - deal_size
+          - enterprise_value
+          - value
+        description: Enterprise value in millions EUR
+        expr: SUM(enterprise_value_mm)
+        access_modifier: public_access
+      - name: total_target_ebitda_mm
+        synonyms:
+          - ebitda
+          - earnings
+          - profitability
+          - target_ebitda
+        description: Target company EBITDA in millions EUR
+        expr: SUM(target_ebitda_mm)
+        access_modifier: public_access
+      - name: total_target_revenue_mm
+        synonyms:
+          - revenue
+          - sales
+          - turnover
+          - target_revenue
+        description: Target company revenue in millions EUR
+        expr: SUM(target_revenue_mm)
+        access_modifier: public_access
