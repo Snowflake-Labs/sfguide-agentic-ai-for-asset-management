@@ -29,9 +29,15 @@ import sys
 from datetime import datetime
 
 # Ensure the python/ directory is on the path for imports
-_this_dir = os.path.dirname(os.path.abspath(__file__))
-if _this_dir not in sys.path:
-    sys.path.insert(0, _this_dir)
+# Note: In Snowflake Workspaces, __file__ is not defined.
+# The working directory is /workspace/<hash>/ (the workspace root).
+# Python files reference other files by relative path from the workspace root.
+_python_dir = os.path.join(os.getcwd(), 'python')
+if not os.path.isdir(_python_dir):
+    # If already inside python/ directory
+    _python_dir = os.getcwd()
+if _python_dir not in sys.path:
+    sys.path.insert(0, _python_dir)
 
 from snowflake.snowpark.context import get_active_session
 

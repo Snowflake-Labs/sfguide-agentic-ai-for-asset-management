@@ -11,7 +11,16 @@ import yaml
 # Detect workspace execution mode
 IN_WORKSPACE = os.environ.get('SNOWFLAKE_NOTEBOOK_RUNTIME') is not None
 
-_REF_DIR = pathlib.Path(__file__).resolve().parent.parent / "data" / "reference_data"
+# Path resolution: __file__ is not available in Snowflake Workspaces
+try:
+    _CONFIG_FILE_DIR = pathlib.Path(__file__).resolve().parent
+except NameError:
+    # Workspace mode: working directory is workspace root, this file is in python/
+    _CONFIG_FILE_DIR = pathlib.Path(os.getcwd()) / 'python'
+    if not _CONFIG_FILE_DIR.exists():
+        _CONFIG_FILE_DIR = pathlib.Path(os.getcwd())
+
+_REF_DIR = _CONFIG_FILE_DIR.parent / "data" / "reference_data"
 
 def _load_ref(name: str) -> dict:
     with open(_REF_DIR / f"{name}.yaml", "r", encoding="utf-8") as f:
@@ -729,7 +738,13 @@ def get_scenario_agents(scenarios):
 # =============================================================================
 
 # Paths
-CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
+try:
+    CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
+except NameError:
+    # Workspace mode
+    CONFIG_DIR = os.path.join(os.getcwd(), 'python')
+    if not os.path.isdir(CONFIG_DIR):
+        CONFIG_DIR = os.getcwd()
 PROJECT_ROOT = os.path.dirname(CONFIG_DIR)
 CONTENT_LIBRARY_PATH = os.path.join(PROJECT_ROOT, 'content_library')
 CONTENT_VERSION = '1.0'
