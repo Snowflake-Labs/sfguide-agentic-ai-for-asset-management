@@ -210,7 +210,7 @@ REAL_DATA_SOURCES = {
     # -------------------------------------------------------------------------
     # Change these two values to match your Snowflake Marketplace data share
     # -------------------------------------------------------------------------
-    'database': 'SNOWFLAKE_PUBLIC_DATA_PAID',  # e.g. 'SNOWFLAKE_PUBLIC_DATA_FREE'
+    'database': 'SNOWFLAKE_PUBLIC_DATA_FREE', # 'SNOWFLAKE_PUBLIC_DATA_PAID', 
     #'database': 'FINANCIALS_ECONOMICS_ENTERPRISE',
     #'schema': 'PUBLIC_DATA_FREE',              # e.g. 'PUBLIC_DATA_FREE'
     'schema': 'CYBERSYN',
