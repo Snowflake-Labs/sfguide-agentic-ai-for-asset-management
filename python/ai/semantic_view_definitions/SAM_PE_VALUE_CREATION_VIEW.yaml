@@ -51,7 +51,7 @@ tables:
         synonyms:
           - vehicle
           - investment_fund
-        description: EQT fund that owns the company
+        description: APX fund that owns the company
         expr: FUNDNAME
         data_type: VARCHAR(100)
       - name: geography

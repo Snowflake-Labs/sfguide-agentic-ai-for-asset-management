@@ -225,7 +225,7 @@ def build_all(session: Session, scenarios: List[str], build_semantic: bool = Tru
         except Exception as e:
             log_warning(f" Portfolio modelling tools creation failed: {e}")
         
-        if build_agents:
+        if build_agents and not config.IN_WORKSPACE:
             valid, missing = validate_streamlit_prerequisites(session)
             if valid:
                 try:
@@ -266,11 +266,12 @@ def build_all(session: Session, scenarios: List[str], build_semantic: bool = Tru
             except Exception as e:
                 log_warning(f" Proactive insights infrastructure failed: {e}")
 
-    # Seed drill-down questions unconditionally (shared cockpit table)
-    try:
-        seed_drill_down_questions(session)
-    except Exception as e:
-        log_warning(f" Drill-down question seeding failed: {e}")
+    # Seed drill-down questions (cockpit-specific, skip in workspace/quickstart mode)
+    if not config.IN_WORKSPACE:
+        try:
+            seed_drill_down_questions(session)
+        except Exception as e:
+            log_warning(f" Drill-down question seeding failed: {e}")
 
     try:
         validate_components(session, build_semantic, build_search, scenarios)

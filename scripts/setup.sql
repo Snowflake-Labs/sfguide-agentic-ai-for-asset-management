@@ -77,9 +77,6 @@ CREATE SCHEMA IF NOT EXISTS SAM_DEMO.CURATED
 CREATE SCHEMA IF NOT EXISTS SAM_DEMO.AI
     COMMENT = 'AI components - semantic views, search services, agents, tools';
 
-CREATE SCHEMA IF NOT EXISTS SAM_DEMO.PUBLIC
-    COMMENT = 'Public schema';
-
 CREATE SCHEMA IF NOT EXISTS SAM_DEMO.MARKET_DATA
     COMMENT = 'Market data layer - real market data from external sources';
 
@@ -101,7 +98,6 @@ GRANT CREATE SCHEMA ON DATABASE SAM_DEMO TO ROLE SAM_DEMO_ROLE;
 GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
 GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
 GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.PUBLIC TO ROLE SAM_DEMO_ROLE;
 GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
 GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.ML TO ROLE SAM_DEMO_ROLE;
 
@@ -143,9 +139,7 @@ ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';
 
 GRANT EXECUTE TASK ON ACCOUNT TO ROLE SAM_DEMO_ROLE;
 GRANT EXECUTE MANAGED TASK ON ACCOUNT TO ROLE SAM_DEMO_ROLE;
-GRANT CREATE TASK ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT CREATE TASK ON SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT CREATE TASK ON SCHEMA SAM_DEMO.ML TO ROLE SAM_DEMO_ROLE;
+GRANT CREATE TASK ON SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
 
 -- ============================================================================
 -- SECTION 7: Snowflake Intelligence
@@ -171,11 +165,11 @@ GRANT USAGE ON SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT TO R
 --   6. Connect a notebook service:
 --      - Python version: 3.11
 --      - Compute pool: any available pool
---   7. Install packages (via Packages panel):
---      - snowflake-snowpark-python
---      - pyyaml
---      - jinja2
---   8. Click "Run" — setup takes ~15-20 minutes
+--   7. Install packages using the Terminal:
+--      Open the Terminal and run the following command:
+--      pip install -r ../requirements.txt
+--   8. Restart the kernel
+--   9. Click "Run" — setup takes ~15-20 minutes
 --
 -- After completion:
 --   - Open Snowflake Intelligence to interact with the agents

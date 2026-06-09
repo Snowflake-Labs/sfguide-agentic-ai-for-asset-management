@@ -4894,7 +4894,7 @@ PE_PORTFOLIO_COMPANIES = [
         'acquisition_price_mm': 450.0,
         'entry_ev_ebitda': 12.5,
         'ownership_pct': 75.0,
-        'fund_name': 'EQT IX',
+        'fund_name': 'APX IX',
         'deal_team_lead': 'Marcus Lindberg',
         'status': 'Active',
         'thesis_category': 'Digital Transformation'
@@ -4908,7 +4908,7 @@ PE_PORTFOLIO_COMPANIES = [
         'acquisition_price_mm': 320.0,
         'entry_ev_ebitda': 14.2,
         'ownership_pct': 85.0,
-        'fund_name': 'EQT IX',
+        'fund_name': 'APX IX',
         'deal_team_lead': 'Anna Karlsson',
         'status': 'Active',
         'thesis_category': 'Consolidation'
@@ -4922,7 +4922,7 @@ PE_PORTFOLIO_COMPANIES = [
         'acquisition_price_mm': 580.0,
         'entry_ev_ebitda': 11.0,
         'ownership_pct': 70.0,
-        'fund_name': 'EQT Infrastructure V',
+        'fund_name': 'APX Infrastructure V',
         'deal_team_lead': 'Erik Johansson',
         'status': 'Active',
         'thesis_category': 'Sustainability'
@@ -4936,7 +4936,7 @@ PE_PORTFOLIO_COMPANIES = [
         'acquisition_price_mm': 280.0,
         'entry_ev_ebitda': 9.5,
         'ownership_pct': 90.0,
-        'fund_name': 'EQT VIII',
+        'fund_name': 'APX VIII',
         'deal_team_lead': 'Thomas Mueller',
         'status': 'Active',
         'thesis_category': 'Digital Transformation'
@@ -4950,7 +4950,7 @@ PE_PORTFOLIO_COMPANIES = [
         'acquisition_price_mm': 420.0,
         'entry_ev_ebitda': 10.8,
         'ownership_pct': 80.0,
-        'fund_name': 'EQT VIII',
+        'fund_name': 'APX VIII',
         'deal_team_lead': 'Sofia Bergstrom',
         'status': 'Active',
         'thesis_category': 'Consolidation'
@@ -4964,7 +4964,7 @@ PE_PORTFOLIO_COMPANIES = [
         'acquisition_price_mm': 750.0,
         'entry_ev_ebitda': 8.5,
         'ownership_pct': 65.0,
-        'fund_name': 'EQT Infrastructure IV',
+        'fund_name': 'APX Infrastructure IV',
         'deal_team_lead': 'Klaus Schmidt',
         'status': 'Exited',
         'exit_date': '2024-06-30',
@@ -5075,7 +5075,7 @@ PE_DEAL_PIPELINE = [
         'ic_date': '2025-01-15',
         'expected_close_date': '2025-03-15',
         'competing_bidders': 0,
-        'strategic_rationale': 'Take-private of listed Nordic fiber operator. Delisting premium 25%. Synergy potential with EQT Infrastructure portfolio companies.',
+        'strategic_rationale': 'Take-private of listed Nordic fiber operator. Delisting premium 25%. Synergy potential with APX Infrastructure portfolio companies.',
         'key_risks': 'Regulatory approval for delisting, minority shareholder acceptance, interest rate sensitivity on levered returns'
     },
     {
@@ -6031,10 +6031,10 @@ CREDIT_FUND_ASSIGNMENTS = {
 }
 
 PE_FUNDS = [
-    {'fund_name': 'EQT IX', 'strategy': 'Growth Equity', 'vintage': 2021, 'aum_mm': 4200, 'status': 'Active'},
-    {'fund_name': 'EQT VIII', 'strategy': 'Buyout', 'vintage': 2019, 'aum_mm': 3800, 'status': 'Active'},
-    {'fund_name': 'EQT Infrastructure V', 'strategy': 'Infrastructure', 'vintage': 2022, 'aum_mm': 5100, 'status': 'Active'},
-    {'fund_name': 'EQT Infrastructure IV', 'strategy': 'Infrastructure', 'vintage': 2017, 'aum_mm': 3200, 'status': 'Harvesting'},
+    {'fund_name': 'APX IX', 'strategy': 'Growth Equity', 'vintage': 2021, 'aum_mm': 4200, 'status': 'Active'},
+    {'fund_name': 'APX VIII', 'strategy': 'Buyout', 'vintage': 2019, 'aum_mm': 3800, 'status': 'Active'},
+    {'fund_name': 'APX Infrastructure V', 'strategy': 'Infrastructure', 'vintage': 2022, 'aum_mm': 5100, 'status': 'Active'},
+    {'fund_name': 'APX Infrastructure IV', 'strategy': 'Infrastructure', 'vintage': 2017, 'aum_mm': 3200, 'status': 'Harvesting'},
 ]
 
 
@@ -6104,7 +6104,7 @@ CREDIT_BORROWERS = [
     {'name': 'Sentinel Security Services', 'sector': 'Industrials', 'sub_sector': 'Security Services', 'geography': 'US', 'sponsor': 'Blackstone', 'revenue_mm': 920, 'ebitda_mm': 155, 'employees': 15000, 'rating': 'B-', 'status': 'Active'},
     {'name': 'NovaCare Pharmaceuticals', 'sector': 'Healthcare', 'sub_sector': 'Specialty Pharma', 'geography': 'US', 'sponsor': 'Bain Capital', 'revenue_mm': 1100, 'ebitda_mm': 285, 'employees': 3200, 'rating': 'BB-', 'status': 'Active'},
     {'name': 'Orion Retail Group', 'sector': 'Consumer', 'sub_sector': 'Specialty Retail', 'geography': 'US', 'sponsor': 'Ares Management', 'revenue_mm': 2200, 'ebitda_mm': 198, 'employees': 9500, 'rating': 'B-', 'status': 'Watchlist'},
-    {'name': 'Cascade Environmental', 'sector': 'Industrials', 'sub_sector': 'Environmental Services', 'geography': 'US', 'sponsor': 'EQT Partners', 'revenue_mm': 780, 'ebitda_mm': 140, 'employees': 3800, 'rating': 'B+', 'status': 'Active'},
+    {'name': 'Cascade Environmental', 'sector': 'Industrials', 'sub_sector': 'Environmental Services', 'geography': 'US', 'sponsor': 'APX Partners', 'revenue_mm': 780, 'ebitda_mm': 140, 'employees': 3800, 'rating': 'B+', 'status': 'Active'},
     {'name': 'Vertex Telecom Infrastructure', 'sector': 'Technology', 'sub_sector': 'Telecom Infrastructure', 'geography': 'Europe', 'sponsor': 'CVC Capital', 'revenue_mm': 1650, 'ebitda_mm': 495, 'employees': 4200, 'rating': 'BB-', 'status': 'Active'},
     {'name': 'Pacific Food Holdings', 'sector': 'Consumer', 'sub_sector': 'Food & Beverage', 'geography': 'US', 'sponsor': 'TPG Capital', 'revenue_mm': 3100, 'ebitda_mm': 340, 'employees': 11000, 'rating': 'B', 'status': 'Active'},
     {'name': 'HealthBridge Clinical Services', 'sector': 'Healthcare', 'sub_sector': 'Clinical Trials', 'geography': 'US', 'sponsor': 'Welsh Carson', 'revenue_mm': 520, 'ebitda_mm': 125, 'employees': 1800, 'rating': 'B+', 'status': 'Active'},

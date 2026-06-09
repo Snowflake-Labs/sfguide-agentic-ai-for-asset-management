@@ -16,7 +16,7 @@ Complete demo scenarios for Private Equity Professional role with step-by-step c
 
 #### Business Context Setup
 
-**Persona**: Marcus, Investment Director at EQT Partners. He manages investments across 4 vintage funds: EQT IX (Growth Equity), EQT VIII (Buyout), EQT Infrastructure V, and EQT Infrastructure IV (Harvesting). The cockpit lets him switch between funds to see fund-specific portfolio companies and morning briefings.  
+**Persona**: Marcus, Investment Director at APX Partners. He manages investments across 4 vintage funds: APX IX (Growth Equity), APX VIII (Buyout), APX Infrastructure V, and APX Infrastructure IV (Harvesting). The cockpit lets him switch between funds to see fund-specific portfolio companies and morning briefings.  
 **Business Challenge**: PE deal teams need instant access to deal pipeline analytics, target company valuations, and supporting due diligence materials to make rapid investment decisions. Traditional systems require manual data gathering across multiple databases, spreadsheets, and document repositories—delaying critical deal decisions in competitive auction processes.  
 **Value Proposition**: AI-powered deal intelligence that combines quantitative pipeline data with qualitative due diligence insights and expert network perspectives in seconds, enabling faster deal screening and better investment decisions.
 
@@ -178,7 +178,7 @@ Do we have any expert network insights on MedTech Solutions or the medical devic
 
 #### Business Context Setup
 
-**Persona**: Marcus, Investment Director at EQT Partners  
+**Persona**: Marcus, Investment Director at APX Partners  
 **Business Challenge**: Carve-out transactions require detailed analysis of parent company financials from SEC filings, segment performance data, and understanding of separation complexities. Traditional analysis requires manual SEC filing review, segment data extraction, and cross-referencing with DD materials.  
 **Value Proposition**: AI-powered carve-out analysis combining SEC filing intelligence, segment financial data, and expert perspectives on separation complexity.
 
@@ -267,7 +267,7 @@ Search expert calls for views on carve-out complexity and typical separation cos
 
 #### Business Context Setup
 
-**Persona**: Sarah, Portfolio Director at EQT Partners  
+**Persona**: Sarah, Portfolio Director at APX Partners  
 **Business Challenge**: PE portfolio teams need to monitor portfolio company performance, track value creation initiatives, and prepare for board meetings with comprehensive analysis. Traditional processes require consolidating data from multiple portfolio companies, manual board pack preparation, and time-consuming performance reviews.  
 **Value Proposition**: AI-powered portfolio intelligence that combines financial KPIs, value creation plan tracking, and board pack analysis in a unified interface, enabling proactive portfolio management and better board engagement.
 
@@ -435,7 +435,7 @@ Is TechCorp Europe's investment thesis still valid? How does current performance
 
 #### Business Context Setup
 
-**Persona**: Sarah, Portfolio Director at EQT Partners  
+**Persona**: Sarah, Portfolio Director at APX Partners  
 **Business Challenge**: Deal team leads need to monitor value creation initiatives during the critical first 100 days post-close, identifying at-risk workstreams before they impact EBITDA targets.  
 **Value Proposition**: AI-powered 100-day plan tracking that surfaces at-risk initiatives, calculates total EBITDA impact at risk, and recommends management interventions.
 
@@ -524,7 +524,7 @@ What is NordicTech's Cloud Infrastructure Optimization issue? Search board packs
 
 #### Business Context Setup
 
-**Persona**: Sarah, Portfolio Director at EQT Partners  
+**Persona**: Sarah, Portfolio Director at APX Partners  
 **Business Challenge**: ESG leads and operating partners need to monitor operational KPIs across the portfolio, identifying Red status items requiring intervention.  
 **Value Proposition**: AI-powered KPI monitoring with automatic flagging of Red status items, trend analysis, and prioritization recommendations.
 
@@ -612,7 +612,7 @@ What is the trend for Employee NPS across portfolio? Search board packs for HR i
 
 #### Business Context Setup
 
-**Persona**: Sarah, Portfolio Director at EQT Partners  
+**Persona**: Sarah, Portfolio Director at APX Partners  
 **Business Challenge**: Fund CFOs preparing LP updates need consolidated fund-level performance including portfolio metrics and exit performance.  
 **Value Proposition**: AI-powered fund summary combining active portfolio performance, value creation progress, and exit metrics.
 
@@ -627,11 +627,11 @@ What is the trend for Employee NPS across portfolio? Search board packs for HR i
 
 **User Input**: 
 ```
-Give me a summary of EQT IX portfolio performance including any recent exits.
+Give me a summary of APX IX portfolio performance including any recent exits.
 ```
 
 **Tools Used**:
-- `value_creation_analyzer` (Cortex Analyst) - Query portfolio by Fund = 'EQT IX'
+- `value_creation_analyzer` (Cortex Analyst) - Query portfolio by Fund = 'APX IX'
 
 **Expected Response**:
 - Active portfolio overview with aggregate metrics

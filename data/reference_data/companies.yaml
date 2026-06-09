@@ -1318,8 +1318,8 @@ companies:
   cik: '0001140625'
   sector: Energy
   tier: expanded
-- ticker: EQT
-  company_name: EQT CORP
+- ticker: APX
+  company_name: APX RESOURCES
   provider_company_id: 51f2e9e9d62d3561bd53929a18b8aea2
   cik: '0000033213'
   sector: Energy
