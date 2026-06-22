@@ -270,6 +270,17 @@ def main():
     log_phase_complete("Earnings insights complete")
 
     # =========================================================================
+    # STEP 9: EVALUATION DATASETS
+    # =========================================================================
+    log_phase("Step 9: Agent Evaluation Datasets")
+
+    from ai.evaluations import create_eval_datasets
+    created, failed = create_eval_datasets(session, config.AVAILABLE_SCENARIOS)
+    log_substep(f"Created {created} evaluation datasets ({failed} failed)")
+
+    log_phase_complete("Evaluation datasets complete")
+
+    # =========================================================================
     # COMPLETE
     # =========================================================================
     end_time = datetime.now()

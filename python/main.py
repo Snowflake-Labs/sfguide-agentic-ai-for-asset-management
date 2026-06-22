@@ -550,6 +550,13 @@ def main():
                 build_ai.build_all(session, validated_scenarios, build_semantic, build_search, build_agents, verify_only=args.verify_only)
             log_phase_complete("AI components complete")
 
+            # Create evaluation datasets (part of standard AI build)
+            if build_agents:
+                from ai import evaluations
+                with Spinner("Creating evaluation datasets"):
+                    evaluations.create_eval_datasets(session, validated_scenarios)
+                log_phase_complete("Evaluation datasets complete")
+
         # =================================================================
         # OPTIONAL: Tools deployment (fast dev shortcut)
         # =================================================================
@@ -632,15 +639,8 @@ def main():
             log_phase_complete("Earnings insights complete")
 
         # =================================================================
-        # OPTIONAL FLAGS: --include-eval, --include-ml
+        # OPTIONAL FLAGS: --include-ml
         # =================================================================
-        if args.include_eval:
-            log_phase("Evaluation Datasets")
-            from ai import evaluations
-            with Spinner("Creating evaluation datasets"):
-                evaluations.create_eval_datasets(session, validated_scenarios)
-            log_phase_complete("Evaluation datasets complete")
-
         if args.include_ml:
             log_phase("ML Infrastructure")
             from ai.tools.ml_common import ensure_ml_schema, resolve_ml_build_order

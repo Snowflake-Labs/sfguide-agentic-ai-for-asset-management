@@ -204,20 +204,58 @@ def _format_query_result(rows: list) -> str:
     return "; ".join(parts)
 
 
-def _build_ground_truth_invocations(scenario_key: str, expected_tools: list, database: str) -> list:
+def _build_ground_truth_invocations(scenario_key: str, expected_tools: list, database: str, category: str) -> list:
+    """
+    Build ground_truth_invocations array following Snowflake Agent Evaluation TEA schema.
+
+    Per best practices:
+    - Each invocation has: tool_name, tool_input (non-empty string), tool_output (non-empty string)
+    - tool_type is NOT included (evaluator reads it from trace at runtime)
+    - For cortex_analyst tools: tool_output uses "SQL: ... Expected Result: ..." format
+    - For cortex_search tools: tool_output uses "Search Query: ... Expected Result: ..." format
+    - For generic tools: tool_output uses "Procedure Call: ... Expected Result: ..." format
+
+    Returns None for AC-track questions (category in edge_case, ambiguous) where
+    ground_truth_invocations should be absent from the JSON.
+    Returns [] for guardrail questions where no tool should be called.
+    """
+    # AC-track: don't include invocations at all
+    if category in ('edge_case', 'ambiguous', 'multi_tool'):
+        return None
+
+    if not expected_tools:
+        return []
+
     tool_map = config.TOOL_SERVICE_MAP.get(scenario_key, {})
     invocations = []
+
     for tool_name in expected_tools:
         tool_info = tool_map.get(tool_name, {})
         tool_type = tool_info.get('type', 'generic')
+
         if tool_type == 'cortex_analyst':
-            service = f"{database}.AI.{tool_info['service']}"
-            invocations.append({'tool_name': 'cortex_analyst', 'service': service})
+            service = tool_info.get('service', 'UNKNOWN')
+            invocations.append({
+                'tool_name': tool_name,
+                'tool_input': f"Query the {tool_name} semantic view for the requested data",
+                'tool_output': f"SQL:\nSELECT relevant columns FROM {database}.AI.{service}\n\nExpected Result:\nData matching the user's question returned successfully",
+            })
         elif tool_type == 'cortex_search':
-            service = f"{database}.AI.{tool_info['service']}"
-            invocations.append({'tool_name': tool_name, 'service': service})
+            service = tool_info.get('service', 'UNKNOWN')
+            invocations.append({
+                'tool_name': tool_name,
+                'tool_input': f"Search {service} for relevant documents matching the query",
+                'tool_output': f"Search Query:\nUser's question keywords\n\nExpected Result:\nRelevant document excerpts returned from {service}",
+            })
         else:
-            invocations.append({'tool_name': tool_name})
+            # Generic tool (stored procedure, UDF)
+            service = tool_info.get('service', tool_name)
+            invocations.append({
+                'tool_name': tool_name,
+                'tool_input': f"Execute {tool_name} with parameters from the user's request",
+                'tool_output': f"Procedure Call:\nCALL {database}.AI.{service}(...)\n\nExpected Result:\nTool execution returns structured results",
+            })
+
     return invocations
 
 
@@ -260,18 +298,26 @@ def _create_and_register_dataset(
         escaped_category = q['category'].replace("'", "''")
 
         invocations = _build_ground_truth_invocations(
-            scenario_key, q['expected_tools'], database
+            scenario_key, q['expected_tools'], database, q['category']
         )
+
+        # Build GROUND_TRUTH object following the trichotomy:
+        # - invocations=None → AC-track (key absent from JSON)
+        # - invocations=[] → TEA no-tool guardrail
+        # - invocations=[...] → TEA-track with tool expectations
         ground_truth_obj = {
-            'ground_truth_invocations': invocations,
             'ground_truth_output': q['ground_truth_output'],
         }
-        escaped_json = json.dumps(ground_truth_obj).replace("'", "''")
+        if invocations is not None:
+            ground_truth_obj['ground_truth_invocations'] = invocations
+
+        # Use $$ dollar-quoting to avoid escaping issues with \n and single quotes in JSON
+        json_str = json.dumps(ground_truth_obj)
 
         insert_sql = f"""
             INSERT INTO {table_name} (INPUT_QUERY, GROUND_TRUTH, CATEGORY)
             SELECT '{escaped_query}',
-                   PARSE_JSON('{escaped_json}'),
+                   PARSE_JSON($${json_str}$$),
                    '{escaped_category}'
         """
         session.sql(insert_sql).collect()
