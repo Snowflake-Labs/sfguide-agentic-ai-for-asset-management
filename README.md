@@ -1,6 +1,6 @@
 # Agentic AI for Asset Management
 
-Build a complete multi-agent AI system for investment management using Snowflake Intelligence, Cortex Agents, Cortex Analyst, and Cortex Search.
+Build a complete multi-agent AI system for investment management using Snowflake CoWOrk, Cortex Agents, Cortex Analyst, and Cortex Search.
 
 ## What You Get
 
@@ -15,15 +15,7 @@ Build a complete multi-agent AI system for investment management using Snowflake
 
 ## Quick Start (15-20 minutes)
 
-### Step 1: Run Infrastructure Setup (2 minutes)
-
-Copy [`scripts/setup.sql`](scripts/setup.sql) into a Snowflake worksheet and execute it. This creates:
-- `SAM_DEMO` database with all schemas
-- `SAM_DEMO_ROLE` with required privileges (including task execution)
-- Marketplace data share (Snowflake Public Data - Free)
-- Cortex AI enablement and Snowflake Intelligence
-
-### Step 2: Create Git Workspace
+### Step §: Create Git Workspace
 
 1. Navigate to **Projects > Workspaces**
 2. Click **+** then **From Git repository**
@@ -31,17 +23,25 @@ Copy [`scripts/setup.sql`](scripts/setup.sql) into a Snowflake worksheet and exe
 4. Authentication: Public repository (no auth needed)
 5. Name the workspace (e.g., "SAM Demo")
 
+### Step 2: Run Infrastructure Setup (2 minutes)
+
+Open [`scripts/setup.sql`](scripts/setup.sql) in the workspace and execute it. This creates:
+- `SAM_DEMO` database with all schemas
+- `SAM_DEMO_ROLE` with required privileges (including task execution)
+- Marketplace data share (Snowflake Public Data - Free)
+- Cortex AI enablement and Snowflake Intelligence
+
 ### Step 3: Run Setup (15-20 minutes)
 
 1. Open `python/workspace_main.py` in the workspace
 2. Connect a **notebook service** when prompted:
-   - Python version: 3.11
+   - Python version: 3.11+
    - Compute pool: any available pool
-3. Install packages via the Packages panel:
-   - `snowflake-snowpark-python`
-   - `pyyaml`
-   - `jinja2`
-4. Click **Run**
+   - Artifact repositories (optional): SNOWFLAKE.SNOWPARK.PYPI_SHARED_REPOSITORY
+3. Open the Terminal and run the following command:  
+   `pip install -r "$PWD/requirements.txt"`. 
+4. Restart the kernel
+5. Click **Run**
 
 The script builds everything sequentially:
 - Dimension and fact tables from real securities data
@@ -52,7 +52,7 @@ The script builds everything sequentially:
 
 ### Step 4: Use the Agents
 
-1. Navigate to **AI & ML > Snowflake Intelligence**
+1. Navigate to **AI & ML > Snowflake CoWork**
 2. Select any agent
 3. Start asking questions!
 
