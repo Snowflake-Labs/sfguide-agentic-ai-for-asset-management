@@ -54,6 +54,9 @@ import os
 import sys
 from datetime import datetime
 
+# Mark as workspace runtime so streamlit deployment is skipped
+os.environ['SNOWFLAKE_NOTEBOOK_RUNTIME'] = '1'
+
 # Ensure the python/ directory is on the path for imports
 # Note: In Snowflake Workspaces, __file__ is not defined.
 # The working directory is /workspace/<hash>/ (the workspace root).

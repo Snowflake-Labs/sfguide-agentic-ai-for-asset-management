@@ -15,7 +15,7 @@ Build a complete multi-agent AI system for investment management using Snowflake
 
 ## Quick Start (15-20 minutes)
 
-### Step §: Create Git Workspace
+### Step 1: Create Git Workspace
 
 1. Navigate to **Projects > Workspaces**
 2. Click **+** then **From Git repository**
