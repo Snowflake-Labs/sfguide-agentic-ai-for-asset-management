@@ -107,13 +107,14 @@ def create_database_structure(session: Session, recreate_database: bool = True):
             session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.MARKET_DATA").collect()
             session.sql(f"CREATE OR REPLACE SCHEMA {config.DATABASE['name']}.ML").collect()
         else:
-            # Incremental mode - ensure database and schemas exist but don't drop
-            session.sql(f"CREATE DATABASE IF NOT EXISTS {config.DATABASE['name']}").collect()
-            session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.RAW").collect()
-            session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.CURATED").collect()
-            session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.AI").collect()
-            session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.MARKET_DATA").collect()
-            session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.ML").collect()
+            # Incremental mode - verify database exists (created by workspace_setup.sql)
+            # Skip CREATE DATABASE/SCHEMA if they already exist to avoid needing
+            # account-level CREATE DATABASE privilege
+            existing = session.sql(f"SHOW DATABASES LIKE '{config.DATABASE['name']}'").collect()
+            if not existing:
+                session.sql(f"CREATE DATABASE IF NOT EXISTS {config.DATABASE['name']}").collect()
+            for schema in ['RAW', 'CURATED', 'AI', 'MARKET_DATA', 'ML']:
+                session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.{schema}").collect()
     except Exception as e:
         log_error(f" Failed to create database structure: {e}")
         raise
