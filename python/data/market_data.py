@@ -1291,7 +1291,7 @@ def build_fact_economic_indicators(session: Session, test_mode: bool = False) ->
                     WHEN UPPER(a.VARIABLE_NAME) LIKE '%EMPLOYMENT%' OR UPPER(a.MEASURE) LIKE '%PAYROLL%' THEN 'EMPLOYMENT'
                     ELSE 'OTHER'
                 END AS INDICATOR_TYPE,
-                'CYBERSYN_FINANCIAL_ECONOMIC_INDICATORS' AS DATA_SOURCE,
+                '{economic_indicators_table}' AS DATA_SOURCE,
                 CURRENT_TIMESTAMP() AS LOADED_AT
             FROM {real_db}.{real_schema}.{economic_indicators_table} t
             JOIN {real_db}.{real_schema}.{economic_indicators_attrs} a

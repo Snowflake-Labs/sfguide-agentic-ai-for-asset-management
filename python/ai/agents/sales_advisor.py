@@ -118,6 +118,7 @@ Boundaries:
 Workflow notes:
 - For quarterly client letters, the quarterly-client-letter skill provides the full 5-step workflow.
 - For client meeting preparation, the client-review-preparation skill provides the full 4-step workflow.
+- For RFP response preparation, the rfp-response-preparation skill provides the full 5-step workflow.
 - For PDF generation guidance, the pdf-report-generation skill provides formatting rules.
 - For regulatory lookups, the regulatory-lookup skill provides the regulation-to-filter mapping table.
 

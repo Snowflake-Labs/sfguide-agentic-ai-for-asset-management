@@ -93,17 +93,17 @@ Show me all Healthcare deals with their valuations, stages, and strategic ration
 ##### Step 3: Due Diligence Insights
 
 **Presenter Transition**:
-> "MedTech Solutions looks interesting—strong growth and reasonable multiple. Before I discuss with the IC, I need to understand the due diligence findings and any red flags..."
+> "HealthData Analytics looks interesting—35% growth and reasonable multiple for an AI-powered healthcare platform. Before I discuss with the IC, I need to understand the due diligence findings and any red flags..."
 
 *Reasoning: Quantitative screening identifies candidates; due diligence review validates investment thesis and identifies risks.*
 
 **User Input**: 
 ```
-What does our due diligence say about MedTech Solutions? Any concerns or red flags?
+What does our due diligence say about HealthData Analytics? Any concerns or red flags?
 ```
 
 **Tools Used**:
-- `search_due_diligence` (Cortex Search) - Search due diligence reports for MedTech Solutions
+- `search_due_diligence` (Cortex Search) - Search due diligence reports for HealthData Analytics
 
 **Expected Response**:
 - Due diligence summary with:
@@ -133,7 +133,7 @@ What does our due diligence say about MedTech Solutions? Any concerns or red fla
 
 **User Input**: 
 ```
-Do we have any expert network insights on MedTech Solutions or the medical device market?
+Do we have any expert network insights on HealthData Analytics or the healthcare analytics market?
 ```
 
 **Tools Used**:
@@ -142,7 +142,7 @@ Do we have any expert network insights on MedTech Solutions or the medical devic
 **Expected Response**:
 - Expert perspectives on:
   - Market dynamics and competitive positioning
-  - Customer feedback on MedTech Solutions products
+  - Customer feedback on HealthData Analytics products
   - Management reputation in the industry
   - Growth outlook and market trends
 - Key quotes from expert calls with dates and expert profiles

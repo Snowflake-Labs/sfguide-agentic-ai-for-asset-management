@@ -19,16 +19,13 @@
 -- SAM Demo — Infrastructure Setup (Workspace Prerequisites)
 -- ============================================================================
 --
--- Run this script ONCE in a Snowflake worksheet before using the Git Workspace.
+-- Run this script ONCE.
 -- It creates the database, schemas, roles, grants, and enables Cortex features.
 --
 -- After running this script:
---   1. Go to Projects > Workspaces
---   2. Create workspace "From Git repository":
---      https://github.com/Snowflake-Labs/sfguide-agentic-ai-for-asset-management.git
---   3. Open python/workspace_main.py
---   4. Connect a notebook service (Python 3.11+, any compute pool)
---   5. Install packages: snowflake-snowpark-python, pyyaml, jinja2
+--   1. Open python/workspace_main.py
+--   2. Connect a notebook service (Python 3.11+, any compute pool, SNOWFLAKE.SNOWPARK.PYPI_SHARED_REPOSITORY Artifact repository)
+--   3. Open the terminal and run pip install -r "$PWD/requirements.txt" and restart the kernel
 --   6. Click "Run" — the full setup takes ~15-20 minutes
 --
 -- REQUIRES: ACCOUNTADMIN role
@@ -40,17 +37,24 @@ USE ROLE ACCOUNTADMIN;
 ALTER SESSION SET query_tag = '{"origin":"sf_sit-is","name":"agentic_ai_for_asset_management","version":{"major":2,"minor":0},"attributes":{"is_quickstart":1,"source":"sql"}}';
 
 -- ============================================================================
--- SECTION 1: Warehouse
+-- SECTION 1: Warehouses
 -- ============================================================================
 
-CREATE WAREHOUSE IF NOT EXISTS SAM_DEMO_WH
-    WAREHOUSE_SIZE = 'XLARGE'
+CREATE WAREHOUSE IF NOT EXISTS SAM_DEMO_EXECUTION_WH
+    WAREHOUSE_SIZE = 'LARGE'
     AUTO_SUSPEND = 60
     AUTO_RESUME = TRUE
     INITIALLY_SUSPENDED = FALSE
-    COMMENT = 'Warehouse for SAM demo operations';
+    COMMENT = 'Warehouse for SAM demo data generation and agent execution';
 
-USE WAREHOUSE SAM_DEMO_WH;
+CREATE WAREHOUSE IF NOT EXISTS SAM_DEMO_CORTEX_WH
+    WAREHOUSE_SIZE = 'MEDIUM'
+    AUTO_SUSPEND = 60
+    AUTO_RESUME = TRUE
+    INITIALLY_SUSPENDED = FALSE
+    COMMENT = 'Warehouse for SAM demo Cortex Search services';
+
+USE WAREHOUSE SAM_DEMO_EXECUTION_WH;
 
 -- ============================================================================
 -- SECTION 2: Marketplace Data (Snowflake Public Data - Free)
@@ -106,9 +110,12 @@ GRANT ROLE SAM_DEMO_ROLE TO ROLE ACCOUNTADMIN;
 GRANT ROLE SAM_DEMO_ROLE TO ROLE SYSADMIN;
 
 -- Warehouse privileges
-GRANT USAGE ON WAREHOUSE SAM_DEMO_WH TO ROLE SAM_DEMO_ROLE;
-GRANT OPERATE ON WAREHOUSE SAM_DEMO_WH TO ROLE SAM_DEMO_ROLE;
-GRANT MODIFY ON WAREHOUSE SAM_DEMO_WH TO ROLE SAM_DEMO_ROLE;
+GRANT USAGE ON WAREHOUSE SAM_DEMO_EXECUTION_WH TO ROLE SAM_DEMO_ROLE;
+GRANT OPERATE ON WAREHOUSE SAM_DEMO_EXECUTION_WH TO ROLE SAM_DEMO_ROLE;
+GRANT MODIFY ON WAREHOUSE SAM_DEMO_EXECUTION_WH TO ROLE SAM_DEMO_ROLE;
+GRANT USAGE ON WAREHOUSE SAM_DEMO_CORTEX_WH TO ROLE SAM_DEMO_ROLE;
+GRANT OPERATE ON WAREHOUSE SAM_DEMO_CORTEX_WH TO ROLE SAM_DEMO_ROLE;
+GRANT MODIFY ON WAREHOUSE SAM_DEMO_CORTEX_WH TO ROLE SAM_DEMO_ROLE;
 
 -- Marketplace data access
 GRANT IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE_PUBLIC_DATA_FREE TO ROLE SAM_DEMO_ROLE;
@@ -162,19 +169,16 @@ GRANT USAGE ON SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT TO R
 --
 -- Infrastructure is ready. Now set up the demo data and agents:
 --
---   1. Go to Projects > Workspaces
---   2. Click "+" → "From Git repository"
---   3. Repository URL: https://github.com/Snowflake-Labs/sfguide-agentic-ai-for-asset-management.git
---   4. Authentication: Public repository (no auth needed)
---   5. Open python/workspace_main.py
---   6. Connect a notebook service:
+--   1. Open python/workspace_main.py
+--   2. Connect a notebook service:
 --      - Python version: 3.11
 --      - Compute pool: any available pool
---   7. Install packages using the Terminal:
+--      - Artifact repositories (optional): SNOWFLAKE.SNOWPARK.PYPI_SHARED_REPOSITORY
+--   3. Install packages using the Terminal:
 --      Open the Terminal and run the following command:
---      pip install -r ../requirements.txt
---   8. Restart the kernel
---   9. Click "Run" — setup takes ~15-20 minutes
+--      pip install -r "$PWD/requirements.txt"
+--   4. Restart the kernel
+--   5. Click "Run" — setup takes ~15-20 minutes
 --
 -- After completion:
 --   - Open Snowflake Intelligence to interact with the agents

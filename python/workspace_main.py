@@ -15,6 +15,15 @@
 #
 # Created by Mats Stellwall, Snowflake, and Snowflake CoCo
 
+# BEFORE RUNNING THIS SCRIPT!
+# Open the Terminal and run the following command:
+# pip install -r "$PWD/requirements.txt"
+
+# If you get an error, run:
+# pip install pyyaml>=6.0
+# pip install markdown>=3.4.0
+# pip install reportlab>=4.0.0
+#
 """
 Simulated Asset Management (SAM) Demo — Snowflake Workspace Runner
 
@@ -76,8 +85,8 @@ def main():
     print("  Simulated Asset Management (SAM) Demo")
     print("  Workspace Setup")
     print("=" * 60)
-    print(f"  Database: {session.get_current_database() or config.DATABASE['name']}")
-    print(f"  Warehouse: {session.get_current_warehouse() or 'SAM_DEMO_WH'}")
+    print(f"  Database: {config.DATABASE['name']}")
+    print(f"  Warehouse: {config.WAREHOUSES['execution']['name']}")
     print(f"  Scenarios: {', '.join(config.AVAILABLE_SCENARIOS)}")
     print(f"  Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
@@ -85,8 +94,9 @@ def main():
 
     # Ensure correct context
     db_name = config.DATABASE['name']
+    session.sql("USE ROLE SAM_DEMO_ROLE").collect()
     session.sql(f"USE DATABASE {db_name}").collect()
-    session.sql(f"USE WAREHOUSE SAM_DEMO_WH").collect()
+    session.sql(f"USE WAREHOUSE SAM_DEMO_EXECUTION_WH").collect()
 
     # =========================================================================
     # STEP 1: FOUNDATION — Dimension tables

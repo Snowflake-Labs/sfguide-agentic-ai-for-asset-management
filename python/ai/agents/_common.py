@@ -65,8 +65,8 @@ AGENT_SKILLS = {
     'client_advisory': [
         'pdf-report-generation', 'portfolio-name-resolution',
         'quarterly-client-letter', 'client-review-preparation',
-        'regulatory-lookup', 'audience-adaptive-narrative',
-        'multi-level-attribution',
+        'rfp-response-preparation', 'regulatory-lookup',
+        'audience-adaptive-narrative', 'multi-level-attribution',
     ],
     'risk_compliance': [
         'pdf-report-generation', 'regulatory-lookup',

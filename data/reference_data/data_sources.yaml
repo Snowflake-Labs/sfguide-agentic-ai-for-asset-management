@@ -161,7 +161,7 @@ tables:
     used_by:
     - market_data.py (FACT_INSTITUTIONAL_HOLDINGS)
   company_event_transcripts:
-    table: COMPANY_EVENT_TRANSCRIPT_ATTRIBUTES_V2
+    table: COMPANY_EVENT_TRANSCRIPT_ATTRIBUTES
     description: Transcripts of hosted company events (Earnings Calls, AGMs, M&A, Investor Days) in JSON format
     key_columns:
     - COMPANY_ID
@@ -197,8 +197,8 @@ tables:
     used_by:
     - market_data.py (FACT_FX_RATES)
   fred_economic_indicators:
-    table: CYBERSYN_FINANCIAL_ECONOMIC_INDICATORS_TIMESERIES
-    attributes_table: CYBERSYN_FINANCIAL_ECONOMIC_INDICATORS_ATTRIBUTES
+    table: FINANCIAL_ECONOMIC_INDICATORS_TIMESERIES
+    attributes_table: FINANCIAL_ECONOMIC_INDICATORS_ATTRIBUTES
     description: US economic indicators from FRED (GDP, CPI, unemployment)
     key_columns:
     - DATE

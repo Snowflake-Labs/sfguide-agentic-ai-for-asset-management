@@ -210,10 +210,10 @@ REAL_DATA_SOURCES = {
     # -------------------------------------------------------------------------
     # Change these two values to match your Snowflake Marketplace data share
     # -------------------------------------------------------------------------
-    'database': 'SNOWFLAKE_PUBLIC_DATA_PAID',  # e.g. 'SNOWFLAKE_PUBLIC_DATA_FREE'
+    'database': 'SNOWFLAKE_PUBLIC_DATA_FREE',  # e.g. 'SNOWFLAKE_PUBLIC_DATA_FREE'
     #'database': 'FINANCIALS_ECONOMICS_ENTERPRISE',
     #'schema': 'PUBLIC_DATA_FREE',              # e.g. 'PUBLIC_DATA_FREE'
-    'schema': 'CYBERSYN',
+    'schema': 'PUBLIC_DATA_FREE',
     # Key into REAL_DATA_SOURCES['tables'] to probe for share access (must exist in share)
     # IMPORTANT: This data source is REQUIRED. The build will fail if not accessible.
     'access_probe_table_key': 'sec_metrics'

@@ -625,134 +625,78 @@ Create a quarterly client review preparation summary for Meridian Capital Partne
 
 **Scene Setting**: James received an RFP from a large pension fund seeking a Global ESG Equity mandate. The response is due in 10 days and he needs to prepare a comprehensive proposal.
 
-##### Step 1: Firm Capabilities and Track Record
+**Skill Used**: `rfp-response-preparation` — triggers automatically from the initial prompt and orchestrates the full workflow.
+
+##### Step 1: Initial Request (Triggers Skill)
 
 **User Input**: 
 ```
-I need to prepare an RFP response for a Global ESG Equity mandate. Start by gathering our firm capabilities, ESG track record, and available performance history for the SAM ESG Leaders Global Equity strategy.
+I need to prepare an RFP response for a pension fund that wants an ESG equity mandate.
 ```
 
-**Tools Used**:
-- `quantitative_analyzer` (Cortex Analyst) - Query ESG Leaders performance from SAM_PORTFOLIO_VIEW
-- `search_internal_docs` (Cortex Search) - Get RFP response template structure
+**Agent Behaviour** (skill stopping point):
 
-**Expected Response**:
-- **Firm Overview**: SAM capabilities and AUM
-- **Strategy Performance**: ESG Leaders returns vs benchmark (QTD, YTD available; longer-term history requires supplemental data)
-- **ESG Characteristics**: Portfolio ESG ratings and sustainability metrics
-- **RFP Template Structure**: Recommended sections and format
+The agent activates the `rfp-response-preparation` skill and presents structured option-based questions:
 
-**Note**: The semantic model provides QTD and YTD returns. For longer-term performance (1Y, 3Y, Since Inception), the agent will note data availability limitations—this is realistic as demo data is anchored to recent market data.
+1. **Which SAM ESG-aligned strategy should anchor the RFP response?**
+2. **Which regulatory framework(s) should the RFP response explicitly address?**
+3. **What type of pension fund is the prospective client?**
+4. **Are there particular sections you want emphasised in the response?**
 
-**Talking Points**:
-- **Instant Access**: Performance data immediately available without manual compilation
-- **Template Guidance**: AI provides RFP structure to ensure completeness
-- **Compliance Ready**: Data formatted for institutional due diligence
+**Recommended Demo Selections**:
 
-**Key Features Highlighted**: 
-- **SAM_PORTFOLIO_VIEW**: Complete portfolio analytics for RFP evidence
-- **SAM_SALES_TEMPLATES**: RFP response template with standard sections
-
-##### Step 2: Investment Process and Philosophy
+| Question | Selection |
+|----------|-----------|
+| Strategy | SAM ESG Leaders Global Equity |
+| Regulatory framework(s) | SFDR Article 8 |
+| Pension fund type | EU IORP / occupational pension |
+| Sections to emphasise | ESG integration methodology |
 
 **Presenter Transition**:
-> "We have the track record data. Now I need to articulate our investment process and ESG integration methodology—the 'how' behind our performance..."
-
-*Reasoning: RFPs require detailed investment process descriptions. Philosophy documents provide the structured content needed for process sections.*
-
-**User Input**: 
-```
-Provide our ESG investment process, integration methodology, and active ownership approach for the investment process section of the RFP.
-```
-
-**Tools Used**:
-- `search_internal_docs` (Cortex Search) - Search ESG investment philosophy and process
-
-**Expected Response**:
-- **Investment Process**: Multi-stage ESG integration approach
-- **ESG Methodology**: Proprietary ESG rating framework
-- **Active Ownership**: Engagement and proxy voting approach
-- **Exclusion Policy**: Industries and practices excluded
-- **Integration Examples**: How ESG factors influence investment decisions
+> "Notice how the agent asks exactly the right clarifying questions — strategy, regulatory framework, client type, emphasis areas. This is the skill's verification step ensuring we gather the right content. It behaves like an experienced associate would..."
 
 **Talking Points**:
-- **Process Documentation**: AI retrieves structured investment process content
-- **Differentiation**: Highlights SAM's unique ESG approach
-- **Due Diligence Ready**: Content suitable for institutional evaluation
+- **Intelligent Clarification**: Agent identifies what it needs rather than making assumptions
+- **No Wasted Effort**: Verification upfront prevents gathering irrelevant content
+- **Structured Approach**: Option-based questions make it easy to specify requirements precisely
 
-**Key Features Highlighted**: 
-- **SAM_PHILOSOPHY_DOCS**: Comprehensive investment philosophy library
-- **Contextual Retrieval**: AI finds relevant process content for RFP sections
+##### Step 2: Agent Executes Autonomously
 
-##### Step 3: Compliance and Risk Management
+After the user selects their options, the agent proceeds without further interruption.
 
-**Presenter Transition**:
-> "The investment process section is complete. Now I need compliance and risk management content to address operational due diligence requirements..."
+**Tools Used** (executed autonomously by the skill):
+- `portfolio_analyzer` (Cortex Analyst) - Query ESG Leaders performance, AUM, holdings
+- `search_internal_docs` (Cortex Search) - RFP template, ESG investment philosophy, compliance policies
+- `search_regulations` (Cortex Search) - SFDR Article 8 disclosure requirements
+- Synthesis into complete RFP draft
 
-*Reasoning: Institutional RFPs include extensive operational and compliance sections. Policy documents provide the required content.*
-
-**User Input**: 
-```
-Gather our compliance framework, risk management policies, and regulatory disclosures for the operational due diligence section of the RFP. Include the specific SFDR Article 8 disclosure requirements that apply to our ESG fund.
-```
-
-**Tools Used**:
-- `search_internal_docs` (Cortex Search) - Get compliance and risk management policies
-- `search_regulations` (Cortex Search) - Retrieve SFDR Article 8 disclosure requirements for ESG fund proposal
-
-**Expected Response**:
-- **Compliance Framework**: Regulatory registrations and compliance infrastructure
-- **Risk Management**: Investment risk limits and monitoring approach
-- **Concentration Policy**: Position and sector limit framework
-- **Regulatory Disclosures**: Standard required disclosures
-- **Conflict Management**: Conflict of interest policies
-- **SFDR Disclosure**: Article 8 pre-contractual and periodic disclosure requirements applicable to the ESG mandate
-- **Sustainability Risk**: How ESG risks are integrated per SFDR Article 6
-
-**Talking Points**:
-- **Comprehensive Coverage**: All operational due diligence areas addressed including regulatory framework
-- **Regulatory Precision**: SFDR requirements retrieved from actual regulation text, not internal summaries
-- **Institutional Standards**: Content meets pension fund requirements with regulatory backing
-
-**Key Features Highlighted**: 
-- **SAM_POLICY_DOCS**: Complete compliance and policy library
-- **SAM_REGULATORY_DOCS**: SFDR regulation text for ESG fund disclosure requirements
-- **Operational DD Content**: Covers all standard RFP operational sections with regulatory citations
-
-##### Step 4: Complete RFP Response Draft
-
-**Presenter Transition**:
-> "I have all the components. Let me synthesise everything into a complete RFP response document following our approved template..."
-
-*Reasoning: Synthesising all components into a cohesive response document demonstrates the complete RFP workflow.*
-
-**User Input**: 
-```
-Create a complete RFP response draft for the Global ESG Equity mandate combining our track record, investment process, and compliance content in our standard RFP format.
-```
-
-**Tools Used**:
-- Synthesis of previous queries
-- `search_internal_docs` (Cortex Search) - RFP template for final formatting
-
-**Expected Response**:
+**Expected Response** — Complete RFP document covering:
 - **Executive Summary**: Key highlights and value proposition
-- **Firm Overview Section**: Capabilities and track record
-- **Investment Process Section**: ESG methodology and philosophy
-- **Performance Section**: Returns and risk metrics
-- **Operational Section**: Compliance and risk management
-- **Team Section**: Key personnel placeholder
-- **Fee Section**: Standard fee schedule format
+- **Firm Overview**: SAM capabilities, AUM, regulatory status
+- **Strategy Performance**: ESG Leaders returns vs benchmark (QTD, YTD)
+- **Investment Process**: ESG integration methodology, active ownership, exclusion policy
+- **Portfolio Characteristics**: Top holdings, sector allocation, ESG ratings
+- **Risk Management**: Investment risk limits and monitoring approach
+- **Compliance and Regulatory**: SFDR Article 8 disclosures, sustainability risk integration
+- **Team and Resources**: `[TO COMPLETE]` markers for named biographies
+- **Fee Proposal**: `[TO COMPLETE]` placeholder
+- **Sections Requiring Manual Review**: Checklist of items needing human attention
+
+**Note**: The semantic model provides QTD and YTD returns. For longer-term performance (1Y, 3Y, Since Inception), the agent will note data availability limitations — this is realistic as demo data is anchored to recent market data.
 
 **Talking Points**:
-- **Complete Draft**: Comprehensive RFP response in single workflow
-- **Template Compliant**: Follows institutional RFP standards
-- **Review Ready**: Draft prepared for senior review and customisation
+- **Single Prompt to Complete Draft**: One confirmation and the agent delivers a full institutional-quality RFP response
+- **Multi-Source Orchestration**: Combines performance data, philosophy docs, policy docs, and regulation text seamlessly
+- **Smart Placeholders**: Agent marks sections it cannot complete (fees, team bios) rather than fabricating content
+- **Regulatory Precision**: SFDR requirements retrieved from actual regulation text, not internal summaries
+- **Review Ready**: Draft prepared for senior review with a clear checklist of what still needs human attention
 
 **Key Features Highlighted**: 
-- **Multi-Source Synthesis**: Combines analytics, philosophy, and policy content
-- **Professional Format**: Institutional-quality RFP response
-- **Accelerated Timeline**: What took weeks now takes hours
+- **Skill-Driven Workflow**: `rfp-response-preparation` skill orchestrates 5 internal steps autonomously
+- **SAM_PORTFOLIO_VIEW**: Performance data for track record section
+- **SAM_INTERNAL_DOCS**: Philosophy, templates, and policy content
+- **SAM_REGULATORY_DOCS**: SFDR regulation text for ESG fund disclosure
+- **Accelerated Timeline**: What took 2-3 weeks now takes minutes
 
 #### Scenario Wrap-up
 
