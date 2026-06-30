@@ -1,0 +1,675 @@
+name: SAM_MIDDLE_OFFICE_VIEW
+description: "Middle office semantic view for operations, reconciliation, NAV, corporate actions, and cash management"
+tables:
+  - name: cash_movements
+    synonyms:
+      - cash_flows
+      - payments
+    description: Cash movement transactions
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_CASH_MOVEMENTS
+    primary_key:
+      columns:
+        - cash_pk_cashmovementid
+    dimensions:
+      - name: cash_pk_portfolioid
+        description: "PORTFOLIOID for cash_movements"
+        expr: "PORTFOLIOID"
+        data_type: "NUMBER(38,0)"
+      - name: cash_pk_counterpartyid
+        description: "COUNTERPARTYID for cash_movements"
+        expr: "COUNTERPARTYID"
+        data_type: "NUMBER(38,0)"
+      - name: cash_pk_cashmovementid
+        description: "CASHMOVEMENTID for cash_movements"
+        expr: CASHMOVEMENTID
+        data_type: "NUMBER(38,0)"
+      - name: movement_currency
+        synonyms:
+          - ccy
+          - currency_code
+        description: Cash movement currency
+        expr: CURRENCY
+        data_type: VARCHAR(3)
+      - name: movement_type
+        synonyms:
+          - cash_type
+          - flow_type
+        description: "Cash movement type (Trade Settlement, Dividend, Fee)"
+        expr: MovementType
+        data_type: VARCHAR(16)
+        is_enum: true
+        sample_values:
+          - "SETTLEMENT"
+          - "DIVIDEND"
+          - "FEE"
+          - "TRANSFER"
+          - "MARGIN"
+    facts:
+      - name: movement_amount
+        description: "Cash movement amount"
+        expr: Amount
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: cash_inflow
+        synonyms:
+          - inflows
+          - receipts
+        description: Total cash inflows
+        expr: SUM(CASE WHEN Amount > 0 THEN Amount ELSE 0 END)
+        access_modifier: public_access
+      - name: cash_outflow
+        synonyms:
+          - outflows
+          - payments
+        description: Total cash outflows
+        expr: SUM(CASE WHEN Amount < 0 THEN ABS(Amount) ELSE 0 END)
+        access_modifier: public_access
+      - name: total_movement_amount
+        synonyms:
+          - net_flow
+          - net_cash
+        description: Net cash flow
+        expr: SUM(movement_amount)
+        access_modifier: public_access
+    time_dimensions:
+      - name: movement_date
+        synonyms:
+          - cash_date
+          - flow_date
+        description: Cash movement date
+        expr: MovementDate
+        data_type: DATE
+  - name: cash_positions
+    synonyms:
+      - cash_balances
+      - liquidity
+    description: Daily cash position snapshots
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_CASH_POSITIONS
+    primary_key:
+      columns:
+        - cash_pk_cashpositionid
+    dimensions:
+      - name: cash_pk_portfolioid
+        description: "PORTFOLIOID for cash_positions"
+        expr: "PORTFOLIOID"
+        data_type: "NUMBER(38,0)"
+      - name: cash_pk_custodianid
+        description: "CUSTODIANID for cash_positions"
+        expr: "CUSTODIANID"
+        data_type: "NUMBER(38,0)"
+      - name: cash_pk_cashpositionid
+        description: "CASHPOSITIONID for cash_positions"
+        expr: CASHPOSITIONID
+        data_type: "NUMBER(38,0)"
+      - name: position_currency
+        synonyms:
+          - cash_currency
+          - balance_currency
+        description: Cash position currency
+        expr: CURRENCY
+        data_type: VARCHAR(3)
+    facts:
+      - name: closing_balance
+        description: "End-of-day cash balance"
+        expr: ClosingBalance
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: opening_balance
+        description: "Start-of-day cash balance"
+        expr: OpeningBalance
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: total_closing_balance
+        synonyms:
+          - cash_balance
+          - ending_balance
+        description: Closing cash balance
+        expr: SUM(closing_balance)
+        access_modifier: public_access
+      - name: total_opening_balance
+        synonyms:
+          - starting_balance
+          - beginning_balance
+        description: Opening cash balance
+        expr: SUM(opening_balance)
+        access_modifier: public_access
+    time_dimensions:
+      - name: position_date
+        synonyms:
+          - balance_date
+          - position_balance_date
+        description: Cash position date
+        expr: PositionDate
+        data_type: DATE
+  - name: corporate_actions
+    synonyms:
+      - dividends
+      - splits
+      - mergers
+    description: Corporate action events
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_CORPORATE_ACTIONS
+    primary_key:
+      columns:
+        - corp_pk_actionid
+    dimensions:
+      - name: corp_pk_securityid
+        description: "SECURITYID for corporate_actions"
+        expr: "SECURITYID"
+        data_type: "NUMBER(38,0)"
+      - name: corp_pk_actionid
+        description: "ACTIONID for corporate_actions"
+        expr: ACTIONID
+        data_type: "NUMBER(38,0)"
+      - name: action_type
+        synonyms:
+          - event_type
+        description: "Corporate action type (Dividend, Split, Merger)"
+        expr: ActionType
+        data_type: VARCHAR(8)
+        is_enum: true
+        sample_values:
+          - "DIVIDEND"
+          - "STOCK_SPLIT"
+          - "RIGHTS_ISSUE"
+          - "MERGER"
+          - "SPIN_OFF"
+    metrics:
+      - name: action_count
+        synonyms:
+          - actions
+          - event_count
+        description: Corporate action count
+        expr: COUNT(DISTINCT ACTIONID)
+        access_modifier: public_access
+    time_dimensions:
+      - name: ex_date
+        synonyms:
+          - ex_dividend_date
+        description: Ex-dividend/action date
+        expr: ExDate
+        data_type: DATE
+      - name: payment_date
+        synonyms:
+          - pay_date
+        description: Payment date
+        expr: PaymentDate
+        data_type: DATE
+  - name: counterparties
+    synonyms:
+      - brokers
+      - trading_partners
+    description: Counterparty information for settlements
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_COUNTERPARTY
+    primary_key:
+      columns:
+        - coun_pk_counterpartyid
+    dimensions:
+      - name: coun_pk_counterpartyid
+        description: "COUNTERPARTYID for counterparties"
+        expr: COUNTERPARTYID
+        data_type: "NUMBER(38,0)"
+      - name: counterparty_name
+        synonyms:
+          - broker_name
+          - trading_partner
+        description: Counterparty name
+        expr: CounterpartyName
+        data_type: VARCHAR(16777216)
+      - name: counterparty_type
+        synonyms:
+          - broker_type
+          - partner_type
+        description: "Counterparty type (Broker, Custodian, Prime)"
+        expr: CounterpartyType
+        data_type: VARCHAR(16777216)
+      - name: risk_rating
+        synonyms:
+          - rating
+          - credit_rating
+        description: Counterparty risk rating
+        expr: RiskRating
+        data_type: VARCHAR(16777216)
+  - name: custodians
+    synonyms:
+      - banks
+      - depositories
+    description: Custodian information
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_CUSTODIAN
+    primary_key:
+      columns:
+        - cust_pk_custodianid
+    dimensions:
+      - name: cust_pk_custodianid
+        description: "CUSTODIANID for custodians"
+        expr: CUSTODIANID
+        data_type: "NUMBER(38,0)"
+      - name: custodian_name
+        synonyms:
+          - custodian
+          - bank
+          - depository
+        description: Custodian name
+        expr: CustodianName
+        data_type: VARCHAR(16777216)
+  - name: nav
+    synonyms:
+      - net_asset_value
+      - valuations
+    description: NAV calculations
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_NAV_CALCULATION
+    primary_key:
+      columns:
+        - nav_pk_navid
+    dimensions:
+      - name: nav_pk_portfolioid
+        description: "PORTFOLIOID for nav"
+        expr: "PORTFOLIOID"
+        data_type: "NUMBER(38,0)"
+      - name: nav_pk_navid
+        description: "NAVID for nav"
+        expr: NAVID
+        data_type: "NUMBER(38,0)"
+    facts:
+      - name: nav_per_share
+        description: "Net asset value per share"
+        expr: NAVPerShare
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: total_assets
+        description: "Total assets from balance sheet"
+        expr: TotalAssets
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_nav_per_share
+        synonyms:
+          - nav
+          - unit_nav
+        description: NAV per share
+        expr: AVG(nav_per_share)
+        access_modifier: public_access
+      - name: sum_total_assets
+        synonyms:
+          - assets
+          - aum
+        description: Total assets
+        expr: SUM(total_assets)
+        access_modifier: public_access
+    time_dimensions:
+      - name: calculation_date
+        synonyms:
+          - nav_date
+          - valuation_date
+        description: NAV calculation date
+        expr: CalculationDate
+        data_type: DATE
+      - name: nav_month
+        synonyms:
+          - nav_month
+          - monthly
+        description: Monthly aggregation for NAV performance trends
+        expr: "DATE_TRUNC('MONTH', CALCULATIONDATE)"
+        data_type: DATE
+  - name: portfolios
+    synonyms:
+      - funds
+      - strategies
+    description: Portfolio information
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_PORTFOLIO
+    primary_key:
+      columns:
+        - port_pk_portfolioid
+    dimensions:
+      - name: port_pk_portfolioid
+        description: "PORTFOLIOID for portfolios"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: portfolio_name
+        synonyms:
+          - fund_name
+        description: "Portfolio name. All names start with \"SAM \" prefix, e.g. \"SAM Technology & Infrastructure\", \"SAM ESG Leaders Global Equity\"."
+        expr: PortfolioName
+        data_type: VARCHAR(134217728)
+        is_enum: true
+        sample_values:
+          - SAM Technology & Infrastructure
+          - SAM ESG Leaders Global Equity
+          - SAM Global Flagship Multi-Asset
+          - SAM US Core Equity
+          - SAM Renewable & Climate Solutions
+          - SAM Sustainable Global Equity
+          - SAM AI & Digital Innovation
+          - SAM Global Balanced 60/40
+          - SAM Tech Disruptors Equity
+          - SAM US Value Equity
+          - SAM Multi-Asset Income
+  - name: reconciliations
+    synonyms:
+      - recon
+      - breaks
+    description: Reconciliation breaks and resolutions
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_RECONCILIATION
+    primary_key:
+      columns:
+        - reco_pk_reconciliationid
+    dimensions:
+      - name: reco_pk_securityid
+        description: "SECURITYID for reconciliations"
+        expr: "SECURITYID"
+        data_type: "NUMBER(38,0)"
+      - name: reco_pk_portfolioid
+        description: "PORTFOLIOID for reconciliations"
+        expr: "PORTFOLIOID"
+        data_type: "NUMBER(38,0)"
+      - name: reco_pk_reconciliationid
+        description: "RECONCILIATIONID for reconciliations"
+        expr: RECONCILIATIONID
+        data_type: "NUMBER(38,0)"
+      - name: break_type
+        synonyms:
+          - exception_type
+        description: Break type
+        expr: BREAKTYPE
+        data_type: VARCHAR(8)
+        is_enum: true
+        sample_values:
+          - "POSITION"
+          - "CASH"
+          - "PRICE"
+      - name: recon_status
+        synonyms:
+          - resolution_status
+        description: "Reconciliation status (Open, Investigating, Resolved)"
+        expr: STATUS
+        data_type: VARCHAR(13)
+        is_enum: true
+        sample_values:
+          - "OPEN"
+          - "RESOLVED"
+          - "ESCALATED"
+    facts:
+      - name: reconciliation_difference
+        description: "Difference between expected and actual values"
+        expr: Difference
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: break_count
+        synonyms:
+          - breaks
+          - exceptions
+        description: Reconciliation break count
+        expr: COUNT(DISTINCT RECONCILIATIONID)
+        access_modifier: public_access
+      - name: total_reconciliation_difference
+        synonyms:
+          - break_value
+          - exception_value
+          - difference_amount
+        description: Total break value (difference between internal and custodian values)
+        expr: SUM(reconciliation_difference)
+        access_modifier: public_access
+      - name: unresolved_breaks
+        synonyms:
+          - unresolved
+          - open_breaks
+          - open_count
+        description: Open/unresolved break count
+        expr: COUNT(CASE WHEN Status = 'Open' THEN 1 END)
+        access_modifier: public_access
+    time_dimensions:
+      - name: reconciliation_date
+        synonyms:
+          - recon_date
+          - date
+        description: Reconciliation date
+        expr: RECONCILIATIONDATE
+        data_type: DATE
+      - name: recon_month
+        synonyms:
+          - recon_month
+          - monthly
+        description: Monthly aggregation for reconciliation break trends
+        expr: "DATE_TRUNC('MONTH', RECONCILIATIONDATE)"
+        data_type: DATE
+  - name: securities
+    synonyms:
+      - stocks
+      - instruments
+    description: Security master data
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_SECURITY
+    primary_key:
+      columns:
+        - secu_pk_securityid
+    dimensions:
+      - name: secu_pk_securityid
+        description: "SECURITYID for securities"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: security_description
+        synonyms:
+          - company_name
+          - security_name
+        description: Company name
+        expr: Description
+        data_type: VARCHAR(16777216)
+      - name: ticker
+        synonyms:
+          - ticker_symbol
+          - symbol
+        description: Trading ticker
+        expr: Ticker
+        data_type: VARCHAR(16777216)
+  - name: settlements
+    synonyms:
+      - trades
+      - transactions
+    description: Trade settlement tracking
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_TRADE_SETTLEMENT
+    primary_key:
+      columns:
+        - sett_pk_settlementid
+    dimensions:
+      - name: sett_pk_securityid
+        description: "SECURITYID for settlements"
+        expr: "SECURITYID"
+        data_type: "NUMBER(38,0)"
+      - name: sett_pk_portfolioid
+        description: "PORTFOLIOID for settlements"
+        expr: "PORTFOLIOID"
+        data_type: "NUMBER(38,0)"
+      - name: sett_pk_custodianid
+        description: "CUSTODIANID for settlements"
+        expr: "CUSTODIANID"
+        data_type: "NUMBER(38,0)"
+      - name: sett_pk_counterpartyid
+        description: "COUNTERPARTYID for settlements"
+        expr: "COUNTERPARTYID"
+        data_type: "NUMBER(38,0)"
+      - name: sett_pk_settlementid
+        description: "SETTLEMENTID for settlements"
+        expr: SETTLEMENTID
+        data_type: "NUMBER(38,0)"
+      - name: settlement_status
+        synonyms:
+          - status
+        description: "Settlement status (Settled, Pending, Failed)"
+        expr: STATUS
+        data_type: VARCHAR(7)
+        is_enum: true
+        sample_values:
+          - "PENDING"
+          - "SETTLED"
+          - "FAILED"
+          - "CANCELLED"
+    facts:
+      - name: settlement_value
+        description: "Settlement value of the trade"
+        expr: SettlementValue
+        data_type: "NUMBER(9,0)"
+        access_modifier: public_access
+    metrics:
+      - name: failed_settlement_count
+        synonyms:
+          - fails
+          - failed_trades
+          - settlement_fails
+        description: Failed settlement count
+        expr: COUNT(CASE WHEN Status = 'Failed' THEN 1 END)
+        access_modifier: public_access
+      - name: settlement_count
+        synonyms:
+          - count
+        description: Settlement count
+        expr: COUNT(DISTINCT SETTLEMENTID)
+        access_modifier: public_access
+      - name: total_settlement_value
+        synonyms:
+          - value
+          - trade_value
+        description: Settlement value
+        expr: SUM(settlement_value)
+        access_modifier: public_access
+    time_dimensions:
+      - name: settlement_date
+        synonyms:
+          - date
+        description: Settlement date
+        expr: SETTLEMENTDATE
+        data_type: DATE
+      - name: settlement_month
+        synonyms:
+          - settlement_month
+          - monthly
+        description: Monthly aggregation for settlement trend analysis
+        expr: "DATE_TRUNC('MONTH', SETTLEMENTDATE)"
+        data_type: DATE
+relationships:
+  - name: cash_movements_to_counterparties
+    left_table: cash_movements
+    right_table: counterparties
+    relationship_columns:
+      - left_column: cash_pk_counterpartyid
+        right_column: coun_pk_counterpartyid
+  - name: cash_movements_to_portfolios
+    left_table: cash_movements
+    right_table: portfolios
+    relationship_columns:
+      - left_column: cash_pk_portfolioid
+        right_column: port_pk_portfolioid
+  - name: cash_positions_to_custodians
+    left_table: cash_positions
+    right_table: custodians
+    relationship_columns:
+      - left_column: cash_pk_custodianid
+        right_column: cust_pk_custodianid
+  - name: cash_positions_to_portfolios
+    left_table: cash_positions
+    right_table: portfolios
+    relationship_columns:
+      - left_column: cash_pk_portfolioid
+        right_column: port_pk_portfolioid
+  - name: corporate_actions_to_securities
+    left_table: corporate_actions
+    right_table: securities
+    relationship_columns:
+      - left_column: corp_pk_securityid
+        right_column: secu_pk_securityid
+  - name: nav_to_portfolios
+    left_table: nav
+    right_table: portfolios
+    relationship_columns:
+      - left_column: nav_pk_portfolioid
+        right_column: port_pk_portfolioid
+  - name: recon_to_portfolios
+    left_table: reconciliations
+    right_table: portfolios
+    relationship_columns:
+      - left_column: reco_pk_portfolioid
+        right_column: port_pk_portfolioid
+  - name: recon_to_securities
+    left_table: reconciliations
+    right_table: securities
+    relationship_columns:
+      - left_column: reco_pk_securityid
+        right_column: secu_pk_securityid
+  - name: settlements_to_counterparties
+    left_table: settlements
+    right_table: counterparties
+    relationship_columns:
+      - left_column: sett_pk_counterpartyid
+        right_column: coun_pk_counterpartyid
+  - name: settlements_to_custodians
+    left_table: settlements
+    right_table: custodians
+    relationship_columns:
+      - left_column: sett_pk_custodianid
+        right_column: cust_pk_custodianid
+  - name: settlements_to_portfolios
+    left_table: settlements
+    right_table: portfolios
+    relationship_columns:
+      - left_column: sett_pk_portfolioid
+        right_column: port_pk_portfolioid
+  - name: settlements_to_securities
+    left_table: settlements
+    right_table: securities
+    relationship_columns:
+      - left_column: sett_pk_securityid
+        right_column: secu_pk_securityid
+module_custom_instructions:
+  sql_generation: "IMPORTANT DATE HANDLING: The data is anchored to the latest available market data date, NOT CURRENT_DATE. When users ask about today, current, or recent data, use the maximum available date in each table as the reference point. For past N days queries, calculate relative to the maximum date: e.g., for settlements use (SELECT MAX(settlement_date) FROM settlements) as the anchor, then filter settlement_date >= DATEADD(day, -N, anchor_date). For future or upcoming queries (like pending corporate actions), filter where ex_date > (SELECT MAX(settlement_date) FROM settlements). Never use CURRENT_DATE() directly - always derive dates from the data. For settlement queries, filter to most recent 30 days relative to MAX(settlement_date) by default. When showing reconciliation breaks, always order by difference amount descending to show largest breaks first. For NAV queries, use the most recent calculation date when current NAV is requested. Round settlement values and break differences to 2 decimal places, NAV per share to 4 decimal places. Settlement status values: Settled, Pending, Failed. Reconciliation status values: Open, Investigating, Resolved. For cash queries, show closing balance by default using MAX(position_date). For corporate actions, filter ex_date > MAX(settlement_date) from settlements when asking about pending/upcoming actions."
+  question_categorization: "If users ask about 'fails' or 'failed trades', treat as settlement status queries. If users ask about 'breaks' or 'exceptions', treat as reconciliation queries. If users ask about 'NAV' or 'unit value', treat as NAV calculation queries. If users ask about 'cash' or 'liquidity', treat as cash position queries. If users ask about 'dividends', 'splits', or 'corporate actions', treat as corporate action queries. If users ask about 'counterparty' or 'broker', include counterparty dimension in response. When users say 'today' or 'current', interpret as the maximum available date in the relevant table, not the actual current date."
+verified_queries:
+  - name: SETTLEMENT_SUMMARY
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_MIDDLE_OFFICE_VIEW METRICS SETTLEMENT_COUNT, total_settlement_value, FAILED_SETTLEMENT_COUNT)"
+    question: What is the settlement summary?
+    use_as_onboarding_question: true
+  - name: BREAK_SUMMARY
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_MIDDLE_OFFICE_VIEW METRICS BREAK_COUNT, total_reconciliation_difference, UNRESOLVED_BREAKS)"
+    question: What are the reconciliation breaks?
+    use_as_onboarding_question: true
+  - name: NAV_SUMMARY
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_MIDDLE_OFFICE_VIEW METRICS average_nav_per_share, sum_total_assets)"
+    question: What is the NAV?
+    use_as_onboarding_question: false
+  - name: CASH_SUMMARY
+    sql: SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_MIDDLE_OFFICE_VIEW METRICS total_closing_balance)
+    question: What is the current cash position?
+    use_as_onboarding_question: true
+  - name: CORPORATE_ACTIONS
+    sql: SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_MIDDLE_OFFICE_VIEW METRICS ACTION_COUNT DIMENSIONS action_type)
+    question: What corporate actions are pending?
+    use_as_onboarding_question: false

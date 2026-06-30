@@ -1,0 +1,136 @@
+name: SAM_PEER_LEARNING_VIEW
+description: "Cross-portfolio peer learning view for identifying repeatable alpha sources and systematic weaknesses across all SAM strategies. Trailing 12-month statistics including ALPHA_PERSISTENCE (% months positive active return), ALLOCATION/SELECTION_CONSISTENCY (lower = more repeatable), best/worst factor sources, and strongest selection sector."
+tables:
+  - name: peers
+    synonyms:
+      - cross_portfolio
+      - peer_comparison
+      - portfolio_ranking
+      - strategy_comparison
+    description: Cross-portfolio attribution analytics for peer learning and alpha source identification
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: V_CROSS_PORTFOLIO_ANALYTICS
+    primary_key:
+      columns:
+        - portfolio_id
+    dimensions:
+      - name: best_factor_source
+        synonyms:
+          - strongest_factor
+          - best_factor
+        description: Factor with highest average contribution over trailing 12 months
+        expr: BEST_FACTOR_SOURCE
+        data_type: VARCHAR(134217728)
+      - name: best_selection_sector
+        synonyms:
+          - top_selection_sector
+          - strongest_sector
+        description: Sector with highest average stock selection effect
+        expr: BEST_SELECTION_SECTOR
+        data_type: VARCHAR(22)
+      - name: portfolio_id
+        synonyms:
+          - fund_id
+        description: Portfolio identifier
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: portfolio_name
+        synonyms:
+          - fund_name
+        description: Portfolio name. All names start with "SAM " prefix.
+        expr: PORTFOLIONAME
+        data_type: VARCHAR(134217728)
+      - name: strategy
+        synonyms:
+          - investment_style
+          - strategy_type
+        description: Investment strategy
+        expr: STRATEGY
+        data_type: VARCHAR(134217728)
+      - name: worst_factor_source
+        synonyms:
+          - weakest_factor
+          - worst_factor
+        description: Factor with lowest average contribution over trailing 12 months
+        expr: WORST_FACTOR_SOURCE
+        data_type: VARCHAR(134217728)
+    facts:
+      - name: allocation_consistency
+        expr: ALLOCATION_CONSISTENCY
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: alpha_persistence
+        expr: ALPHA_PERSISTENCE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: avg_active_return
+        expr: AVG_ACTIVE_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: avg_allocation_effect
+        expr: AVG_ALLOCATION_EFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: avg_selection_effect
+        expr: AVG_SELECTION_EFFECT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: selection_consistency
+        expr: SELECTION_CONSISTENCY
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_alpha_persistence
+        synonyms:
+          - avg_hit_rate
+          - mean_consistency
+        description: Average alpha persistence (% months with positive active return)
+        expr: AVG(alpha_persistence)
+        access_modifier: public_access
+      - name: average_active_return
+        synonyms:
+          - mean_active_return
+        description: Average active return across portfolios
+        expr: AVG(avg_active_return)
+        access_modifier: public_access
+      - name: average_allocation_effect
+        synonyms:
+          - mean_allocation
+        description: Average allocation effect across portfolios
+        expr: AVG(avg_allocation_effect)
+        access_modifier: public_access
+      - name: average_selection_effect
+        synonyms:
+          - mean_selection
+        description: Average selection effect across portfolios
+        expr: AVG(avg_selection_effect)
+        access_modifier: public_access
+      - name: max_alpha_persistence
+        synonyms:
+          - best_hit_rate
+          - highest_persistence
+        description: Highest alpha persistence across portfolios
+        expr: MAX(alpha_persistence)
+        access_modifier: public_access
+      - name: min_allocation_consistency
+        synonyms:
+          - most_consistent_allocation
+        description: Best (lowest) allocation consistency (lower stddev = more repeatable)
+        expr: MIN(allocation_consistency)
+        access_modifier: public_access
+      - name: min_selection_consistency
+        synonyms:
+          - most_consistent_selection
+        description: Best (lowest) selection consistency (lower stddev = more repeatable)
+        expr: MIN(selection_consistency)
+        access_modifier: public_access
+verified_queries:
+  - name: PEER_RANKING
+    sql: "SELECT __peers.portfolio_name, __peers.strategy, __peers.alpha_persistence, __peers.avg_active_return, __peers.avg_allocation_effect, __peers.avg_selection_effect, __peers.allocation_consistency, __peers.selection_consistency, __peers.best_factor_source, __peers.BEST_FACTOR_AVG_CONTRIBUTION, __peers.worst_factor_source, __peers.WORST_FACTOR_AVG_CONTRIBUTION, __peers.best_selection_sector FROM __peers ORDER BY __peers.alpha_persistence DESC"
+    question: Rank all portfolios by alpha persistence and show their best and worst factor sources
+    use_as_onboarding_question: true
+  - name: REPEATABLE_ALPHA
+    sql: "SELECT __peers.portfolio_name, __peers.strategy, __peers.avg_selection_effect, __peers.selection_consistency, __peers.alpha_persistence, __peers.best_selection_sector FROM __peers ORDER BY __peers.selection_consistency ASC"
+    question: Which portfolios have the most consistent selection effect over the trailing 12 months?

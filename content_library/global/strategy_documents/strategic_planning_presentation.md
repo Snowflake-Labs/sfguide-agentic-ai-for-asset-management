@@ -28,7 +28,7 @@ The asset management industry faces significant structural shifts including fee 
 
 **Industry Trends**: The global asset management industry continues to consolidate, with the largest managers gaining market share through scale advantages and technology investment. Fee pressure remains intense, particularly in traditional active equity strategies where performance differentiation has proven difficult to sustain. However, premium pricing persists in specialized strategies including ESG-focused products, alternative investments, and solutions-based offerings.
 
-**Competitive Position**: Simulated maintains a differentiated position as a mid-sized active manager with demonstrated investment expertise and strong client relationships. Our competitive advantages include:
+**Competitive Position**: SAM maintains a differentiated position as a mid-sized active manager with demonstrated investment expertise and strong client relationships. Our competitive advantages include:
 
 - **Investment Performance**: 75% of AUM in strategies outperforming benchmarks over three years
 - **ESG Leadership**: Early mover advantage in sustainable investing with proprietary ESG research capabilities
@@ -49,7 +49,7 @@ Sustainable investing represents our highest-conviction growth opportunity. Glob
 
 **Research Enhancement**: Expand proprietary ESG research capabilities including climate scenario analysis, supply chain sustainability assessment, and governance quality scoring. Investment in data infrastructure and analyst resources will strengthen our differentiation.
 
-**Thought Leadership**: Increase visibility through industry conferences, research publications, and media engagement. Position Simulated as the authoritative voice on sustainable investing for institutional clients.
+**Thought Leadership**: Increase visibility through industry conferences, research publications, and media engagement. Position SAM as the authoritative voice on sustainable investing for institutional clients.
 
 **Target**: Grow ESG-focused AUM from £3.2 billion to £5.0 billion by 2027, representing 35% of total firm assets.
 

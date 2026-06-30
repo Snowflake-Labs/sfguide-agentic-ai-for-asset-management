@@ -1,0 +1,728 @@
+name: SAM_FUNDAMENTALS_VIEW
+description: "Fundamentals semantic view for company financial analysis. Provides access to real SEC financial statements (FACT_SEC_FINANCIALS), analyst estimates, price targets, and ratings. Financial data sourced from SEC 10-K and 10-Q filings via SNOWFLAKE_PUBLIC_DATA_FREE. Investment memo metrics (TAM, Customer Count, NRR) are calculated heuristically from real revenue data."
+tables:
+  - name: analysts
+    synonyms:
+      - research_analysts
+    description: Analyst information
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: DIM_ANALYST
+    primary_key:
+      columns:
+        - anal_pk_analyst_id
+    dimensions:
+      - name: anal_pk_broker_id
+        description: "BROKER_ID for analysts"
+        expr: "BROKER_ID"
+        data_type: "NUMBER(38,0)"
+      - name: anal_pk_analyst_id
+        description: "ANALYST_ID for analysts"
+        expr: ANALYST_ID
+        data_type: "NUMBER(38,0)"
+      - name: analyst_name
+        synonyms:
+          - analyst
+          - research_analyst
+        description: Analyst name
+        expr: ANALYST_NAME
+        data_type: VARCHAR(17)
+      - name: sector_coverage
+        synonyms:
+          - sector
+          - coverage_sector
+        description: Analyst sector coverage
+        expr: SECTOR_COVERAGE
+        data_type: VARCHAR(11)
+  - name: analyst_estimates
+    synonyms:
+      - analyst_data
+      - price_targets
+      - ratings
+    description: Individual analyst estimates including price targets and ratings
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: FACT_ESTIMATE_DATA
+    primary_key:
+      columns:
+        - anal_pk_estimate_id
+    dimensions:
+      - name: anal_pk_issuerid
+        description: "ISSUERID for analyst_estimates"
+        expr: "ISSUERID"
+        data_type: "NUMBER(38,0)"
+      - name: anal_pk_broker_id
+        description: "BROKER_ID for analyst_estimates"
+        expr: "BROKER_ID"
+        data_type: "NUMBER(38,0)"
+      - name: anal_pk_analyst_id
+        description: "ANALYST_ID for analyst_estimates"
+        expr: "ANALYST_ID"
+        data_type: "NUMBER(38,0)"
+      - name: anal_pk_estimate_id
+        description: "ESTIMATE_ID for analyst_estimates"
+        expr: ESTIMATE_ID
+        data_type: "NUMBER(38,0)"
+    metrics:
+      - name: AVG_PRICE_TARGET
+        synonyms:
+          - price_target
+          - target_price
+          - pt
+        description: Average analyst price target
+        expr: AVG(CASE WHEN DATA_ITEM_ID = 5005 THEN DATA_VALUE END)
+        access_modifier: public_access
+      - name: AVG_RATING
+        synonyms:
+          - rating
+          - analyst_rating
+          - average_rating
+        description: "Average analyst rating (1=Buy, 2=Outperform, 3=Hold, 4=Underperform, 5=Sell)"
+        expr: AVG(CASE WHEN DATA_ITEM_ID = 5006 THEN DATA_VALUE END)
+        access_modifier: public_access
+      - name: ESTIMATE_COUNT
+        synonyms:
+          - analyst_count
+        description: Count of analyst estimates
+        expr: COUNT(ESTIMATE_ID)
+        access_modifier: public_access
+      - name: MAX_PRICE_TARGET
+        synonyms:
+          - high_price_target
+          - bull_target
+        description: Highest analyst price target
+        expr: MAX(CASE WHEN DATA_ITEM_ID = 5005 THEN DATA_VALUE END)
+        access_modifier: public_access
+      - name: MIN_PRICE_TARGET
+        synonyms:
+          - low_price_target
+          - bear_target
+        description: Lowest analyst price target
+        expr: MIN(CASE WHEN DATA_ITEM_ID = 5005 THEN DATA_VALUE END)
+        access_modifier: public_access
+  - name: brokers
+    synonyms:
+      - sell_side
+      - research_firms
+    description: Broker/research firm information
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: DIM_BROKER
+    primary_key:
+      columns:
+        - brok_pk_broker_id
+    dimensions:
+      - name: brok_pk_broker_id
+        description: "BROKER_ID for brokers"
+        expr: BROKER_ID
+        data_type: "NUMBER(38,0)"
+      - name: broker_name
+        synonyms:
+          - broker
+          - research_firm
+          - sell_side_firm
+        description: Broker/research firm name
+        expr: BROKER_NAME
+        data_type: VARCHAR(134217728)
+  - name: consensus
+    synonyms:
+      - estimates
+      - forecasts
+    description: Analyst consensus estimates for future periods
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: FACT_ESTIMATE_CONSENSUS
+    primary_key:
+      columns:
+        - cons_pk_consensus_id
+    dimensions:
+      - name: cons_pk_issuerid
+        description: "ISSUERID for consensus"
+        expr: "ISSUERID"
+        data_type: "NUMBER(38,0)"
+      - name: cons_pk_consensus_id
+        description: "CONSENSUS_ID for consensus"
+        expr: CONSENSUS_ID
+        data_type: "NUMBER(38,0)"
+      - name: estimate_type
+        synonyms:
+          - metric_type
+          - consensus_metric
+        description: "Type of consensus estimate: Revenue, Net Income, EBITDA, TAM, Customer Count, NRR. CRITICAL: Always filter or group by estimate_type when querying consensus data — different types have vastly different scales."
+        expr: ESTIMATE_TYPE
+        data_type: VARCHAR(16777216)
+    facts:
+      - name: consensus_high
+        expr: CONSENSUS_HIGH
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: consensus_low
+        expr: CONSENSUS_LOW
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: consensus_mean
+        expr: CONSENSUS_MEAN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: num_estimates
+        expr: NUM_ESTIMATES
+        data_type: "NUMBER(20,0)"
+        access_modifier: public_access
+    metrics:
+      - name: average_consensus_mean
+        synonyms:
+          - consensus
+          - mean_estimate
+          - average_estimate
+        description: Consensus mean estimate value
+        expr: AVG(consensus_mean)
+        access_modifier: public_access
+      - name: average_num_estimates
+        synonyms:
+          - analyst_coverage
+          - coverage_count
+          - number_of_analysts
+        description: Average number of analyst estimates
+        expr: AVG(num_estimates)
+        access_modifier: public_access
+      - name: max_consensus_high
+        synonyms:
+          - high_estimate
+          - bull_case
+          - optimistic_estimate
+        description: Highest consensus estimate
+        expr: MAX(consensus_high)
+        access_modifier: public_access
+      - name: min_consensus_low
+        synonyms:
+          - low_estimate
+          - bear_case
+          - pessimistic_estimate
+        description: Lowest consensus estimate
+        expr: MIN(consensus_low)
+        access_modifier: public_access
+  - name: financials
+    synonyms:
+      - financial_data
+      - statements
+      - fundamentals
+      - sec_financials
+    description: "Real SEC financial statement data from 10-K and 10-Q filings including income statement, balance sheet, and cash flow metrics"
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: FACT_SEC_FINANCIALS
+    primary_key:
+      columns:
+        - fina_pk_financial_id
+    dimensions:
+      - name: fina_pk_issuerid
+        description: "ISSUERID for financials"
+        expr: "ISSUERID"
+        data_type: "NUMBER(38,0)"
+      - name: fina_pk_financial_id
+        description: "FINANCIAL_ID for financials"
+        expr: FINANCIAL_ID
+        data_type: "NUMBER(38,0)"
+      - name: CURRENCY
+        synonyms:
+          - reporting_currency
+          - currency_code
+        description: Reporting currency
+        expr: CURRENCY
+        data_type: VARCHAR(16777216)
+      - name: fiscal_period
+        synonyms:
+          - quarter
+          - fiscal_quarter
+          - period
+          - q
+        description: "Fiscal period (FY for annual, Q1-Q4 for quarterly, Q2_YTD/Q3_YTD for cumulative year-to-date)"
+        expr: FISCAL_PERIOD
+        data_type: VARCHAR(16777216)
+      - name: fiscal_year
+        synonyms:
+          - year
+          - fy
+        description: Fiscal year from SEC filing
+        expr: FISCAL_YEAR
+        data_type: "NUMBER(4,0)"
+      - name: period_type
+        synonyms:
+          - row_type
+          - reporting_period_type
+        description: "Type of reporting period: annual (full fiscal year FY), quarterly (single quarter Q1-Q4), cumulative_ytd (year-to-date cumulative), balance_sheet_only (Q0 balance sheet snapshot). CRITICAL: For fiscal year totals always filter period_type=annual. For individual quarters filter period_type=quarterly. Never aggregate across different period_types."
+        expr: PERIOD_TYPE
+        data_type: VARCHAR(18)
+    facts:
+      - name: CAPEX
+        expr: CAPEX
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: cash_and_equivalents
+        expr: CASH_AND_EQUIVALENTS
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: current_ratio
+        expr: CURRENT_RATIO
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: debt_to_equity
+        expr: DEBT_TO_EQUITY
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: EBITDA
+        expr: EBITDA
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: eps_basic
+        expr: EPS_BASIC
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: eps_diluted
+        expr: EPS_DILUTED
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: estimated_customer_count
+        expr: ESTIMATED_CUSTOMER_COUNT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: estimated_nrr_pct
+        expr: ESTIMATED_NRR_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: free_cash_flow
+        expr: FREE_CASH_FLOW
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: gross_margin_pct
+        expr: GROSS_MARGIN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: gross_profit
+        expr: GROSS_PROFIT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: long_term_debt
+        expr: LONG_TERM_DEBT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: net_income
+        expr: NET_INCOME
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: net_margin_pct
+        expr: NET_MARGIN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: operating_cash_flow
+        expr: OPERATING_CASH_FLOW
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: operating_income
+        expr: OPERATING_INCOME
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: operating_margin_pct
+        expr: OPERATING_MARGIN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: rd_expense
+        expr: RD_EXPENSE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: REVENUE
+        expr: REVENUE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: revenue_growth_pct
+        expr: REVENUE_GROWTH_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: roa_pct
+        expr: ROA_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: roe_pct
+        expr: ROE_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: TAM
+        expr: TAM
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: total_assets
+        expr: TOTAL_ASSETS
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: total_equity
+        expr: TOTAL_EQUITY
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: total_liabilities
+        expr: TOTAL_LIABILITIES
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_current_ratio
+        synonyms:
+          - current_ratio
+          - liquidity_ratio
+        description: Current ratio
+        expr: AVG(current_ratio)
+        access_modifier: public_access
+      - name: average_debt_to_equity
+        synonyms:
+          - leverage
+          - d_e_ratio
+        description: Debt to equity ratio
+        expr: AVG(debt_to_equity)
+        access_modifier: public_access
+      - name: average_eps_basic
+        synonyms:
+          - eps
+          - earnings_per_share
+        description: Basic earnings per share from SEC filings
+        expr: AVG(eps_basic)
+        access_modifier: public_access
+      - name: average_eps_diluted
+        synonyms:
+          - diluted_eps
+        description: Diluted earnings per share from SEC filings
+        expr: AVG(eps_diluted)
+        access_modifier: public_access
+      - name: average_estimated_nrr_pct
+        synonyms:
+          - nrr
+          - net_revenue_retention
+          - dollar_retention
+          - revenue_retention
+        description: Estimated Net Revenue Retention percentage (based on revenue growth)
+        expr: AVG(estimated_nrr_pct)
+        access_modifier: public_access
+      - name: average_gross_margin_pct
+        synonyms:
+          - gross_margin
+        description: Gross margin percentage
+        expr: AVG(gross_margin_pct)
+        access_modifier: public_access
+      - name: average_net_margin_pct
+        synonyms:
+          - net_margin
+          - profit_margin
+        description: Net profit margin percentage
+        expr: AVG(net_margin_pct)
+        access_modifier: public_access
+      - name: average_operating_margin_pct
+        synonyms:
+          - operating_margin
+          - op_margin
+        description: Operating margin percentage
+        expr: AVG(operating_margin_pct)
+        access_modifier: public_access
+      - name: average_revenue_growth_pct
+        synonyms:
+          - revenue_growth
+          - growth_rate
+          - yoy_growth
+        description: Year-over-year revenue growth percentage
+        expr: AVG(revenue_growth_pct)
+        access_modifier: public_access
+      - name: average_roa_pct
+        synonyms:
+          - roa
+          - return_on_assets
+        description: Return on assets percentage
+        expr: AVG(roa_pct)
+        access_modifier: public_access
+      - name: average_roe_pct
+        synonyms:
+          - roe
+          - return_on_equity
+        description: Return on equity percentage
+        expr: AVG(roe_pct)
+        access_modifier: public_access
+      - name: ISSUER_COUNT
+        synonyms:
+          - issuers
+          - companies
+          - num_companies
+        description: Number of issuers/companies
+        expr: COUNT(DISTINCT IssuerID)
+        access_modifier: public_access
+      - name: PERIOD_COUNT
+        synonyms:
+          - periods
+          - fiscal_periods
+          - record_count
+        description: Number of fiscal periods
+        expr: COUNT(DISTINCT FINANCIAL_ID)
+        access_modifier: public_access
+      - name: total_capex
+        synonyms:
+          - capital_expenditure
+          - capex
+        description: Capital expenditure from SEC filings
+        expr: SUM(CAPEX)
+        access_modifier: public_access
+      - name: total_cash_and_equivalents
+        synonyms:
+          - cash
+          - cash_equivalents
+          - liquidity
+        description: Cash and cash equivalents from SEC filings
+        expr: SUM(cash_and_equivalents)
+        access_modifier: public_access
+      - name: total_ebitda
+        synonyms:
+          - ebitda
+          - operating_ebitda
+        description: EBITDA (Operating Income + D&A)
+        expr: SUM(EBITDA)
+        access_modifier: public_access
+      - name: total_estimated_customer_count
+        synonyms:
+          - customers
+          - total_customers
+          - customer_base
+          - customer_count
+        description: Estimated customer count (Revenue / Average Revenue Per Customer by industry)
+        expr: SUM(estimated_customer_count)
+        access_modifier: public_access
+      - name: total_free_cash_flow
+        synonyms:
+          - fcf
+        description: Free cash flow (OCF - CapEx)
+        expr: SUM(free_cash_flow)
+        access_modifier: public_access
+      - name: total_gross_profit
+        synonyms:
+          - gross_profit
+          - gross_margin_dollars
+        description: Gross profit from SEC filings
+        expr: SUM(gross_profit)
+        access_modifier: public_access
+      - name: total_long_term_debt
+        synonyms:
+          - debt
+        description: Long-term debt from SEC filings
+        expr: SUM(long_term_debt)
+        access_modifier: public_access
+      - name: total_net_income
+        synonyms:
+          - earnings
+          - profit
+          - bottom_line
+        description: Net income from SEC filings
+        expr: SUM(net_income)
+        access_modifier: public_access
+      - name: total_operating_cash_flow
+        synonyms:
+          - cfo
+          - ocf
+        description: Cash from operations from SEC filings
+        expr: SUM(operating_cash_flow)
+        access_modifier: public_access
+      - name: total_operating_income
+        synonyms:
+          - ebit
+          - operating_profit
+        description: Operating income from SEC filings
+        expr: SUM(operating_income)
+        access_modifier: public_access
+      - name: total_rd_expense
+        synonyms:
+          - rd
+          - research_development
+        description: R&D expense from SEC filings
+        expr: SUM(rd_expense)
+        access_modifier: public_access
+      - name: total_revenue
+        synonyms:
+          - revenue
+          - sales
+          - top_line
+        description: Total revenue from SEC filings
+        expr: SUM(REVENUE)
+        access_modifier: public_access
+      - name: total_tam
+        synonyms:
+          - tam
+          - total_addressable_market
+          - market_size
+          - addressable_market
+        description: Total Addressable Market (estimated as Revenue x Industry Multiplier)
+        expr: SUM(TAM)
+        access_modifier: public_access
+      - name: sum_total_assets
+        synonyms:
+          - assets
+        description: Total assets from SEC filings
+        expr: SUM(total_assets)
+        access_modifier: public_access
+      - name: sum_total_equity
+        synonyms:
+          - stockholders_equity
+          - equity
+          - book_value
+        description: Total stockholders equity from SEC filings
+        expr: SUM(total_equity)
+        access_modifier: public_access
+      - name: sum_total_liabilities
+        synonyms:
+          - liabilities
+        description: Total liabilities from SEC filings
+        expr: SUM(total_liabilities)
+        access_modifier: public_access
+    time_dimensions:
+      - name: period_end_date
+        synonyms:
+          - period_end
+          - quarter_end
+          - reporting_date
+        description: Period end date from SEC filing
+        expr: PERIOD_END_DATE
+        data_type: DATE
+  - name: issuers
+    synonyms:
+      - companies
+      - firms
+      - corporations
+    description: Company/issuer master data (single source of truth for company information)
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_ISSUER
+    primary_key:
+      columns:
+        - issu_pk_issuerid
+    dimensions:
+      - name: issu_pk_issuerid
+        description: "ISSUERID for issuers"
+        expr: ISSUERID
+        data_type: "NUMBER(38,0)"
+      - name: CIK
+        synonyms:
+          - cik_number
+          - sec_id
+          - edgar_id
+        description: SEC Central Index Key for EDGAR filings
+        expr: CIK
+        data_type: VARCHAR(16777216)
+      - name: company_name
+        synonyms:
+          - company
+          - firm_name
+          - corporation
+          - issuer
+          - entity
+          - name
+        description: "Company legal name for filtering (e.g., MICROSOFT CORP, APPLE INC., NVIDIA CORP)"
+        expr: LegalName
+        data_type: VARCHAR(16777216)
+      - name: COUNTRY
+        synonyms:
+          - country
+          - domicile
+          - country_of_incorporation
+        description: Country of incorporation (2-letter ISO code)
+        expr: CountryOfIncorporation
+        data_type: VARCHAR(16777216)
+      - name: INDUSTRY
+        synonyms:
+          - industry
+          - business_description
+        description: Industry classification description (SIC)
+        expr: SIC_DESCRIPTION
+        data_type: VARCHAR(16777216)
+      - name: SECTOR
+        synonyms:
+          - gics
+          - gics_sector
+          - sector
+          - sector_classification
+        description: "GICS Level 1 sector classification (e.g., Information Technology, Health Care, Financials)"
+        expr: GICS_SECTOR
+        data_type: VARCHAR(16777216)
+      - name: TICKER
+        synonyms:
+          - ticker
+          - symbol
+          - stock_symbol
+          - stock
+        description: "Stock ticker symbol for filtering (e.g., MSFT, AAPL, NVDA)"
+        expr: PrimaryTicker
+        data_type: VARCHAR(16777216)
+relationships:
+  - name: analysts_to_brokers
+    left_table: analysts
+    right_table: brokers
+    relationship_columns:
+      - left_column: anal_pk_broker_id
+        right_column: brok_pk_broker_id
+  - name: estimates_to_analysts
+    left_table: analyst_estimates
+    right_table: analysts
+    relationship_columns:
+      - left_column: anal_pk_analyst_id
+        right_column: anal_pk_analyst_id
+  - name: estimates_to_brokers
+    left_table: analyst_estimates
+    right_table: brokers
+    relationship_columns:
+      - left_column: anal_pk_broker_id
+        right_column: brok_pk_broker_id
+  - name: estimates_to_issuers
+    left_table: analyst_estimates
+    right_table: issuers
+    relationship_columns:
+      - left_column: anal_pk_issuerid
+        right_column: issu_pk_issuerid
+  - name: consensus_to_issuers
+    left_table: consensus
+    right_table: issuers
+    relationship_columns:
+      - left_column: cons_pk_issuerid
+        right_column: issu_pk_issuerid
+  - name: financials_to_issuers
+    left_table: financials
+    right_table: issuers
+    relationship_columns:
+      - left_column: fina_pk_issuerid
+        right_column: issu_pk_issuerid
+module_custom_instructions:
+  sql_generation: "CRITICAL PERIOD HANDLING: FACT_SEC_FINANCIALS contains overlapping period types (annual, quarterly, cumulative year-to-date). For annual/yearly revenue totals, ALWAYS filter period_type = 'annual' (which corresponds to fiscal_period = 'FY'). For individual quarter data, filter period_type = 'quarterly'. NEVER SUM revenue or other income statement metrics across rows with different period_type values - cumulative_ytd rows overlap with quarterly rows and will cause double/triple counting. Balance sheet metrics (assets, liabilities, equity) are point-in-time and can use any period type. CRITICAL CONSENSUS ESTIMATES: FACT_ESTIMATE_CONSENSUS contains different metric types (Revenue, Net Income, EBITDA, TAM, Customer Count, NRR). ALWAYS filter estimate_type when querying consensus data. For revenue estimates filter estimate_type = 'Revenue'. For earnings estimates filter estimate_type = 'Net Income'. NEVER average or aggregate across different estimate types - mixing Revenue ($100B+) with NRR (90-140%) produces meaningless results. When querying consensus estimates for a company, retrieve ALL estimate types in one query using GROUP BY estimate_type rather than making separate per-type queries. Use total_revenue for revenue queries. Use total_net_income for earnings. Use average_gross_margin_pct, average_operating_margin_pct, average_net_margin_pct for margin analysis. Use total_ebitda for EBITDA queries. Use total_tam for TAM/market size queries. Use average_revenue_growth_pct for growth analysis. Always order by fiscal_year descending. CURRENCY dimension shows reporting currency."
+  question_categorization: "If users ask about 'financials', 'fundamentals', 'revenue', 'earnings', 'margins', use financials metrics. If users ask about 'estimates' or 'consensus', use consensus table. If users ask about 'price targets' or 'ratings', use analyst_estimates table. If users ask about 'analysts' or 'brokers', include analysts and brokers dimensions. If users ask about 'TAM', 'market size', 'addressable market', use total_tam metric (note: estimated). If users ask about 'customers', 'customer count', use total_estimated_customer_count metric (note: estimated from revenue). If users ask about 'retention', 'NRR', 'net revenue retention', use average_estimated_nrr_pct metric (note: estimated from growth)."
+verified_queries:
+  - name: ANNUAL_REVENUE_BY_COMPANY
+    sql: "SELECT __issuers.company_name, __financials.fiscal_year, SUM(__financials.REVENUE) AS total_revenue, SUM(__financials.NET_INCOME) AS total_net_income, AVG(__financials.GROSS_MARGIN_PCT) AS average_gross_margin_pct FROM __financials JOIN __issuers ON (__financials.IssuerID = __issuers.IssuerID) WHERE __financials.period_type = 'annual' GROUP BY __issuers.company_name, __financials.fiscal_year ORDER BY __financials.fiscal_year DESC"
+    question: What is the annual revenue for each company?
+    use_as_onboarding_question: true
+  - name: QUARTERLY_REVENUE
+    sql: "SELECT __issuers.company_name, __financials.fiscal_year, __financials.fiscal_period, SUM(__financials.REVENUE) AS total_revenue, SUM(__financials.NET_INCOME) AS total_net_income FROM __financials JOIN __issuers ON (__financials.IssuerID = __issuers.IssuerID) WHERE __issuers.company_name = 'NVIDIA CORP' AND __financials.period_type = 'quarterly' GROUP BY __issuers.company_name, __financials.fiscal_year, __financials.fiscal_period ORDER BY __financials.fiscal_year DESC, __financials.fiscal_period"
+    question: What is the quarterly revenue for NVIDIA?
+    use_as_onboarding_question: false
+  - name: PROFITABILITY_ANALYSIS
+    sql: "SELECT __issuers.company_name, AVG(__financials.GROSS_MARGIN_PCT) AS average_gross_margin_pct, AVG(__financials.OPERATING_MARGIN_PCT) AS average_operating_margin_pct, AVG(__financials.NET_MARGIN_PCT) AS average_net_margin_pct, AVG(__financials.ROE_PCT) AS average_roe_pct FROM __financials JOIN __issuers ON (__financials.IssuerID = __issuers.IssuerID) WHERE __financials.period_type = 'annual' GROUP BY __issuers.company_name"
+    question: What are the profitability margins?
+    use_as_onboarding_question: true
+  - name: REVENUE_CONSENSUS_ESTIMATES
+    sql: "SELECT __issuers.company_name, __consensus.estimate_type, AVG(__consensus.CONSENSUS_MEAN) AS average_consensus_mean, MAX(__consensus.CONSENSUS_HIGH) AS max_consensus_high, MIN(__consensus.CONSENSUS_LOW) AS min_consensus_low, AVG(__consensus.NUM_ESTIMATES) AS average_num_estimates FROM __consensus JOIN __issuers ON (__consensus.IssuerID = __issuers.IssuerID) WHERE __consensus.estimate_type = 'Revenue' GROUP BY __issuers.company_name, __consensus.estimate_type"
+    question: What are the revenue consensus estimates?
+    use_as_onboarding_question: true
+  - name: EARNINGS_CONSENSUS_ESTIMATES
+    sql: "SELECT __issuers.company_name, __consensus.estimate_type, AVG(__consensus.CONSENSUS_MEAN) AS average_consensus_mean, MAX(__consensus.CONSENSUS_HIGH) AS max_consensus_high, MIN(__consensus.CONSENSUS_LOW) AS min_consensus_low FROM __consensus JOIN __issuers ON (__consensus.IssuerID = __issuers.IssuerID) WHERE __consensus.estimate_type = 'Net Income' GROUP BY __issuers.company_name, __consensus.estimate_type"
+    question: What are the net income consensus estimates?
+    use_as_onboarding_question: false
+  - name: ALL_CONSENSUS_ESTIMATES_FOR_COMPANY
+    sql: "SELECT __issuers.company_name, __consensus.estimate_type, AVG(__consensus.CONSENSUS_MEAN) AS average_consensus_mean, MAX(__consensus.CONSENSUS_HIGH) AS max_consensus_high, MIN(__consensus.CONSENSUS_LOW) AS min_consensus_low, AVG(__consensus.NUM_ESTIMATES) AS average_num_estimates FROM __consensus JOIN __issuers ON (__consensus.IssuerID = __issuers.IssuerID) WHERE __issuers.company_name = 'NVIDIA CORP'  GROUP BY __issuers.company_name, __consensus.estimate_type ORDER BY __consensus.estimate_type"
+    question: What are all the consensus estimates for NVIDIA?
+    use_as_onboarding_question: true
+  - name: PRICE_TARGETS
+    sql: "SELECT __issuers.company_name, AVG(CASE WHEN __analyst_estimates.DATA_ITEM_ID = 5005 THEN __analyst_estimates.DATA_VALUE END) AS AVG_PRICE_TARGET, MAX(CASE WHEN __analyst_estimates.DATA_ITEM_ID = 5005 THEN __analyst_estimates.DATA_VALUE END) AS MAX_PRICE_TARGET, MIN(CASE WHEN __analyst_estimates.DATA_ITEM_ID = 5005 THEN __analyst_estimates.DATA_VALUE END) AS MIN_PRICE_TARGET, AVG(CASE WHEN __analyst_estimates.DATA_ITEM_ID = 5006 THEN __analyst_estimates.DATA_VALUE END) AS AVG_RATING FROM __analyst_estimates JOIN __issuers ON (__analyst_estimates.IssuerID = __issuers.IssuerID) GROUP BY __issuers.company_name"
+    question: What are the analyst price targets?
+    use_as_onboarding_question: false

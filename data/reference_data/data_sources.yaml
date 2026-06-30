@@ -1,0 +1,261 @@
+# =============================================================================
+# Real Data Sources — Snowflake Public Data Table Catalogue
+# =============================================================================
+# Describes available tables in the external public data share.
+# Attached to REAL_DATA_SOURCES['tables'] at module load time.
+#
+# Loaded as: config.REF_DATA['data_sources']
+
+tables:
+  openfigi_security_index:
+    table: OPENFIGI_SECURITY_INDEX
+    description: Security master data with tickers, FIGI identifiers, and exchange info
+    key_columns:
+    - TOP_LEVEL_OPENFIGI_ID
+    - PRIMARY_TICKER
+    - SECURITY_NAME
+    - ASSET_CATEGORY
+    coverage: Global securities with OpenFIGI identifiers
+    replaces: null
+    used_by: []
+  company_security_relationships:
+    table: COMPANY_SECURITY_RELATIONSHIPS
+    description: Links companies to their securities
+    key_columns:
+    - COMPANY_ID
+    - SECURITY_ID
+    - SECURITY_ID_TYPE
+    coverage: Company-security mappings
+    replaces: null
+    used_by: []
+  company_characteristics:
+    table: COMPANY_CHARACTERISTICS
+    description: Company attributes including country, SIC codes, addresses
+    key_columns:
+    - COMPANY_ID
+    - RELATIONSHIP_TYPE
+    - VALUE
+    coverage: Company metadata and characteristics
+    replaces: null
+    used_by:
+    - generate_structured.py (DIM_ISSUER enrichment)
+  company_index:
+    table: COMPANY_INDEX
+    description: Company master data with CIK, EIN, LEI identifiers
+    key_columns:
+    - COMPANY_ID
+    - COMPANY_NAME
+    - CIK
+    - EIN
+    - LEI
+    coverage: US public companies
+    replaces: null
+    used_by:
+    - generate_structured.py (DIM_ISSUER enrichment)
+  stock_prices:
+    table: STOCK_PRICE_TIMESERIES
+    description: Daily open/close prices, high/low prices, and trading volumes for US securities traded on Nasdaq
+    key_columns:
+    - TICKER
+    - DATE
+    - VARIABLE
+    - VALUE
+    coverage: US equities on Nasdaq
+    replaces: FACT_MARKETDATA_TIMESERIES
+    used_by:
+    - generate_market_data.py
+  sec_metrics:
+    table: SEC_METRICS_TIMESERIES
+    description: Quarterly and annual parsed revenue segments from 10-Qs and 10-Ks with geography and business segment breakdowns
+    key_columns:
+    - COMPANY_ID
+    - CIK
+    - GEO_NAME
+    - BUSINESS_SEGMENT
+    - BUSINESS_SUBSEGMENT
+    - CUSTOMER
+    - LEGAL_ENTITY
+    - FISCAL_YEAR
+    - FISCAL_PERIOD
+    - VALUE
+    coverage: US public companies with SEC filings - revenue segments only
+    replaces: null
+    used_by:
+    - generate_market_data.py (FACT_SEC_SEGMENTS)
+  sec_filing_text:
+    table: SEC_REPORT_TEXT_ATTRIBUTES
+    description: Full text of company filings (10-Ks, 10-Qs, 8-Ks) submitted to the SEC
+    key_columns:
+    - SEC_DOCUMENT_ID
+    - CIK
+    - ADSH
+    - VARIABLE
+    - VARIABLE_NAME
+    - PERIOD_END_DATE
+    - VALUE
+    coverage: SEC filings text content
+    replaces: FACT_FILING_DATA
+    used_by:
+    - generate_market_data.py
+  sec_corporate_financials:
+    table: SEC_CORPORATE_REPORT_ATTRIBUTES
+    description: Full SEC financial statements (Income Statement, Balance Sheet, Cash Flow) with XBRL tags
+    key_columns:
+    - CIK
+    - ADSH
+    - TAG
+    - STATEMENT
+    - PERIOD_END_DATE
+    - VALUE
+    - MEASURE_DESCRIPTION
+    coverage: 569M records across 17,258 companies - complete financial statements
+    replaces: FACT_FINANCIAL_DATA (supplements with real data)
+    used_by:
+    - generate_market_data.py
+  sec_report_attributes:
+    table: SEC_REPORT_ATTRIBUTES
+    description: SEC report metadata including form type, filing dates
+    key_columns:
+    - ADSH
+    - CIK
+    - FORM_TYPE
+    - FILED_DATE
+    coverage: SEC filing metadata
+    replaces: null
+    used_by:
+    - generate_structured.py
+  sec_report_index:
+    table: SEC_REPORT_INDEX
+    description: Index of SEC reports with filing URLs
+    key_columns:
+    - ADSH
+    - CIK
+    coverage: SEC filing index
+    replaces: null
+    used_by:
+    - generate_structured.py
+  sec_fiscal_calendars:
+    table: SEC_FISCAL_CALENDARS
+    description: Fiscal calendar data for SEC filers
+    key_columns:
+    - CIK
+    - FISCAL_YEAR
+    - FISCAL_PERIOD
+    - PERIOD_END_DATE
+    coverage: Fiscal period information
+    replaces: null
+    used_by:
+    - hydration_engine.py
+  sec_13f:
+    table: SEC_HOLDING_FILING_ATTRIBUTES
+    index_table: SEC_HOLDING_FILING_INDEX
+    description: Institutional investment manager holdings from 13F filings (Vanguard, BlackRock, etc.)
+    key_columns:
+    - ADSH
+    - FILING_MANAGER_NAME
+    - PRIMARY_TICKER
+    - MARKET_VALUE
+    - NUMBER_OF_SHARES
+    coverage: All 13F institutional filers — quarterly holdings for demo company tickers
+    replaces: null
+    used_by:
+    - market_data.py (FACT_INSTITUTIONAL_HOLDINGS)
+  company_event_transcripts:
+    table: COMPANY_EVENT_TRANSCRIPT_ATTRIBUTES
+    description: Transcripts of hosted company events (Earnings Calls, AGMs, M&A, Investor Days) in JSON format
+    key_columns:
+    - COMPANY_ID
+    - CIK
+    - PRIMARY_TICKER
+    - EVENT_TYPE
+    - EVENT_TIMESTAMP
+    - TRANSCRIPT
+    coverage: 9000+ public companies with varying history
+    replaces: CURATED.EARNINGS_TRANSCRIPTS_CORPUS (synthetic)
+    used_by:
+    - generate_real_transcripts.py
+  bis_policy_rates:
+    table: BANK_FOR_INTERNATIONAL_SETTLEMENTS_TIMESERIES
+    attributes_table: BANK_FOR_INTERNATIONAL_SETTLEMENTS_ATTRIBUTES
+    description: Central bank policy rates for 73 countries
+    key_columns:
+    - DATE
+    - VARIABLE
+    - VALUE
+    coverage: Global central bank policy rates
+    used_by:
+    - market_data.py (FACT_POLICY_RATES)
+  fx_rates:
+    table: FX_RATES_TIMESERIES
+    description: Foreign exchange rates for 50+ currency pairs
+    key_columns:
+    - DATE
+    - BASE_CURRENCY_ID
+    - QUOTE_CURRENCY_ID
+    - VALUE
+    coverage: Global FX rates
+    used_by:
+    - market_data.py (FACT_FX_RATES)
+  fred_economic_indicators:
+    table: FINANCIAL_ECONOMIC_INDICATORS_TIMESERIES
+    attributes_table: FINANCIAL_ECONOMIC_INDICATORS_ATTRIBUTES
+    description: US economic indicators from FRED (GDP, CPI, unemployment)
+    key_columns:
+    - DATE
+    - VARIABLE
+    - VALUE
+    coverage: US macroeconomic indicators
+    used_by:
+    - market_data.py (FACT_ECONOMIC_INDICATORS)
+  sec_dividends:
+    table: SEC_CORPORATE_REPORT_ATTRIBUTES
+    description: Dividend declarations from SEC filings (CommonStockDividendsPerShareDeclared)
+    key_columns:
+    - CIK
+    - TAG
+    - PERIOD_END_DATE
+    - VALUE
+    - UNIT
+    coverage: All US public companies with SEC filings
+    used_by:
+    - market_data.py (FACT_DIVIDENDS)
+    - structured.py (FACT_CORPORATE_ACTIONS)
+  treasury_yields:
+    table: US_TREASURY_TIMESERIES
+    attributes_table: US_TREASURY_ATTRIBUTES
+    description: Daily Treasury par yield curve rates across 14 maturities (1M to 30Y)
+    key_columns:
+    - DATE
+    - VARIABLE
+    - VALUE
+    coverage: US Treasury yield curve — daily since 1984
+    replaces: null
+    used_by:
+    - market_data.py (FACT_TREASURY_YIELDS)
+  sec_insider_trading:
+    table: SEC_INSIDER_TRADING_SECURITIES_INDEX
+    description: SEC Form 4 insider buy/sell transactions for company officers and directors
+    key_columns:
+    - ISSUER_CIK
+    - TRANSACTION_DATE
+    - TRANSACTION_TYPE
+    - TRANSACTION_ACTION
+    - TRANSACTION_SHARES
+    - TRANSACTION_PRICE_PER_SHARE
+    coverage: All SEC Form 4 filers — filtered to demo company CIKs
+    replaces: null
+    used_by:
+    - market_data.py (FACT_INSIDER_TRANSACTIONS)
+  climate_watch:
+    table: CLIMATE_WATCH_TIMESERIES
+    attributes_table: CLIMATE_WATCH_ATTRIBUTES
+    description: Annual GHG emissions by country and sector (CO2, CH4, N2O, F-gases)
+    key_columns:
+    - GEO_ID
+    - DATE
+    - VARIABLE
+    - VALUE
+    coverage: Global country-level emissions — annual, 190+ countries
+    replaces: null
+    used_by:
+    - market_data.py (FACT_COUNTRY_EMISSIONS)

@@ -114,8 +114,8 @@ Repo transactions via triparty agent
 Securities lending via automated platform
 
 ## Contact Information
-**Fixed Income Operations:** fi.operations@sam-demo.example  
-**Settlement Desk:** settlements.desk@sam-demo.example / +44-20-7123-4571  
+**Fixed Income Operations:** fi.operations@snowcrestam.com  
+**Settlement Desk:** settlements.desk@snowcrestam.com / +44-20-7123-4571  
 **After Hours:** +44 20 7123 4567 (24/7 operations line)
 
 ---

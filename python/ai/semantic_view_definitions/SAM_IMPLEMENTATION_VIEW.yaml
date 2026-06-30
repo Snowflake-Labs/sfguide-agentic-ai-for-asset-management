@@ -1,0 +1,635 @@
+name: SAM_IMPLEMENTATION_VIEW
+description: "Implementation semantic view with trading costs, liquidity, risk limits, settlement, and execution planning data"
+tables:
+  - name: client_mandates
+    synonyms:
+      - client_constraints
+      - approvals
+      - client_rules
+    description: Client mandate requirements and approval thresholds
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_CLIENT_MANDATES
+    primary_key:
+      columns:
+        - clie_pk_portfolioid
+    dimensions:
+      - name: clie_pk_portfolioid
+        description: "PORTFOLIOID for client_mandates"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+  - name: holdings
+    synonyms:
+      - positions
+      - investments
+      - allocations
+    description: Current portfolio holdings for implementation planning
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_POSITION_DAILY_ABOR
+    primary_key:
+      columns:
+        - hold_pk_holdingdate
+        - hold_pk_portfolioid
+        - hold_pk_securityid
+    time_dimensions:
+      - name: hold_pk_holdingdate
+        description: "HOLDINGDATE for holdings"
+        expr: HOLDINGDATE
+        data_type: DATE
+    dimensions:
+      - name: hold_pk_securityid
+        description: "SECURITYID for holdings"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: hold_pk_portfolioid
+        description: "PORTFOLIOID for holdings"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+    facts:
+      - name: market_value_base
+        description: "Market value in base currency"
+        expr: MarketValue_Base
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: portfolio_weight_pct
+        synonyms:
+          - weight_percent
+          - allocation_percent
+          - percentage_weight
+        description: Portfolio weight as percentage
+        expr: SUM(PortfolioWeight) * 100
+        access_modifier: public_access
+      - name: total_market_value_base
+        synonyms:
+          - market_value
+          - position_value
+          - exposure
+        description: Total market value of positions
+        expr: SUM(market_value_base)
+        access_modifier: public_access
+  - name: portfolios
+    synonyms:
+      - funds
+      - strategies
+      - mandates
+    description: Portfolio information
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_PORTFOLIO
+    primary_key:
+      columns:
+        - port_pk_portfolioid
+    dimensions:
+      - name: port_pk_portfolioid
+        description: "PORTFOLIOID for portfolios"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: portfolio_name
+        synonyms:
+          - fund_name
+          - strategy_name
+        description: "Portfolio name. All names start with \"SAM \" prefix, e.g. \"SAM Technology & Infrastructure\", \"SAM ESG Leaders Global Equity\", \"SAM Global Flagship Multi-Asset\"."
+        expr: PORTFOLIONAME
+        data_type: VARCHAR(134217728)
+      - name: strategy
+        synonyms:
+          - investment_strategy
+          - portfolio_strategy
+        description: Investment strategy
+        expr: STRATEGY
+        data_type: VARCHAR(134217728)
+        is_enum: true
+        sample_values:
+          - "Core"
+          - "ESG"
+          - "Growth"
+          - "Income"
+          - "Multi-Asset"
+          - "Value"
+  - name: portfolio_liquidity
+    synonyms:
+      - liquidity_info
+      - liquidity
+      - cash_position
+      - liquidity_data
+    description: Portfolio cash and liquidity information
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_PORTFOLIO_LIQUIDITY
+    primary_key:
+      columns:
+        - port_pk_portfolioid
+        - port_pk_liquidity_date
+    dimensions:
+      - name: port_pk_portfolioid
+        description: "PORTFOLIOID for portfolio_liquidity"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+    time_dimensions:
+      - name: port_pk_liquidity_date
+        description: "LIQUIDITY_DATE for portfolio_liquidity"
+        expr: LIQUIDITY_DATE
+        data_type: DATE
+    facts:
+      - name: cash_position_usd
+        description: "Cash position in USD"
+        expr: CASH_POSITION_USD
+        data_type: "NUMBER(8,0)"
+        access_modifier: public_access
+      - name: net_cashflow_30d_usd
+        description: "Net expected cash flow over next 30 days in USD"
+        expr: NET_CASHFLOW_30D_USD
+        data_type: "NUMBER(8,0)"
+        access_modifier: public_access
+      - name: portfolio_liquidity_score
+        description: "Portfolio-level liquidity score (0-100)"
+        expr: PORTFOLIO_LIQUIDITY_SCORE
+        data_type: "NUMBER(2,0)"
+        access_modifier: public_access
+    metrics:
+      - name: average_portfolio_liquidity_score
+        synonyms:
+          - liquidity_score
+          - liquidity_rating
+          - portfolio_liquidity
+        description: Portfolio liquidity score (1-10)
+        expr: AVG(portfolio_liquidity_score)
+        access_modifier: public_access
+      - name: total_cash_position_usd
+        synonyms:
+          - cash_available
+          - available_cash
+          - total_cash
+        description: Total available cash position
+        expr: SUM(cash_position_usd)
+        access_modifier: public_access
+      - name: total_net_cashflow_30d_usd
+        synonyms:
+          - cash_flow
+          - net_flow
+          - expected_flow
+        description: Expected net cash flow over 30 days
+        expr: SUM(net_cashflow_30d_usd)
+        access_modifier: public_access
+  - name: risk_limits
+    synonyms:
+      - risk_budget
+      - limits
+      - constraints
+    description: Risk limits and budget utilization
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_RISK_LIMITS
+    primary_key:
+      columns:
+        - risk_pk_portfolioid
+        - risk_pk_limits_date
+    dimensions:
+      - name: risk_pk_portfolioid
+        description: "PORTFOLIOID for risk_limits"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+    time_dimensions:
+      - name: risk_pk_limits_date
+        description: "LIMITS_DATE for risk_limits"
+        expr: LIMITS_DATE
+        data_type: DATE
+    facts:
+      - name: current_tracking_error_pct
+        description: "Current tracking error as percentage"
+        expr: CURRENT_TRACKING_ERROR_PCT
+        data_type: "NUMBER(3,1)"
+        access_modifier: public_access
+    metrics:
+      - name: average_current_tracking_error_pct
+        synonyms:
+          - current_risk
+          - tracking_error
+          - portfolio_risk
+        description: Current tracking error percentage
+        expr: AVG(current_tracking_error_pct)
+        access_modifier: public_access
+      - name: max_position_limit
+        synonyms:
+          - concentration_limit
+          - position_limit
+          - max_weight_limit
+        description: Maximum single position limit as percentage
+        expr: MAX(MAX_SINGLE_POSITION_PCT) * 100
+        access_modifier: public_access
+      - name: tracking_error_utilization
+        synonyms:
+          - risk_utilization
+          - tracking_error_usage
+          - risk_budget_used
+        description: Tracking error budget utilization percentage
+        expr: AVG(CURRENT_TRACKING_ERROR_PCT / TRACKING_ERROR_LIMIT_PCT) * 100
+        access_modifier: public_access
+  - name: securities
+    synonyms:
+      - companies
+      - stocks
+      - instruments
+    description: Security reference data
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_SECURITY
+    primary_key:
+      columns:
+        - secu_pk_securityid
+    dimensions:
+      - name: secu_pk_securityid
+        description: "SECURITYID for securities"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: security_description
+        synonyms:
+          - security_name
+          - name
+        description: Security description
+        expr: DESCRIPTION
+        data_type: VARCHAR(16777216)
+      - name: ticker
+        synonyms:
+          - ticker_symbol
+          - symbol
+          - primary_ticker
+        description: Trading ticker symbol
+        expr: TICKER
+        data_type: VARCHAR(16777216)
+  - name: tax_implications
+    synonyms:
+      - tax_data
+      - tax_records
+      - gains_losses
+    description: Tax implications and cost basis data
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_TAX_IMPLICATIONS
+    primary_key:
+      columns:
+        - tax_pk_portfolioid
+        - tax_pk_securityid
+        - tax_pk_tax_date
+    dimensions:
+      - name: tax_pk_securityid
+        description: "SECURITYID for tax_implications"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: tax_pk_portfolioid
+        description: "PORTFOLIOID for tax_implications"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: tax_loss_harvest_opportunity
+        synonyms:
+          - tax_loss
+          - harvest_opportunity
+          - harvest_flag
+        description: Tax loss harvesting opportunity
+        expr: TAX_LOSS_HARVEST_OPPORTUNITY
+        data_type: BOOLEAN
+      - name: tax_treatment
+        synonyms:
+          - tax_type
+          - treatment
+        description: Tax treatment classification
+        expr: TAX_TREATMENT
+        data_type: VARCHAR(10)
+    time_dimensions:
+      - name: tax_pk_tax_date
+        description: "TAX_DATE for tax_implications"
+        expr: TAX_DATE
+        data_type: DATE
+    facts:
+      - name: cost_basis_usd
+        description: "Position cost basis in USD"
+        expr: COST_BASIS_USD
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: unrealized_gain_loss_usd
+        description: "Unrealized gain/loss in USD"
+        expr: UNREALIZED_GAIN_LOSS_USD
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: tax_loss_harvest_value
+        synonyms:
+          - harvest_value
+          - tax_loss_value
+          - loss_harvest_amount
+        description: Total value available for tax loss harvesting
+        expr: SUM(CASE WHEN TAX_LOSS_HARVEST_OPPORTUNITY THEN ABS(UNREALIZED_GAIN_LOSS_USD) ELSE 0 END)
+        access_modifier: public_access
+      - name: total_cost_basis_usd
+        synonyms:
+          - cost_basis
+          - original_cost
+          - tax_basis
+        description: Total cost basis for tax calculations
+        expr: SUM(cost_basis_usd)
+        access_modifier: public_access
+      - name: total_unrealized_gain_loss_usd
+        synonyms:
+          - unrealized_gains
+          - capital_gains
+          - unrealized_pnl
+        description: Total unrealized gains/losses
+        expr: SUM(unrealized_gain_loss_usd)
+        access_modifier: public_access
+  - name: trade_settlement
+    synonyms:
+      - settlement
+      - settlement_data
+      - trade_settlements
+      - settlement_history
+    description: Trade settlement history with dates and status tracking
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_TRADE_SETTLEMENT
+    primary_key:
+      columns:
+        - trad_pk_settlementid
+    dimensions:
+      - name: trad_pk_securityid
+        description: "SECURITYID for trade_settlement"
+        expr: "SECURITYID"
+        data_type: "NUMBER(38,0)"
+      - name: trad_pk_portfolioid
+        description: "PORTFOLIOID for trade_settlement"
+        expr: "PORTFOLIOID"
+        data_type: "NUMBER(38,0)"
+      - name: trad_pk_settlementid
+        description: "SETTLEMENTID for trade_settlement"
+        expr: SETTLEMENTID
+        data_type: "NUMBER(38,0)"
+      - name: settlement_status
+        synonyms:
+          - trade_status
+        description: "Settlement status (Settled, Pending, Failed)"
+        expr: STATUS
+        data_type: VARCHAR(7)
+        is_enum: true
+        sample_values:
+          - "PENDING"
+          - "SETTLED"
+          - "FAILED"
+          - "CANCELLED"
+    facts:
+      - name: settlement_value
+        description: "Settlement value of the trade"
+        expr: SETTLEMENTVALUE
+        data_type: "NUMBER(9,0)"
+        access_modifier: public_access
+    metrics:
+      - name: avg_settlement_days
+        synonyms:
+          - settlement_cycle
+          - days_to_settle
+          - settlement_days
+        description: Average days from trade to settlement (typically T+2)
+        expr: "AVG(DATEDIFF(day, TRADEDATE, SETTLEMENTDATE))"
+        access_modifier: public_access
+      - name: failed_settlements
+        synonyms:
+          - failed_count
+          - failed_trades
+          - settlement_failures
+        description: Count of failed settlements
+        expr: COUNT(CASE WHEN STATUS = 'Failed' THEN 1 END)
+        access_modifier: public_access
+      - name: pending_settlements
+        synonyms:
+          - pending_count
+          - unsettled_trades
+          - pending_trades
+        description: Count of pending settlements
+        expr: COUNT(CASE WHEN STATUS = 'Pending' THEN 1 END)
+        access_modifier: public_access
+      - name: total_settlement_value
+        synonyms:
+          - settlement_amount
+          - total_settlement
+        description: Total settlement value in USD
+        expr: SUM(settlement_value)
+        access_modifier: public_access
+    time_dimensions:
+      - name: execution_date
+        synonyms:
+          - trade_date
+          - order_date
+        description: Trade execution date
+        expr: TRADEDATE
+        data_type: DATE
+      - name: value_date
+        synonyms:
+          - settle_date
+          - settlement_date
+        description: Settlement date (T+2 from trade date)
+        expr: SETTLEMENTDATE
+        data_type: DATE
+  - name: trading_calendar
+    synonyms:
+      - calendar
+      - events
+      - blackouts
+      - earnings_dates
+    description: Trading calendar with blackout periods and events
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_TRADING_CALENDAR
+    primary_key:
+      columns:
+        - trad_pk_securityid
+        - trad_pk_event_date
+    dimensions:
+      - name: trad_pk_securityid
+        description: "SECURITYID for trading_calendar"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: event_type
+        synonyms:
+          - event
+          - calendar_event
+          - trading_event
+        description: Trading calendar event type
+        expr: EVENT_TYPE
+        data_type: VARCHAR(16777216)
+      - name: is_blackout_period
+        synonyms:
+          - blackout
+          - restricted
+          - no_trading
+        description: Blackout period indicator
+        expr: IS_BLACKOUT_PERIOD
+        data_type: BOOLEAN
+    time_dimensions:
+      - name: trad_pk_event_date
+        description: "EVENT_DATE for trading_calendar"
+        expr: EVENT_DATE
+        data_type: DATE
+    facts:
+      - name: expected_vix_level
+        description: "Expected VIX level for the trading date"
+        expr: EXPECTED_VIX_LEVEL
+        data_type: "NUMBER(2,0)"
+        access_modifier: public_access
+    metrics:
+      - name: average_expected_vix_level
+        synonyms:
+          - volatility_forecast
+          - vix_forecast
+          - market_volatility
+        description: Average expected VIX volatility level
+        expr: AVG(expected_vix_level)
+        access_modifier: public_access
+      - name: blackout_days
+        synonyms:
+          - blackout_count
+          - restricted_days
+          - no_trading_days
+        description: Count of blackout period days
+        expr: COUNT(CASE WHEN IS_BLACKOUT_PERIOD THEN 1 END)
+        access_modifier: public_access
+  - name: transaction_costs
+    synonyms:
+      - trading_costs
+      - execution_costs
+      - cost_data
+    description: Transaction costs and market microstructure data
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_TRANSACTION_COSTS
+    primary_key:
+      columns:
+        - tran_pk_securityid
+        - tran_pk_cost_date
+    dimensions:
+      - name: tran_pk_securityid
+        description: "SECURITYID for transaction_costs"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+    time_dimensions:
+      - name: tran_pk_cost_date
+        description: "COST_DATE for transaction_costs"
+        expr: COST_DATE
+        data_type: DATE
+    facts:
+      - name: avg_daily_volume_mm
+        description: "Average daily trading volume in millions"
+        expr: AVG_DAILY_VOLUME_M
+        data_type: "NUMBER(3,1)"
+        access_modifier: public_access
+      - name: bid_ask_spread_bps
+        description: "Bid-ask spread in basis points"
+        expr: BID_ASK_SPREAD_BPS
+        data_type: "NUMBER(2,0)"
+        access_modifier: public_access
+      - name: market_impact_bps_per_1m
+        description: "Market impact in basis points per $1M traded"
+        expr: MARKET_IMPACT_BPS_PER_1M
+        data_type: "NUMBER(2,0)"
+        access_modifier: public_access
+    metrics:
+      - name: average_daily_volume_mm
+        synonyms:
+          - daily_volume
+          - trading_volume
+          - volume
+        description: Average daily trading volume in millions
+        expr: AVG(avg_daily_volume_mm)
+        access_modifier: public_access
+      - name: average_bid_ask_spread_bps
+        synonyms:
+          - bid_ask_spread
+          - spread
+          - trading_spread
+        description: Average bid-ask spread in basis points
+        expr: AVG(bid_ask_spread_bps)
+        access_modifier: public_access
+      - name: average_market_impact_bps_per_1m
+        synonyms:
+          - market_impact
+          - trading_impact
+          - execution_cost
+        description: Average market impact per $1M traded
+        expr: AVG(market_impact_bps_per_1m)
+        access_modifier: public_access
+relationships:
+  - name: client_mandates_to_portfolios
+    left_table: client_mandates
+    right_table: portfolios
+    relationship_columns:
+      - left_column: clie_pk_portfolioid
+        right_column: port_pk_portfolioid
+  - name: holdings_to_portfolios
+    left_table: holdings
+    right_table: portfolios
+    relationship_columns:
+      - left_column: hold_pk_portfolioid
+        right_column: port_pk_portfolioid
+  - name: holdings_to_securities
+    left_table: holdings
+    right_table: securities
+    relationship_columns:
+      - left_column: hold_pk_securityid
+        right_column: secu_pk_securityid
+  - name: portfolio_liquidity_to_portfolios
+    left_table: portfolio_liquidity
+    right_table: portfolios
+    relationship_columns:
+      - left_column: port_pk_portfolioid
+        right_column: port_pk_portfolioid
+  - name: risk_limits_to_portfolios
+    left_table: risk_limits
+    right_table: portfolios
+    relationship_columns:
+      - left_column: risk_pk_portfolioid
+        right_column: port_pk_portfolioid
+  - name: tax_implications_to_portfolios
+    left_table: tax_implications
+    right_table: portfolios
+    relationship_columns:
+      - left_column: tax_pk_portfolioid
+        right_column: port_pk_portfolioid
+  - name: tax_implications_to_securities
+    left_table: tax_implications
+    right_table: securities
+    relationship_columns:
+      - left_column: tax_pk_securityid
+        right_column: secu_pk_securityid
+  - name: trade_settlement_to_portfolios
+    left_table: trade_settlement
+    right_table: portfolios
+    relationship_columns:
+      - left_column: trad_pk_portfolioid
+        right_column: port_pk_portfolioid
+  - name: trade_settlement_to_securities
+    left_table: trade_settlement
+    right_table: securities
+    relationship_columns:
+      - left_column: trad_pk_securityid
+        right_column: secu_pk_securityid
+  - name: trading_calendar_to_securities
+    left_table: trading_calendar
+    right_table: securities
+    relationship_columns:
+      - left_column: trad_pk_securityid
+        right_column: secu_pk_securityid
+  - name: transaction_costs_to_securities
+    left_table: transaction_costs
+    right_table: securities
+    relationship_columns:
+      - left_column: tran_pk_securityid
+        right_column: secu_pk_securityid

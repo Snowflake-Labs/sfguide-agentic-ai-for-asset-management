@@ -1,0 +1,295 @@
+name: SAM_FACTOR_MODEL_VIEW
+description: "ML-based quant factor model: z-scored factor scores, Fama-MacBeth returns, XGBoost predictions, and optimal portfolio weights"
+tables:
+  - name: factor_returns
+    synonyms:
+      - factor returns
+      - factor performance
+      - fama macbeth
+    description: Monthly Fama-MacBeth cross-sectional regression factor returns with t-statistics.
+    base_table:
+      database: {{DATABASE}}
+      schema: ML
+      table: FACT_FACTOR_RETURNS
+    primary_key:
+      columns:
+        - fact_pk_month_date
+    time_dimensions:
+      - name: fact_pk_month_date
+        description: "MONTH_DATE for factor_returns"
+        expr: MONTH_DATE
+        data_type: DATE
+    facts:
+      - name: momentum_return
+        description: "Fama-MacBeth return for momentum factor"
+        expr: MOMENTUM_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: quality_return
+        description: "Fama-MacBeth return for quality factor"
+        expr: QUALITY_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: r_squared
+        description: "R-squared goodness-of-fit for factor model"
+        expr: R_SQUARED
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: value_return
+        description: "Fama-MacBeth return for value factor"
+        expr: VALUE_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_r_squared
+        description: Cross-sectional R-squared of Fama-MacBeth regression
+        expr: AVG(r_squared)
+        access_modifier: public_access
+      - name: total_momentum_return
+        description: Monthly Fama-MacBeth momentum factor return
+        expr: SUM(momentum_return)
+        access_modifier: public_access
+      - name: total_quality_return
+        description: Monthly Fama-MacBeth quality factor return
+        expr: SUM(quality_return)
+        access_modifier: public_access
+      - name: total_value_return
+        description: Monthly Fama-MacBeth value factor return
+        expr: SUM(value_return)
+        access_modifier: public_access
+  - name: factor_scores
+    synonyms:
+      - factor scores
+      - factor exposures
+      - factor tilts
+    description: "Monthly cross-sectionally z-scored factor scores for each security. 12 factors including momentum, value, quality, growth."
+    base_table:
+      database: {{DATABASE}}
+      schema: ML
+      table: FACT_FACTOR_SCORES
+    primary_key:
+      columns:
+        - ticker
+        - month_date
+    dimensions:
+      - name: ticker
+        synonyms:
+          - stock
+          - security
+        description: Security ticker symbol
+        expr: TICKER
+        data_type: VARCHAR(20)
+    facts:
+      - name: growth_score
+        description: "Z-scored growth factor score"
+        expr: GROWTH_SCORE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: momentum_score
+        description: "Z-scored momentum factor score"
+        expr: MOMENTUM_SCORE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: quality_score
+        description: "Z-scored quality factor score"
+        expr: QUALITY_SCORE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: size_score
+        description: "Z-scored size factor score"
+        expr: SIZE_SCORE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: value_score
+        description: "Z-scored value factor score"
+        expr: VALUE_SCORE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: volatility_score
+        description: "Z-scored volatility factor score"
+        expr: VOLATILITY_SCORE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_growth_score
+        synonyms:
+          - growth
+        description: Cross-sectional z-score of growth factor
+        expr: AVG(growth_score)
+        access_modifier: public_access
+      - name: average_momentum_score
+        synonyms:
+          - momentum
+          - mom
+        description: Cross-sectional z-score of momentum factor
+        expr: AVG(momentum_score)
+        access_modifier: public_access
+      - name: average_quality_score
+        synonyms:
+          - quality
+        description: Cross-sectional z-score of quality factor
+        expr: AVG(quality_score)
+        access_modifier: public_access
+      - name: average_size_score
+        synonyms:
+          - size
+          - market cap
+        description: Cross-sectional z-score of size factor
+        expr: AVG(size_score)
+        access_modifier: public_access
+      - name: average_value_score
+        synonyms:
+          - value
+        description: Cross-sectional z-score of value factor
+        expr: AVG(value_score)
+        access_modifier: public_access
+      - name: average_volatility_score
+        synonyms:
+          - vol
+          - volatility
+        description: Cross-sectional z-score of volatility factor
+        expr: AVG(volatility_score)
+        access_modifier: public_access
+    time_dimensions:
+      - name: month_date
+        synonyms:
+          - month
+          - date
+        description: Month end date for factor scores
+        expr: MONTH_DATE
+        data_type: DATE
+  - name: ml_predictions
+    synonyms:
+      - factor predictions
+      - return predictions
+      - ml signals
+    description: XGBoost ML-predicted forward returns with SHAP top feature attribution.
+    base_table:
+      database: {{DATABASE}}
+      schema: ML
+      table: FACT_ML_FACTOR_PREDICTIONS
+    primary_key:
+      columns:
+        - ml_p_pk_ticker
+        - ml_p_pk_month_date
+    dimensions:
+      - name: ml_p_pk_ticker
+        description: "TICKER for ml_predictions"
+        expr: TICKER
+        data_type: "NUMBER(38,0)"
+      - name: model_version
+        description: Model version used for prediction
+        expr: MODEL_VERSION
+        data_type: VARCHAR(50)
+      - name: shap_top_feature
+        description: Most important SHAP feature for this prediction
+        expr: SHAP_TOP_FEATURE
+        data_type: VARCHAR(50)
+    time_dimensions:
+      - name: ml_p_pk_month_date
+        description: "MONTH_DATE for ml_predictions"
+        expr: MONTH_DATE
+        data_type: DATE
+    facts:
+      - name: predicted_return
+        description: "XGBoost predicted next-period return"
+        expr: PREDICTED_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: shap_top_value
+        description: "SHAP value for the top contributing feature"
+        expr: SHAP_TOP_VALUE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_predicted_return
+        synonyms:
+          - predicted return
+          - ml signal
+          - expected return
+        description: XGBoost predicted forward 21-day return
+        expr: AVG(predicted_return)
+        access_modifier: public_access
+      - name: average_shap_top_value
+        description: SHAP value of the top feature
+        expr: AVG(shap_top_value)
+        access_modifier: public_access
+  - name: optimal_portfolio
+    synonyms:
+      - optimal portfolio
+      - portfolio weights
+      - target weights
+    description: Mean-variance optimised portfolio weights from ML-predicted returns.
+    base_table:
+      database: {{DATABASE}}
+      schema: ML
+      table: FACT_OPTIMAL_PORTFOLIO
+    primary_key:
+      columns:
+        - opti_pk_ticker
+        - opti_pk_month_date
+    dimensions:
+      - name: opti_pk_ticker
+        description: "TICKER for optimal_portfolio"
+        expr: TICKER
+        data_type: "NUMBER(38,0)"
+    time_dimensions:
+      - name: opti_pk_month_date
+        description: "MONTH_DATE for optimal_portfolio"
+        expr: MONTH_DATE
+        data_type: DATE
+    facts:
+      - name: expected_return
+        description: "Expected return estimate for the security"
+        expr: EXPECTED_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: risk_contribution
+        description: "Contribution to portfolio risk"
+        expr: RISK_CONTRIBUTION
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: weight
+        description: "Optimal portfolio weight"
+        expr: WEIGHT
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: total_expected_return
+        description: Expected return for this position
+        expr: SUM(expected_return)
+        access_modifier: public_access
+      - name: total_risk_contribution
+        description: Risk contribution to portfolio volatility
+        expr: SUM(risk_contribution)
+        access_modifier: public_access
+      - name: total_weight
+        synonyms:
+          - portfolio weight
+          - allocation
+        description: Optimal portfolio weight from mean-variance optimisation
+        expr: SUM(weight)
+        access_modifier: public_access
+relationships:
+  - name: scores_to_returns
+    left_table: factor_scores
+    right_table: factor_returns
+    relationship_columns:
+      - left_column: month_date
+        right_column: fact_pk_month_date
+  - name: predictions_to_scores
+    left_table: ml_predictions
+    right_table: factor_scores
+    relationship_columns:
+      - left_column: ml_p_pk_ticker
+        right_column: ticker
+      - left_column: ml_p_pk_month_date
+        right_column: month_date
+  - name: portfolio_to_predictions
+    left_table: optimal_portfolio
+    right_table: ml_predictions
+    relationship_columns:
+      - left_column: opti_pk_ticker
+        right_column: ml_p_pk_ticker
+      - left_column: opti_pk_month_date
+        right_column: ml_p_pk_month_date

@@ -39,7 +39,7 @@ This document defines the standard settlement instructions for foreign exchange 
 **TARGET2 Participant:** {{EUR_TARGET2}}  
 **Settlement Time:** 14:00 CET
 
-### GBP - British Pound Simulated
+### GBP - British Pound Sterling
 **Correspondent Bank:** NatWest Markets Plc  
 **Sort Code:** 60-16-13  
 **Account Number:** GB29NWBK60161331926819  
@@ -81,7 +81,7 @@ Notify counterparty T+1, escalate T+3, buy-in T+5
 Margin calls via email by 10:00 daily
 
 ## Contact Information
-**FX Settlement Desk:** fx.desk@sam-demo.example / +44-20-7123-4568  
+**FX Settlement Desk:** fx.desk@snowcrestam.com / +44-20-7123-4568  
 **Urgent Settlement Issues:** +44-20-7123-4567 (24/7 emergency line)
 
 ---

@@ -363,7 +363,7 @@ This Compliance Manual reviewed and updated at least annually. Ad hoc updates ma
 ---
 
 **Questions and Reporting**: Contact Chief Compliance Officer  
-compliance@sam-demo.example | [Phone Number]
+compliance@snowcrestam.com | [Phone Number]
 
 **Anonymous Reporting**: Whistleblower hotline available for anonymous reporting of potential violations or concerns.
 

@@ -1,0 +1,141 @@
+# =============================================================================
+# Scenario Seed Data — Deterministic demo scenario configurations
+# =============================================================================
+# Specific configurations that guarantee reproducible demo scenarios.
+#
+# Loaded as: config.REF_DATA['scenarios']
+
+mandate_compliance:
+  portfolio: SAM AI & Digital Innovation
+  non_compliant_holding:
+    ticker: META
+    issue: ESG_DOWNGRADE
+    original_esg_grade: A
+    downgraded_esg_grade: CCC
+    reason: Governance concerns related to data privacy practices and content moderation
+    action_deadline_days: 30
+  pre_screened_replacements:
+  - ticker: NVDA
+    rank: 1
+    ai_growth_score: 92
+    esg_grade: A
+    market_cap_b: 1200
+    liquidity_score: 10
+    rationale: Leader in AI compute infrastructure with dominant data center GPU market share, strong ESG governance, and
+      robust patent portfolio in machine learning accelerators
+  - ticker: MSFT
+    rank: 2
+    ai_growth_score: 89
+    esg_grade: A
+    market_cap_b: 2800
+    liquidity_score: 10
+    rationale: Azure AI platform leader with OpenAI partnership, excellent ESG track record, and significant investment in
+      responsible AI development
+  - ticker: GOOGL
+    rank: 3
+    ai_growth_score: 85
+    esg_grade: A
+    market_cap_b: 1700
+    liquidity_score: 10
+    rationale: AI research leader with DeepMind and Google Brain, solid ESG performance though some historical privacy concerns
+      addressed
+  mandate_requirements:
+    min_esg_grade: A
+    max_concentration: 0.065
+    required_sector: Information Technology
+    ai_growth_threshold: 80
+    min_market_cap_b: 50
+    min_liquidity_score: 7
+esg_overrides:
+  INTC:
+    ticker: INTC
+    esg_grade: BB
+    esg_score: 35
+    reason: Environmental concerns - manufacturing emissions
+  IBM:
+    ticker: IBM
+    esg_grade: BB
+    esg_score: 38
+    reason: Governance concerns - board diversity
+  CSCO:
+    ticker: CSCO
+    esg_grade: B
+    esg_score: 22
+    reason: Social concerns - supply chain labor practices
+  META:
+    ticker: META
+    esg_grade: CCC
+    esg_score: 10
+    reason: Governance concerns - data privacy practices and content moderation
+supply_chain_relationships:
+- - TSM
+  - NVDA
+  - Customer
+  - 0.25
+  - High
+- - TSM
+  - AMD
+  - Customer
+  - 0.18
+  - High
+- - TSM
+  - AAPL
+  - Customer
+  - 0.3
+  - High
+- - NVDA
+  - GM
+  - Customer
+  - 0.08
+  - Medium
+- - NVDA
+  - F
+  - Customer
+  - 0.06
+  - Medium
+- - AMD
+  - GM
+  - Customer
+  - 0.05
+  - Medium
+supply_chain_strengths:
+  semiconductors:
+    critical_suppliers_share:
+    - 0.2
+    - 0.4
+    major_customers_share:
+    - 0.15
+    - 0.3
+    relationship_count_range:
+    - 5
+    - 10
+  automotive:
+    critical_suppliers_share:
+    - 0.1
+    - 0.2
+    major_customers_share:
+    - 0.08
+    - 0.15
+    relationship_count_range:
+    - 3
+    - 5
+  technology:
+    critical_suppliers_share:
+    - 0.15
+    - 0.3
+    major_customers_share:
+    - 0.1
+    - 0.25
+    relationship_count_range:
+    - 4
+    - 8
+  default:
+    critical_suppliers_share:
+    - 0.05
+    - 0.15
+    major_customers_share:
+    - 0.05
+    - 0.12
+    relationship_count_range:
+    - 1
+    - 3

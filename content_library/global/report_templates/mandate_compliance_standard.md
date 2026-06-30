@@ -59,7 +59,7 @@ Present the key metrics showing mandate compliance:
 ### Supporting Research Insights
 Synthesize insights from:
 - Broker research reports (via search_broker_research)
-- Earnings transcripts (via search_company_events)
+- Earnings transcripts (via search_earnings_transcripts)
 - Recent press releases (via search_press_releases)
 
 Include 2-3 key points from research that support the investment thesis.

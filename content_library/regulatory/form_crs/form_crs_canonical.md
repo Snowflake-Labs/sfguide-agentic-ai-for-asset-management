@@ -11,7 +11,7 @@ placeholders:
 
 **Simulated Asset Management**  
 123 Financial District | London, EC2N 2AN, UK  
-+44 20 1234 5678 | www.sam-demo.example
++44 20 1234 5678 | www.snowcrestam.com
 
 **Date**: 31 March 2024
 
@@ -32,7 +32,7 @@ We offer investment advisory services to retail investors, including discretiona
 
 **Limitations**: Our investment advice is limited to securities and investment products appropriate for your mandate. We do not offer proprietary products, insurance products, or banking services.
 
-**Additional Information**: For more detailed information about our services, see Items 4 and 7 of our Form ADV Part 2A available at www.sam-demo.example/disclosures.
+**Additional Information**: For more detailed information about our services, see Items 4 and 7 of our Form ADV Part 2A available at www.snowcrestam.com/disclosures.
 
 ### CONVERSATION STARTERS — ASK YOUR FINANCIAL PROFESSIONAL:
 - *Given my financial situation, should I choose an investment advisory service? Why or why not?*
@@ -58,7 +58,7 @@ We offer investment advisory services to retail investors, including discretiona
 
 **Important**: You will pay fees and costs whether you make or lose money on your investments. Fees and costs will reduce any amount of money you make on your investments over time. Please make sure you understand what fees and costs you are paying.
 
-**Additional Information**: For more detailed fee information, see Item 5 of our Form ADV Part 2A available at www.sam-demo.example/disclosures.
+**Additional Information**: For more detailed fee information, see Item 5 of our Form ADV Part 2A available at www.snowcrestam.com/disclosures.
 
 ### CONVERSATION STARTER — ASK YOUR FINANCIAL PROFESSIONAL:
 - *Help me understand how these fees and costs might affect my investments. If I give you £100,000 to invest, how much will go to fees and costs, and how much will be invested for me?*
@@ -75,7 +75,7 @@ We offer investment advisory services to retail investors, including discretiona
 
 **Custodian Benefits**: We receive technology and practice management support from custodians we recommend. This creates an incentive to recommend custodians providing us greater benefits versus custodians offering better terms to clients.
 
-**Additional Information**: For more information about our conflicts of interest, see Items 10, 11, and 12 of our Form ADV Part 2A available at www.sam-demo.example/disclosures.
+**Additional Information**: For more information about our conflicts of interest, see Items 10, 11, and 12 of our Form ADV Part 2A available at www.snowcrestam.com/disclosures.
 
 ### CONVERSATION STARTER — ASK YOUR FINANCIAL PROFESSIONAL:
 - *How might your conflicts of interest affect me, and how will you address them?*
@@ -106,9 +106,9 @@ Visit **Investor.gov/CRS** for a free and simple search tool to research our fir
 
 ## ADDITIONAL INFORMATION
 
-You can find additional information about our investment advisory services at www.sam-demo.example or by calling us at +44 20 1234 5678. You can request a copy of this relationship summary and other information at any time.
+You can find additional information about our investment advisory services at www.snowcrestam.com or by calling us at +44 20 1234 5678. You can request a copy of this relationship summary and other information at any time.
 
-For more detailed information, see our Form ADV Part 2A available at www.sam-demo.example/disclosures. To report a problem to the SEC, visit **Investor.gov** or call the SEC's toll-free investor assistance line at (800) 732-0330.
+For more detailed information, see our Form ADV Part 2A available at www.snowcrestam.com/disclosures. To report a problem to the SEC, visit **Investor.gov** or call the SEC's toll-free investor assistance line at (800) 732-0330.
 
 ### CONVERSATION STARTERS — ASK YOUR FINANCIAL PROFESSIONAL:
 - *Who is my primary contact person? Is he or she a representative of an investment adviser or broker-dealer? Who can I talk to if I have concerns about how this person is treating me?*

@@ -1,0 +1,3114 @@
+# =============================================================================
+# Demo Companies — Single Source of Truth for Company Data
+# =============================================================================
+# All data generation (DIM_ISSUER, DIM_SECURITY, transcripts, market data,
+# documents) flows from this list.
+#
+# Loaded as: config.REF_DATA['companies']
+# Access:    config.DEMO_COMPANIES (dict keyed by ticker)
+#
+# Structure per entry:
+#   ticker:              Stock ticker symbol (also used as dict key)
+#   company_name:        Official company name from Cybersyn COMPANY_INDEX
+#   provider_company_id: COMPANY_ID from Cybersyn COMPANY_INDEX
+#   cik:                 SEC Central Index Key for SEC filings and transcripts
+#   sector:              GICS sector (mapped from SIC codes)
+#   tier:                core | major | additional | supply_chain | expanded
+#   demo_order:          (optional) Display priority for core/major companies
+#   position_size:       (optional) large | medium | small — portfolio weighting hint
+#
+# Tiers:
+#   core (13)           — Featured in demo scenarios, always shown first
+#   major (34)          — Well-known companies, frequently referenced
+#   additional (30)     — Sector diversity fill
+#   supply_chain (2)    — Risk scenario dependencies (Ford, GM)
+#   expanded (424)      — S&P 500 benchmark coverage
+#
+# Total: ~503 companies
+#
+# To regenerate: python scripts/generate_expanded_companies.py
+
+# Coverage universe config — which tiers get AI processing (speaker mapping, NLP, earnings insights)
+# Change this to control what's in DIM_COVERAGE_UNIVERSE without editing Python code
+coverage_universe:
+  tiers: [core, major, additional, supply_chain]
+  expanded_additions:
+    - ABNB
+    - ADI
+    - ADP
+    - ADSK
+    - AEP
+    - AFRM
+    - AMAT
+    - APH
+    - APP
+    - ARM
+    - AZN
+    - BABA
+    - BLK
+    - BKR
+    - C
+    - COIN
+    - COP
+    - CRWD
+    - DDOG
+    - DUK
+    - ENPH
+    - GILD
+    - LLY
+    - LRCX
+    - LMT
+    - LOW
+    - MAR
+    - MRVL
+    - MS
+    - MU
+    - NEE
+    - ORCL
+    - PANW
+    - PLTR
+    - SBUX
+    - SCHW
+    - SLB
+    - SHOP
+    - SNAP
+    - TGT
+    - TMUS
+    - UBER
+    - UNH
+    - WFC
+    - XOM
+
+companies:
+- ticker: AAPL
+  company_name: APPLE INC.
+  provider_company_id: a1823f6c7cd49c0be0bb8c43bcf49060
+  cik: 0000320193
+  sector: Information Technology
+  tier: core
+  demo_order: 1
+  position_size: large
+- ticker: CMC
+  company_name: COMMERCIAL METALS CO
+  provider_company_id: 50b5c4a14b7d9817e50d66022153a149
+  cik: '0000022444'
+  sector: Materials
+  tier: core
+  demo_order: 2
+  position_size: large
+- ticker: RBBN
+  company_name: RIBBON COMMUNICATIONS INC.
+  provider_company_id: 2ce2d9e86f2421124050cb4e862f3be7
+  cik: 0001708055
+  sector: Information Technology
+  tier: core
+  demo_order: 3
+  position_size: large
+- ticker: MSFT
+  company_name: MICROSOFT CORP
+  provider_company_id: ac0b3684602d98a5f168564f3f3af882
+  cik: 0000789019
+  sector: Information Technology
+  tier: core
+  demo_order: 4
+- ticker: NVDA
+  company_name: NVIDIA CORP
+  provider_company_id: 59cf1797ff7546139b04473f612cbe0c
+  cik: 0001045810
+  sector: Information Technology
+  tier: core
+  demo_order: 5
+- ticker: GOOGL
+  company_name: ALPHABET INC.
+  provider_company_id: bec137cd76d8c4d1440569461d7375bd
+  cik: '0001652044'
+  sector: Communication Services
+  tier: core
+  demo_order: 6
+- ticker: AMZN
+  company_name: AMAZON COM INC
+  provider_company_id: 602fec4b30df7a598a17a09fa789cc48
+  cik: 0001018724
+  sector: Consumer Discretionary
+  tier: core
+  demo_order: 7
+- ticker: INTC
+  company_name: INTEL CORP
+  provider_company_id: 33c4c5960af4e6eb8dd18d4ec982c0c2
+  cik: 0000050863
+  sector: Information Technology
+  tier: core
+  demo_order: 8
+- ticker: AMD
+  company_name: ADVANCED MICRO DEVICES INC
+  provider_company_id: 12c617b47081d343dc595256aa5bbb1d
+  cik: 0000002488
+  sector: Information Technology
+  tier: core
+  demo_order: 9
+- ticker: AVGO
+  company_name: BROADCOM INC.
+  provider_company_id: 8f448325fadfc6891e19cbaddff9ca2f
+  cik: 0001730168
+  sector: Information Technology
+  tier: core
+  demo_order: 10
+- ticker: QCOM
+  company_name: QUALCOMM INC/DE
+  provider_company_id: a66fa1ce7129d8898f49d981f90e2f29
+  cik: 0000804328
+  sector: Information Technology
+  tier: core
+  demo_order: 11
+- ticker: SNOW
+  company_name: SNOWFLAKE INC.
+  provider_company_id: be66d09336f7d9b9b53c3e129f241a11
+  cik: '0001640147'
+  sector: Information Technology
+  tier: core
+- ticker: TSM
+  company_name: TAIWAN SEMICONDUCTOR MANUFACTURING CO LTD
+  provider_company_id: 71ae635a2d258f8bdb7c7c8bf06b3811
+  cik: 0001046179
+  sector: Information Technology
+  tier: core
+- ticker: ABT
+  company_name: ABBOTT LABORATORIES
+  provider_company_id: 2dcb8bc8661e611361f7c0254cb02ee7
+  cik: 0000001800
+  sector: Healthcare
+  tier: major
+- ticker: ADBE
+  company_name: ADOBE INC.
+  provider_company_id: fe47832b8f820a17fd8d6308942390f9
+  cik: 0000796343
+  sector: Information Technology
+  tier: major
+- ticker: BA
+  company_name: BOEING CO
+  provider_company_id: 68c9c4dd104ff90807898f9a7aa4e0d6
+  cik: 0000012927
+  sector: Industrials
+  tier: major
+- ticker: BAC
+  company_name: BANK OF AMERICA CORP /DE/
+  provider_company_id: 9a845a21be69d75e3926bba3a30347fc
+  cik: 0000070858
+  sector: Financials
+  tier: major
+- ticker: CAT
+  company_name: CATERPILLAR INC
+  provider_company_id: d7fbbcb4f157933eccffc75c755fab39
+  cik: 0000018230
+  sector: Industrials
+  tier: major
+- ticker: COST
+  company_name: COSTCO WHOLESALE CORP /NEW
+  provider_company_id: ac487d6576dde56b4942173b146faf84
+  cik: 0000909832
+  sector: Consumer Staples
+  tier: major
+- ticker: CRM
+  company_name: SALESFORCE, INC.
+  provider_company_id: bd894082fd352970647a92c1df99881c
+  cik: 0001108524
+  sector: Information Technology
+  tier: major
+- ticker: CVX
+  company_name: CHEVRON CORP
+  provider_company_id: 08cbcbca1fc39748660d8d36bb626500
+  cik: 0000093410
+  sector: Energy
+  tier: major
+- ticker: DIS
+  company_name: WALT DISNEY CO
+  provider_company_id: c78f2872321b60ff3fa49ada08125976
+  cik: 0001744489
+  sector: Communication Services
+  tier: major
+- ticker: GE
+  company_name: GENERAL ELECTRIC CO
+  provider_company_id: 5477805a8d1d1a891997fdb23940dec4
+  cik: '0000040545'
+  sector: Industrials
+  tier: major
+- ticker: GS
+  company_name: GOLDMAN SACHS GROUP INC
+  provider_company_id: 16b8b3d1cf68327f043f2828a308bb2b
+  cik: 0000886982
+  sector: Financials
+  tier: major
+- ticker: HD
+  company_name: HOME DEPOT, INC.
+  provider_company_id: 20d74b93038d934d279f5018dfeab566
+  cik: 0000354950
+  sector: Consumer Discretionary
+  tier: major
+- ticker: HON
+  company_name: HONEYWELL INTERNATIONAL INC
+  provider_company_id: 065bb5fb539b0088c252b64eb3238b9a
+  cik: 0000773840
+  sector: Industrials
+  tier: major
+- ticker: IBM
+  company_name: INTERNATIONAL BUSINESS MACHINES CORP
+  provider_company_id: 08391471747f5b9c97c4ec1b8b1cc389
+  cik: '0000051143'
+  sector: Information Technology
+  tier: major
+- ticker: JNJ
+  company_name: JOHNSON & JOHNSON
+  provider_company_id: bd9c926b9a88a238a0ff54be08a9ec7d
+  cik: '0000200406'
+  sector: Healthcare
+  tier: major
+- ticker: JPM
+  company_name: JPMORGAN CHASE & CO
+  provider_company_id: 23525aaf57004d0109af27c0476ed582
+  cik: 0000019617
+  sector: Financials
+  tier: major
+- ticker: KO
+  company_name: COCA COLA CO
+  provider_company_id: cf56194869c92a1a3b1471e74eb596e6
+  cik: '0000021344'
+  sector: Consumer Staples
+  tier: major
+- ticker: MA
+  company_name: MASTERCARD INC
+  provider_company_id: 4b0db043c6fc123bbcff2427f592c1f7
+  cik: 0001141391
+  sector: Financials
+  tier: major
+- ticker: MCD
+  company_name: MCDONALDS CORP
+  provider_company_id: d06d310eb441913b0e7491ea0ab7b7a7
+  cik: 0000063908
+  sector: Consumer Discretionary
+  tier: major
+- ticker: META
+  company_name: META PLATFORMS, INC.
+  provider_company_id: ab379e8e0b5beed5fb6053e34e5c20f5
+  cik: 0001326801
+  sector: Communication Services
+  tier: major
+- ticker: MMM
+  company_name: 3M CO
+  provider_company_id: d4b5a9265d9060a018829797de5e5b55
+  cik: '0000066740'
+  sector: Industrials
+  tier: major
+- ticker: MRK
+  company_name: MERCK & CO., INC.
+  provider_company_id: 6fdd33c17560666c2938b7fb60c6e1d1
+  cik: 0000310158
+  sector: Healthcare
+  tier: major
+- ticker: NFLX
+  company_name: NETFLIX INC
+  provider_company_id: db2f01cb35f46c6be97dbf391a143572
+  cik: 0001065280
+  sector: Communication Services
+  tier: major
+- ticker: NKE
+  company_name: NIKE, INC.
+  provider_company_id: 3894632f0ef9f020ea609701d68ee1a0
+  cik: 0000320187
+  sector: Consumer Discretionary
+  tier: major
+- ticker: PEP
+  company_name: PEPSICO INC
+  provider_company_id: 1146156f378520a0c016c884431e8361
+  cik: '0000077476'
+  sector: Consumer Staples
+  tier: major
+- ticker: PFE
+  company_name: PFIZER INC
+  provider_company_id: 2504b4544c6fa9591220676dbd4800f3
+  cik: 0000078003
+  sector: Healthcare
+  tier: major
+- ticker: PG
+  company_name: PROCTER & GAMBLE CO
+  provider_company_id: efff2e4e63cd1c6744b1b60544f1b08f
+  cik: 0000080424
+  sector: Consumer Staples
+  tier: major
+- ticker: RTX
+  company_name: RTX CORP
+  provider_company_id: f2a507315f1e348ada4b39d295f787c6
+  cik: 0000101829
+  sector: Industrials
+  tier: major
+- ticker: TMO
+  company_name: THERMO FISHER SCIENTIFIC INC.
+  provider_company_id: 003eb2b65f0d8ce5298bc1c4298a99f3
+  cik: 0000097745
+  sector: Healthcare
+  tier: major
+- ticker: TSLA
+  company_name: TESLA, INC.
+  provider_company_id: b1e8d2d49d41f1e194dce9e2492553a2
+  cik: 0001318605
+  sector: Consumer Discretionary
+  tier: major
+- ticker: UPS
+  company_name: UNITED PARCEL SERVICE INC
+  provider_company_id: d2d38a33a63c33a38a567435516efb40
+  cik: 0001090727
+  sector: Industrials
+  tier: major
+- ticker: V
+  company_name: VISA INC.
+  provider_company_id: 2af6dd0f1722e0932d070172539035cb
+  cik: '0001403161'
+  sector: Financials
+  tier: major
+- ticker: VZ
+  company_name: VERIZON COMMUNICATIONS INC
+  provider_company_id: 5fdfa3a85e7855ee604954dc4555ca69
+  cik: '0000732712'
+  sector: Communication Services
+  tier: major
+- ticker: WMT
+  company_name: WALMART INC.
+  provider_company_id: 960989974008dcda4b78eed24a8dfd79
+  cik: 0000104169
+  sector: Consumer Staples
+  tier: major
+- ticker: ABBV
+  company_name: ABBVIE INC.
+  provider_company_id: bed33a415019b73b323407510571b44b
+  cik: '0001551152'
+  sector: Healthcare
+  tier: additional
+- ticker: ACN
+  company_name: ACCENTURE PLC
+  provider_company_id: 6dd20bd08f395569ae637fb55d268e9a
+  cik: '0001467373'
+  sector: Information Technology
+  tier: additional
+- ticker: AMGN
+  company_name: AMGEN INC
+  provider_company_id: b8eb503baf67da0d656418f26d86a247
+  cik: 0000318154
+  sector: Healthcare
+  tier: additional
+- ticker: AXP
+  company_name: AMERICAN EXPRESS CO
+  provider_company_id: c215acdc7197fa4724d1f021fdd70b2e
+  cik: 0000004962
+  sector: Financials
+  tier: additional
+- ticker: BLK
+  company_name: BLACKROCK, INC.
+  provider_company_id: aaa6fa94007b48fd4da6d273546b7cc5
+  cik: 0002012383
+  sector: Financials
+  tier: additional
+- ticker: BMY
+  company_name: BRISTOL MYERS SQUIBB CO
+  provider_company_id: 1f067fb3fa6f230c4ed58948d667225a
+  cik: '0000014272'
+  sector: Healthcare
+  tier: additional
+- ticker: C
+  company_name: CITIGROUP INC
+  provider_company_id: 28603c252e64cb45a30b5c40efddba18
+  cik: 0000831001
+  sector: Financials
+  tier: additional
+- ticker: CMCSA
+  company_name: COMCAST CORP
+  provider_company_id: cfa580e9411379ead0ee52747ab10f0f
+  cik: 0001166691
+  sector: Communication Services
+  tier: additional
+- ticker: COP
+  company_name: CONOCOPHILLIPS
+  provider_company_id: e4678ce6da016a603d7646feb4473776
+  cik: '0001163165'
+  sector: Energy
+  tier: additional
+- ticker: CSCO
+  company_name: CISCO SYSTEMS INC
+  provider_company_id: f41bca735f7d5bb1632f38397a005040
+  cik: 0000858877
+  sector: Information Technology
+  tier: additional
+- ticker: DE
+  company_name: DEERE & CO
+  provider_company_id: 13b9e4c3888fb26f28f7d66ddc2d3d71
+  cik: 0000315189
+  sector: Industrials
+  tier: additional
+- ticker: GILD
+  company_name: GILEAD SCIENCES, INC.
+  provider_company_id: ed34f0e78d4ee741356045ac3f8939df
+  cik: 0000882095
+  sector: Healthcare
+  tier: additional
+- ticker: INTU
+  company_name: INTUIT INC.
+  provider_company_id: 0cee4af2a74f2156d5c041655d171006
+  cik: 0000896878
+  sector: Information Technology
+  tier: additional
+- ticker: LLY
+  company_name: ELI LILLY & CO
+  provider_company_id: a1f97674b098caf30e9b61b98e06ea49
+  cik: 0000059478
+  sector: Healthcare
+  tier: additional
+- ticker: LMT
+  company_name: LOCKHEED MARTIN CORP
+  provider_company_id: a533e245225fe0c914004e378f369224
+  cik: 0000936468
+  sector: Industrials
+  tier: additional
+- ticker: LOW
+  company_name: LOWES COMPANIES INC
+  provider_company_id: 9d39036436c25d64d45efc7a12a41ff9
+  cik: '0000060667'
+  sector: Consumer Discretionary
+  tier: additional
+- ticker: MO
+  company_name: ALTRIA GROUP, INC.
+  provider_company_id: 07a650ec3d64b0309afa6be95872f5be
+  cik: 0000764180
+  sector: Consumer Staples
+  tier: additional
+- ticker: NOW
+  company_name: SERVICENOW, INC.
+  provider_company_id: 4e2ddb5d8358fd82e6b71be0dcf6f02e
+  cik: '0001373715'
+  sector: Information Technology
+  tier: additional
+- ticker: ORCL
+  company_name: ORACLE CORP
+  provider_company_id: 55e0983aa1cd07da5580c6c6069e6b67
+  cik: 0001341439
+  sector: Information Technology
+  tier: additional
+- ticker: PM
+  company_name: PHILIP MORRIS INTERNATIONAL INC.
+  provider_company_id: f0b74ca7f8422c56abc878bbbfce8675
+  cik: 0001413329
+  sector: Consumer Staples
+  tier: additional
+- ticker: SBUX
+  company_name: STARBUCKS CORP
+  provider_company_id: 0977f0d1649a6eb6d1c1a95b6a967bde
+  cik: 0000829224
+  sector: Consumer Discretionary
+  tier: additional
+- ticker: SCHW
+  company_name: SCHWAB CHARLES CORP
+  provider_company_id: 1d82f5e406753c1e980247597d8c0946
+  cik: 0000316709
+  sector: Financials
+  tier: additional
+- ticker: T
+  company_name: AT&T INC.
+  provider_company_id: ec93708b0ebab2ca2cb98b43bfb695f4
+  cik: '0000732717'
+  sector: Communication Services
+  tier: additional
+- ticker: TGT
+  company_name: TARGET CORP
+  provider_company_id: e308587f750017801f5df278c74eae5a
+  cik: 0000027419
+  sector: Consumer Discretionary
+  tier: additional
+- ticker: TMUS
+  company_name: T-MOBILE US, INC.
+  provider_company_id: 8db7e0f28fc9707b06afcba0c45b24f3
+  cik: 0001283699
+  sector: Communication Services
+  tier: additional
+- ticker: TXN
+  company_name: TEXAS INSTRUMENTS INC
+  provider_company_id: 94b4acfb3b974d8a7a8d28b3c1b6458b
+  cik: 0000097476
+  sector: Information Technology
+  tier: additional
+- ticker: UNH
+  company_name: UNITEDHEALTH GROUP INC
+  provider_company_id: d7327699823b42ebf25763acb8fe2205
+  cik: '0000731766'
+  sector: Healthcare
+  tier: additional
+- ticker: UNP
+  company_name: UNION PACIFIC CORP
+  provider_company_id: 8a47cbfea6e5eef94e50408174059610
+  cik: 0000100885
+  sector: Industrials
+  tier: additional
+- ticker: WFC
+  company_name: WELLS FARGO & COMPANY/MN
+  provider_company_id: 5bea05cafd8529c8d75f5209f36ed393
+  cik: 0000072971
+  sector: Financials
+  tier: additional
+- ticker: XOM
+  company_name: EXXON MOBIL CORP
+  provider_company_id: 1a8f6bfe3e62cee3474fa4b5c4e30c95
+  cik: 0000034088
+  sector: Energy
+  tier: additional
+- ticker: F
+  company_name: FORD MOTOR CO
+  provider_company_id: f92ae9cf8d2cc81603f73a5ed8adcc09
+  cik: 0000037996
+  sector: Consumer Discretionary
+  tier: supply_chain
+- ticker: GM
+  company_name: GENERAL MOTORS CO
+  provider_company_id: ac4dbec3bea72f9baee1526c93bf65e9
+  cik: 0001467858
+  sector: Consumer Discretionary
+  tier: supply_chain
+- ticker: AA
+  company_name: ALCOA CORP
+  provider_company_id: 3386854c80f5a10e79cc8959ee93080e
+  cik: 0001675149
+  sector: Materials
+  tier: expanded
+- ticker: AAL
+  company_name: AMERICAN AIRLINES GROUP INC.
+  provider_company_id: 0fe898254ffadfb4b8b418a82e28c0d6
+  cik: '0000006201'
+  sector: Industrials
+  tier: expanded
+- ticker: AAOI
+  company_name: APPLIED OPTOELECTRONICS, INC.
+  provider_company_id: d7f1a75c988763dd7619c0af840f03a0
+  cik: 0001158114
+  sector: Information Technology
+  tier: expanded
+- ticker: ABCL
+  company_name: ABCELLERA BIOLOGICS INC.
+  provider_company_id: a7644ab11ab12ed0d29d0b4a95cfdf81
+  cik: '0001703057'
+  sector: Healthcare
+  tier: expanded
+- ticker: ABEV
+  company_name: AMBEV S.A.
+  provider_company_id: c17a947850193500feb60615d91cb6c8
+  cik: '0001565025'
+  sector: Consumer Staples
+  tier: expanded
+- ticker: ABNB
+  company_name: AIRBNB, INC.
+  provider_company_id: 0878de75af2f296b0c2f5b75d032e6bd
+  cik: 0001559720
+  sector: Information Technology
+  tier: expanded
+- ticker: ACAD
+  company_name: ACADIA PHARMACEUTICALS INC
+  provider_company_id: 251cef22dacfcb30e44fdfd4e6afa542
+  cik: 0001070494
+  sector: Healthcare
+  tier: expanded
+- ticker: ACGL
+  company_name: ARCH CAPITAL GROUP LTD.
+  provider_company_id: 018ea81f5f5f368e40a6a727c83e0010
+  cik: 0000947484
+  sector: Financials
+  tier: expanded
+- ticker: ACHR
+  company_name: ARCHER AVIATION INC.
+  provider_company_id: d707a372369726ebf35961b23d25b7ee
+  cik: 0001824502
+  sector: Industrials
+  tier: expanded
+- ticker: ADI
+  company_name: ANALOG DEVICES INC
+  provider_company_id: 14ccb918bf6714910dd3cf6a1069e1c1
+  cik: 0000006281
+  sector: Information Technology
+  tier: expanded
+- ticker: ADMA
+  company_name: ADMA BIOLOGICS, INC.
+  provider_company_id: 2746f9887fd50522cb3b0d3926f84a82
+  cik: 0001368514
+  sector: Healthcare
+  tier: expanded
+- ticker: ADP
+  company_name: AUTOMATIC DATA PROCESSING INC
+  provider_company_id: 1bd7a8bd3575a3f59e9636b1d07da100
+  cik: 0000008670
+  sector: Information Technology
+  tier: expanded
+- ticker: ADSK
+  company_name: AUTODESK, INC.
+  provider_company_id: 75730ef9ab608408d65067be036bd3bd
+  cik: 0000769397
+  sector: Information Technology
+  tier: expanded
+- ticker: AEO
+  company_name: AMERICAN EAGLE OUTFITTERS INC
+  provider_company_id: e61a5760b2c790962ea9fec3d2a2e8e4
+  cik: 0000919012
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: AEP
+  company_name: AMERICAN ELECTRIC POWER CO INC
+  provider_company_id: 8b2c58e6f84737604b141d64af6c61df
+  cik: 0000004904
+  sector: Utilities
+  tier: expanded
+- ticker: AES
+  company_name: AES CORP
+  provider_company_id: a33fb662dca5b762f407393c476c3be3
+  cik: 0000874761
+  sector: Industrials
+  tier: expanded
+- ticker: AFRM
+  company_name: AFFIRM HOLDINGS, INC.
+  provider_company_id: d22a3d44e8f3b33605428b2667442750
+  cik: 0001820953
+  sector: Financials
+  tier: expanded
+- ticker: AI
+  company_name: C3.AI, INC.
+  provider_company_id: a8147d80ef18d37b29ec5e819e532ee2
+  cik: '0001577526'
+  sector: Information Technology
+  tier: expanded
+- ticker: AKAM
+  company_name: AKAMAI TECHNOLOGIES INC
+  provider_company_id: 3c7f71195317b57674a6ee979c3ae2e4
+  cik: 0001086222
+  sector: Information Technology
+  tier: expanded
+- ticker: AKBA
+  company_name: AKEBIA THERAPEUTICS, INC.
+  provider_company_id: 008e25ff8585ce55fe6600d2e90cc6a8
+  cik: '0001517022'
+  sector: Healthcare
+  tier: expanded
+- ticker: ALAB
+  company_name: ASTERA LABS, INC.
+  provider_company_id: c670648ac22471c4a4ad4c84b876abfc
+  cik: 0001736297
+  sector: Information Technology
+  tier: expanded
+- ticker: ALGM
+  company_name: ALLEGRO MICROSYSTEMS, INC.
+  provider_company_id: c9fb27c0f41d31677c4e5cba106d077b
+  cik: 0000866291
+  sector: Information Technology
+  tier: expanded
+- ticker: ALKS
+  company_name: ALKERMES PLC.
+  provider_company_id: d9beecaad5b14ed5babade6bd29c76c2
+  cik: '0001520262'
+  sector: Healthcare
+  tier: expanded
+- ticker: AMAT
+  company_name: APPLIED MATERIALS INC /DE
+  provider_company_id: 8fdbe24288403aa3753e93bc90d81238
+  cik: 0000006951
+  sector: Information Technology
+  tier: expanded
+- ticker: AMC
+  company_name: AMC ENTERTAINMENT HOLDINGS, INC.
+  provider_company_id: 42ccea9afbddc44e40ac93955827b90f
+  cik: 0001411579
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: AMCR
+  company_name: AMCOR PLC
+  provider_company_id: 7b3cc4dff57d37b071bf13e58ec5093f
+  cik: 0001748790
+  sector: Industrials
+  tier: expanded
+- ticker: AMKR
+  company_name: AMKOR TECHNOLOGY, INC.
+  provider_company_id: e8a2c8b744f04689ccc1c6f09503d912
+  cik: '0001047127'
+  sector: Information Technology
+  tier: expanded
+- ticker: APA
+  company_name: APA CORP
+  provider_company_id: 41f7ae929d4567766c1049039e2ee8fc
+  cik: 0001841666
+  sector: Energy
+  tier: expanded
+- ticker: APH
+  company_name: AMPHENOL CORP /DE/
+  provider_company_id: 3089d85c1864f4ae43e4e90829790f0b
+  cik: 0000820313
+  sector: Information Technology
+  tier: expanded
+- ticker: APLD
+  company_name: APPLIED DIGITAL CORP.
+  provider_company_id: 00774ffc27e2d2bef6746f16eb61f98e
+  cik: 0001144879
+  sector: Information Technology
+  tier: expanded
+- ticker: APLS
+  company_name: APELLIS PHARMACEUTICALS, INC.
+  provider_company_id: b73173522aac131244647def1b15c262
+  cik: 0001492422
+  sector: Healthcare
+  tier: expanded
+- ticker: APP
+  company_name: APPLOVIN CORP
+  provider_company_id: 6a830084a8b66de85dfed895d9423904
+  cik: 0001751008
+  sector: Information Technology
+  tier: expanded
+- ticker: AR
+  company_name: ANTERO RESOURCES CORP
+  provider_company_id: 4c92dde2210d3dcc953caa343e39899e
+  cik: '0001433270'
+  sector: Energy
+  tier: expanded
+- ticker: ARDX
+  company_name: ARDELYX, INC.
+  provider_company_id: 61a0d132a4f68cae8ab32e34b0825f05
+  cik: '0001437402'
+  sector: Healthcare
+  tier: expanded
+- ticker: ARM
+  company_name: ARM HOLDINGS PLC /UK
+  provider_company_id: 20f415172ac18f673760e880667b6223
+  cik: 0001973239
+  sector: Information Technology
+  tier: expanded
+- ticker: ARQT
+  company_name: ARCUTIS BIOTHERAPEUTICS, INC.
+  provider_company_id: 04e97899e00802341444478c8af92b93
+  cik: 0001787306
+  sector: Healthcare
+  tier: expanded
+- ticker: ARRY
+  company_name: ARRAY TECHNOLOGIES, INC.
+  provider_company_id: bf4d24d2791b3d63db53b6a49e66b4ed
+  cik: 0001820721
+  sector: Information Technology
+  tier: expanded
+- ticker: ASO
+  company_name: ACADEMY SPORTS & OUTDOORS, INC.
+  provider_company_id: ec5f230bb1a1b3a0d4878f3d94d666c5
+  cik: 0001817358
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: ASTS
+  company_name: AST SPACEMOBILE, INC.
+  provider_company_id: 0984a4cb7274c530c2e42811e5a319cf
+  cik: 0001780312
+  sector: Communication Services
+  tier: expanded
+- ticker: ASX
+  company_name: ASE TECHNOLOGY HOLDING CO., LTD.
+  provider_company_id: 64ad39037b11b23475c5e0aa2f91ea34
+  cik: '0001122411'
+  sector: Information Technology
+  tier: expanded
+- ticker: AUR
+  company_name: AURORA INNOVATION, INC.
+  provider_company_id: da3841b06641f27c08671d2faf837543
+  cik: 0001828108
+  sector: Information Technology
+  tier: expanded
+- ticker: AVTR
+  company_name: AVANTOR, INC.
+  provider_company_id: 164c3a106b5967a862a927a68c14c901
+  cik: 0001722482
+  sector: Industrials
+  tier: expanded
+- ticker: AZN
+  company_name: ASTRAZENECA PLC
+  provider_company_id: c28632daa2509331085bec2e3959aeb0
+  cik: 0000901832
+  sector: Healthcare
+  tier: expanded
+- ticker: BABA
+  company_name: ALIBABA GROUP HOLDING LTD
+  provider_company_id: 50dc4c626b729966bb7cb51748c421d8
+  cik: '0001577552'
+  sector: Information Technology
+  tier: expanded
+- ticker: BB
+  company_name: BLACKBERRY LTD
+  provider_company_id: 091ad2d735365ca83e828c06aba72185
+  cik: '0001070235'
+  sector: Information Technology
+  tier: expanded
+- ticker: BBAI
+  company_name: BIGBEAR.AI HOLDINGS, INC.
+  provider_company_id: afc3214d7cdd77366eb0ce868279b986
+  cik: 0001836981
+  sector: Information Technology
+  tier: expanded
+- ticker: BBD
+  company_name: BANK BRADESCO
+  provider_company_id: 1ce9bd78310f6c64e3b91c5cca62953e
+  cik: '0001160330'
+  sector: Financials
+  tier: expanded
+- ticker: BBIO
+  company_name: BRIDGEBIO PHARMA, INC.
+  provider_company_id: b61db1a7a4d761f9331ea911bffd959d
+  cik: 0001743881
+  sector: Healthcare
+  tier: expanded
+- ticker: BBWI
+  company_name: BATH & BODY WORKS, INC.
+  provider_company_id: 558b4e48b99164b79f3cae830167bb75
+  cik: 0000701985
+  sector: Industrials
+  tier: expanded
+- ticker: BCRX
+  company_name: BIOCRYST PHARMACEUTICALS INC
+  provider_company_id: 2f905f4c7f387abe41909984eed6ad92
+  cik: 0000882796
+  sector: Healthcare
+  tier: expanded
+- ticker: BCS
+  company_name: BARCLAYS PLC
+  provider_company_id: 85dbcdeb7d0568c5ec579df81fb2c179
+  cik: 0000312069
+  sector: Financials
+  tier: expanded
+- ticker: BE
+  company_name: BLOOM ENERGY CORP
+  provider_company_id: 9400492f402ac83372df106ddeb1327d
+  cik: '0001664703'
+  sector: Industrials
+  tier: expanded
+- ticker: BEKE
+  company_name: KE HOLDINGS INC.
+  provider_company_id: c0b4a5f4828be9a73022479c46a1fe1a
+  cik: 0001809587
+  sector: Real Estate
+  tier: expanded
+- ticker: BGC
+  company_name: BGC GROUP, INC.
+  provider_company_id: 8313bd7f026b2c7cd52d9cfed7273b10
+  cik: 0001094831
+  sector: Financials
+  tier: expanded
+- ticker: BIDU
+  company_name: BAIDU, INC.
+  provider_company_id: 75b9bf943c15a74fb3aa94c0a63f3c50
+  cik: 0001329099
+  sector: Information Technology
+  tier: expanded
+- ticker: BILI
+  company_name: BILIBILI INC.
+  provider_company_id: 739a13809713578fb7020d25e5b42f8d
+  cik: 0001723690
+  sector: Information Technology
+  tier: expanded
+- ticker: BK
+  company_name: BANK OF NEW YORK MELLON CORP
+  provider_company_id: b63b8298f1f70490ec01bdf377dc83e2
+  cik: 0001390777
+  sector: Financials
+  tier: expanded
+- ticker: BKR
+  company_name: BAKER HUGHES CO
+  provider_company_id: 4d4243c66432202471347b3d3403eeed
+  cik: '0001701605'
+  sector: Industrials
+  tier: expanded
+- ticker: BLMN
+  company_name: BLOOMIN' BRANDS, INC.
+  provider_company_id: e29bbe8007fcd78d037d9b407cb6b2b3
+  cik: '0001546417'
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: BMRN
+  company_name: BIOMARIN PHARMACEUTICAL INC
+  provider_company_id: 2cc92deb395ece503d3f991905bd2a20
+  cik: 0001048477
+  sector: Healthcare
+  tier: expanded
+- ticker: BP
+  company_name: BP PLC
+  provider_company_id: 53dfcb9266399dd25f76f673cab558a2
+  cik: 0000313807
+  sector: Energy
+  tier: expanded
+- ticker: BSX
+  company_name: BOSTON SCIENTIFIC CORP
+  provider_company_id: c1a5e48d3ca0d1c6acb895168a97e58e
+  cik: 0000885725
+  sector: Healthcare
+  tier: expanded
+- ticker: BTDR
+  company_name: BITDEER TECHNOLOGIES GROUP
+  provider_company_id: 711437aecaded70456108feb8407705f
+  cik: 0001899123
+  sector: Financials
+  tier: expanded
+- ticker: BTI
+  company_name: BRITISH AMERICAN TOBACCO P.L.C.
+  provider_company_id: 49f70398307ba5e32dc7395963756407
+  cik: '0001303523'
+  sector: Consumer Staples
+  tier: expanded
+- ticker: BTSG
+  company_name: BRIGHTSPRING HEALTH SERVICES, INC.
+  provider_company_id: 93d9a274f8d85db319e0211a3f6c76bd
+  cik: 0001865782
+  sector: Healthcare
+  tier: expanded
+- ticker: BZ
+  company_name: KANZHUN LTD
+  provider_company_id: 6725d559ed6c4131228268516f2b2ee3
+  cik: 0001842827
+  sector: Information Technology
+  tier: expanded
+- ticker: CAG
+  company_name: CONAGRA BRANDS INC.
+  provider_company_id: 28efd3e6916f3f378f1018dce5e07279
+  cik: '0000023217'
+  sector: Consumer Staples
+  tier: expanded
+- ticker: CARR
+  company_name: CARRIER GLOBAL CORP
+  provider_company_id: e4dfded93c2ae357a7260b7b78aa2db6
+  cik: 0001783180
+  sector: Industrials
+  tier: expanded
+- ticker: CART
+  company_name: MAPLEBEAR INC.
+  provider_company_id: 23f29f0a881c7c0baaff84edbc815a1d
+  cik: 0001579091
+  sector: Information Technology
+  tier: expanded
+- ticker: CCEP
+  company_name: COCA-COLA EUROPACIFIC PARTNERS PLC
+  provider_company_id: 9727affa02a55d7a4933533d9dae602d
+  cik: '0001650107'
+  sector: Consumer Staples
+  tier: expanded
+- ticker: CCL
+  company_name: CARNIVAL CORP
+  provider_company_id: 63c71028cb1c51a029d1f96301ad6120
+  cik: 0000815097
+  sector: Industrials
+  tier: expanded
+- ticker: CDE
+  company_name: COEUR MINING, INC.
+  provider_company_id: 98cbc414da7552b4a4237153f9935dba
+  cik: '0000215466'
+  sector: Materials
+  tier: expanded
+- ticker: CDNS
+  company_name: CADENCE DESIGN SYSTEMS INC
+  provider_company_id: df5081d39ef7bd07438a7352e1469fa4
+  cik: 0000813672
+  sector: Information Technology
+  tier: expanded
+- ticker: CEG
+  company_name: CONSTELLATION ENERGY CORP
+  provider_company_id: 3e93ce54c290510b4cc3700e7bed0f31
+  cik: 0001868275
+  sector: Utilities
+  tier: expanded
+- ticker: CELH
+  company_name: CELSIUS HOLDINGS, INC.
+  provider_company_id: 3e3f368bf19108284c383533bfaddc80
+  cik: '0001341766'
+  sector: Consumer Staples
+  tier: expanded
+- ticker: CENX
+  company_name: CENTURY ALUMINUM CO
+  provider_company_id: 8319fa510a885ea9131fa4e24251d6a1
+  cik: 0000949157
+  sector: Materials
+  tier: expanded
+- ticker: CFG
+  company_name: CITIZENS FINANCIAL GROUP INC/RI
+  provider_company_id: 9e56149ef9fdd27b64cf29f83d7cfebe
+  cik: 0000759944
+  sector: Financials
+  tier: expanded
+- ticker: CG
+  company_name: CARLYLE GROUP INC.
+  provider_company_id: 2d3324e5c16356bf3308ee90d3ac2564
+  cik: '0001527166'
+  sector: Financials
+  tier: expanded
+- ticker: CHRW
+  company_name: C. H. ROBINSON WORLDWIDE, INC.
+  provider_company_id: 9452bb99e962c866b4371e3156108407
+  cik: '0001043277'
+  sector: Industrials
+  tier: expanded
+- ticker: CHWY
+  company_name: CHEWY, INC.
+  provider_company_id: 890b6653949c909c52468e4e30525eeb
+  cik: '0001766502'
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: CIFR
+  company_name: CIPHER DIGITAL INC.
+  provider_company_id: ec4836b653be25b83cccba861be08587
+  cik: 0001819989
+  sector: Financials
+  tier: expanded
+- ticker: CLF
+  company_name: CLEVELAND-CLIFFS INC.
+  provider_company_id: a6353af3ca8ea52406729b8a42c684a7
+  cik: '0000764065'
+  sector: Materials
+  tier: expanded
+- ticker: CLOV
+  company_name: CLOVER HEALTH INVESTMENTS, CORP. /DE
+  provider_company_id: 3c5c45ddc50deae90c354170a8b88c1f
+  cik: 0001801170
+  sector: Financials
+  tier: expanded
+- ticker: CLSK
+  company_name: CLEANSPARK, INC.
+  provider_company_id: 7c6b5ae8c9824feb1ff33aa0cb7051d4
+  cik: 0000827876
+  sector: Financials
+  tier: expanded
+- ticker: CME
+  company_name: CME GROUP INC.
+  provider_company_id: 81b93846ad9bd31525dd25860edfed08
+  cik: '0001156375'
+  sector: Financials
+  tier: expanded
+- ticker: CMG
+  company_name: CHIPOTLE MEXICAN GRILL INC
+  provider_company_id: b30bb81aa4ef8b05d4ecc9b759ba4896
+  cik: 0001058090
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: CNC
+  company_name: CENTENE CORP
+  provider_company_id: 4e2b072eadba96e883c5c38ad31b2fe9
+  cik: 0001071739
+  sector: Financials
+  tier: expanded
+- ticker: COIN
+  company_name: COINBASE GLOBAL, INC.
+  provider_company_id: 286b5b5f2c804efaec8ca2c910157c97
+  cik: 0001679788
+  sector: Financials
+  tier: expanded
+- ticker: COLB
+  company_name: COLUMBIA BANKING SYSTEM, INC.
+  provider_company_id: 1a61b1641d07ed6f543b5030efc36d78
+  cik: 0000887343
+  sector: Financials
+  tier: expanded
+- ticker: COMP
+  company_name: COMPASS, INC.
+  provider_company_id: c05115aa16285407059742c81d9e4664
+  cik: 0001563190
+  sector: Real Estate
+  tier: expanded
+- ticker: CORZ
+  company_name: CORE SCIENTIFIC, INC./TX
+  provider_company_id: 2e976b184ec648fe88879fce7761e379
+  cik: 0001839341
+  sector: Financials
+  tier: expanded
+- ticker: COTY
+  company_name: COTY INC.
+  provider_company_id: 52aaa44ff4764bb10caf0567f2389ada
+  cik: '0001024305'
+  sector: Consumer Staples
+  tier: expanded
+- ticker: CPB
+  company_name: CAMPBELL'S CO
+  provider_company_id: c03086a9cf252860ab947aa9c328f99e
+  cik: '0000016732'
+  sector: Consumer Staples
+  tier: expanded
+- ticker: CPNG
+  company_name: COUPANG, INC.
+  provider_company_id: cfddb116171b27005d38b863f64bf3a1
+  cik: 0001834584
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: CPRT
+  company_name: COPART INC
+  provider_company_id: 875094b73be919cc42438dc39eb1aeba
+  cik: 0000900075
+  sector: Industrials
+  tier: expanded
+- ticker: CPRX
+  company_name: CATALYST PHARMACEUTICALS, INC.
+  provider_company_id: 6ea3f9e79ae6d648d5fba5e3f7d5d1d8
+  cik: 0001369568
+  sector: Healthcare
+  tier: expanded
+- ticker: CRDO
+  company_name: CREDO TECHNOLOGY GROUP HOLDING LTD
+  provider_company_id: 339c0da31829b23e54b5d4500912b278
+  cik: 0001807794
+  sector: Information Technology
+  tier: expanded
+- ticker: CRWD
+  company_name: CROWDSTRIKE HOLDINGS, INC.
+  provider_company_id: fc4044041d9db634805a157bd6b39bde
+  cik: '0001535527'
+  sector: Information Technology
+  tier: expanded
+- ticker: CSGP
+  company_name: COSTAR GROUP, INC.
+  provider_company_id: 9e28fcedf6a3d72a20c0f0a86c20970b
+  cik: '0001057352'
+  sector: Information Technology
+  tier: expanded
+- ticker: CSX
+  company_name: CSX CORP
+  provider_company_id: 5ea1ea6bcf21514d6031f9e7a0706c3e
+  cik: 0000277948
+  sector: Industrials
+  tier: expanded
+- ticker: CTRA
+  company_name: COTERRA ENERGY INC.
+  provider_company_id: 4ed807df8157c4ac242ef3c919969bdb
+  cik: 0000858470
+  sector: Energy
+  tier: expanded
+- ticker: CTSH
+  company_name: COGNIZANT TECHNOLOGY SOLUTIONS CORP
+  provider_company_id: 1069c981e5a9fbbbcd0b7ac8d7e94a39
+  cik: 0001058290
+  sector: Information Technology
+  tier: expanded
+- ticker: CVNA
+  company_name: CARVANA CO.
+  provider_company_id: 195c33153de9a30ba7aa4986e7df7c36
+  cik: 0001690820
+  sector: Industrials
+  tier: expanded
+- ticker: CVS
+  company_name: CVS HEALTH CORP
+  provider_company_id: fe57b31d0d463eb782387a2180b8af93
+  cik: 0000064803
+  sector: Consumer Staples
+  tier: expanded
+- ticker: CX
+  company_name: CEMEX SAB DE CV
+  provider_company_id: 79157829a602ec1c70881b9ba5a0b4fc
+  cik: 0001076378
+  sector: Materials
+  tier: expanded
+- ticker: CZR
+  company_name: CAESARS ENTERTAINMENT, INC.
+  provider_company_id: 8bb22c66248f696bca8c8ab92c3e7c6d
+  cik: 0001590895
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: DAL
+  company_name: DELTA AIR LINES, INC.
+  provider_company_id: 8b58916f2c83d554a244255c0febbddf
+  cik: 0000027904
+  sector: Industrials
+  tier: expanded
+- ticker: DASH
+  company_name: DOORDASH, INC.
+  provider_company_id: 1f9fb8a6a81133efe293f2801b107c0a
+  cik: 0001792789
+  sector: Information Technology
+  tier: expanded
+- ticker: DBX
+  company_name: DROPBOX, INC.
+  provider_company_id: 4bd6d3374d44e8a5fe95a70a45ad93e8
+  cik: '0001467623'
+  sector: Information Technology
+  tier: expanded
+- ticker: DDOG
+  company_name: DATADOG, INC.
+  provider_company_id: 0af2410148e6e4998bf9983e646c559d
+  cik: '0001561550'
+  sector: Information Technology
+  tier: expanded
+- ticker: DELL
+  company_name: DELL TECHNOLOGIES INC.
+  provider_company_id: a2731f6df1a2a4682226d90e330a3f43
+  cik: 0001571996
+  sector: Information Technology
+  tier: expanded
+- ticker: DJT
+  company_name: TRUMP MEDIA & TECHNOLOGY GROUP CORP.
+  provider_company_id: 9c15d3afd9d36e19b7d06469d77b6556
+  cik: 0001849635
+  sector: Information Technology
+  tier: expanded
+- ticker: DKNG
+  company_name: DRAFTKINGS INC.
+  provider_company_id: c6f40ff05a3ddf935f04f8b10b94c73c
+  cik: 0001883685
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: DLTR
+  company_name: DOLLAR TREE, INC.
+  provider_company_id: 09a903afd37a3a920b1cd295210fee09
+  cik: 0000935703
+  sector: Industrials
+  tier: expanded
+- ticker: DOCU
+  company_name: DOCUSIGN, INC.
+  provider_company_id: 529a02a6d45eb67ec266239ecf1e6f36
+  cik: '0001261333'
+  sector: Information Technology
+  tier: expanded
+- ticker: DOW
+  company_name: DOW INC.
+  provider_company_id: cf3547a5538c53ad33735a23948e56d2
+  cik: 0001751788
+  sector: Materials
+  tier: expanded
+- ticker: DVN
+  company_name: DEVON ENERGY CORP/DE
+  provider_company_id: c4022adc66c8a81068ba5d6b9c120e2e
+  cik: 0001090012
+  sector: Energy
+  tier: expanded
+- ticker: DXCM
+  company_name: DEXCOM INC
+  provider_company_id: da9b8682367d6e2d9eeaccbfffce9e3a
+  cik: 0001093557
+  sector: Healthcare
+  tier: expanded
+- ticker: EA
+  company_name: ELECTRONIC ARTS INC.
+  provider_company_id: fcb90498fd110d5e6d4168443b3624f2
+  cik: '0000712515'
+  sector: Information Technology
+  tier: expanded
+- ticker: EBAY
+  company_name: EBAY INC
+  provider_company_id: 85cebf88239210f08c182ce1c9c42582
+  cik: 0001065088
+  sector: Information Technology
+  tier: expanded
+- ticker: ELAN
+  company_name: ELANCO ANIMAL HEALTH INC
+  provider_company_id: 8957d8ad74f7ebaa19caa46ddead33f4
+  cik: 0001739104
+  sector: Healthcare
+  tier: expanded
+- ticker: ENPH
+  company_name: ENPHASE ENERGY, INC.
+  provider_company_id: 40dc0b560c5e37e718892d5e2abce0c9
+  cik: '0001463101'
+  sector: Information Technology
+  tier: expanded
+- ticker: ENTG
+  company_name: ENTEGRIS INC
+  provider_company_id: d6a1d52ea733410a90ac1ab7e6a9abf1
+  cik: '0001101302'
+  sector: Materials
+  tier: expanded
+- ticker: ENVX
+  company_name: ENOVIX CORP
+  provider_company_id: d2ffae54ebc715769d92f4b831a5385b
+  cik: 0001828318
+  sector: Industrials
+  tier: expanded
+- ticker: EQNR
+  company_name: EQUINOR ASA
+  provider_company_id: aebd09b16acd4325408e230dff53b92c
+  cik: '0001140625'
+  sector: Energy
+  tier: expanded
+- ticker: APX
+  company_name: APX RESOURCES
+  provider_company_id: 51f2e9e9d62d3561bd53929a18b8aea2
+  cik: '0000033213'
+  sector: Energy
+  tier: expanded
+- ticker: ERIC
+  company_name: ERICSSON LM TELEPHONE CO
+  provider_company_id: 59b610bd98e3df6f0f3b6d71f9492def
+  cik: 0000717826
+  sector: Information Technology
+  tier: expanded
+- ticker: ET
+  company_name: ENERGY TRANSFER LP
+  provider_company_id: 0eb32c6ecbbb0b62d99d613844235081
+  cik: 0001276187
+  sector: Energy
+  tier: expanded
+- ticker: ETRN
+  company_name: MIDSTREAM CO LLC
+  provider_company_id: fc7528b34641f44f46b8deb7e23681f9
+  cik: 0001747009
+  sector: Energy
+  tier: expanded
+- ticker: ETSY
+  company_name: ETSY INC
+  provider_company_id: 58d32b1ba948c7f71e0f98c886f60fde
+  cik: '0001370637'
+  sector: Information Technology
+  tier: expanded
+- ticker: EVRG
+  company_name: EVERGY, INC.
+  provider_company_id: 4840409f884a774ad31804f9088760db
+  cik: 0001711269
+  sector: Utilities
+  tier: expanded
+- ticker: EXAS
+  company_name: EXACT SCIENCES CORP
+  provider_company_id: 0a6521af392ddcf67eb7db5b38077fcc
+  cik: '0001124140'
+  sector: Healthcare
+  tier: expanded
+- ticker: EXC
+  company_name: EXELON CORP
+  provider_company_id: f5c5e1776989a68b635dddefd1b6a043
+  cik: 0001109357
+  sector: Utilities
+  tier: expanded
+- ticker: EXEL
+  company_name: EXELIXIS, INC.
+  provider_company_id: 530b2481f9a9c769fea4a2100f1db07d
+  cik: 0000939767
+  sector: Healthcare
+  tier: expanded
+- ticker: EXPE
+  company_name: EXPEDIA GROUP, INC.
+  provider_company_id: 1fd88d8f3f50e556f5f7142c2c594cef
+  cik: '0001324424'
+  sector: Industrials
+  tier: expanded
+- ticker: EXTR
+  company_name: EXTREME NETWORKS INC
+  provider_company_id: a99524cae19bbbe2383e29d50f0b68d3
+  cik: 0001078271
+  sector: Information Technology
+  tier: expanded
+- ticker: FANG
+  company_name: DIAMONDBACK ENERGY, INC.
+  provider_company_id: 70b6c590ef7eef4897e16a705f4f0d25
+  cik: 0001539838
+  sector: Energy
+  tier: expanded
+- ticker: FAST
+  company_name: FASTENAL CO
+  provider_company_id: b4c4cd37dfdd85be48a304da2e5d957c
+  cik: 0000815556
+  sector: Industrials
+  tier: expanded
+- ticker: FCX
+  company_name: FREEPORT-MCMORAN INC
+  provider_company_id: ac5d785baa0310ba079a6806b6507d80
+  cik: 0000831259
+  sector: Materials
+  tier: expanded
+- ticker: FHN
+  company_name: FIRST HORIZON CORP
+  provider_company_id: ddadd1654235d8f6a8594a9e1d2f305d
+  cik: 0000036966
+  sector: Financials
+  tier: expanded
+- ticker: FITB
+  company_name: FIFTH THIRD BANCORP
+  provider_company_id: 128a718083dc5673dc213bf635faec6b
+  cik: '0000035527'
+  sector: Financials
+  tier: expanded
+- ticker: FLEX
+  company_name: FLEX LTD.
+  provider_company_id: 4772b1778fac27d1ccdccb550d9f6744
+  cik: 0000866374
+  sector: Information Technology
+  tier: expanded
+- ticker: FOLD
+  company_name: AMICUS THERAPEUTICS, INC.
+  provider_company_id: bdcbf592e584686de1e4b93a4016087b
+  cik: 0001178879
+  sector: Healthcare
+  tier: expanded
+- ticker: FOXA
+  company_name: FOX CORP
+  provider_company_id: 3977f26064efaaa14e51ddad25ba226e
+  cik: '0001754301'
+  sector: Communication Services
+  tier: expanded
+- ticker: FRSH
+  company_name: FRESHWORKS INC.
+  provider_company_id: 86e926993285c44a2ff23f3660ac6f74
+  cik: '0001544522'
+  sector: Information Technology
+  tier: expanded
+- ticker: FSLR
+  company_name: FIRST SOLAR, INC.
+  provider_company_id: 0539fb5791ec9006ae7bbb89bd64707d
+  cik: 0001274494
+  sector: Information Technology
+  tier: expanded
+- ticker: FTI
+  company_name: TECHNIPFMC PLC
+  provider_company_id: 0e9b41745900b07fc1d60df8ea6c9600
+  cik: 0001681459
+  sector: Industrials
+  tier: expanded
+- ticker: FTNT
+  company_name: FORTINET, INC.
+  provider_company_id: f71897409868448abb1ff362dc33b1b4
+  cik: 0001262039
+  sector: Information Technology
+  tier: expanded
+- ticker: FUBO
+  company_name: FUBOTV INC.
+  provider_company_id: b740dd31652b8c86ace3aa389432ec77
+  cik: 0001484769
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: FULT
+  company_name: FULTON FINANCIAL CORP
+  provider_company_id: c39b8865ee04501e833cde642dc7455a
+  cik: '0000700564'
+  sector: Financials
+  tier: expanded
+- ticker: FUTU
+  company_name: FUTU HOLDINGS LTD
+  provider_company_id: 21c30db1eb5bff3405de52a69a2e19d4
+  cik: 0001754581
+  sector: Financials
+  tier: expanded
+- ticker: GBTC
+  company_name: GRAYSCALE BITCOIN TRUST ETF
+  provider_company_id: 53423052e8bb7668bbd718665c739476
+  cik: 0001588489
+  sector: Financials
+  tier: expanded
+- ticker: GEHC
+  company_name: GE HEALTHCARE TECHNOLOGIES INC.
+  provider_company_id: 5ddd47c4c3250d3d07d8af5bc97bd507
+  cik: 0001932393
+  sector: Healthcare
+  tier: expanded
+- ticker: GEN
+  company_name: GEN DIGITAL INC.
+  provider_company_id: 3c6e3a0c59b20b65949f49153abf6f1f
+  cik: 0000849399
+  sector: Information Technology
+  tier: expanded
+- ticker: GERN
+  company_name: GERON CORP
+  provider_company_id: b7bd2b3385f2fcaa3f38c509e1552b53
+  cik: 0000886744
+  sector: Healthcare
+  tier: expanded
+- ticker: GFI
+  company_name: GOLD FIELDS LTD
+  provider_company_id: 1d1117d7f340218a7e52a48feded3b31
+  cik: '0001172724'
+  sector: Materials
+  tier: expanded
+- ticker: GFS
+  company_name: GLOBALFOUNDRIES INC.
+  provider_company_id: ab71665767d8ee7d8bbce56406b4eabd
+  cik: 0001709048
+  sector: Information Technology
+  tier: expanded
+- ticker: GGB
+  company_name: GERDAU S.A.
+  provider_company_id: 0aacbf17078f9b9f43bed112a247f9de
+  cik: '0001073404'
+  sector: Materials
+  tier: expanded
+- ticker: GH
+  company_name: GUARDANT HEALTH, INC.
+  provider_company_id: f449e1fc03c3daf2f118ba2ca3fba33b
+  cik: 0001576280
+  sector: Healthcare
+  tier: expanded
+- ticker: GLD
+  company_name: SPDR GOLD TRUST
+  provider_company_id: ddeabb0cd3fac2dd7042e80b05189236
+  cik: '0001222333'
+  sector: Financials
+  tier: expanded
+- ticker: GLW
+  company_name: CORNING INC /NY
+  provider_company_id: 1aff71b6d7f0defb8d526a20b681e9dc
+  cik: '0000024741'
+  sector: Materials
+  tier: expanded
+- ticker: GME
+  company_name: GAMESTOP CORP.
+  provider_company_id: c68259bcc8c37bdc089de4804cbc2180
+  cik: 0001326380
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: GNTX
+  company_name: GENTEX CORP
+  provider_company_id: 35105cd148cb0791c850065671e6caee
+  cik: 0000355811
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: GO
+  company_name: GROCERY OUTLET HOLDING CORP.
+  provider_company_id: 6c21124432286326244ea25fa5f6254b
+  cik: '0001771515'
+  sector: Consumer Staples
+  tier: expanded
+- ticker: GRAB
+  company_name: GRAB HOLDINGS LTD
+  provider_company_id: 2402b6b6b527399327f0278d6edc74cc
+  cik: 0001855612
+  sector: Information Technology
+  tier: expanded
+- ticker: GSK
+  company_name: GSK PLC
+  provider_company_id: 60a2798bbdecdb37407d689087283063
+  cik: 0001131399
+  sector: Healthcare
+  tier: expanded
+- ticker: GT
+  company_name: GOODYEAR TIRE & RUBBER CO /OH/
+  provider_company_id: f0f4b29a04ed81c3424eff2cc2723a56
+  cik: 0000042582
+  sector: Materials
+  tier: expanded
+- ticker: GTLB
+  company_name: GITLAB INC.
+  provider_company_id: 5069b6719627f608bd49fc85609268a6
+  cik: 0001653482
+  sector: Information Technology
+  tier: expanded
+- ticker: HAL
+  company_name: HALLIBURTON CO
+  provider_company_id: fe1a60ddf3aec1d711529d14f0ff6cd5
+  cik: '0000045012'
+  sector: Energy
+  tier: expanded
+- ticker: HALO
+  company_name: HALOZYME THERAPEUTICS, INC.
+  provider_company_id: 1e0b9ec3c94b3c8da0cf908d4e77d75f
+  cik: 0001159036
+  sector: Healthcare
+  tier: expanded
+- ticker: HAS
+  company_name: HASBRO, INC.
+  provider_company_id: e6b06d576535390101386b329a1156f1
+  cik: 0000046080
+  sector: Industrials
+  tier: expanded
+- ticker: HBAN
+  company_name: HUNTINGTON BANCSHARES INC /MD/
+  provider_company_id: 3357ba3aa0e1674b4b1a9b81f5c93a6b
+  cik: 0000049196
+  sector: Financials
+  tier: expanded
+- ticker: HBI
+  company_name: HANESBRANDS INC.
+  provider_company_id: db09b3861f39e9f9e0e7fb3197f4a2e1
+  cik: 0001359841
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: HIMS
+  company_name: HIMS & HERS HEALTH, INC.
+  provider_company_id: 360718d06df7ed20f43a2ae092d28893
+  cik: '0001773751'
+  sector: Healthcare
+  tier: expanded
+- ticker: HL
+  company_name: HECLA MINING CO/DE/
+  provider_company_id: 624c33e8e78074ee66a92137a4e647fb
+  cik: 0000719413
+  sector: Materials
+  tier: expanded
+- ticker: HLN
+  company_name: HALEON PLC
+  provider_company_id: b88785171f39f829237c639ab80192dd
+  cik: 0001900304
+  sector: Consumer Staples
+  tier: expanded
+- ticker: HMY
+  company_name: HARMONY GOLD MINING CO LTD
+  provider_company_id: 7be6e4a9eb9df0c6cf06ad3805d21895
+  cik: '0001023514'
+  sector: Materials
+  tier: expanded
+- ticker: HOLX
+  company_name: HOLOGIC INC
+  provider_company_id: c3543c12cb4be66605a0e23bc44ce58f
+  cik: 0000859737
+  sector: Healthcare
+  tier: expanded
+- ticker: HOOD
+  company_name: ROBINHOOD MARKETS, INC.
+  provider_company_id: 0ecaf92415f6c36a32fff0bd16690ca1
+  cik: 0001783879
+  sector: Financials
+  tier: expanded
+- ticker: HPE
+  company_name: HEWLETT PACKARD ENTERPRISE CO
+  provider_company_id: 4ad937eb1e566067c8d1fcea9c4acbd7
+  cik: 0001645590
+  sector: Information Technology
+  tier: expanded
+- ticker: HPQ
+  company_name: HP INC
+  provider_company_id: 0562d0c3d8dc52726a8e04e6cb62723b
+  cik: '0000047217'
+  sector: Information Technology
+  tier: expanded
+- ticker: HTZ
+  company_name: HERTZ GLOBAL HOLDINGS, INC
+  provider_company_id: 3acfce53d6f5909d3ee47c349d19cdd7
+  cik: 0001657853
+  sector: Information Technology
+  tier: expanded
+- ticker: HUT
+  company_name: HUT 8 CORP.
+  provider_company_id: 44e8cf732e705bea2dec2ae3bda6344e
+  cik: 0001964789
+  sector: Financials
+  tier: expanded
+- ticker: IAU
+  company_name: ISHARES GOLD TRUST
+  provider_company_id: 64cd36c818a76e26c52650e5289cdf58
+  cik: 0001278680
+  sector: Financials
+  tier: expanded
+- ticker: IBIT
+  company_name: ISHARES BITCOIN TRUST ETF
+  provider_company_id: 4f78416765700bf0f325dd0bc6f291c2
+  cik: 0001980994
+  sector: Financials
+  tier: expanded
+- ticker: IBKR
+  company_name: INTERACTIVE BROKERS GROUP, INC.
+  provider_company_id: b7909021e0227cf64421fc80a7b99a22
+  cik: 0001381197
+  sector: Financials
+  tier: expanded
+- ticker: IBRX
+  company_name: IMMUNITYBIO, INC.
+  provider_company_id: d9ac0d32c7ad6719d2106b7df92df48a
+  cik: '0001326110'
+  sector: Healthcare
+  tier: expanded
+- ticker: ILMN
+  company_name: ILLUMINA, INC.
+  provider_company_id: c84b61f763ff35690f956faeb01f7252
+  cik: 0001110803
+  sector: Industrials
+  tier: expanded
+- ticker: INCY
+  company_name: INCYTE CORP
+  provider_company_id: 26ef3716e285fdf5705dceded3fdb055
+  cik: 0000879169
+  sector: Industrials
+  tier: expanded
+- ticker: INDI
+  company_name: INDIE SEMICONDUCTOR, INC.
+  provider_company_id: 36bde3b431ddaddb8dfbb045eec58f80
+  cik: 0001841925
+  sector: Information Technology
+  tier: expanded
+- ticker: INFY
+  company_name: INFOSYS LTD
+  provider_company_id: ae80d5e67b147609686280ac947d7f5c
+  cik: 0001067491
+  sector: Information Technology
+  tier: expanded
+- ticker: INSM
+  company_name: INSMED INC
+  provider_company_id: a091a22d2db0d89f7d9e4a1f6d26a988
+  cik: '0001104506'
+  sector: Healthcare
+  tier: expanded
+- ticker: IONQ
+  company_name: IONQ, INC.
+  provider_company_id: 344f6ba4dca46d0e5c0902b3d694ae54
+  cik: 0001824920
+  sector: Information Technology
+  tier: expanded
+- ticker: IQ
+  company_name: IQIYI, INC.
+  provider_company_id: 66ea23bd2031b76d3a458c7f0746c935
+  cik: 0001722608
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: IREN
+  company_name: IREN LTD
+  provider_company_id: b9a3d26f1751fa6abd8a090458b9d565
+  cik: 0001878848
+  sector: Financials
+  tier: expanded
+- ticker: ISRG
+  company_name: INTUITIVE SURGICAL INC
+  provider_company_id: 15db5a909c9b8cada166c4f8287e2b53
+  cik: '0001035267'
+  sector: Healthcare
+  tier: expanded
+- ticker: ITUB
+  company_name: ITAU UNIBANCO HOLDING S.A.
+  provider_company_id: 1c0dcea010edc9e2a1c986c03f316085
+  cik: 0001132597
+  sector: Financials
+  tier: expanded
+- ticker: IVZ
+  company_name: INVESCO LTD.
+  provider_company_id: f19840b2960d46b18607dc5b033d9d34
+  cik: 0000914208
+  sector: Financials
+  tier: expanded
+- ticker: JBLU
+  company_name: JETBLUE AIRWAYS CORP
+  provider_company_id: 39be289cf53b31c4280e2f3063b76f52
+  cik: 0001158463
+  sector: Industrials
+  tier: expanded
+- ticker: JD
+  company_name: JD.COM, INC.
+  provider_company_id: 0d3357805d55736e25c7a48d2b846ee8
+  cik: 0001549802
+  sector: Industrials
+  tier: expanded
+- ticker: JOBY
+  company_name: JOBY AVIATION, INC.
+  provider_company_id: 0c388d0cf0b1a37939816cc28b81d953
+  cik: 0001819848
+  sector: Industrials
+  tier: expanded
+- ticker: KC
+  company_name: KINGSOFT CLOUD HOLDINGS LTD
+  provider_company_id: 6e3aa8e4900f4b5322f05c9a347ad378
+  cik: 0001795589
+  sector: Information Technology
+  tier: expanded
+- ticker: KDP
+  company_name: KEURIG DR PEPPER INC.
+  provider_company_id: 30ec4f3f5c1f6ec5e9bfabd1945366c7
+  cik: 0001418135
+  sector: Consumer Staples
+  tier: expanded
+- ticker: KEY
+  company_name: KEYCORP /NEW/
+  provider_company_id: 4197c979c5a9e0238bc8ae950736aa03
+  cik: 0000091576
+  sector: Financials
+  tier: expanded
+- ticker: KHC
+  company_name: KRAFT HEINZ CO
+  provider_company_id: ba46fc6b5942e6559c8e40ccb6093d06
+  cik: 0001637459
+  sector: Consumer Staples
+  tier: expanded
+- ticker: KMI
+  company_name: KINDER MORGAN, INC.
+  provider_company_id: c27e9d6e7a4210753fbe7ee1cb5f87ff
+  cik: '0001506307'
+  sector: Energy
+  tier: expanded
+- ticker: KOS
+  company_name: KOSMOS ENERGY LTD.
+  provider_company_id: 6230a139f38104a75229d05272991d22
+  cik: 0001509991
+  sector: Energy
+  tier: expanded
+- ticker: KR
+  company_name: KROGER CO
+  provider_company_id: adaa64cfd6d8039a6e7d2be10cb6d164
+  cik: 0000056873
+  sector: Consumer Staples
+  tier: expanded
+- ticker: KSS
+  company_name: KOHLS CORP
+  provider_company_id: 41c141c735eb6a4466aee533d8be87bb
+  cik: 0000885639
+  sector: Industrials
+  tier: expanded
+- ticker: KTOS
+  company_name: KRATOS DEFENSE & SECURITY SOLUTIONS, INC.
+  provider_company_id: ce3c773c7a30c8665a89d3079421e23f
+  cik: 0001069258
+  sector: Industrials
+  tier: expanded
+- ticker: KVUE
+  company_name: KENVUE INC.
+  provider_company_id: fbc784691cdbbec30d686d257aa2275b
+  cik: 0001944048
+  sector: Consumer Staples
+  tier: expanded
+- ticker: LBTYA
+  company_name: LIBERTY GLOBAL LTD.
+  provider_company_id: 8fe85f01890acf617776226f8775d469
+  cik: 0001570585
+  sector: Communication Services
+  tier: expanded
+- ticker: LCID
+  company_name: LUCID GROUP, INC.
+  provider_company_id: deb63441d0ac0671e08133e9a1d6eb26
+  cik: 0001811210
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: LI
+  company_name: LI AUTO INC.
+  provider_company_id: 50662cbebeb7052fb68158b9d6313f49
+  cik: 0001791706
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: LIN
+  company_name: LINDE PLC
+  provider_company_id: a435604b4f0c712711c91c254108d976
+  cik: 0001707925
+  sector: Materials
+  tier: expanded
+- ticker: LITE
+  company_name: LUMENTUM HOLDINGS INC.
+  provider_company_id: f0097667a010c5ce3df9291dfc8786e7
+  cik: 0001633978
+  sector: Information Technology
+  tier: expanded
+- ticker: LKQ
+  company_name: LKQ CORP
+  provider_company_id: 823a5da59d9719af45e82496bafb915a
+  cik: 0001065696
+  sector: Consumer Staples
+  tier: expanded
+- ticker: LNT
+  company_name: ALLIANT ENERGY CORP
+  provider_company_id: 42214412ca4b5603c12c44cf43c4da30
+  cik: '0000352541'
+  sector: Utilities
+  tier: expanded
+- ticker: LRCX
+  company_name: LAM RESEARCH CORP
+  provider_company_id: 611c82ec5d3e3d12710ec26617544bdf
+  cik: 0000707549
+  sector: Industrials
+  tier: expanded
+- ticker: LSCC
+  company_name: LATTICE SEMICONDUCTOR CORP
+  provider_company_id: 9e5434f14cbf181cf0230b872f944cfa
+  cik: 0000855658
+  sector: Information Technology
+  tier: expanded
+- ticker: LULU
+  company_name: LULULEMON ATHLETICA INC.
+  provider_company_id: 17c6b4e7b646ea21e82a04b3a17754a5
+  cik: 0001397187
+  sector: Industrials
+  tier: expanded
+- ticker: LUMN
+  company_name: LUMEN TECHNOLOGIES, INC.
+  provider_company_id: e379ce4101bd2a38cd0ab635c60eb628
+  cik: 0000018926
+  sector: Communication Services
+  tier: expanded
+- ticker: LUV
+  company_name: SOUTHWEST AIRLINES CO
+  provider_company_id: f8b1f26f9fc5a8f95c73c018ca19b3bf
+  cik: 0000092380
+  sector: Industrials
+  tier: expanded
+- ticker: LVS
+  company_name: LAS VEGAS SANDS CORP
+  provider_company_id: 1a282cd1847dd5b4cd4f56a1622fa0db
+  cik: '0001300514'
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: LYFT
+  company_name: LYFT, INC.
+  provider_company_id: 4cb25fc55bd6d5da5f65b96a7153468d
+  cik: 0001759509
+  sector: Information Technology
+  tier: expanded
+- ticker: LYG
+  company_name: LLOYDS BANKING GROUP PLC
+  provider_company_id: 0e60226cc62463ec386b1a280d19427c
+  cik: '0001160106'
+  sector: Financials
+  tier: expanded
+- ticker: LZ
+  company_name: LEGALZOOM.COM, INC.
+  provider_company_id: 7659cf054584c9bd73a5a5d90e685653
+  cik: 0001286139
+  sector: Information Technology
+  tier: expanded
+- ticker: M
+  company_name: MACY'S, INC.
+  provider_company_id: 96b348c9ecd97cefc602cd5a51263373
+  cik: 0000794367
+  sector: Industrials
+  tier: expanded
+- ticker: MAR
+  company_name: MARRIOTT INTERNATIONAL INC /MD/
+  provider_company_id: 9c9adb3084f2e7727ef8e7d03bacddcb
+  cik: 0001048286
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: MARA
+  company_name: MARA HOLDINGS, INC.
+  provider_company_id: c386f93717994a7ab4679ad3bb44839c
+  cik: '0001507605'
+  sector: Financials
+  tier: expanded
+- ticker: MAT
+  company_name: MATTEL INC /DE/
+  provider_company_id: c43c038dc9bca0320223295a65becb42
+  cik: '0000063276'
+  sector: Industrials
+  tier: expanded
+- ticker: MBLY
+  company_name: MOBILEYE GLOBAL INC.
+  provider_company_id: 62f7a3c9a040205c11050f1b3098c106
+  cik: 0001910139
+  sector: Information Technology
+  tier: expanded
+- ticker: MCHP
+  company_name: MICROCHIP TECHNOLOGY INC
+  provider_company_id: 7a07185e3c0694d26f64774063240d4b
+  cik: 0000827054
+  sector: Information Technology
+  tier: expanded
+- ticker: MDLZ
+  company_name: MONDELEZ INTERNATIONAL, INC.
+  provider_company_id: 1d2e0dcbca68272f2362a789be4c7b8c
+  cik: 0001103982
+  sector: Consumer Staples
+  tier: expanded
+- ticker: MDT
+  company_name: MEDTRONIC PLC
+  provider_company_id: dc3efa998592125afa36e0755c0b2602
+  cik: '0001613103'
+  sector: Healthcare
+  tier: expanded
+- ticker: MGM
+  company_name: MGM RESORTS INTERNATIONAL
+  provider_company_id: 69684b3ccc73beb34608fe48cba524e1
+  cik: 0000789570
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: MGNI
+  company_name: MAGNITE, INC.
+  provider_company_id: 8481179a1fcae3be7ef29fbd8969db3a
+  cik: 0001595974
+  sector: Information Technology
+  tier: expanded
+- ticker: MLCO
+  company_name: MELCO RESORTS & ENTERTAINMENT LTD
+  provider_company_id: dc8bc9c8c8bc0d86eac0af46e3ee3264
+  cik: 0001381640
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: MNKD
+  company_name: MANNKIND CORP
+  provider_company_id: b8351bc628051b94957ec45b065d35c0
+  cik: 0000899460
+  sector: Healthcare
+  tier: expanded
+- ticker: MNST
+  company_name: MONSTER BEVERAGE CORP
+  provider_company_id: d5076125aee641cc0b1611150b167986
+  cik: 0000865752
+  sector: Consumer Staples
+  tier: expanded
+- ticker: MOS
+  company_name: MOSAIC CO
+  provider_company_id: 35cb83582cf6928f26f57d58165bffeb
+  cik: 0001285785
+  sector: Materials
+  tier: expanded
+- ticker: MQ
+  company_name: MARQETA, INC.
+  provider_company_id: f2bcdf14f42a8fa2aef251e19b0abda2
+  cik: '0001522540'
+  sector: Information Technology
+  tier: expanded
+- ticker: MRNA
+  company_name: MODERNA, INC.
+  provider_company_id: acc5c43f9ba810b309ef9b205fa2fdb0
+  cik: 0001682852
+  sector: Healthcare
+  tier: expanded
+- ticker: MRO
+  company_name: MARATHON OIL CORP
+  provider_company_id: f7d6464f559da96607db061247274461
+  cik: 0000101778
+  sector: Energy
+  tier: expanded
+- ticker: MRVL
+  company_name: MARVELL TECHNOLOGY, INC.
+  provider_company_id: 218d88cd1af43d83fee3290a68b74623
+  cik: 0001835632
+  sector: Information Technology
+  tier: expanded
+- ticker: MS
+  company_name: MORGAN STANLEY
+  provider_company_id: 241a895f15107246b068d2324ccfdca1
+  cik: 0000895421
+  sector: Financials
+  tier: expanded
+- ticker: MSTR
+  company_name: STRATEGY INC
+  provider_company_id: 30e4071f75c412dea51aee2e620f934f
+  cik: '0001050446'
+  sector: Financials
+  tier: expanded
+- ticker: MTCH
+  company_name: MATCH GROUP, INC.
+  provider_company_id: caeff51a18b7e8f68458def441a41fd1
+  cik: 0000891103
+  sector: Information Technology
+  tier: expanded
+- ticker: MU
+  company_name: MICRON TECHNOLOGY INC
+  provider_company_id: 4af1dc8b5962a8d94153e768f2d3de1c
+  cik: '0000723125'
+  sector: Information Technology
+  tier: expanded
+- ticker: NCLH
+  company_name: NORWEGIAN CRUISE LINE HOLDINGS LTD.
+  provider_company_id: 35fc6bc6b40f5bacfc4256a18fc4de18
+  cik: '0001513761'
+  sector: Industrials
+  tier: expanded
+- ticker: NDAQ
+  company_name: NASDAQ, INC.
+  provider_company_id: 8a750d63cc4e800d3ff6fa1b097d838c
+  cik: 0001120193
+  sector: Financials
+  tier: expanded
+- ticker: NEE
+  company_name: NEXTERA ENERGY INC
+  provider_company_id: b64b67b14ee04e35813d5e39b49b7773
+  cik: 0000753308
+  sector: Utilities
+  tier: expanded
+- ticker: NEM
+  company_name: NEWMONT CORP /DE/
+  provider_company_id: 84728aab49928c0c7e60125907882e2e
+  cik: '0001164727'
+  sector: Materials
+  tier: expanded
+- ticker: NEOG
+  company_name: NEOGEN CORP
+  provider_company_id: 242172a9048e1dd795028863401239ba
+  cik: '0000711377'
+  sector: Healthcare
+  tier: expanded
+- ticker: NEXT
+  company_name: NEXTDECADE CORP
+  provider_company_id: e4158561965a7896501f7a40ae938adb
+  cik: '0001612720'
+  sector: Energy
+  tier: expanded
+- ticker: NFE
+  company_name: NEW FORTRESS ENERGY INC.
+  provider_company_id: 932db9fc499179758911e8b28b92e683
+  cik: 0001749723
+  sector: Energy
+  tier: expanded
+- ticker: NIO
+  company_name: NIO INC.
+  provider_company_id: 3c2826ed8c06c54d897857dea6c72148
+  cik: '0001736541'
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: NOK
+  company_name: NOKIA CORP
+  provider_company_id: cec0cdaa51916deb0b6df7db1aab60f0
+  cik: 0000924613
+  sector: Information Technology
+  tier: expanded
+- ticker: NTAP
+  company_name: NETAPP, INC.
+  provider_company_id: 5548e14442651f50f30c229e9498c2eb
+  cik: '0001002047'
+  sector: Information Technology
+  tier: expanded
+- ticker: NTLA
+  company_name: INTELLIA THERAPEUTICS, INC.
+  provider_company_id: 1662401ef52608526a415c77546e533f
+  cik: '0001652130'
+  sector: Healthcare
+  tier: expanded
+- ticker: NTNX
+  company_name: NUTANIX, INC.
+  provider_company_id: fcbc3959ade2e55358a928df8415b6ba
+  cik: 0001618732
+  sector: Information Technology
+  tier: expanded
+- ticker: NU
+  company_name: NU HOLDINGS LTD.
+  provider_company_id: 753cf695d8428a05ee52a399b04fc90a
+  cik: 0001691493
+  sector: Financials
+  tier: expanded
+- ticker: NVAX
+  company_name: NOVAVAX INC
+  provider_company_id: eb129904272a3825eafc64cb6aae281b
+  cik: 0001000694
+  sector: Healthcare
+  tier: expanded
+- ticker: NVO
+  company_name: NOVO NORDISK A S
+  provider_company_id: 8f37d8ea54cb88f19890e5370ccdf4dc
+  cik: 0000353278
+  sector: Healthcare
+  tier: expanded
+- ticker: NWL
+  company_name: NEWELL BRANDS INC.
+  provider_company_id: d353538a5c480eddf36b750e71c7f4d6
+  cik: 0000814453
+  sector: Materials
+  tier: expanded
+- ticker: NWSA
+  company_name: NEWS CORP
+  provider_company_id: ad1777ba1b52b4a2973bcae3e241646b
+  cik: 0001564708
+  sector: Industrials
+  tier: expanded
+- ticker: NXPI
+  company_name: NXP SEMICONDUCTORS N.V.
+  provider_company_id: e554158e6fb502a83eb851efa6c9b262
+  cik: '0001413447'
+  sector: Information Technology
+  tier: expanded
+- ticker: NXT
+  company_name: NEXTPOWER INC.
+  provider_company_id: 012fde6ec5ff65353b1e45f2e27a478e
+  cik: 0001852131
+  sector: Information Technology
+  tier: expanded
+- ticker: OCUL
+  company_name: OCULAR THERAPEUTIX, INC
+  provider_company_id: d6f757553693e7e61bbeb2026b496179
+  cik: 0001393434
+  sector: Healthcare
+  tier: expanded
+- ticker: OKTA
+  company_name: OKTA, INC.
+  provider_company_id: 8c668a5cced370f269f40d0533820b68
+  cik: '0001660134'
+  sector: Information Technology
+  tier: expanded
+- ticker: 'ON'
+  company_name: ON SEMICONDUCTOR CORP
+  provider_company_id: a48a84380c155247584c67ff8a4ab997
+  cik: 0001097864
+  sector: Information Technology
+  tier: expanded
+- ticker: ONB
+  company_name: OLD NATIONAL BANCORP /IN/
+  provider_company_id: 2f04df7be7433cca01397e99a494e45e
+  cik: 0000707179
+  sector: Financials
+  tier: expanded
+- ticker: OPCH
+  company_name: OPTION CARE HEALTH, INC.
+  provider_company_id: 4180e7d8674c5907841d25aebb78019c
+  cik: 0001014739
+  sector: Healthcare
+  tier: expanded
+- ticker: OPK
+  company_name: OPKO HEALTH, INC.
+  provider_company_id: e80d9de5515835537cd7e47c52171a52
+  cik: 0000944809
+  sector: Healthcare
+  tier: expanded
+- ticker: ORLY
+  company_name: O REILLY AUTOMOTIVE INC
+  provider_company_id: f115d85313c44e7c6f1caae87e0ee978
+  cik: 0000898173
+  sector: Industrials
+  tier: expanded
+- ticker: OSCR
+  company_name: OSCAR HEALTH, INC.
+  provider_company_id: 2e4028b42c54bad85318947c2be72cf8
+  cik: 0001568651
+  sector: Financials
+  tier: expanded
+- ticker: OWL
+  company_name: BLUE OWL CAPITAL INC.
+  provider_company_id: 1401ce1154263dfb1e4fe1ae64946ef7
+  cik: 0001823945
+  sector: Financials
+  tier: expanded
+- ticker: PAA
+  company_name: PLAINS ALL AMERICAN PIPELINE LP
+  provider_company_id: b996b8dfac7d7b3e5623fc89c839f077
+  cik: '0001070423'
+  sector: Industrials
+  tier: expanded
+- ticker: PANW
+  company_name: PALO ALTO NETWORKS INC
+  provider_company_id: adfe52caa3a77d2cef7b6fcf6aeb013a
+  cik: '0001327567'
+  sector: Information Technology
+  tier: expanded
+- ticker: PATH
+  company_name: UIPATH, INC.
+  provider_company_id: dbe8e6c8c90ef13fad946954c084650c
+  cik: '0001734722'
+  sector: Information Technology
+  tier: expanded
+- ticker: PAYO
+  company_name: PAYONEER GLOBAL INC.
+  provider_company_id: 40ba551ebd034a4bf67c846932098e05
+  cik: 0001845815
+  sector: Information Technology
+  tier: expanded
+- ticker: PAYX
+  company_name: PAYCHEX INC
+  provider_company_id: 844fde0ef1ba4f36ee6e184636a58081
+  cik: '0000723531'
+  sector: Industrials
+  tier: expanded
+- ticker: PBR
+  company_name: PETROBRAS - PETROLEO BRASILEIRO SA
+  provider_company_id: be8d6337564d8d55e196456f3228ab1f
+  cik: 0001119639
+  sector: Energy
+  tier: expanded
+- ticker: PCAR
+  company_name: PACCAR INC
+  provider_company_id: beafbc08067e82eecd221e682731e727
+  cik: '0000075362'
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: PCG
+  company_name: PG&E CORP
+  provider_company_id: 1392d2ed94d067472147dece16a78fe9
+  cik: 0001004980
+  sector: Utilities
+  tier: expanded
+- ticker: PCT
+  company_name: PURECYCLE TECHNOLOGIES, INC.
+  provider_company_id: 7b0f3ea4bfaa8333cecbac9766de6cf1
+  cik: 0001830033
+  sector: Materials
+  tier: expanded
+- ticker: PDD
+  company_name: PDD HOLDINGS INC.
+  provider_company_id: 4872a49a3568b4b971fee055fbbdafde
+  cik: 0001737806
+  sector: Information Technology
+  tier: expanded
+- ticker: PENN
+  company_name: PENN ENTERTAINMENT, INC.
+  provider_company_id: a1729a43bac48816846066beebf1a42e
+  cik: 0000921738
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: PFG
+  company_name: PRINCIPAL FINANCIAL GROUP INC
+  provider_company_id: a6933187ec38a93cae83ef28bd325d07
+  cik: 0001126328
+  sector: Financials
+  tier: expanded
+- ticker: PGY
+  company_name: PAGAYA TECHNOLOGIES LTD.
+  provider_company_id: c5348563e1bf616b181605b177f4a31d
+  cik: 0001883085
+  sector: Financials
+  tier: expanded
+- ticker: PINS
+  company_name: PINTEREST, INC.
+  provider_company_id: 1bb3c2b37ef697a7fd478bb73fc0f046
+  cik: 0001506293
+  sector: Information Technology
+  tier: expanded
+- ticker: PLTR
+  company_name: PALANTIR TECHNOLOGIES INC.
+  provider_company_id: ecb2e5b5d7514f74a9b5a15ea9f636e7
+  cik: '0001321655'
+  sector: Information Technology
+  tier: expanded
+- ticker: PLUG
+  company_name: PLUG POWER INC
+  provider_company_id: 546f25a48cf44d20501193e97178f0d2
+  cik: 0001093691
+  sector: Industrials
+  tier: expanded
+- ticker: PPL
+  company_name: PPL CORP
+  provider_company_id: cb9cd0ade03fd2ca5dbcb73386b8f855
+  cik: 0000922224
+  sector: Utilities
+  tier: expanded
+- ticker: PR
+  company_name: PERMIAN RESOURCES CORP
+  provider_company_id: 2a729bb3d891f62734a7b6e6d856b3b7
+  cik: 0001658566
+  sector: Energy
+  tier: expanded
+- ticker: PSNY
+  company_name: POLESTAR AUTOMOTIVE HOLDING UK PLC
+  provider_company_id: ce47c463bca1e02956a65b259cc9dd89
+  cik: 0001884082
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: PTEN
+  company_name: PATTERSON UTI ENERGY INC
+  provider_company_id: 09b6b32dc78f9c67916ab1da45422975
+  cik: 0000889900
+  sector: Energy
+  tier: expanded
+- ticker: PTON
+  company_name: PELOTON INTERACTIVE, INC.
+  provider_company_id: 3f24842c72440272ccd5c9c607cd08c9
+  cik: 0001639825
+  sector: Industrials
+  tier: expanded
+- ticker: PYPL
+  company_name: PAYPAL HOLDINGS, INC.
+  provider_company_id: 3540a8a04eb25acdfb48398526cdc424
+  cik: 0001633917
+  sector: Information Technology
+  tier: expanded
+- ticker: QRVO
+  company_name: QORVO, INC.
+  provider_company_id: 4d7b561f4064a895cb6b11555e944b8a
+  cik: 0001604778
+  sector: Information Technology
+  tier: expanded
+- ticker: QS
+  company_name: QUANTUMSCAPE CORP
+  provider_company_id: 09e9a341a4161aa889586360c8b3cde2
+  cik: 0001811414
+  sector: Industrials
+  tier: expanded
+- ticker: QUBT
+  company_name: QUANTUM COMPUTING INC.
+  provider_company_id: 59b8239b54b93980250155683c2f05be
+  cik: 0001758009
+  sector: Information Technology
+  tier: expanded
+- ticker: RBLX
+  company_name: ROBLOX CORP
+  provider_company_id: 2e4d5e40d88f2b42f3a6f1fcf10c68cd
+  cik: 0001315098
+  sector: Information Technology
+  tier: expanded
+- ticker: RDDT
+  company_name: REDDIT, INC.
+  provider_company_id: 28c12ac8118545e66e14299a50227083
+  cik: '0001713445'
+  sector: Information Technology
+  tier: expanded
+- ticker: RELY
+  company_name: REMITLY GLOBAL, INC.
+  provider_company_id: f66a9cdca70e3a3d919ebddd96051a2f
+  cik: 0001782170
+  sector: Information Technology
+  tier: expanded
+- ticker: RF
+  company_name: REGIONS FINANCIAL CORP
+  provider_company_id: c3fdfd56aead2ffb68ebe077440919da
+  cik: 0001281761
+  sector: Financials
+  tier: expanded
+- ticker: RIG
+  company_name: TRANSOCEAN LTD.
+  provider_company_id: 457ffeedfbc3dc52015c28f21039599d
+  cik: '0001451505'
+  sector: Energy
+  tier: expanded
+- ticker: RIO
+  company_name: RIO TINTO PLC
+  provider_company_id: 1099cc91b108ffedead6db30a57e6f1f
+  cik: 0000863064
+  sector: Materials
+  tier: expanded
+- ticker: RIOT
+  company_name: RIOT PLATFORMS, INC.
+  provider_company_id: 13e872b4704c85bd3ba4ab4519350248
+  cik: 0001167419
+  sector: Financials
+  tier: expanded
+- ticker: RIVN
+  company_name: RIVIAN AUTOMOTIVE, INC. / DE
+  provider_company_id: b8b284228cfce3378d633542fe35679c
+  cik: 0001874178
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: RKLB
+  company_name: ROCKET LAB CORP
+  provider_company_id: ca993b3cb2d8b1200ef92fb36ea77409
+  cik: 0001819994
+  sector: Industrials
+  tier: expanded
+- ticker: RKT
+  company_name: ROCKET COMPANIES, INC.
+  provider_company_id: c7d4e72346cd0d9d4486bc087edee934
+  cik: 0001805284
+  sector: Financials
+  tier: expanded
+- ticker: RLAY
+  company_name: RELAY THERAPEUTICS, INC.
+  provider_company_id: d9988fc1dbb2099fa74eac70ec6dde0d
+  cik: 0001812364
+  sector: Healthcare
+  tier: expanded
+- ticker: RLX
+  company_name: RLX TECHNOLOGY INC.
+  provider_company_id: 74fc121097f45b954f54589d4290e278
+  cik: 0001828365
+  sector: Consumer Staples
+  tier: expanded
+- ticker: RMBS
+  company_name: RAMBUS INC
+  provider_company_id: 9a7089d2f77dab2b301a040c3d210502
+  cik: 0000917273
+  sector: Information Technology
+  tier: expanded
+- ticker: ROIV
+  company_name: ROIVANT SCIENCES LTD.
+  provider_company_id: b1619ef5ef206ae59713a6289e88f2b0
+  cik: 0001635088
+  sector: Healthcare
+  tier: expanded
+- ticker: ROKU
+  company_name: ROKU, INC
+  provider_company_id: 745b980050d44702112cdaeb88aee72e
+  cik: 0001428439
+  sector: Communication Services
+  tier: expanded
+- ticker: ROST
+  company_name: ROSS STORES, INC.
+  provider_company_id: b1c1400e433832a0e3666da420618d5a
+  cik: '0000745732'
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: RPRX
+  company_name: ROYALTY PHARMA PLC
+  provider_company_id: 5ac874aa29f1d87f48dd975c724bb339
+  cik: 0001802768
+  sector: Healthcare
+  tier: expanded
+- ticker: RUN
+  company_name: SUNRUN INC.
+  provider_company_id: aedde11f0e62750654afb8680a076caa
+  cik: 0001469367
+  sector: Industrials
+  tier: expanded
+- ticker: RVMD
+  company_name: REVOLUTION MEDICINES, INC.
+  provider_company_id: 58a5d783e6672506c19bf1d93d509453
+  cik: 0001628171
+  sector: Healthcare
+  tier: expanded
+- ticker: RXRX
+  company_name: RECURSION PHARMACEUTICALS, INC.
+  provider_company_id: 217cf9d3483e9a06a461d77dc91792cb
+  cik: 0001601830
+  sector: Healthcare
+  tier: expanded
+- ticker: S
+  company_name: SENTINELONE, INC.
+  provider_company_id: 0188b7a205bbae03de67b92dd70712ec
+  cik: 0001583708
+  sector: Information Technology
+  tier: expanded
+- ticker: SABR
+  company_name: SABRE CORP
+  provider_company_id: 1d19b628128ef94c5eec5cbe15adca11
+  cik: 0001597033
+  sector: Information Technology
+  tier: expanded
+- ticker: SAN
+  company_name: BANCO SANTANDER, S.A.
+  provider_company_id: db747840207425c4468756026c45daed
+  cik: 0000891478
+  sector: Financials
+  tier: expanded
+- ticker: SATS
+  company_name: ECHOSTAR CORP
+  provider_company_id: 681e2b62802c9faa7c3a0e9213eaf929
+  cik: '0001415404'
+  sector: Communication Services
+  tier: expanded
+- ticker: SBSW
+  company_name: SIBANYE STILLWATER LTD
+  provider_company_id: 365d69204679277c49296feaa807483c
+  cik: 0001786909
+  sector: Materials
+  tier: expanded
+- ticker: SE
+  company_name: SEA LTD
+  provider_company_id: f34b4c83fc0e097c9659a7426505b4c9
+  cik: 0001703399
+  sector: Information Technology
+  tier: expanded
+- ticker: SEDG
+  company_name: SOLAREDGE TECHNOLOGIES, INC.
+  provider_company_id: 8c7fa60f3024ca50bc02b943e91e14ba
+  cik: 0001419612
+  sector: Information Technology
+  tier: expanded
+- ticker: SFM
+  company_name: SPROUTS FARMERS MARKET, INC.
+  provider_company_id: 7c65248d9c14f06b07f47de00cda4368
+  cik: '0001575515'
+  sector: Consumer Staples
+  tier: expanded
+- ticker: SHEL
+  company_name: SHELL PLC
+  provider_company_id: 8e727b7883a2a2457d839ed4c51b89f7
+  cik: 0001306965
+  sector: Energy
+  tier: expanded
+- ticker: SHOP
+  company_name: SHOPIFY INC.
+  provider_company_id: d1fe0ca72ae763516379494f56cf4cc0
+  cik: 0001594805
+  sector: Information Technology
+  tier: expanded
+- ticker: SIRI
+  company_name: SIRIUS XM HOLDINGS INC.
+  provider_company_id: 8e0c9a5b647e23297562b3475df976a6
+  cik: 0000908937
+  sector: Communication Services
+  tier: expanded
+- ticker: SLB
+  company_name: SLB LIMITED/NV
+  provider_company_id: 9b6b209923e211340626c488ff7beeef
+  cik: 0000087347
+  sector: Energy
+  tier: expanded
+- ticker: SLM
+  company_name: SLM CORP
+  provider_company_id: 7c167a7718dbe40f05bed8bb06ada68f
+  cik: '0001032033'
+  sector: Financials
+  tier: expanded
+- ticker: SLV
+  company_name: ISHARES SILVER TRUST
+  provider_company_id: 9bc1ea96466f647d51afc97ce901f285
+  cik: 0001330568
+  sector: Financials
+  tier: expanded
+- ticker: SMCI
+  company_name: SUPER MICRO COMPUTER, INC.
+  provider_company_id: 0564817c276e605ee9e011634ab780ec
+  cik: '0001375365'
+  sector: Information Technology
+  tier: expanded
+- ticker: SMMT
+  company_name: SUMMIT THERAPEUTICS INC.
+  provider_company_id: 6508191ca5131f21b7bfdf0e93245a14
+  cik: 0001599298
+  sector: Healthcare
+  tier: expanded
+- ticker: SMR
+  company_name: NUSCALE POWER CORP
+  provider_company_id: 9aa0857e268f3f1bd2a5361cbafbaad5
+  cik: 0001822966
+  sector: Materials
+  tier: expanded
+- ticker: SMTC
+  company_name: SEMTECH CORP
+  provider_company_id: 04b3f371b10c4f9c313e349a7ea25aca
+  cik: 0000088941
+  sector: Information Technology
+  tier: expanded
+- ticker: SNAP
+  company_name: SNAP INC
+  provider_company_id: c2c5f790d0ff5b3bc56b6ab9318962d1
+  cik: 0001564408
+  sector: Information Technology
+  tier: expanded
+- ticker: SNDL
+  company_name: SNDL INC.
+  provider_company_id: 02089cbce14236549a40a6e83015847b
+  cik: '0001766600'
+  sector: Industrials
+  tier: expanded
+- ticker: SNY
+  company_name: SANOFI
+  provider_company_id: a517b08f05e7f489854c64daf74f2100
+  cik: '0001121404'
+  sector: Healthcare
+  tier: expanded
+- ticker: SO
+  company_name: SOUTHERN CO
+  provider_company_id: 9c73b4fb299cb047d9f25c57a4379184
+  cik: 0000092122
+  sector: Utilities
+  tier: expanded
+- ticker: SOFI
+  company_name: SOFI TECHNOLOGIES, INC.
+  provider_company_id: 8e6d2c4fa9ef4378e46fbfaf35760956
+  cik: 0001818874
+  sector: Financials
+  tier: expanded
+- ticker: SONO
+  company_name: SONOS INC
+  provider_company_id: 0d367c1a3af490c5b3ef65bb235a52c8
+  cik: '0001314727'
+  sector: Industrials
+  tier: expanded
+- ticker: SOUN
+  company_name: SOUNDHOUND AI, INC.
+  provider_company_id: 1068a51ae3b235965ddb9d6eaad03b23
+  cik: 0001840856
+  sector: Information Technology
+  tier: expanded
+- ticker: SRPT
+  company_name: SAREPTA THERAPEUTICS, INC.
+  provider_company_id: ed2be610de34850f7194f568df714556
+  cik: 0000873303
+  sector: Healthcare
+  tier: expanded
+- ticker: STLA
+  company_name: STELLANTIS N.V.
+  provider_company_id: 6880866acdbf25f8bfa2efc9726c88b0
+  cik: 0001605484
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: STLD
+  company_name: STEEL DYNAMICS INC
+  provider_company_id: e6fe824d67ccc515fc228dc2b1cea7c4
+  cik: '0001022671'
+  sector: Materials
+  tier: expanded
+- ticker: STM
+  company_name: STMICROELECTRONICS N.V.
+  provider_company_id: e638d600d2661fa824ac6a49f3651430
+  cik: 0000932787
+  sector: Information Technology
+  tier: expanded
+- ticker: STNE
+  company_name: STONECO LTD.
+  provider_company_id: 624251b8d16bd851da3c876beec55e3c
+  cik: '0001745431'
+  sector: Information Technology
+  tier: expanded
+- ticker: STX
+  company_name: SEAGATE TECHNOLOGY HOLDINGS PLC
+  provider_company_id: d9cb4f2c07b996a264ab85b77c43e491
+  cik: 0001137789
+  sector: Information Technology
+  tier: expanded
+- ticker: SU
+  company_name: SUNCOR ENERGY INC
+  provider_company_id: 20c9db1388d1aa045d23e31290ffa4d3
+  cik: '0000311337'
+  sector: Energy
+  tier: expanded
+- ticker: SWKS
+  company_name: SKYWORKS SOLUTIONS, INC.
+  provider_company_id: 5661cc2e1b4be0ef3bf7b42b89fc0cef
+  cik: '0000004127'
+  sector: Information Technology
+  tier: expanded
+- ticker: SWN
+  company_name: SOUTHWESTERN ENERGY CO
+  provider_company_id: 1daef61814ae54f16bec1ef8f5bdb585
+  cik: '0000007332'
+  sector: Energy
+  tier: expanded
+- ticker: SYF
+  company_name: SYNCHRONY FINANCIAL
+  provider_company_id: c4b1a6b288c52583ad5648d24ae03ebb
+  cik: '0001601712'
+  sector: Financials
+  tier: expanded
+- ticker: TAL
+  company_name: TAL EDUCATION GROUP
+  provider_company_id: 633841c67dc4ddb5208a3dae543c0e5f
+  cik: 0001499620
+  sector: Industrials
+  tier: expanded
+- ticker: TCOM
+  company_name: TRIP.COM GROUP LTD
+  provider_company_id: 50aaac63679b124bee67ef822dd4a61b
+  cik: 0001269238
+  sector: Information Technology
+  tier: expanded
+- ticker: TDOC
+  company_name: TELADOC HEALTH, INC.
+  provider_company_id: 3c73fd6f347e1f88d689c2b568920c3b
+  cik: 0001477449
+  sector: Healthcare
+  tier: expanded
+- ticker: TEAM
+  company_name: ATLASSIAN CORP
+  provider_company_id: 23b532e88922c476ce71872ee36be057
+  cik: '0001650372'
+  sector: Information Technology
+  tier: expanded
+- ticker: TER
+  company_name: TERADYNE, INC
+  provider_company_id: 305aeb8751c3e79e881df668d6c491db
+  cik: 0000097210
+  sector: Industrials
+  tier: expanded
+- ticker: TEVA
+  company_name: TEVA PHARMACEUTICAL INDUSTRIES LTD
+  provider_company_id: d3c2308022c6b198711d1195603df9ec
+  cik: 0000818686
+  sector: Healthcare
+  tier: expanded
+- ticker: TFC
+  company_name: TRUIST FINANCIAL CORP
+  provider_company_id: 8e8d2b29f080170082210bccca0444be
+  cik: 0000092230
+  sector: Financials
+  tier: expanded
+- ticker: TGTX
+  company_name: TG THERAPEUTICS, INC.
+  provider_company_id: f3dcffdb72f11d97622da903d7b20039
+  cik: '0001001316'
+  sector: Healthcare
+  tier: expanded
+- ticker: TIGR
+  company_name: UP FINTECH HOLDING LTD
+  provider_company_id: ef8b30507cf406c89a251adc1621db3f
+  cik: 0001756699
+  sector: Financials
+  tier: expanded
+- ticker: TJX
+  company_name: TJX COMPANIES INC /DE/
+  provider_company_id: a5e9af0505fc02bee08387517cba16b8
+  cik: 0000109198
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: TLRY
+  company_name: TILRAY BRANDS, INC.
+  provider_company_id: c2aa2cd96f93fea13920efff5e5a3e7e
+  cik: 0001731348
+  sector: Industrials
+  tier: expanded
+- ticker: TME
+  company_name: TENCENT MUSIC ENTERTAINMENT GROUP
+  provider_company_id: 0fab322cada4141dcca857dc4d17b651
+  cik: '0001744676'
+  sector: Communication Services
+  tier: expanded
+- ticker: TOST
+  company_name: TOAST, INC.
+  provider_company_id: 9a9b8ba710deaecea43cd8c9bd31136e
+  cik: '0001650164'
+  sector: Information Technology
+  tier: expanded
+- ticker: TRIP
+  company_name: TRIPADVISOR, INC.
+  provider_company_id: 2d9ef749431e6b89d69ebe0b7fe2c04d
+  cik: '0001526520'
+  sector: Information Technology
+  tier: expanded
+- ticker: TRMB
+  company_name: TRIMBLE INC.
+  provider_company_id: 644029d8311ef4878163662690b05bc3
+  cik: 0000864749
+  sector: Industrials
+  tier: expanded
+- ticker: TROW
+  company_name: PRICE T ROWE GROUP INC
+  provider_company_id: a5386ab408189d84eb0e2836088fb095
+  cik: 0001113169
+  sector: Financials
+  tier: expanded
+- ticker: TSCO
+  company_name: TRACTOR SUPPLY CO /DE/
+  provider_company_id: 88ca58779f17b1e2931e924e0a92f66a
+  cik: 0000916365
+  sector: Industrials
+  tier: expanded
+- ticker: TTD
+  company_name: TRADE DESK, INC.
+  provider_company_id: 1b02702dea51d4071e63bc77dc6abcb8
+  cik: 0001671933
+  sector: Information Technology
+  tier: expanded
+- ticker: TTWO
+  company_name: TAKE TWO INTERACTIVE SOFTWARE INC
+  provider_company_id: 20f9178e95e1b7419625632095a26d2d
+  cik: 0000946581
+  sector: Information Technology
+  tier: expanded
+- ticker: TXG
+  company_name: 10X GENOMICS, INC.
+  provider_company_id: bd2d852a139c163038623357dadbb3f3
+  cik: 0001770787
+  sector: Industrials
+  tier: expanded
+- ticker: U
+  company_name: UNITY SOFTWARE INC.
+  provider_company_id: 7f234795db39c2ebf8a4487355c1b15e
+  cik: 0001810806
+  sector: Information Technology
+  tier: expanded
+- ticker: UAA
+  company_name: UNDER ARMOUR, INC.
+  provider_company_id: 32964b2744d3d98e51ae93a0d732ec93
+  cik: 0001336917
+  sector: Industrials
+  tier: expanded
+- ticker: UAL
+  company_name: UNITED AIRLINES HOLDINGS, INC.
+  provider_company_id: 427ac318d1533c6ec2a43eefefe1ec1a
+  cik: '0000100517'
+  sector: Industrials
+  tier: expanded
+- ticker: UBER
+  company_name: UBER TECHNOLOGIES, INC
+  provider_company_id: ebdb7119b2afd30108cfd30f17f851a7
+  cik: '0001543151'
+  sector: Information Technology
+  tier: expanded
+- ticker: UBS
+  company_name: UBS GROUP AG
+  provider_company_id: 37155979accd5c7eea67c2c4d53529ff
+  cik: '0001610520'
+  sector: Financials
+  tier: expanded
+- ticker: UEC
+  company_name: URANIUM ENERGY CORP
+  provider_company_id: bbdcc2f29f869d00b6b761bbe0ed1047
+  cik: 0001334933
+  sector: Materials
+  tier: expanded
+- ticker: UL
+  company_name: UNILEVER PLC
+  provider_company_id: ec23cd76b0b2d2c968feed6e1e7655d4
+  cik: '0000217410'
+  sector: Consumer Staples
+  tier: expanded
+- ticker: UMC
+  company_name: UNITED MICROELECTRONICS CORP
+  provider_company_id: ce51ff5a98b4c1f4a25bb5c3a5e16eba
+  cik: '0001033767'
+  sector: Information Technology
+  tier: expanded
+- ticker: UNG
+  company_name: UNITED STATES NATURAL GAS FUND, LP
+  provider_company_id: ca28eada746357f8deabfac3636a1352
+  cik: '0001376227'
+  sector: Financials
+  tier: expanded
+- ticker: UNIT
+  company_name: UNITI GROUP INC.
+  provider_company_id: f920fce34872065453af48821abbd0b2
+  cik: 0002020795
+  sector: Communication Services
+  tier: expanded
+- ticker: UPST
+  company_name: UPSTART HOLDINGS, INC.
+  provider_company_id: ab256bdd5879efc66df906c55b53ceac
+  cik: 0001647639
+  sector: Financials
+  tier: expanded
+- ticker: UPWK
+  company_name: UPWORK, INC
+  provider_company_id: eda483b2d33f7bd2340adafe9432fb05
+  cik: '0001627475'
+  sector: Information Technology
+  tier: expanded
+- ticker: URBN
+  company_name: URBAN OUTFITTERS INC
+  provider_company_id: 9468febc41fcc35098261ca648c337a6
+  cik: 0000912615
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: USB
+  company_name: US BANCORP \DE\
+  provider_company_id: 4212155d6824b1f3238add08dc3275aa
+  cik: '0000036104'
+  sector: Financials
+  tier: expanded
+- ticker: USO
+  company_name: UNITED STATES OIL FUND, LP
+  provider_company_id: ca2ba2672258ac7a81b00c24b054948f
+  cik: 0001327068
+  sector: Financials
+  tier: expanded
+- ticker: UUUU
+  company_name: ENERGY FUELS INC
+  provider_company_id: 659f048911baac607010beb91aaf606e
+  cik: 0001385849
+  sector: Materials
+  tier: expanded
+- ticker: VALE
+  company_name: VALE S.A.
+  provider_company_id: b13b995fb3f8b930c4f64529aa1da045
+  cik: 0000917851
+  sector: Materials
+  tier: expanded
+- ticker: VFC
+  company_name: V F CORP
+  provider_company_id: 0bd6a8c53d54694f90b30c3f46412212
+  cik: 0000103379
+  sector: Industrials
+  tier: expanded
+- ticker: VIAV
+  company_name: VIAVI SOLUTIONS INC.
+  provider_company_id: db825d261477f5f76902f09e7e0b850c
+  cik: 0000912093
+  sector: Information Technology
+  tier: expanded
+- ticker: VKTX
+  company_name: VIKING THERAPEUTICS, INC.
+  provider_company_id: 42e93b430652f218e4a479e265e97168
+  cik: 0001607678
+  sector: Healthcare
+  tier: expanded
+- ticker: VLY
+  company_name: VALLEY NATIONAL BANCORP
+  provider_company_id: 12eafa93dad6f11c80a4099c6e6205fc
+  cik: '0000714310'
+  sector: Financials
+  tier: expanded
+- ticker: VOD
+  company_name: VODAFONE GROUP PUBLIC LTD CO
+  provider_company_id: e21d0037ba7025613a346bb3f0ae8428
+  cik: 0000839923
+  sector: Communication Services
+  tier: expanded
+- ticker: VRT
+  company_name: VERTIV HOLDINGS CO
+  provider_company_id: df706d4707ab6b5f76485f779622fff5
+  cik: '0001674101'
+  sector: Information Technology
+  tier: expanded
+- ticker: VSAT
+  company_name: VIASAT INC
+  provider_company_id: 35553ec913c986abf31fc120fe8f07b6
+  cik: 0000797721
+  sector: Communication Services
+  tier: expanded
+- ticker: VST
+  company_name: VISTRA CORP.
+  provider_company_id: 929426a33ddc3849ecd41991443f4fe9
+  cik: 0001692819
+  sector: Utilities
+  tier: expanded
+- ticker: VTRS
+  company_name: VIATRIS INC
+  provider_company_id: f1487a4d71c4872f09e0a24f85e7ebb1
+  cik: 0001792044
+  sector: Healthcare
+  tier: expanded
+- ticker: W
+  company_name: WAYFAIR INC.
+  provider_company_id: 475b38d14c3a1cb9f8eff6a9f3a0aae5
+  cik: '0001616707'
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: WBD
+  company_name: WARNER BROS. DISCOVERY, INC.
+  provider_company_id: f464a785d015dccb7cb3ce03ef82b198
+  cik: '0001437107'
+  sector: Communication Services
+  tier: expanded
+- ticker: WDAY
+  company_name: WORKDAY, INC.
+  provider_company_id: c054d86a3a42180c9f2b265eab639245
+  cik: 0001327811
+  sector: Information Technology
+  tier: expanded
+- ticker: WDC
+  company_name: WESTERN DIGITAL CORP
+  provider_company_id: 877dc075be3cbb2dd92912de3b7e6f44
+  cik: '0000106040'
+  sector: Information Technology
+  tier: expanded
+- ticker: WEN
+  company_name: WENDY'S CO
+  provider_company_id: 05975a7e68412ea0c241cf988fd87ab0
+  cik: 0000030697
+  sector: Industrials
+  tier: expanded
+- ticker: WMB
+  company_name: WILLIAMS COMPANIES, INC.
+  provider_company_id: 77f7ed58f74fa087e2d3287f4b15572e
+  cik: '0000107263'
+  sector: Energy
+  tier: expanded
+- ticker: WMG
+  company_name: WARNER MUSIC GROUP CORP.
+  provider_company_id: d034bf0acef8701cb013894f41b25185
+  cik: 0001319161
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: WOLF
+  company_name: WOLFSPEED, INC.
+  provider_company_id: b4dfa18364c9af7c8c6bac3e53a74f21
+  cik: 0000895419
+  sector: Information Technology
+  tier: expanded
+- ticker: WSC
+  company_name: WILLSCOT HOLDINGS CORP
+  provider_company_id: 4359e36fd315cc1ef7648382d72d3c7f
+  cik: 0001647088
+  sector: Information Technology
+  tier: expanded
+- ticker: WU
+  company_name: WESTERN UNION CO
+  provider_company_id: 13a86e3b3001ef1dcb5e8c0cf31a860a
+  cik: '0001365135'
+  sector: Information Technology
+  tier: expanded
+- ticker: WULF
+  company_name: TERAWULF INC.
+  provider_company_id: d6742f97d4f683886f9e7bfa95b74f62
+  cik: 0001083301
+  sector: Financials
+  tier: expanded
+- ticker: WYNN
+  company_name: WYNN RESORTS LTD
+  provider_company_id: a9a51447a59321377ee3112edf357bc4
+  cik: 0001174922
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: XEL
+  company_name: XCEL ENERGY INC
+  provider_company_id: d318286c1f33c073147b95f93c896fb0
+  cik: 0000072903
+  sector: Utilities
+  tier: expanded
+- ticker: XP
+  company_name: XP INC.
+  provider_company_id: de3077b9badf7bf45d5e034da2c15a80
+  cik: 0001787425
+  sector: Financials
+  tier: expanded
+- ticker: XPEV
+  company_name: XPENG INC.
+  provider_company_id: fe7efface4b7d2f9529527d1521a156a
+  cik: 0001810997
+  sector: Consumer Discretionary
+  tier: expanded
+- ticker: XRAY
+  company_name: DENTSPLY SIRONA INC.
+  provider_company_id: ce38c4a72be6e42b7f9786acb97c46a8
+  cik: 0000818479
+  sector: Healthcare
+  tier: expanded
+- ticker: XRX
+  company_name: XEROX HOLDINGS CORP
+  provider_company_id: f6a90e5f72958dca29b93fbb562fea4c
+  cik: '0001770450'
+  sector: Information Technology
+  tier: expanded
+- ticker: YMM
+  company_name: FULL TRUCK ALLIANCE CO. LTD.
+  provider_company_id: dcce7df8b7f35c3351a6369289f6cbbc
+  cik: 0001838413
+  sector: Information Technology
+  tier: expanded
+- ticker: ZION
+  company_name: ZIONS BANCORPORATION, NATIONAL ASSOCIATION /UT/
+  provider_company_id: d7ef8ebb503fddd5aa2d63b69dbbfda6
+  cik: 0000109380
+  sector: Financials
+  tier: expanded
+- ticker: ZM
+  company_name: ZOOM COMMUNICATIONS, INC.
+  provider_company_id: 42970ea85fdd0c2c89b936cd8af12a3c
+  cik: 0001585521
+  sector: Information Technology
+  tier: expanded
+- ticker: ZS
+  company_name: ZSCALER, INC.
+  provider_company_id: b4acee6a7338ab0e04cb480a781949ac
+  cik: 0001713683
+  sector: Information Technology
+  tier: expanded

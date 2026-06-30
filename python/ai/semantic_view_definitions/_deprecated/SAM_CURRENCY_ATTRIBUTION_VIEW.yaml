@@ -1,0 +1,158 @@
+name: SAM_CURRENCY_ATTRIBUTION_VIEW
+description: "Currency attribution semantic view decomposing returns into local currency, FX, and cross-term (AVU) components. Shows how currency movements affected portfolio returns."
+tables:
+  - name: currency_attribution
+    synonyms:
+      - fx_attribution
+      - currency_effects
+      - currency_decomposition
+    description: Return decomposition into local currency return, FX return, and asset value uncertainty (cross-term)
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: FACT_CURRENCY_ATTRIBUTION
+    primary_key:
+      columns:
+        - currency_date
+        - curr_pk_portfolioid
+        - curr_pk_securityid
+    dimensions:
+      - name: curr_pk_securityid
+        description: "SECURITYID for currency_attribution"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: curr_pk_portfolioid
+        description: "PORTFOLIOID for currency_attribution"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: local_currency
+        synonyms:
+          - trading_currency
+          - security_currency
+        description: Currency of the security (derived from country of incorporation)
+        expr: LOCALCURRENCY
+        data_type: VARCHAR(10)
+      - name: base_currency
+        synonyms:
+          - portfolio_currency
+          - reporting_currency
+        description: Base currency of the portfolio (USD for all current portfolios)
+        expr: BASECURRENCY
+        data_type: VARCHAR(10)
+    facts:
+      - name: local_return
+        description: Return in the security's local currency
+        expr: LOCALRETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: fx_return
+        description: Currency return component (change in exchange rate)
+        expr: FXRETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: avu_return
+        synonyms:
+          - cross_term
+          - asset_value_uncertainty
+        description: Asset Value Uncertainty — cross-term between local return and FX return (R_local × R_fx)
+        expr: AVURETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: base_return
+        description: Total return in portfolio base currency (local + fx + avu)
+        expr: BASERETURN
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_local_return
+        description: Average local currency return
+        expr: AVG(local_return)
+        access_modifier: public_access
+      - name: average_fx_return
+        description: Average FX return component
+        expr: AVG(fx_return)
+        access_modifier: public_access
+      - name: average_avu_return
+        description: Average asset value uncertainty cross-term
+        expr: AVG(avu_return)
+        access_modifier: public_access
+      - name: average_base_return
+        description: Average base currency return
+        expr: AVG(base_return)
+        access_modifier: public_access
+      - name: total_fx_impact
+        synonyms:
+          - currency_impact
+          - fx_effect
+        description: Total FX impact across all positions (sum of fx_return)
+        expr: SUM(fx_return)
+        access_modifier: public_access
+    time_dimensions:
+      - name: currency_date
+        synonyms:
+          - fx_date
+        description: Date of currency attribution
+        expr: DATE
+        data_type: DATE
+  - name: portfolios
+    description: Portfolio reference data
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: DIM_PORTFOLIO
+    primary_key:
+      columns:
+        - port_pk_portfolioid
+    dimensions:
+      - name: port_pk_portfolioid
+        description: "PORTFOLIOID for portfolios"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: portfolio_name
+        synonyms:
+          - fund_name
+        description: "Portfolio name. All names start with \"SAM \" prefix."
+        expr: PORTFOLIONAME
+        data_type: VARCHAR(134217728)
+  - name: securities
+    description: Security reference data
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: DIM_SECURITY
+    primary_key:
+      columns:
+        - secu_pk_securityid
+    dimensions:
+      - name: secu_pk_securityid
+        description: "SECURITYID for securities"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: security_ticker
+        description: Security ticker symbol
+        expr: TICKER
+        data_type: VARCHAR(20)
+      - name: security_description
+        description: Security name/description
+        expr: DESCRIPTION
+        data_type: VARCHAR(134217728)
+relationships:
+  - name: currency_to_portfolio
+    left_table: currency_attribution
+    right_table: portfolios
+    relationship_columns:
+      - left_column: curr_pk_portfolioid
+        right_column: port_pk_portfolioid
+  - name: currency_to_security
+    left_table: currency_attribution
+    right_table: securities
+    relationship_columns:
+      - left_column: curr_pk_securityid
+        right_column: secu_pk_securityid
+module_custom_instructions:
+  sql_generation: "Data is at MONTHLY granularity. Each row is one security-portfolio-month. The currency decomposition identity holds: base_return = local_return + fx_return + avu_return. Currently all securities trade in USD so FX and AVU components are zero. When non-USD portfolios are added, the FX and AVU components will show meaningful values. Use AVG for per-security returns, SUM for portfolio-level aggregation. Filter by local_currency to see positions in a specific currency."
+verified_queries:
+  - name: CURRENCY_IMPACT_BY_CURRENCY
+    sql: "SELECT __currency_attribution.local_currency, COUNT(*) AS POSITION_COUNT, AVG(__currency_attribution.LOCALRETURN) AS AVG_LOCAL_RETURN, AVG(__currency_attribution.FXRETURN) AS AVG_FX_RETURN, AVG(__currency_attribution.AVURETURN) AS AVG_AVU_RETURN FROM __currency_attribution JOIN __portfolios ON __currency_attribution.PORTFOLIOID = __portfolios.PORTFOLIOID WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __currency_attribution.currency_date > DATEADD('month', -3, (SELECT MAX(__currency_attribution.currency_date) FROM __currency_attribution)) GROUP BY __currency_attribution.local_currency ORDER BY POSITION_COUNT DESC"
+    question: How much of our return came from currency effects? Show me the FX impact by currency.
+    use_as_onboarding_question: true

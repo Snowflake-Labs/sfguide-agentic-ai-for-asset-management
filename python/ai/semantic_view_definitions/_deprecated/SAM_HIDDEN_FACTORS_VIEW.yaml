@@ -1,0 +1,120 @@
+name: SAM_HIDDEN_FACTORS_VIEW
+description: "Hidden factor semantic view for detecting unpriced or emerging risk exposures. AI-discovered factors include: AI_Exposure (artificial intelligence beneficiaries), Reshoring_Benefit (supply chain relocalization), Rate_Convexity (interest rate sensitivity), Climate_Transition (green transition exposure), Geopolitical_Risk (country/region tensions)."
+tables:
+  - name: hidden_factors
+    synonyms:
+      - latent_factors
+      - unpriced_risks
+      - hidden_exposures
+      - alternative_factors
+    description: AI-detected hidden factor exposures not captured by traditional factors
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_HIDDEN_FACTOR_EXPOSURES
+    primary_key:
+      columns:
+        - analysis_date
+        - hidd_pk_portfolioid
+        - factor_name
+    dimensions:
+      - name: hidd_pk_portfolioid
+        description: "PORTFOLIOID for hidden_factors"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: factor_description
+        synonyms:
+          - factor_desc
+          - explanation
+        description: Description of hidden factor
+        expr: DESCRIPTION
+        data_type: VARCHAR(81)
+      - name: factor_name
+        synonyms:
+          - hidden_factor
+          - latent_factor
+          - alternative_factor
+        description: "Hidden factor name (AI_Exposure, Reshoring_Benefit, Rate_Convexity, Climate_Transition, Geopolitical_Risk)"
+        expr: FACTOR_NAME
+        data_type: VARCHAR(18)
+    facts:
+      - name: explanatory_power
+        expr: EXPLANATORY_POWER
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: factor_exposure
+        expr: FACTOR_EXPOSURE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_explanatory_power
+        synonyms:
+          - avg_r_squared
+        description: Average explanatory power per factor
+        expr: AVG(explanatory_power)
+        access_modifier: public_access
+      - name: average_factor_exposure
+        synonyms:
+          - hidden_beta
+          - latent_exposure
+        description: Average hidden factor exposure
+        expr: AVG(factor_exposure)
+        access_modifier: public_access
+      - name: max_factor_exposure
+        synonyms:
+          - peak_exposure
+          - highest_exposure
+        description: Maximum hidden factor exposure
+        expr: MAX(factor_exposure)
+        access_modifier: public_access
+      - name: total_explanatory_power
+        synonyms:
+          - r_squared
+          - variance_explained
+        description: Total variance explained by hidden factors
+        expr: SUM(explanatory_power)
+        access_modifier: public_access
+    time_dimensions:
+      - name: analysis_date
+        synonyms:
+          - detection_date
+        description: Date of hidden factor analysis
+        expr: DATE
+        data_type: DATE
+  - name: portfolios
+    synonyms:
+      - funds
+      - strategies
+    description: Portfolio reference data
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_PORTFOLIO
+    primary_key:
+      columns:
+        - port_pk_portfolioid
+    dimensions:
+      - name: port_pk_portfolioid
+        description: "PORTFOLIOID for portfolios"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: portfolio_name
+        synonyms:
+          - fund_name
+        description: "Portfolio name. All names start with \"SAM \" prefix, e.g. \"SAM Technology & Infrastructure\"."
+        expr: PORTFOLIONAME
+        data_type: VARCHAR(134217728)
+      - name: strategy
+        synonyms:
+          - investment_style
+          - strategy_type
+        description: Investment strategy
+        expr: STRATEGY
+        data_type: VARCHAR(134217728)
+relationships:
+  - name: hidden_to_portfolio
+    left_table: hidden_factors
+    right_table: portfolios
+    relationship_columns:
+      - left_column: hidd_pk_portfolioid
+        right_column: port_pk_portfolioid

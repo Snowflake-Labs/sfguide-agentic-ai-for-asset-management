@@ -63,5 +63,5 @@ Normal market conditions, increased year-end activity
 
 **Report Generated:** 31 December 2024 18:00 GMT  
 **Custodian Reference:** BNY-REF-2024-Q4-156  
-**Operations Contact:** operations@sam-demo.example / +44-20-7123-4567
+**Operations Contact:** operations@snowcrestam.com / +44-20-7123-4567
 

@@ -320,7 +320,7 @@ All Simulated Asset Management portfolios across all asset classes and custodian
 - Reconciliation completion: 100% by 11:00
 
 ## Contact Information
-**Reconciliation Team:** reconteam@sam-demo.example  
+**Reconciliation Team:** reconteam@snowcrestam.com  
 **Operations Manager:** Sarah Mitchell  
 **Custodian Reconciliation Desk:** Daily reconciliation via automated feed
 

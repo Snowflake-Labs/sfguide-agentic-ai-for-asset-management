@@ -1,0 +1,79 @@
+name: SAM_TREASURY_YIELDS_VIEW
+description: "US Treasury par yield curve rates across 14 maturities (1M to 30Y). Daily frequency from US Treasury data. Use for yield curve analysis, duration risk, term structure, credit spread over risk-free, and monetary policy regime detection."
+tables:
+  - name: treasury_yields
+    synonyms:
+      - yield_curve
+      - us_treasuries
+      - risk_free_rates
+      - government_bonds
+      - treasury_rates
+    description: "Daily US Treasury par yield curve rates across 14 maturities from 1-month to 30-year"
+    base_table:
+      database: "{{DATABASE}}"
+      schema: MARKET_DATA
+      table: FACT_TREASURY_YIELDS
+    primary_key:
+      columns:
+        - trea_pk_yield_id
+    dimensions:
+      - name: trea_pk_yield_id
+        description: "YIELD_ID for treasury_yields"
+        expr: YIELD_ID
+        data_type: "NUMBER(38,0)"
+      - name: maturity_code
+        synonyms:
+          - tenor
+          - maturity
+          - term
+        description: "Maturity bucket code: 1M, 1.5M, 2M, 3M, 4M, 6M, 1Y, 2Y, 3Y, 5Y, 7Y, 10Y, 20Y, 30Y"
+        expr: MATURITY_CODE
+        data_type: VARCHAR(16777216)
+      - name: maturity_label
+        synonyms:
+          - maturity_name
+          - tenor_name
+        description: "Full maturity description from US Treasury"
+        expr: MATURITY_LABEL
+        data_type: VARCHAR(16777216)
+    facts:
+      - name: yield_pct
+        synonyms:
+          - yield
+          - rate
+          - yield_rate
+          - treasury_rate
+        description: "Annualised yield percentage"
+        expr: YIELD_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: maturity_years
+        description: "Maturity in years (0.083 for 1M to 30.0 for 30Y)"
+        expr: MATURITY_YEARS
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_yield
+        synonyms:
+          - avg_yield
+          - mean_yield
+          - average_rate
+        description: "Average treasury yield rate"
+        expr: AVG(yield_pct)
+        access_modifier: public_access
+      - name: yield_spread
+        synonyms:
+          - term_spread
+          - slope
+        description: "Spread between max and min yield across maturities (term spread proxy)"
+        expr: MAX(yield_pct) - MIN(yield_pct)
+        access_modifier: public_access
+    time_dimensions:
+      - name: yield_date
+        synonyms:
+          - date
+          - observation_date
+          - rate_date
+        description: "Date of yield observation"
+        expr: DATE
+        data_type: DATE

@@ -1,0 +1,168 @@
+# Regulation Sources — Registry of real regulatory documents for AM demo
+# =============================================================================
+# Each entry maps a downloaded PDF to its metadata for enriching the
+# PDF_REGULATORY_CORPUS table and SAM_REGULATORY_DOCS Cortex Search service.
+#
+# Fields:
+#   id:               Short unique identifier (used as REGULATION_ID column)
+#   title:            Full regulation title (used as DOCUMENT_TITLE)
+#   file:             PDF filename in data/source_pdfs/am_regulatory/
+#   source_url:       Original download URL for attribution
+#   regulatory_body:  Issuing authority
+#   reference:        Official regulation reference number
+#   jurisdiction:     EU, UK, or US
+#   effective_date:   Date the regulation became effective
+#   am_relevance:     Brief description of relevance to asset management
+
+regulations:
+  # ---------------------------------------------------------------------------
+  # EU Regulations
+  # ---------------------------------------------------------------------------
+  - id: eu_mifid_ii
+    title: "Markets in Financial Instruments Directive II (MiFID II)"
+    file: eu_mifid_ii_directive.pdf
+    source_url: "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014L0065"
+    regulatory_body: European Parliament
+    reference: "Directive 2014/65/EU"
+    jurisdiction: EU
+    effective_date: "2018-01-03"
+    am_relevance: "Client categorisation, best execution, suitability assessments, research unbundling, transaction reporting"
+
+  - id: eu_ucits
+    title: "Undertakings for Collective Investment in Transferable Securities (UCITS) Directive"
+    file: eu_ucits_directive.pdf
+    source_url: "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32009L0065"
+    regulatory_body: European Parliament
+    reference: "Directive 2009/65/EC"
+    jurisdiction: EU
+    effective_date: "2011-07-01"
+    am_relevance: "Fund structuring, eligible assets, diversification limits (5/10/40 rule), KIID requirements"
+
+  - id: eu_aifmd_ii
+    title: "Alternative Investment Fund Managers Directive II (AIFMD II)"
+    file: eu_aifmd_ii_directive.pdf
+    source_url: "https://eur-lex.europa.eu/eli/dir/2024/927/oj/eng"
+    regulatory_body: European Parliament
+    reference: "Directive (EU) 2024/927"
+    jurisdiction: EU
+    effective_date: "2026-04-16"
+    am_relevance: "Alternative fund management, delegation arrangements, loan origination, liquidity management, depositary rules"
+
+  - id: eu_sfdr
+    title: "Sustainable Finance Disclosure Regulation (SFDR)"
+    file: eu_sfdr_regulation.pdf
+    source_url: "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32019R2088"
+    regulatory_body: European Parliament
+    reference: "Regulation (EU) 2019/2088"
+    jurisdiction: EU
+    effective_date: "2021-03-10"
+    am_relevance: "ESG disclosure obligations (Article 6/8/9 funds), PAI statements, pre-contractual disclosures"
+
+  - id: eu_taxonomy
+    title: "EU Taxonomy Regulation"
+    file: eu_taxonomy_regulation.pdf
+    source_url: "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32020R0852"
+    regulatory_body: European Parliament
+    reference: "Regulation (EU) 2020/852"
+    jurisdiction: EU
+    effective_date: "2022-01-01"
+    am_relevance: "Green classification framework, do no significant harm criteria, taxonomy alignment for Article 8/9 funds"
+
+  - id: eu_dora
+    title: "Digital Operational Resilience Act (DORA)"
+    file: eu_dora_regulation.pdf
+    source_url: "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32022R2554"
+    regulatory_body: European Parliament
+    reference: "Regulation (EU) 2022/2554"
+    jurisdiction: EU
+    effective_date: "2025-01-17"
+    am_relevance: "ICT risk management, incident reporting, digital operational resilience testing, third-party risk"
+
+  - id: eu_emir_iii
+    title: "European Market Infrastructure Regulation III (EMIR III)"
+    file: eu_emir_iii_regulation.pdf
+    source_url: "https://data.consilium.europa.eu/doc/document/PE-41-2024-REV-1/en/pdf"
+    regulatory_body: European Parliament
+    reference: "Regulation (EU) 2024/2987"
+    jurisdiction: EU
+    effective_date: "2025-06-25"
+    am_relevance: "OTC derivatives clearing, active account requirement, intragroup exemptions, margin requirements"
+
+  # ---------------------------------------------------------------------------
+  # UK Regulations
+  # ---------------------------------------------------------------------------
+  - id: fca_consumer_duty
+    title: "FCA Consumer Duty (PS22/9)"
+    file: fca_consumer_duty_ps22_9.pdf
+    source_url: "https://www.fca.org.uk/publication/policy/ps22-9.pdf"
+    regulatory_body: Financial Conduct Authority
+    reference: "PS22/9"
+    jurisdiction: UK
+    effective_date: "2023-07-31"
+    am_relevance: "Good outcomes for retail clients, price and value assessment, consumer understanding, consumer support"
+
+  - id: fca_sdr
+    title: "FCA Sustainability Disclosure Requirements and Anti-Greenwashing Rule (PS23/16)"
+    file: fca_sdr_anti_greenwashing_ps23_16.pdf
+    source_url: "https://www.fca.org.uk/publication/policy/ps23-16.pdf"
+    regulatory_body: Financial Conduct Authority
+    reference: "PS23/16"
+    jurisdiction: UK
+    effective_date: "2024-05-31"
+    am_relevance: "Sustainability labels, naming and marketing rules, anti-greenwashing for UK-authorised fund managers"
+
+  # ---------------------------------------------------------------------------
+  # US Regulations
+  # ---------------------------------------------------------------------------
+  - id: sec_advisers_act
+    title: "Investment Advisers Act of 1940"
+    file: sec_investment_advisers_act_1940.pdf
+    source_url: "https://www.govinfo.gov/content/pkg/COMPS-1878/pdf/COMPS-1878.pdf"
+    regulatory_body: U.S. Securities and Exchange Commission
+    reference: "15 U.S.C. 80b"
+    jurisdiction: US
+    effective_date: "1940-08-22"
+    am_relevance: "Adviser registration, fiduciary duty, disclosure requirements (Form ADV), anti-fraud provisions"
+
+  - id: sec_marketing_rule
+    title: "SEC Investment Adviser Marketing Rule"
+    file: sec_marketing_rule.pdf
+    source_url: "https://www.govinfo.gov/content/pkg/FR-2021-03-05/pdf/2020-28868.pdf"
+    regulatory_body: U.S. Securities and Exchange Commission
+    reference: "17 CFR 275.206(4)-1"
+    jurisdiction: US
+    effective_date: "2022-11-04"
+    am_relevance: "Advertising rules, testimonials, endorsements, performance presentation, third-party ratings"
+
+  - id: sec_private_fund_rules
+    title: "SEC Private Fund Adviser Rules"
+    file: sec_private_fund_rules_2023.pdf
+    source_url: "https://www.govinfo.gov/content/pkg/FR-2023-09-14/pdf/2023-18660.pdf"
+    regulatory_body: U.S. Securities and Exchange Commission
+    reference: "17 CFR Parts 275 and 279"
+    jurisdiction: US
+    effective_date: "2024-03-14"
+    am_relevance: "Quarterly statements, audit requirements, adviser-led secondaries, restricted activities for private funds"
+
+  # ---------------------------------------------------------------------------
+  # International Standards (shared with banking demo)
+  # ---------------------------------------------------------------------------
+  - id: ifrs_9
+    title: "IFRS 9 Financial Instruments"
+    file: ifrs_9_financial_instruments.pdf
+    source_url: "https://www.ifrs.org/issued-standards/list-of-standards/ifrs-9-financial-instruments/"
+    regulatory_body: International Accounting Standards Board
+    reference: "IFRS 9"
+    jurisdiction: International
+    effective_date: "2018-01-01"
+    am_relevance: "Financial instrument classification, impairment, hedge accounting, fair value measurement"
+
+  - id: ifrs_7
+    title: "IFRS 7 Financial Instruments: Disclosures"
+    file: ifrs_7_financial_instruments_disclosures.pdf
+    source_url: "https://www.ifrs.org/issued-standards/list-of-standards/ifrs-7-financial-instruments-disclosures/"
+    regulatory_body: International Accounting Standards Board
+    reference: "IFRS 7"
+    jurisdiction: International
+    effective_date: "2007-01-01"
+    am_relevance: "Disclosure requirements for financial instruments, risk exposure reporting, fair value hierarchy"

@@ -1,0 +1,428 @@
+name: SAM_SEC_FINANCIALS_VIEW
+description: "Comprehensive SEC financial statements semantic view with Income Statement, Balance Sheet, and Cash Flow metrics from SEC XBRL filings. All monetary values are in actual units (not thousands or millions). For geographic/segment revenue breakdowns, use SAM_SEC_SEGMENTS_VIEW."
+tables:
+  - name: financials
+    synonyms:
+      - financial_statements
+      - sec_financials
+      - company_financials
+    description: "Comprehensive SEC financial statements including Income Statement, Balance Sheet, and Cash Flow."
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: FACT_SEC_FINANCIALS
+    primary_key:
+      columns:
+        - financial_id
+    dimensions:
+      - name: fina_pk_issuerid
+        description: "ISSUERID for financials"
+        expr: "ISSUERID"
+        data_type: "NUMBER(38,0)"
+      - name: CURRENCY
+        synonyms:
+          - reporting_currency
+          - currency_code
+          - unit
+        description: "Reporting currency (e.g., USD, EUR, CAD). Values are in actual units, not thousands or millions."
+        expr: CURRENCY
+        data_type: VARCHAR(16777216)
+      - name: financial_id
+        description: Unique financial record identifier
+        expr: FINANCIAL_ID
+        data_type: "NUMBER(18,0)"
+      - name: fiscal_period
+        synonyms:
+          - quarter
+          - period
+          - q
+        description: "Fiscal period (FY for annual, Q1-Q4 for quarterly, Q2_YTD/Q3_YTD for cumulative year-to-date)"
+        expr: FISCAL_PERIOD
+        data_type: VARCHAR(16777216)
+      - name: fiscal_year
+        synonyms:
+          - year
+          - fy
+          - fiscal
+        description: Fiscal year
+        expr: FISCAL_YEAR
+        data_type: "NUMBER(4,0)"
+      - name: period_type
+        synonyms:
+          - row_type
+          - reporting_period_type
+        description: "Type of reporting period: annual (full fiscal year FY), quarterly (single quarter Q1-Q4), cumulative_ytd (year-to-date cumulative), balance_sheet_only (Q0). CRITICAL: For fiscal year totals always filter period_type=annual. For individual quarters filter period_type=quarterly. Never aggregate across different period_types."
+        expr: PERIOD_TYPE
+        data_type: VARCHAR(18)
+    facts:
+      - name: CAPEX
+        expr: CAPEX
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: cash_and_equivalents
+        expr: CASH_AND_EQUIVALENTS
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: current_ratio
+        expr: CURRENT_RATIO
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: debt_to_equity
+        expr: DEBT_TO_EQUITY
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: eps_basic
+        expr: EPS_BASIC
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: eps_diluted
+        expr: EPS_DILUTED
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: financing_cash_flow
+        expr: FINANCING_CASH_FLOW
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: free_cash_flow
+        expr: FREE_CASH_FLOW
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: gross_margin_pct
+        expr: GROSS_MARGIN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: gross_profit
+        expr: GROSS_PROFIT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: investing_cash_flow
+        expr: INVESTING_CASH_FLOW
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: long_term_debt
+        expr: LONG_TERM_DEBT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: net_income
+        expr: NET_INCOME
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: net_margin_pct
+        expr: NET_MARGIN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: operating_cash_flow
+        expr: OPERATING_CASH_FLOW
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: operating_income
+        expr: OPERATING_INCOME
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: operating_margin_pct
+        expr: OPERATING_MARGIN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: rd_expense
+        expr: RD_EXPENSE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: REVENUE
+        expr: REVENUE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: roa_pct
+        expr: ROA_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: roe_pct
+        expr: ROE_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: total_assets
+        expr: TOTAL_ASSETS
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: total_equity
+        expr: TOTAL_EQUITY
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: total_liabilities
+        expr: TOTAL_LIABILITIES
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_current_ratio
+        synonyms:
+          - current_ratio
+          - liquidity_ratio
+        description: Current ratio
+        expr: AVG(current_ratio)
+        access_modifier: public_access
+      - name: average_debt_to_equity
+        synonyms:
+          - leverage
+          - d_e_ratio
+        description: Debt to equity ratio
+        expr: AVG(debt_to_equity)
+        access_modifier: public_access
+      - name: average_eps_basic
+        synonyms:
+          - eps
+          - earnings_per_share
+        description: Basic earnings per share
+        expr: AVG(eps_basic)
+        access_modifier: public_access
+      - name: average_eps_diluted
+        synonyms:
+          - diluted_eps
+        description: Diluted earnings per share
+        expr: AVG(eps_diluted)
+        access_modifier: public_access
+      - name: average_gross_margin_pct
+        synonyms:
+          - gross_margin
+        description: Gross margin percentage
+        expr: AVG(gross_margin_pct)
+        access_modifier: public_access
+      - name: average_net_margin_pct
+        synonyms:
+          - net_margin
+          - profit_margin
+        description: Net profit margin percentage
+        expr: AVG(net_margin_pct)
+        access_modifier: public_access
+      - name: average_operating_margin_pct
+        synonyms:
+          - operating_margin
+          - op_margin
+        description: Operating margin percentage
+        expr: AVG(operating_margin_pct)
+        access_modifier: public_access
+      - name: average_roa_pct
+        synonyms:
+          - roa
+          - return_on_assets
+        description: Return on assets percentage
+        expr: AVG(roa_pct)
+        access_modifier: public_access
+      - name: average_roe_pct
+        synonyms:
+          - roe
+          - return_on_equity
+        description: Return on equity percentage
+        expr: AVG(roe_pct)
+        access_modifier: public_access
+      - name: ISSUER_COUNT
+        synonyms:
+          - issuers
+          - companies
+          - num_companies
+        description: Number of issuers/companies
+        expr: COUNT(DISTINCT IssuerID)
+        access_modifier: public_access
+      - name: PERIOD_COUNT
+        synonyms:
+          - periods
+          - fiscal_periods
+        description: Number of fiscal periods
+        expr: "COUNT(DISTINCT CONCAT(CIK, '-', FISCAL_YEAR, '-', FISCAL_PERIOD))"
+        access_modifier: public_access
+      - name: total_capex
+        synonyms:
+          - capital_expenditure
+          - capex
+          - pp_and_e_spending
+        description: Capital expenditure
+        expr: SUM(CAPEX)
+        access_modifier: public_access
+      - name: total_cash_and_equivalents
+        synonyms:
+          - cash
+          - cash_equivalents
+          - liquidity
+        description: Cash and cash equivalents
+        expr: SUM(cash_and_equivalents)
+        access_modifier: public_access
+      - name: total_financing_cash_flow
+        synonyms:
+          - cff
+        description: Cash from financing
+        expr: SUM(financing_cash_flow)
+        access_modifier: public_access
+      - name: total_free_cash_flow
+        synonyms:
+          - fcf
+        description: Free cash flow (OCF - CapEx)
+        expr: SUM(free_cash_flow)
+        access_modifier: public_access
+      - name: total_gross_profit
+        synonyms:
+          - gross_profit
+          - gross_margin_dollars
+        description: Gross profit
+        expr: SUM(gross_profit)
+        access_modifier: public_access
+      - name: total_investing_cash_flow
+        synonyms:
+          - cfi
+        description: Cash from investing
+        expr: SUM(investing_cash_flow)
+        access_modifier: public_access
+      - name: total_long_term_debt
+        synonyms:
+          - debt
+        description: Long-term debt
+        expr: SUM(long_term_debt)
+        access_modifier: public_access
+      - name: total_net_income
+        synonyms:
+          - earnings
+          - profit
+          - bottom_line
+        description: Net income
+        expr: SUM(net_income)
+        access_modifier: public_access
+      - name: total_operating_cash_flow
+        synonyms:
+          - cfo
+          - ocf
+        description: Cash from operations
+        expr: SUM(operating_cash_flow)
+        access_modifier: public_access
+      - name: total_operating_income
+        synonyms:
+          - ebit
+          - operating_profit
+        description: Operating income
+        expr: SUM(operating_income)
+        access_modifier: public_access
+      - name: total_rd_expense
+        synonyms:
+          - rd
+          - research_development
+        description: Research and development expense
+        expr: SUM(rd_expense)
+        access_modifier: public_access
+      - name: total_revenue
+        synonyms:
+          - revenue
+          - sales
+          - top_line
+        description: Total revenue/sales
+        expr: SUM(REVENUE)
+        access_modifier: public_access
+      - name: sum_total_assets
+        synonyms:
+          - assets
+        description: Total assets
+        expr: SUM(total_assets)
+        access_modifier: public_access
+      - name: sum_total_equity
+        synonyms:
+          - stockholders_equity
+          - equity
+          - book_value
+        description: Total stockholders equity
+        expr: SUM(total_equity)
+        access_modifier: public_access
+      - name: sum_total_liabilities
+        synonyms:
+          - liabilities
+        description: Total liabilities
+        expr: SUM(total_liabilities)
+        access_modifier: public_access
+    time_dimensions:
+      - name: period_end_date
+        synonyms:
+          - period_end
+          - end_date
+          - as_of_date
+        description: Period end date
+        expr: PERIOD_END_DATE
+        data_type: DATE
+  - name: issuers
+    synonyms:
+      - companies
+      - firms
+      - corporations
+      - entities
+    description: Company/issuer master data (single source of truth for company information)
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_ISSUER
+    primary_key:
+      columns:
+        - issu_pk_issuerid
+    dimensions:
+      - name: issu_pk_issuerid
+        description: "ISSUERID for issuers"
+        expr: ISSUERID
+        data_type: "NUMBER(38,0)"
+      - name: CIK
+        synonyms:
+          - cik_number
+          - sec_id
+          - central_index_key
+        description: SEC Central Index Key (from DIM_ISSUER)
+        expr: CIK
+        data_type: VARCHAR(16777216)
+      - name: company_name
+        synonyms:
+          - company
+          - firm_name
+          - corporation
+          - issuer
+          - entity
+          - name
+        description: "Company legal name for filtering (e.g., MICROSOFT CORP, APPLE INC., NVIDIA CORP)"
+        expr: LEGALNAME
+        data_type: VARCHAR(16777216)
+      - name: GICS_SECTOR
+        synonyms:
+          - gics
+          - gics_sector
+          - sector
+          - sector_classification
+        description: GICS Level 1 sector classification
+        expr: GICS_SECTOR
+        data_type: VARCHAR(16777216)
+      - name: INDUSTRY
+        synonyms:
+          - industry
+          - business_type
+        description: Industry classification (SIC)
+        expr: SIC_DESCRIPTION
+        data_type: VARCHAR(16777216)
+      - name: TICKER
+        synonyms:
+          - ticker
+          - symbol
+          - stock_symbol
+          - stock
+        description: "Stock ticker symbol for filtering (e.g., MSFT, AAPL, NVDA)"
+        expr: PrimaryTicker
+        data_type: VARCHAR(16777216)
+relationships:
+  - name: financials_to_issuers
+    left_table: financials
+    right_table: issuers
+    relationship_columns:
+      - left_column: fina_pk_issuerid
+        right_column: issu_pk_issuerid
+module_custom_instructions:
+  sql_generation: "CRITICAL PERIOD HANDLING: FACT_SEC_FINANCIALS contains overlapping period types (annual, quarterly, cumulative year-to-date). For annual/yearly totals, ALWAYS filter period_type = 'annual' (fiscal_period = 'FY'). For individual quarter data, filter period_type = 'quarterly'. NEVER SUM revenue or income statement metrics across rows with different period_type values. Cumulative_ytd rows overlap with quarterly rows and will cause double/triple counting. Balance sheet metrics (assets, liabilities, equity) are point-in-time snapshots. All monetary values are in actual units (not thousands or millions)."
+verified_queries:
+  - name: ANNUAL_REVENUE
+    sql: "SELECT __issuers.company_name, __financials.fiscal_year, SUM(__financials.REVENUE) AS total_revenue, SUM(__financials.NET_INCOME) AS total_net_income FROM __financials JOIN __issuers ON (__financials.IssuerID = __issuers.IssuerID) WHERE __financials.period_type = 'annual' GROUP BY __issuers.company_name, __financials.fiscal_year ORDER BY __financials.fiscal_year DESC"
+    question: What is the annual revenue for each company?
+    use_as_onboarding_question: true
+  - name: QUARTERLY_FINANCIALS
+    sql: "SELECT __issuers.company_name, __financials.fiscal_year, __financials.fiscal_period, SUM(__financials.REVENUE) AS total_revenue, SUM(__financials.NET_INCOME) AS total_net_income, AVG(__financials.GROSS_MARGIN_PCT) AS average_gross_margin_pct FROM __financials JOIN __issuers ON (__financials.IssuerID = __issuers.IssuerID) WHERE __financials.period_type = 'quarterly' GROUP BY __issuers.company_name, __financials.fiscal_year, __financials.fiscal_period ORDER BY __financials.fiscal_year DESC, __financials.fiscal_period"
+    question: Show quarterly financials for a company
+    use_as_onboarding_question: true
+  - name: BALANCE_SHEET
+    sql: "SELECT __issuers.company_name, __financials.fiscal_year, SUM(__financials.TOTAL_ASSETS) AS sum_total_assets, SUM(__financials.TOTAL_EQUITY) AS sum_total_equity, SUM(__financials.FREE_CASH_FLOW) AS total_free_cash_flow FROM __financials JOIN __issuers ON (__financials.IssuerID = __issuers.IssuerID) WHERE __financials.period_type = 'annual' GROUP BY __issuers.company_name, __financials.fiscal_year ORDER BY __financials.fiscal_year DESC"
+    question: What is the balance sheet summary?
+    use_as_onboarding_question: false

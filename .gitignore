@@ -135,7 +135,6 @@ Desktop.ini
 # Project Specific
 # ============================================================================
 # Local data files
-data/
 output/
 logs/
 *.log

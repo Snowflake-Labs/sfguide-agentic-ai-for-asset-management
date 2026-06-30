@@ -1,0 +1,547 @@
+name: SAM_TOOL_RESULTS_VIEW
+description: "Tool run results for backtests and Monte Carlo simulations. Use to visualise detailed timeseries, fan charts, and terminal distributions. Always filter by RUN_ID."
+tables:
+  - name: backtest_runs
+    synonyms:
+      - backtest_results
+      - backtest_metrics
+    description: Summary metrics from backtest tool runs
+    base_table:
+      database: {{DATABASE}}
+      schema: AI
+      table: TOOL_BACKTEST_RUNS
+    primary_key:
+      columns:
+        - backtest_run_id
+        - backtest_portfolio_index
+    dimensions:
+      - name: backtest_portfolio_index
+        synonyms:
+          - portfolio_number
+          - portfolio_index
+        description: Portfolio index (0-based) when multiple portfolios are compared
+        expr: PORTFOLIO_IDX
+        data_type: "NUMBER(38,0)"
+      - name: backtest_run_id
+        synonyms:
+          - run_identifier
+        description: Unique identifier for the tool run - always filter by this
+        expr: RUN_ID
+        data_type: VARCHAR(36)
+      - name: rebalance_frequency
+        synonyms:
+          - rebalancing
+        description: Portfolio rebalancing frequency
+        expr: REBALANCE_FREQ
+        data_type: VARCHAR(20)
+    facts:
+      - name: annualized_return_pct
+        description: Annualized return percentage
+        expr: ANNUALIZED_RETURN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: annualized_volatility_pct
+        description: Annualized volatility percentage
+        expr: ANNUALIZED_VOLATILITY_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: backtest_calmar_ratio
+        description: Calmar ratio (annualized return / max drawdown)
+        expr: CALMAR_RATIO
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: backtest_sharpe_ratio
+        synonyms:
+          - bt_sharpe
+        description: Backtest Sharpe ratio (excess return / volatility)
+        expr: SHARPE_RATIO
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: backtest_sortino_ratio
+        description: Sortino ratio (excess return / downside deviation)
+        expr: SORTINO_RATIO
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: cvar_95_pct
+        description: 95% daily Conditional VaR percentage
+        expr: CVAR_95_DAILY_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: final_value
+        description: Final portfolio value
+        expr: FINAL_VALUE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: max_drawdown_pct
+        description: Maximum drawdown percentage
+        expr: MAX_DRAWDOWN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: total_return_pct
+        description: Total cumulative return percentage
+        expr: TOTAL_RETURN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: trading_days
+        description: Number of trading days in backtest period
+        expr: TRADING_DAYS
+        data_type: "NUMBER(38,0)"
+        access_modifier: public_access
+      - name: var_95_pct
+        description: 95% daily Value at Risk percentage
+        expr: VAR_95_DAILY_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+    time_dimensions:
+      - name: backtest_created_at
+        synonyms:
+          - run_date
+          - created_date
+        description: Timestamp when the run was created
+        expr: CREATED_AT
+        data_type: TIMESTAMP_NTZ(9)
+      - name: start_date
+        synonyms:
+          - backtest_start
+          - period_start
+        description: Backtest period start date
+        expr: START_DATE
+        data_type: DATE
+      - name: end_date
+        synonyms:
+          - backtest_end
+          - period_end
+        description: Backtest period end date
+        expr: END_DATE
+        data_type: DATE
+  - name: backtest_ts
+    synonyms:
+      - backtest_timeseries
+      - daily_values
+      - backtest_daily
+    description: Daily portfolio values and returns from backtest runs
+    base_table:
+      database: {{DATABASE}}
+      schema: AI
+      table: TOOL_BACKTEST_TIMESERIES
+    primary_key:
+      columns:
+        - back_pk_run_id
+        - back_pk_portfolio_idx
+        - trade_date
+    dimensions:
+      - name: back_pk_portfolio_idx
+        description: "PORTFOLIO_IDX for backtest_ts"
+        expr: PORTFOLIO_IDX
+        data_type: "NUMBER(38,0)"
+      - name: back_pk_run_id
+        description: "RUN_ID for backtest_ts"
+        expr: RUN_ID
+        data_type: "NUMBER(38,0)"
+    facts:
+      - name: daily_return
+        synonyms:
+          - daily_return_pct
+          - return_pct
+        description: Daily return as a percentage
+        expr: DAILY_RETURN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: drawdown
+        synonyms:
+          - drawdown_pct
+          - peak_to_trough
+        description: Drawdown from peak as a percentage (negative values)
+        expr: DRAWDOWN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: portfolio_value
+        synonyms:
+          - daily_value
+          - nav
+          - portfolio_nav
+        description: Daily portfolio value in base currency
+        expr: PORTFOLIO_VALUE
+        data_type: FLOAT
+        access_modifier: public_access
+    time_dimensions:
+      - name: trade_date
+        synonyms:
+          - valuation_date
+        description: Trading date for timeseries values
+        expr: AS_OF_DATE
+        data_type: DATE
+  - name: portfolios
+    synonyms:
+      - run_portfolios
+      - portfolio_weights
+      - run_weights
+    description: Portfolio ticker weights used in tool runs
+    base_table:
+      database: {{DATABASE}}
+      schema: AI
+      table: TOOL_RUN_PORTFOLIOS
+    primary_key:
+      columns:
+        - port_pk_run_id
+        - port_pk_portfolio_idx
+        - port_pk_ticker
+    dimensions:
+      - name: port_pk_ticker
+        description: "TICKER for portfolios"
+        expr: TICKER
+        data_type: "NUMBER(38,0)"
+      - name: port_pk_portfolio_idx
+        description: "PORTFOLIO_IDX for portfolios"
+        expr: PORTFOLIO_IDX
+        data_type: "NUMBER(38,0)"
+      - name: port_pk_run_id
+        description: "RUN_ID for portfolios"
+        expr: RUN_ID
+        data_type: "NUMBER(38,0)"
+    facts:
+      - name: ticker
+        synonyms:
+          - stock_ticker
+          - asset_symbol
+        description: Portfolio constituent ticker
+        expr: TICKER
+        data_type: VARCHAR(20)
+        access_modifier: public_access
+      - name: weight
+        synonyms:
+          - ticker_weight
+          - allocation_weight
+        description: Portfolio weight for this ticker
+        expr: WEIGHT
+        data_type: FLOAT
+        access_modifier: public_access
+  - name: sim_paths
+    synonyms:
+      - simulation_paths
+      - fan_chart_data
+      - percentile_paths
+    description: Percentile path data for fan charts from simulation runs
+    base_table:
+      database: {{DATABASE}}
+      schema: AI
+      table: TOOL_SIMULATION_PATHS
+    primary_key:
+      columns:
+        - sim_pk_run_id
+        - sim_pk_portfolio_idx
+        - day_index
+    dimensions:
+      - name: sim_pk_portfolio_idx
+        description: "PORTFOLIO_IDX for sim_paths"
+        expr: PORTFOLIO_IDX
+        data_type: "NUMBER(38,0)"
+      - name: sim_pk_run_id
+        description: "RUN_ID for sim_paths"
+        expr: RUN_ID
+        data_type: "NUMBER(38,0)"
+    facts:
+      - name: path_median
+        synonyms:
+          - p50_path
+          - median_path
+        description: Median portfolio value at this day
+        expr: MEDIAN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: path_p25
+        synonyms:
+          - p25_path
+        description: 25th percentile portfolio value at this day
+        expr: PERCENTILE_25
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: path_p5
+        synonyms:
+          - p5_path
+          - downside_path
+        description: 5th percentile portfolio value at this day
+        expr: PERCENTILE_5
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: path_p75
+        synonyms:
+          - p75_path
+        description: 75th percentile portfolio value at this day
+        expr: PERCENTILE_75
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: path_p95
+        synonyms:
+          - p95_path
+          - upside_path
+        description: 95th percentile portfolio value at this day
+        expr: PERCENTILE_95
+        data_type: FLOAT
+        access_modifier: public_access
+    time_dimensions:
+      - name: day_index
+        synonyms:
+          - simulation_day
+          - day_number
+        description: "Simulation day index (0-based, every 21 trading days)"
+        expr: DAY_INDEX
+        data_type: "NUMBER(38,0)"
+  - name: sim_runs
+    synonyms:
+      - simulation_runs
+      - simulation_results
+      - monte_carlo_runs
+    description: Summary metrics from Monte Carlo simulation runs
+    base_table:
+      database: {{DATABASE}}
+      schema: AI
+      table: TOOL_SIMULATION_RUNS
+    primary_key:
+      columns:
+        - simulation_run_id
+        - simulation_portfolio_index
+    dimensions:
+      - name: horizon_years
+        synonyms:
+          - projection_years
+          - sim_horizon
+        description: Simulation horizon in years
+        expr: HORIZON_YEARS
+        data_type: "NUMBER(38,0)"
+      - name: num_simulations
+        synonyms:
+          - simulation_count
+          - num_sims
+        description: Number of Monte Carlo simulations
+        expr: NUM_SIMULATIONS
+        data_type: "NUMBER(38,0)"
+      - name: simulation_portfolio_index
+        synonyms:
+          - sim_portfolio_index
+        description: Portfolio index for simulation
+        expr: PORTFOLIO_IDX
+        data_type: "NUMBER(38,0)"
+      - name: simulation_run_id
+        description: Unique identifier for the simulation run
+        expr: RUN_ID
+        data_type: VARCHAR(36)
+    facts:
+      - name: downside_multiple
+        description: 5th percentile as multiple of initial
+        expr: DOWNSIDE_CASE_MULTIPLE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: mean_terminal_value
+        description: Mean terminal portfolio value
+        expr: MEAN_VALUE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: median_multiple
+        description: Median terminal value as multiple of initial investment
+        expr: MEDIAN_MULTIPLE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: median_terminal_value
+        synonyms:
+          - median_outcome
+          - expected_terminal
+        description: Median terminal portfolio value
+        expr: MEDIAN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: probability_of_doubling
+        synonyms:
+          - prob_double
+          - doubling_probability
+        description: Probability of doubling investment
+        expr: PROB_GAIN_100_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: probability_gain_10_pct
+        description: Probability of 10%+ gain
+        expr: PROB_GAIN_10_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: probability_gain_20_pct
+        description: Probability of 20%+ gain
+        expr: PROB_GAIN_20_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: probability_gain_5_pct
+        description: Probability of 5%+ gain
+        expr: PROB_GAIN_5_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: probability_gain_50_pct
+        description: Probability of 50%+ gain
+        expr: PROB_GAIN_50_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: probability_of_loss
+        description: Probability of loss percentage
+        expr: PROB_LOSS_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: simulation_annual_volatility
+        description: Annual volatility from simulation
+        expr: ANNUAL_VOLATILITY_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: simulation_expected_return
+        description: Expected annualized return from simulation
+        expr: EXPECTED_ANNUAL_RETURN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: simulation_max_drawdown_90th_pctl
+        description: 90th percentile max drawdown from simulation
+        expr: MAX_DRAWDOWN_90_PCTL_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: simulation_sharpe_ratio
+        synonyms:
+          - sim_sharpe
+        description: Sharpe ratio from simulation
+        expr: SHARPE_RATIO
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: terminal_p25
+        description: 25th percentile terminal value
+        expr: PERCENTILE_25
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: terminal_p5
+        synonyms:
+          - downside_terminal
+        description: 5th percentile terminal value
+        expr: PERCENTILE_5
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: terminal_p75
+        description: 75th percentile terminal value
+        expr: PERCENTILE_75
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: terminal_p95
+        synonyms:
+          - upside_terminal
+        description: 95th percentile terminal value
+        expr: PERCENTILE_95
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: total_contributed
+        description: Total amount contributed including DCA
+        expr: TOTAL_CONTRIBUTED
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: upside_multiple
+        description: 95th percentile as multiple of initial
+        expr: UPSIDE_CASE_MULTIPLE
+        data_type: FLOAT
+        access_modifier: public_access
+  - name: sim_terminal
+    synonyms:
+      - terminal_values
+      - terminal_distribution
+      - histogram_data
+    description: Terminal value samples for distribution histograms
+    base_table:
+      database: {{DATABASE}}
+      schema: AI
+      table: TOOL_SIMULATION_TERMINAL_VALUES
+    primary_key:
+      columns:
+        - sim_pk_run_id
+        - sim_pk_portfolio_idx
+        - sample_index
+    dimensions:
+      - name: sim_pk_portfolio_idx
+        description: "PORTFOLIO_IDX for sim_terminal"
+        expr: PORTFOLIO_IDX
+        data_type: "NUMBER(38,0)"
+      - name: sim_pk_run_id
+        description: "RUN_ID for sim_terminal"
+        expr: RUN_ID
+        data_type: "NUMBER(38,0)"
+      - name: sample_index
+        description: Terminal value sample index
+        expr: SAMPLE_INDEX
+        data_type: "NUMBER(38,0)"
+    facts:
+      - name: terminal_value
+        synonyms:
+          - terminal_sample
+          - ending_value
+        description: Sampled terminal portfolio value for histogram
+        expr: TERMINAL_VALUE
+        data_type: FLOAT
+        access_modifier: public_access
+relationships:
+  - name: ts_to_backtest
+    left_table: backtest_ts
+    right_table: backtest_runs
+    relationship_columns:
+      - left_column: back_pk_run_id
+        right_column: backtest_run_id
+      - left_column: back_pk_portfolio_idx
+        right_column: backtest_portfolio_index
+  - name: bt_portfolios
+    left_table: portfolios
+    right_table: backtest_runs
+    relationship_columns:
+      - left_column: port_pk_run_id
+        right_column: backtest_run_id
+      - left_column: port_pk_portfolio_idx
+        right_column: backtest_portfolio_index
+  - name: sim_portfolios
+    left_table: portfolios
+    right_table: sim_runs
+    relationship_columns:
+      - left_column: port_pk_run_id
+        right_column: simulation_run_id
+      - left_column: port_pk_portfolio_idx
+        right_column: simulation_portfolio_index
+  - name: paths_to_sim
+    left_table: sim_paths
+    right_table: sim_runs
+    relationship_columns:
+      - left_column: sim_pk_run_id
+        right_column: simulation_run_id
+      - left_column: sim_pk_portfolio_idx
+        right_column: simulation_portfolio_index
+  - name: terminal_to_sim
+    left_table: sim_terminal
+    right_table: sim_runs
+    relationship_columns:
+      - left_column: sim_pk_run_id
+        right_column: simulation_run_id
+      - left_column: sim_pk_portfolio_idx
+        right_column: simulation_portfolio_index
+module_custom_instructions:
+  sql_generation: "CRITICAL: Always filter by RUN_ID which is a UUID string provided by the user after running a backtest or simulation tool. For backtest timeseries charts, SELECT trade_date, portfolio_value and ORDER BY trade_date ASC. For simulation fan charts, SELECT day_index, path_p5, path_p25, path_median, path_p75, path_p95 and ORDER BY day_index ASC. For terminal distributions, SELECT terminal_value from sim_terminal. Round monetary values to 2 decimal places and percentages to 1 decimal place."
+  question_categorization: "Questions about backtest performance, returns, volatility, drawdowns, and Sharpe ratios should query backtest_runs and backtest_ts tables. Questions about simulation projections, probabilities, and fan charts should query sim_runs and sim_paths tables. Questions about terminal distributions should query sim_terminal. Questions about portfolio composition should query portfolios. The RUN_ID is always required - if not provided, ask the user for it."
+verified_queries:
+  - name: BACKTEST_TIMESERIES_FOR_RUN
+    sql: "SELECT __backtest_ts.trade_date, __backtest_ts.portfolio_value, __backtest_ts.daily_return, __backtest_ts.drawdown FROM __backtest_ts WHERE __backtest_ts.RUN_ID = ? ORDER BY __backtest_ts.AS_OF_DATE"
+    question: Show me the daily portfolio values for this backtest run
+    use_as_onboarding_question: true
+  - name: BACKTEST_SUMMARY_FOR_RUN
+    sql: "SELECT __backtest_runs.total_return_pct, __backtest_runs.annualized_return_pct, __backtest_runs.annualized_volatility_pct, __backtest_runs.backtest_sharpe_ratio, __backtest_runs.backtest_sortino_ratio, __backtest_runs.max_drawdown_pct, __backtest_runs.final_value FROM __backtest_runs WHERE __backtest_runs.RUN_ID = ?"
+    question: What are the backtest performance metrics for this run?
+    use_as_onboarding_question: false
+  - name: SIMULATION_PATHS_FOR_RUN
+    sql: "SELECT __sim_paths.day_index, __sim_paths.path_p5, __sim_paths.path_p25, __sim_paths.path_median, __sim_paths.path_p75, __sim_paths.path_p95 FROM __sim_paths WHERE __sim_paths.RUN_ID = ? ORDER BY __sim_paths.DAY_INDEX"
+    question: Show me the simulation percentile paths for this run
+    use_as_onboarding_question: true
+  - name: SIMULATION_SUMMARY_FOR_RUN
+    sql: "SELECT __sim_runs.median_terminal_value, __sim_runs.mean_terminal_value, __sim_runs.terminal_p5, __sim_runs.terminal_p95, __sim_runs.probability_of_loss, __sim_runs.probability_of_doubling, __sim_runs.simulation_expected_return FROM __sim_runs WHERE __sim_runs.RUN_ID = ?"
+    question: What are the simulation outcome metrics for this run?
+    use_as_onboarding_question: false
+  - name: RUN_PORTFOLIO_WEIGHTS
+    sql: "SELECT __portfolios.ticker, __portfolios.weight FROM __portfolios WHERE __portfolios.RUN_ID = ? ORDER BY __portfolios.WEIGHT DESC"
+    question: What portfolio weights were used for this run?
+    use_as_onboarding_question: false
+  - name: TERMINAL_VALUE_DISTRIBUTION
+    sql: SELECT __sim_terminal.terminal_value FROM __sim_terminal WHERE __sim_terminal.RUN_ID = ? ORDER BY __sim_terminal.SAMPLE_INDEX
+    question: Show me the terminal value distribution for this simulation run
+    use_as_onboarding_question: false

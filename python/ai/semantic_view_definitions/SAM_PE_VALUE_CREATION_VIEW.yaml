@@ -1,0 +1,451 @@
+name: SAM_PE_VALUE_CREATION_VIEW
+description: "PE value creation semantic view for portfolio company monitoring, 100-day plan tracking, board pack analysis, and operational KPIs. Query company performance, initiative progress, and financial metrics."
+tables:
+  - name: companies
+    synonyms:
+      - portfolio_companies
+      - investments
+      - portcos
+    description: PE-owned portfolio companies with acquisition details and fund information
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_PORTFOLIO_COMPANY
+    primary_key:
+      columns:
+        - comp_pk_portfoliocompanyid
+    dimensions:
+      - name: comp_pk_portfoliocompanyid
+        description: "PORTFOLIOCOMPANYID for companies"
+        expr: PORTFOLIOCOMPANYID
+        data_type: "NUMBER(38,0)"
+      - name: company_name
+        synonyms:
+          - company
+          - portfolio_company
+          - portco
+          - name
+        description: Portfolio company name
+        expr: COMPANYNAME
+        data_type: VARCHAR(255)
+      - name: company_status
+        synonyms:
+          - status
+          - investment_status
+        description: "Investment status: Active, Exited, In Diligence"
+        expr: STATUS
+        data_type: VARCHAR(20)
+        is_enum: true
+        sample_values:
+          - "ACTIVE"
+          - "EXITED"
+          - "WRITE_DOWN"
+      - name: deal_lead
+        synonyms:
+          - partner
+          - responsible
+        description: Deal team lead
+        expr: DEALTEAMLEAD
+        data_type: VARCHAR(100)
+      - name: fund
+        synonyms:
+          - vehicle
+          - investment_fund
+        description: APX fund that owns the company
+        expr: FUNDNAME
+        data_type: VARCHAR(100)
+      - name: geography
+        synonyms:
+          - region
+          - market
+          - location
+        description: Geographic region
+        expr: GEOGRAPHY
+        data_type: VARCHAR(50)
+      - name: sector
+        synonyms:
+          - industry
+          - vertical
+        description: Company sector
+        expr: SECTOR
+        data_type: VARCHAR(100)
+      - name: subsector
+        synonyms:
+          - sub_sector
+          - niche
+        description: Company sub-sector
+        expr: SUBSECTOR
+        data_type: VARCHAR(100)
+      - name: thesis_category
+        synonyms:
+          - thesis
+          - investment_theme
+          - category
+        description: Investment thesis category
+        expr: THESISCATEGORY
+        data_type: VARCHAR(50)
+    metrics:
+      - name: total_acquisition_value
+        synonyms:
+          - acquisition_price
+          - entry_price
+          - invested_capital
+        description: Acquisition price in millions EUR
+        expr: SUM(ACQUISITIONPRICE_MM)
+        access_modifier: public_access
+      - name: company_count
+        synonyms:
+          - portfolio_count
+          - number_of_companies
+        description: Number of portfolio companies
+        expr: COUNT(DISTINCT PORTFOLIOCOMPANYID)
+        access_modifier: public_access
+      - name: average_entry_multiple
+        synonyms:
+          - entry_ev_ebitda
+          - entry_multiple
+          - purchase_multiple
+        description: Entry EV/EBITDA multiple
+        expr: AVG(ENTRYEV_EBITDA)
+        access_modifier: public_access
+      - name: average_irr
+        synonyms:
+          - irr
+          - internal_rate_of_return
+          - return
+        description: Internal Rate of Return (for exited companies)
+        expr: AVG(IRR_PCT)
+        access_modifier: public_access
+      - name: average_moic
+        synonyms:
+          - multiple
+          - money_multiple
+          - return_multiple
+        description: Multiple on Invested Capital (for exited companies)
+        expr: AVG(MOIC)
+        access_modifier: public_access
+      - name: average_ownership
+        synonyms:
+          - ownership_percentage
+          - stake
+          - equity_stake
+        description: Ownership percentage
+        expr: AVG(OWNERSHIPPCT)
+        access_modifier: public_access
+  - name: initiatives
+    synonyms:
+      - value_creation
+      - 100_day_plan
+      - projects
+      - workstreams
+    description: Value creation initiatives and 100-day plan tracking
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_VALUE_CREATION_PLAN
+    primary_key:
+      columns:
+        - init_pk_planid
+    dimensions:
+      - name: init_pk_portfoliocompanyid
+        description: "PORTFOLIOCOMPANYID for initiatives"
+        expr: "PORTFOLIOCOMPANYID"
+        data_type: "NUMBER(38,0)"
+      - name: init_pk_planid
+        description: "PLANID for initiatives"
+        expr: PLANID
+        data_type: "NUMBER(38,0)"
+      - name: initiative_category
+        synonyms:
+          - category
+          - type
+          - workstream_type
+        description: "Initiative category: Revenue Growth, Cost Optimization, Digital, ESG, Working Capital"
+        expr: INITIATIVECATEGORY
+        data_type: VARCHAR(100)
+        is_enum: true
+        sample_values:
+          - "Revenue Growth"
+          - "Cost Optimization"
+          - "Digital Transformation"
+          - "ESG"
+      - name: initiative_name
+        synonyms:
+          - initiative
+          - project
+          - workstream
+        description: Value creation initiative name
+        expr: INITIATIVENAME
+        data_type: VARCHAR(255)
+      - name: initiative_status
+        synonyms:
+          - progress
+        description: "Initiative status: On Track, At Risk, Behind, Completed"
+        expr: STATUS
+        data_type: VARCHAR(50)
+        is_enum: true
+        sample_values:
+          - "On Track"
+          - "At Risk"
+          - "Behind"
+          - "Completed"
+      - name: target_metric
+        synonyms:
+          - metric
+          - kpi
+          - measure
+        description: Target metric being tracked
+        expr: TARGETMETRIC
+        data_type: VARCHAR(100)
+    metrics:
+      - name: at_risk_count
+        synonyms:
+          - at_risk
+          - flagged
+          - issues
+        description: Number of at-risk initiatives
+        expr: COUNT_IF(STATUS = 'At Risk')
+        access_modifier: public_access
+      - name: average_baseline_value
+        synonyms:
+          - baseline
+          - starting_point
+        description: Baseline value at initiative start
+        expr: AVG(BASELINEVALUE)
+        access_modifier: public_access
+      - name: behind_count
+        synonyms:
+          - behind
+          - delayed
+          - off_track
+        description: Number of behind-schedule initiatives
+        expr: COUNT_IF(STATUS = 'Behind')
+        access_modifier: public_access
+      - name: average_current_value
+        synonyms:
+          - current
+          - actual
+          - progress
+        description: Current value achieved
+        expr: AVG(CURRENTVALUE)
+        access_modifier: public_access
+      - name: total_ebitda_impact
+        synonyms:
+          - ebitda_impact
+          - value_impact
+          - contribution
+        description: Expected EBITDA impact in millions EUR
+        expr: SUM(IMPACTEBITDA_MM)
+        access_modifier: public_access
+      - name: initiative_count
+        synonyms:
+          - project_count
+        description: Number of initiatives
+        expr: COUNT(PLANID)
+        access_modifier: public_access
+      - name: average_target_value
+        synonyms:
+          - target
+          - goal
+        description: Target value to achieve
+        expr: AVG(TARGETVALUE)
+        access_modifier: public_access
+  - name: kpis
+    synonyms:
+      - operational_kpis
+      - company_kpis
+      - performance_indicators
+    description: Operational KPIs for portfolio company monitoring
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_PORTFOLIO_COMPANY_KPI
+    primary_key:
+      columns:
+        - kpis_pk_kpiid
+    dimensions:
+      - name: kpis_pk_portfoliocompanyid
+        description: "PORTFOLIOCOMPANYID for kpis"
+        expr: "PORTFOLIOCOMPANYID"
+        data_type: "NUMBER(38,0)"
+      - name: kpis_pk_kpiid
+        description: "KPIID for kpis"
+        expr: KPIID
+        data_type: "NUMBER(38,0)"
+      - name: kpi_category
+        synonyms:
+          - kpi_type
+        description: "KPI category: Financial, Operational, ESG, Customer"
+        expr: KPICATEGORY
+        data_type: VARCHAR(50)
+      - name: kpi_name
+        synonyms:
+          - indicator
+        description: Operational KPI name
+        expr: KPINAME
+        data_type: VARCHAR(100)
+      - name: kpi_status
+        synonyms:
+          - rag_status
+          - traffic_light
+        description: "KPI RAG status: Green, Amber, Red"
+        expr: STATUS
+        data_type: VARCHAR(20)
+        is_enum: true
+        sample_values:
+          - "GREEN"
+          - "AMBER"
+          - "RED"
+    metrics:
+      - name: average_actual_kpi
+        synonyms:
+          - actual
+          - kpi_actual
+        description: Actual KPI value
+        expr: AVG(ACTUALVALUE)
+        access_modifier: public_access
+      - name: average_budget_kpi
+        synonyms:
+          - budget
+          - kpi_budget
+          - target
+        description: Budget KPI value
+        expr: AVG(BUDGETVALUE)
+        access_modifier: public_access
+      - name: average_prior_year_kpi
+        synonyms:
+          - prior_year
+          - last_year
+          - yoy
+        description: Prior year KPI value
+        expr: AVG(PRIORYEARVALUE)
+        access_modifier: public_access
+  - name: metrics
+    synonyms:
+      - board_pack
+      - monthly_metrics
+      - financials
+      - performance
+    description: Monthly board pack financial and operational metrics
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_BOARD_PACK_METRICS
+    primary_key:
+      columns:
+        - metr_pk_metricid
+    dimensions:
+      - name: metr_pk_portfoliocompanyid
+        description: "PORTFOLIOCOMPANYID for metrics"
+        expr: "PORTFOLIOCOMPANYID"
+        data_type: "NUMBER(38,0)"
+      - name: metr_pk_metricid
+        description: "METRICID for metrics"
+        expr: METRICID
+        data_type: "NUMBER(38,0)"
+    metrics:
+      - name: average_budget_variance
+        synonyms:
+          - variance
+          - budget_variance
+          - vs_budget
+        description: Budget variance percentage
+        expr: AVG(BUDGETVARIANCEPCT)
+        access_modifier: public_access
+      - name: total_cash_position
+        synonyms:
+          - cash
+          - liquidity
+          - cash_balance
+        description: Cash position in millions EUR
+        expr: SUM(CASHPOSITION_MM)
+        access_modifier: public_access
+      - name: total_customer_count
+        synonyms:
+          - customers
+          - customer_base
+        description: Number of customers
+        expr: SUM(CUSTOMERCOUNT)
+        access_modifier: public_access
+      - name: total_ebitda
+        synonyms:
+          - ebitda
+          - earnings
+          - profitability
+        description: Monthly EBITDA in millions EUR
+        expr: SUM(EBITDA_MM)
+        access_modifier: public_access
+      - name: average_ebitda_margin
+        synonyms:
+          - margin
+          - ebitda_margin
+          - profitability_margin
+        description: EBITDA margin percentage
+        expr: AVG(EBITDAMARGINPCT)
+        access_modifier: public_access
+      - name: total_headcount
+        synonyms:
+          - employees
+          - fte
+          - staff
+        description: Total headcount
+        expr: SUM(HEADCOUNT)
+        access_modifier: public_access
+      - name: average_leverage
+        synonyms:
+          - leverage_ratio
+          - debt_to_ebitda
+        description: Net Debt / EBITDA leverage ratio
+        expr: AVG(LEVERAGERATIO)
+        access_modifier: public_access
+      - name: total_net_debt
+        synonyms:
+          - debt
+          - net_debt
+          - leverage_amount
+        description: Net debt in millions EUR
+        expr: SUM(NETDEBT_MM)
+        access_modifier: public_access
+      - name: average_nrr
+        synonyms:
+          - net_revenue_retention
+          - retention
+        description: Net Revenue Retention percentage
+        expr: AVG(NRR_PCT)
+        access_modifier: public_access
+      - name: total_revenue
+        synonyms:
+          - revenue
+          - sales
+          - turnover
+        description: Monthly revenue in millions EUR
+        expr: SUM(REVENUE_MM)
+        access_modifier: public_access
+    time_dimensions:
+      - name: report_month
+        synonyms:
+          - month
+          - period
+          - report_date
+        description: Board pack report month
+        expr: REPORTMONTH
+        data_type: DATE
+relationships:
+  - name: initiatives_to_companies
+    left_table: initiatives
+    right_table: companies
+    relationship_columns:
+      - left_column: init_pk_portfoliocompanyid
+        right_column: comp_pk_portfoliocompanyid
+  - name: kpis_to_companies
+    left_table: kpis
+    right_table: companies
+    relationship_columns:
+      - left_column: kpis_pk_portfoliocompanyid
+        right_column: comp_pk_portfoliocompanyid
+  - name: metrics_to_companies
+    left_table: metrics
+    right_table: companies
+    relationship_columns:
+      - left_column: metr_pk_portfoliocompanyid
+        right_column: comp_pk_portfoliocompanyid

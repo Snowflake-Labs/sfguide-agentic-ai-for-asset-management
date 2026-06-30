@@ -278,7 +278,7 @@ If NAV system unavailable:
 - Reconciliation breaks: Target <0.1% of positions
 
 ## Contact Information
-**NAV Team:** nav.team@sam-demo.example  
+**NAV Team:** nav.team@snowcrestam.com  
 **NAV Manager:** Sarah Mitchell  
 **After Hours:** +44 20 7123 4567 (24/7 operations line)
 

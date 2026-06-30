@@ -1,0 +1,95 @@
+name: SAM_MACRO_REGIME_VIEW
+description: "Macro regime semantic view for classifying market environments. Volatility regimes based on VIX: LOW_VOL (<15), NORMAL (15-20), ELEVATED (20-30), HIGH_VOL (>30). Market regimes based on returns: RISK_ON (positive), RISK_OFF (negative), with TRANSITIONAL states during regime shifts."
+tables:
+  - name: macro_regime
+    synonyms:
+      - market_regime
+      - volatility_regime
+      - macro_environment
+      - market_conditions
+    description: Daily macro regime classification based on VIX and market returns
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: V_MACRO_REGIME
+    primary_key:
+      columns:
+        - regime_date
+    dimensions:
+      - name: market_regime
+        synonyms:
+          - risk_regime
+          - sentiment
+        description: "Market regime (RISK_ON, RISK_OFF, TRANSITIONAL, NEUTRAL)"
+        expr: MARKET_REGIME
+        data_type: VARCHAR(12)
+      - name: volatility_regime
+        synonyms:
+          - vol_regime
+          - vix_regime
+        description: "Volatility regime (LOW_VOL, NORMAL, ELEVATED, HIGH_VOL)"
+        expr: VOLATILITY_REGIME
+        data_type: VARCHAR(8)
+    facts:
+      - name: spx_return
+        expr: SPX_RETURN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: vix_5d_change
+        expr: VIX_5D_CHANGE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: vix_close
+        expr: VIX_CLOSE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_spx_return
+        synonyms:
+          - avg_market_return
+          - mean_spx
+        description: Average S&P 500 return
+        expr: AVG(spx_return)
+        access_modifier: public_access
+      - name: average_vix_5d_change
+        synonyms:
+          - vix_momentum
+          - vol_change
+        description: Average 5-day VIX change
+        expr: AVG(vix_5d_change)
+        access_modifier: public_access
+      - name: average_vix_close
+        synonyms:
+          - average_vix
+          - mean_volatility
+        description: Average VIX level
+        expr: AVG(vix_close)
+        access_modifier: public_access
+      - name: max_vix_close
+        synonyms:
+          - peak_vix
+          - highest_volatility
+        description: Maximum VIX level
+        expr: MAX(vix_close)
+        access_modifier: public_access
+      - name: min_vix_close
+        synonyms:
+          - low_vix
+          - lowest_volatility
+        description: Minimum VIX level
+        expr: MIN(vix_close)
+        access_modifier: public_access
+      - name: regime_count
+        synonyms:
+          - days_in_regime
+          - observation_count
+        description: Number of days in regime
+        expr: COUNT(*)
+        access_modifier: public_access
+    time_dimensions:
+      - name: regime_date
+        synonyms:
+          - market_date
+        description: Date of regime classification
+        expr: DATE
+        data_type: DATE

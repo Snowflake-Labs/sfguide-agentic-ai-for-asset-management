@@ -1,0 +1,202 @@
+name: SAM_STOCK_PRICES_VIEW
+description: Real stock price semantic view from SNOWFLAKE_PUBLIC_DATA_FREE
+tables:
+  - name: issuers
+    synonyms:
+      - companies
+    description: Issuer dimension
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_ISSUER
+    primary_key:
+      columns:
+        - issu_pk_issuerid
+    dimensions:
+      - name: issu_pk_issuerid
+        description: "ISSUERID for issuers"
+        expr: ISSUERID
+        data_type: "NUMBER(38,0)"
+      - name: gics_sector
+        synonyms:
+          - gics
+          - sector
+          - sector_classification
+        description: GICS Level 1 sector classification
+        expr: GICS_SECTOR
+        data_type: VARCHAR(16777216)
+      - name: industry
+        description: Industry classification (SIC)
+        expr: SIC_DESCRIPTION
+        data_type: VARCHAR(16777216)
+      - name: legal_name
+        synonyms:
+          - issuer_name
+        description: Legal issuer name
+        expr: LegalName
+        data_type: VARCHAR(16777216)
+  - name: prices
+    synonyms:
+      - stock_prices
+      - market_prices
+      - daily_prices
+    description: Real daily stock prices from Nasdaq.
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: FACT_STOCK_PRICES
+    primary_key:
+      columns:
+        - pric_pk_price_id
+    dimensions:
+      - name: pric_pk_securityid
+        description: "SECURITYID for prices"
+        expr: "SECURITYID"
+        data_type: "NUMBER(38,0)"
+      - name: pric_pk_issuerid
+        description: "ISSUERID for prices"
+        expr: "ISSUERID"
+        data_type: "NUMBER(38,0)"
+      - name: pric_pk_price_id
+        description: "PRICE_ID for prices"
+        expr: PRICE_ID
+        data_type: "NUMBER(38,0)"
+      - name: exchange
+        synonyms:
+          - exchange_code
+        description: Primary exchange code
+        expr: PRIMARY_EXCHANGE_CODE
+        data_type: VARCHAR(16777216)
+    facts:
+      - name: price_close
+        expr: PRICE_CLOSE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: price_high
+        expr: PRICE_HIGH
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: price_low
+        expr: PRICE_LOW
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: price_open
+        expr: PRICE_OPEN
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: volume
+        expr: VOLUME
+        data_type: "NUMBER(38,0)"
+        access_modifier: public_access
+    metrics:
+      - name: average_price_close
+        synonyms:
+          - close
+          - closing_price
+          - price
+          - last_price
+        description: Closing price
+        expr: AVG(price_close)
+        access_modifier: public_access
+      - name: average_price_open
+        synonyms:
+          - open
+          - opening_price
+        description: Opening price
+        expr: AVG(price_open)
+        access_modifier: public_access
+      - name: max_price_high
+        synonyms:
+          - high
+          - daily_high
+        description: Daily high price
+        expr: MAX(price_high)
+        access_modifier: public_access
+      - name: min_price_low
+        synonyms:
+          - low
+          - daily_low
+        description: Daily low price
+        expr: MIN(price_low)
+        access_modifier: public_access
+      - name: total_volume
+        synonyms:
+          - trading_volume
+        description: Trading volume
+        expr: SUM(volume)
+        access_modifier: public_access
+      - name: trading_days
+        synonyms:
+          - days
+        description: Number of trading days
+        expr: COUNT(DISTINCT PRICE_DATE)
+        access_modifier: public_access
+    time_dimensions:
+      - name: trade_date
+        synonyms:
+          - date
+          - trading_date
+          - as_of_date
+        description: Trading date
+        expr: PRICE_DATE
+        data_type: DATE
+  - name: securities
+    synonyms:
+      - stocks
+      - equities
+    description: Security master data
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_SECURITY
+    primary_key:
+      columns:
+        - secu_pk_securityid
+    dimensions:
+      - name: secu_pk_issuerid
+        description: "ISSUERID for securities"
+        expr: "ISSUERID"
+        data_type: "NUMBER(38,0)"
+      - name: secu_pk_securityid
+        description: "SECURITYID for securities"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: asset_class
+        synonyms:
+          - type
+        description: Asset class
+        expr: AssetClass
+        data_type: VARCHAR(6)
+      - name: security_name
+        synonyms:
+          - company_name
+          - name
+        description: Security/company name
+        expr: Description
+        data_type: VARCHAR(16777216)
+      - name: ticker
+        synonyms:
+          - symbol
+          - stock_symbol
+        description: Stock ticker symbol (from DIM_SECURITY)
+        expr: Ticker
+        data_type: VARCHAR(16777216)
+relationships:
+  - name: prices_to_issuers
+    left_table: prices
+    right_table: issuers
+    relationship_columns:
+      - left_column: pric_pk_issuerid
+        right_column: issu_pk_issuerid
+  - name: prices_to_securities
+    left_table: prices
+    right_table: securities
+    relationship_columns:
+      - left_column: pric_pk_securityid
+        right_column: secu_pk_securityid
+  - name: securities_to_issuers
+    left_table: securities
+    right_table: issuers
+    relationship_columns:
+      - left_column: secu_pk_issuerid
+        right_column: issu_pk_issuerid

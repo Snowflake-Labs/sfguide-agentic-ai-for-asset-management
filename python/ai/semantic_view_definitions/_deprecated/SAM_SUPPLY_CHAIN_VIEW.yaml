@@ -1,0 +1,396 @@
+name: SAM_SUPPLY_CHAIN_VIEW
+description: Supply chain semantic view for multi-hop dependency and second-order risk analysis
+tables:
+  - name: company_issuers
+    synonyms:
+      - companies
+      - primary_entities
+    description: Company issuer information
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_ISSUER
+    primary_key:
+      columns:
+        - comp_pk_issuerid
+    dimensions:
+      - name: comp_pk_issuerid
+        description: "ISSUERID for company_issuers"
+        expr: ISSUERID
+        data_type: "NUMBER(38,0)"
+      - name: company_country
+        synonyms:
+          - customer_country
+        description: "US company country of incorporation using 2-letter ISO codes (e.g., US for United States)"
+        expr: COUNTRYOFINCORPORATION
+        data_type: VARCHAR(16777216)
+      - name: company_industry
+        synonyms:
+          - customer_industry
+          - us_industry
+        description: US company SIC industry classification
+        expr: SIC_DESCRIPTION
+        data_type: VARCHAR(16777216)
+      - name: company_name
+        synonyms:
+          - company
+          - us_company
+          - portfolio_company
+          - customer_company
+        description: US company legal name (the company with portfolio holdings)
+        expr: LEGALNAME
+        data_type: VARCHAR(16777216)
+      - name: company_sector
+        synonyms:
+          - customer_sector
+          - us_sector
+        description: US company GICS sector classification
+        expr: GICS_SECTOR
+        data_type: VARCHAR(16777216)
+  - name: counterparty_issuers
+    synonyms:
+      - counterparties
+      - suppliers
+      - customers
+      - trading_partners
+    description: Counterparty issuer information
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_ISSUER
+    primary_key:
+      columns:
+        - coun_pk_issuerid
+    dimensions:
+      - name: coun_pk_issuerid
+        description: "ISSUERID for counterparty_issuers"
+        expr: ISSUERID
+        data_type: "NUMBER(38,0)"
+      - name: counterparty_country
+        synonyms:
+          - supplier_country
+          - taiwan
+        description: "Supplier country of incorporation using 2-letter ISO codes (use TW for Taiwan, not Taiwan)"
+        expr: COUNTRYOFINCORPORATION
+        data_type: VARCHAR(16777216)
+      - name: counterparty_industry
+        synonyms:
+          - supplier_industry
+          - taiwan_industry
+          - semiconductor_industry
+        description: "Supplier SIC industry classification (e.g., Semiconductors and related devices)"
+        expr: SIC_DESCRIPTION
+        data_type: VARCHAR(16777216)
+      - name: counterparty_name
+        synonyms:
+          - counterparty
+          - supplier
+          - supplier_name
+          - taiwan_supplier
+          - supplier_company
+        description: "Supplier/counterparty legal name (e.g., Taiwan semiconductor suppliers like TSMC)"
+        expr: LEGALNAME
+        data_type: VARCHAR(16777216)
+      - name: counterparty_sector
+        synonyms:
+          - supplier_sector
+          - taiwan_sector
+        description: Supplier GICS sector classification
+        expr: GICS_SECTOR
+        data_type: VARCHAR(16777216)
+  - name: holdings
+    synonyms:
+      - positions
+      - portfolio_holdings
+    description: Portfolio holdings for exposure calculation
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_POSITION_DAILY_ABOR
+    primary_key:
+      columns:
+        - holding_date
+        - hold_pk_portfolioid
+        - hold_pk_securityid
+    dimensions:
+      - name: hold_pk_securityid
+        description: "SECURITYID for holdings"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: hold_pk_portfolioid
+        description: "PORTFOLIOID for holdings"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+    facts:
+      - name: market_value_base
+        expr: MARKETVALUE_BASE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: portfolio_weight_pct
+        synonyms:
+          - weight
+          - portfolio_weight
+          - allocation_percent
+          - weight_percent
+        description: Portfolio weight as percentage (0-100)
+        expr: SUM(PORTFOLIOWEIGHT) * 100
+        access_modifier: public_access
+      - name: total_market_value_base
+        synonyms:
+          - direct_exposure
+          - direct_position
+          - position_value
+          - market_value
+        description: Direct portfolio exposure to US companies in base currency (USD)
+        expr: SUM(market_value_base)
+        access_modifier: public_access
+    time_dimensions:
+      - name: holding_date
+        synonyms:
+          - date
+          - position_date
+          - as_of_date
+        description: Holdings date for current positions
+        expr: HOLDINGDATE
+        data_type: DATE
+  - name: portfolios
+    synonyms:
+      - funds
+    description: Portfolio information
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_PORTFOLIO
+    primary_key:
+      columns:
+        - port_pk_portfolioid
+    dimensions:
+      - name: port_pk_portfolioid
+        description: "PORTFOLIOID for portfolios"
+        expr: PORTFOLIOID
+        data_type: "NUMBER(38,0)"
+      - name: portfolio_name
+        synonyms:
+          - portfolio
+          - fund
+        description: Portfolio name for exposure calculation. All names start with "SAM " prefix.
+        expr: PORTFOLIONAME
+        data_type: VARCHAR(134217728)
+  - name: securities
+    synonyms:
+      - stocks
+    description: Security master data
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_SECURITY
+    primary_key:
+      columns:
+        - secu_pk_securityid
+    dimensions:
+      - name: secu_pk_issuerid
+        description: "ISSUERID for securities"
+        expr: "ISSUERID"
+        data_type: "NUMBER(38,0)"
+      - name: secu_pk_securityid
+        description: "SECURITYID for securities"
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+  - name: supply_chain
+    synonyms:
+      - dependencies
+      - relationships
+      - supplier_customer
+    description: Supply chain relationships between issuers for risk analysis
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_SUPPLY_CHAIN_RELATIONSHIPS
+    primary_key:
+      columns:
+        - supp_pk_relationshipid
+    dimensions:
+      - name: supp_pk_counterparty_issuerid
+        description: "COUNTERPARTY_ISSUERID for supply_chain"
+        expr: "COUNTERPARTY_ISSUERID"
+        data_type: "NUMBER(38,0)"
+      - name: supp_pk_company_issuerid
+        description: "COMPANY_ISSUERID for supply_chain"
+        expr: "COMPANY_ISSUERID"
+        data_type: "NUMBER(38,0)"
+      - name: supp_pk_relationshipid
+        description: "RELATIONSHIPID for supply_chain"
+        expr: RELATIONSHIPID
+        data_type: "NUMBER(38,0)"
+      - name: criticality_tier
+        synonyms:
+          - criticality
+          - importance
+          - tier
+          - priority
+        description: "Criticality tier indicating importance: Low, Medium, High, Critical"
+        expr: CRITICALITYTIER
+        data_type: VARCHAR(134217728)
+      - name: relationship_type
+        synonyms:
+          - relationship
+          - supplier_or_customer
+          - dependency_type
+        description: "Relationship type: Supplier (for upstream dependencies) or Customer (for downstream)"
+        expr: RELATIONSHIPTYPE
+        data_type: VARCHAR(134217728)
+    facts:
+      - name: cost_share
+        expr: COSTSHARE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: revenue_share
+        expr: REVENUESHARE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: source_confidence
+        expr: SOURCECONFIDENCE
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_source_confidence
+        synonyms:
+          - confidence
+          - average_confidence
+          - data_quality
+          - reliability
+        description: "Average source confidence score (0-100, higher is better)"
+        expr: AVG(source_confidence)
+        access_modifier: public_access
+      - name: avg_dependency
+        synonyms:
+          - average_dependency
+          - typical_exposure
+        description: Average dependency strength across relationships
+        expr: "AVG(GREATEST(COALESCE(COSTSHARE, 0), COALESCE(REVENUESHARE, 0)))"
+        access_modifier: public_access
+      - name: distinct_companies
+        synonyms:
+          - company_count
+          - us_company_count
+          - affected_companies
+        description: Count of distinct US companies with dependencies
+        expr: COUNT(DISTINCT COMPANY_ISSUERID)
+        access_modifier: public_access
+      - name: distinct_suppliers
+        synonyms:
+          - supplier_count
+          - unique_suppliers
+          - taiwan_supplier_count
+        description: Count of distinct suppliers/counterparties
+        expr: COUNT(DISTINCT COUNTERPARTY_ISSUERID)
+        access_modifier: public_access
+      - name: max_dependency
+        synonyms:
+          - largest_dependency
+          - peak_exposure
+          - max_share
+        description: Maximum single dependency (largest of cost or revenue share)
+        expr: "MAX(GREATEST(COALESCE(COSTSHARE, 0), COALESCE(REVENUESHARE, 0)))"
+        access_modifier: public_access
+      - name: relationship_count
+        synonyms:
+          - dependency_count
+          - connection_count
+          - supplier_count
+          - customer_count
+        description: Count of supply chain relationships (can filter by RelationshipType for suppliers vs customers)
+        expr: COUNT(RELATIONSHIPID)
+        access_modifier: public_access
+      - name: second_order_downstream
+        synonyms:
+          - second_order_revenue
+          - indirect_customer_exposure
+          - hop2_downstream
+          - decay_adjusted_downstream
+        description: Second-order downstream exposure with 50% decay factor applied (for hop 2 relationships)
+        expr: SUM(REVENUESHARE * 0.5)
+        access_modifier: public_access
+      - name: second_order_upstream
+        synonyms:
+          - second_order_cost
+          - indirect_supplier_exposure
+          - hop2_upstream
+          - decay_adjusted_upstream
+        description: Second-order upstream exposure with 50% decay factor applied (for hop 2 relationships)
+        expr: SUM(COSTSHARE * 0.5)
+        access_modifier: public_access
+      - name: total_cost_share
+        synonyms:
+          - upstream
+          - supplier_dependency
+          - supplier_exposure
+        description: "Upstream exposure as cost share from suppliers (0.0-1.0, represents percentage of costs from this supplier)"
+        expr: SUM(cost_share)
+        access_modifier: public_access
+      - name: total_first_order_cost_share
+        synonyms:
+          - first_order_cost
+          - direct_supplier_exposure
+          - hop1_upstream
+        description: First-order (direct) upstream exposure from suppliers - no decay applied
+        expr: SUM(cost_share)
+        access_modifier: public_access
+      - name: total_first_order_revenue_share
+        synonyms:
+          - first_order_revenue
+          - direct_customer_exposure
+          - hop1_downstream
+        description: First-order (direct) downstream exposure to customers - no decay applied
+        expr: SUM(revenue_share)
+        access_modifier: public_access
+      - name: total_revenue_share
+        synonyms:
+          - downstream
+          - customer_dependency
+          - customer_exposure
+        description: "Downstream exposure as revenue share to customers (0.0-1.0, represents percentage of revenue to this customer)"
+        expr: SUM(revenue_share)
+        access_modifier: public_access
+    time_dimensions:
+      - name: relationship_start_date
+        synonyms:
+          - start_date
+          - effective_date
+          - from_date
+          - relationship_date
+        description: Start date of the supply chain relationship (use for filtering current relationships)
+        expr: STARTDATE
+        data_type: DATE
+relationships:
+  - name: holdings_to_portfolios
+    left_table: holdings
+    right_table: portfolios
+    relationship_columns:
+      - left_column: hold_pk_portfolioid
+        right_column: port_pk_portfolioid
+  - name: holdings_to_securities
+    left_table: holdings
+    right_table: securities
+    relationship_columns:
+      - left_column: hold_pk_securityid
+        right_column: secu_pk_securityid
+  - name: securities_to_company
+    left_table: securities
+    right_table: company_issuers
+    relationship_columns:
+      - left_column: secu_pk_issuerid
+        right_column: comp_pk_issuerid
+  - name: supply_chain_to_company
+    left_table: supply_chain
+    right_table: company_issuers
+    relationship_columns:
+      - left_column: supp_pk_company_issuerid
+        right_column: comp_pk_issuerid
+  - name: supply_chain_to_counterparty
+    left_table: supply_chain
+    right_table: counterparty_issuers
+    relationship_columns:
+      - left_column: supp_pk_counterparty_issuerid
+        right_column: coun_pk_issuerid

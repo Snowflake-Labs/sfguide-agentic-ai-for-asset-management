@@ -1,0 +1,711 @@
+name: SAM_PORTFOLIO_MODELLING_VIEW
+description: "Portfolio modelling semantic view for backtesting, Monte Carlo simulation, risk factors, and expected returns. Use for what-if analysis, historical performance testing, and forward-looking projections."
+tables:
+  - name: backtests
+    synonyms:
+      - backtest_results
+      - historical_performance
+      - backtest_output
+    description: Results from historical portfolio backtests
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_BACKTEST_RESULTS
+    primary_key:
+      columns:
+        - backtestid
+    dimensions:
+      - name: backtestid
+        description: Backtest identifier
+        expr: BACKTESTID
+        data_type: NUMBER
+      - name: modelportfolioid
+        description: Model portfolio foreign key
+        expr: MODELPORTFOLIOID
+        data_type: NUMBER
+      - name: backtest_name
+        synonyms:
+          - test_name
+          - run_name
+        description: Backtest run name
+        expr: BACKTESTNAME
+        data_type: VARCHAR(255)
+    facts:
+      - name: annualized_return
+        description: "Annualized return"
+        expr: ANNUALIZEDRETURN
+        data_type: "NUMBER(12,8)"
+        access_modifier: public_access
+      - name: annualized_volatility
+        description: "Annualized volatility (standard deviation)"
+        expr: ANNUALIZEDVOLATILITY
+        data_type: "NUMBER(12,8)"
+        access_modifier: public_access
+      - name: max_drawdown
+        description: "Maximum drawdown from peak to trough"
+        expr: MAXDRAWDOWN
+        data_type: "NUMBER(12,8)"
+        access_modifier: public_access
+      - name: sharpe_ratio
+        description: "Sharpe ratio (excess return / volatility)"
+        expr: SHARPERATIO
+        data_type: "NUMBER(10,4)"
+        access_modifier: public_access
+      - name: sortino_ratio
+        description: "Sortino ratio (excess return / downside volatility)"
+        expr: SORTINORATIO
+        data_type: "NUMBER(10,4)"
+        access_modifier: public_access
+      - name: var_95
+        description: "Value at Risk at 95% confidence level"
+        expr: VAR_95
+        data_type: "NUMBER(12,8)"
+        access_modifier: public_access
+    metrics:
+      - name: max_annualized_return
+        synonyms:
+          - annual_return
+          - compound_return
+          - cagr
+        description: Annualized return from backtest
+        expr: MAX(annualized_return)
+        access_modifier: public_access
+      - name: max_annualized_volatility
+        synonyms:
+          - volatility
+          - annual_vol
+          - risk
+        description: Annualized volatility from backtest
+        expr: MAX(annualized_volatility)
+        access_modifier: public_access
+      - name: worst_max_drawdown
+        synonyms:
+          - drawdown
+          - mdd
+        description: Maximum drawdown from backtest
+        expr: MAX(max_drawdown)
+        access_modifier: public_access
+      - name: max_sharpe_ratio
+        synonyms:
+          - sharpe
+          - sharpe_ratio
+          - risk_adjusted_return
+        description: Sharpe ratio from backtest
+        expr: MAX(sharpe_ratio)
+        access_modifier: public_access
+      - name: max_sortino_ratio
+        synonyms:
+          - sortino
+          - sortino_ratio
+          - downside_risk_adjusted
+        description: Sortino ratio from backtest
+        expr: MAX(sortino_ratio)
+        access_modifier: public_access
+      - name: max_var_95
+        synonyms:
+          - var
+          - value_at_risk
+        description: 95% Value at Risk from backtest
+        expr: MAX(var_95)
+        access_modifier: public_access
+    time_dimensions:
+      - name: backtest_start_date
+        synonyms:
+          - start_date
+          - begin_date
+        description: Backtest start date
+        expr: STARTDATE
+        data_type: DATE
+      - name: backtest_end_date
+        synonyms:
+          - end_date
+          - finish_date
+        description: Backtest end date
+        expr: ENDDATE
+        data_type: DATE
+  - name: expected_returns
+    synonyms:
+      - forward_returns
+      - return_estimates
+      - forecasts
+    description: Forward-looking expected return estimates by security and horizon
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_EXPECTED_RETURNS
+    primary_key:
+      columns:
+        - estimateid
+    dimensions:
+      - name: estimateid
+        description: Estimate identifier
+        expr: ESTIMATEID
+        data_type: NUMBER
+      - name: securityid
+        description: Security foreign key
+        expr: SECURITYID
+        data_type: NUMBER
+      - name: return_horizon
+        synonyms:
+          - horizon
+          - forecast_horizon
+          - time_horizon
+        description: "Return forecast horizon (1M, 3M, 1Y, etc.)"
+        expr: HORIZONLABEL
+        data_type: VARCHAR(2)
+    facts:
+      - name: expected_return_annualized
+        description: "Expected annualized return"
+        expr: EXPECTEDRETURN_ANNUALIZED
+        data_type: "NUMBER(4,2)"
+        access_modifier: public_access
+    metrics:
+      - name: average_expected_return_annualized
+        synonyms:
+          - expected_return
+          - forecast_return
+          - avg_expected
+        description: Average annualized expected return
+        expr: AVG(expected_return_annualized)
+        access_modifier: public_access
+    time_dimensions:
+      - name: estimate_date
+        synonyms:
+          - as_of_date
+          - estimate_as_of
+        description: Date of return estimate
+        expr: ASOFDATE
+        data_type: DATE
+  - name: issuers
+    synonyms:
+      - companies
+      - corporations
+    description: Company/issuer reference data
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_ISSUER
+    primary_key:
+      columns:
+        - issuerid
+    dimensions:
+      - name: issuerid
+        description: Issuer identifier
+        expr: ISSUERID
+        data_type: NUMBER
+        unique: true
+      - name: legal_name
+        synonyms:
+          - company_name
+          - company
+          - issuer_name
+        description: Company legal name
+        expr: LEGALNAME
+        data_type: VARCHAR(16777216)
+      - name: sector
+        synonyms:
+          - gics_sector
+          - industry_sector
+        description: GICS sector classification
+        expr: GICS_SECTOR
+        data_type: VARCHAR(16777216)
+  - name: model_portfolios
+    synonyms:
+      - hypothetical_portfolios
+      - test_portfolios
+      - backtest_portfolios
+    description: User-defined model portfolios for backtesting and what-if analysis
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_MODEL_PORTFOLIO
+    primary_key:
+      columns:
+        - modelportfolioid
+    dimensions:
+      - name: modelportfolioid
+        description: Model portfolio identifier
+        expr: MODELPORTFOLIOID
+        data_type: NUMBER
+        unique: true
+      - name: model_portfolio_name
+        synonyms:
+          - model_name
+          - backtest_name
+          - test_portfolio_name
+        description: Model portfolio name
+        expr: MODELPORTFOLIONAME
+        data_type: VARCHAR(255)
+      - name: model_strategy
+        synonyms:
+          - strategy_type
+          - investment_style
+        description: "Strategy type (Growth, Value, ESG, etc.)"
+        expr: STRATEGY
+        data_type: VARCHAR(100)
+      - name: rebalance_frequency
+        synonyms:
+          - rebalance_period
+          - rebalancing
+        description: Rebalancing frequency
+        expr: REBALANCEFREQUENCY
+        data_type: VARCHAR(50)
+  - name: model_weights
+    synonyms:
+      - target_weights
+      - portfolio_allocations
+    description: Target weights for model portfolios
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_MODEL_PORTFOLIO_WEIGHTS
+    primary_key:
+      columns:
+        - weightid
+    dimensions:
+      - name: weightid
+        description: Weight record identifier
+        expr: WEIGHTID
+        data_type: NUMBER
+      - name: modelportfolioid
+        description: Model portfolio foreign key
+        expr: MODELPORTFOLIOID
+        data_type: NUMBER
+      - name: securityid
+        description: Security foreign key
+        expr: SECURITYID
+        data_type: NUMBER
+    facts:
+      - name: target_weight
+        description: "Model portfolio target weight for the security"
+        expr: TARGETWEIGHT
+        data_type: "NUMBER(8,4)"
+        access_modifier: public_access
+    metrics:
+      - name: position_count
+        synonyms:
+          - holding_count
+          - num_securities
+        description: Number of positions in model portfolio
+        expr: COUNT(DISTINCT SECURITYID)
+        access_modifier: public_access
+      - name: total_target_weight
+        synonyms:
+          - total_allocation
+          - total_weight
+          - weight_sum
+        description: Sum of target weights
+        expr: SUM(target_weight)
+        access_modifier: public_access
+  - name: risk_factors
+    synonyms:
+      - factors
+      - fama_french
+      - factor_returns
+      - systematic_risk
+    description: Daily Fama-French style risk factor returns
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_RISK_FACTORS
+    primary_key:
+      columns:
+        - factorid
+    dimensions:
+      - name: factorid
+        description: Factor record identifier
+        expr: FACTORID
+        data_type: NUMBER
+    facts:
+      - name: hml
+        description: "High-minus-Low (value factor) return"
+        expr: HML
+        data_type: "NUMBER(5,3)"
+        access_modifier: public_access
+      - name: mkt_rf
+        description: "Market excess return (market minus risk-free)"
+        expr: MKT_RF
+        data_type: "NUMBER(5,3)"
+        access_modifier: public_access
+      - name: mom
+        description: "Momentum factor return"
+        expr: MOM
+        data_type: "NUMBER(5,3)"
+        access_modifier: public_access
+      - name: smb
+        description: "Small-minus-Big (size factor) return"
+        expr: SMB
+        data_type: "NUMBER(5,3)"
+        access_modifier: public_access
+    metrics:
+      - name: average_hml
+        synonyms:
+          - value_factor
+          - high_minus_low
+        description: Value factor (High minus Low)
+        expr: AVG(hml)
+        access_modifier: public_access
+      - name: average_mkt_rf
+        synonyms:
+          - market_return
+          - market_factor
+        description: Market excess return factor
+        expr: AVG(mkt_rf)
+        access_modifier: public_access
+      - name: average_mom
+        synonyms:
+          - momentum
+        description: Momentum factor
+        expr: AVG(mom)
+        access_modifier: public_access
+      - name: average_smb
+        synonyms:
+          - size_factor
+          - small_minus_big
+        description: Size factor (Small minus Big)
+        expr: AVG(smb)
+        access_modifier: public_access
+    time_dimensions:
+      - name: factor_date
+        synonyms:
+          - trading_date
+        description: Factor observation date
+        expr: FACTORDATE
+        data_type: DATE
+  - name: securities
+    synonyms:
+      - stocks
+      - assets
+      - equities
+    description: Security reference data with ticker symbols
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: DIM_SECURITY
+    primary_key:
+      columns:
+        - securityid
+    dimensions:
+      - name: securityid
+        description: Security identifier
+        expr: SECURITYID
+        data_type: NUMBER
+        unique: true
+      - name: issuerid
+        expr: ISSUERID
+        data_type: NUMBER
+      - name: security_description
+        synonyms:
+          - security_name
+          - stock_name
+        description: Security description
+        expr: DESCRIPTION
+        data_type: VARCHAR(16777216)
+      - name: ticker
+        synonyms:
+          - symbol
+          - stock_ticker
+          - stock_symbol
+        description: Stock ticker symbol
+        expr: TICKER
+        data_type: VARCHAR(16777216)
+  - name: simulations
+    synonyms:
+      - simulation_results
+      - monte_carlo
+      - projections
+      - scenario_analysis
+    description: Monte Carlo simulation outputs with path data
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_SIMULATION_RESULTS
+    primary_key:
+      columns:
+        - simulationid
+    dimensions:
+      - name: simulationid
+        description: Simulation identifier
+        expr: SIMULATIONID
+        data_type: NUMBER
+      - name: simulation_horizon
+        synonyms:
+          - sim_horizon
+          - projection_horizon
+        description: Simulation horizon in months
+        expr: HORIZONMONTHS
+        data_type: "NUMBER(38,0)"
+      - name: simulation_name
+        synonyms:
+          - sim_name
+          - projection_name
+        description: Simulation run name
+        expr: SIMULATIONNAME
+        data_type: VARCHAR(255)
+    facts:
+      - name: median
+        description: "Median terminal value from simulation"
+        expr: MEDIAN
+        data_type: "NUMBER(18,2)"
+        access_modifier: public_access
+      - name: percentile_5
+        description: "Fifth percentile terminal value (downside)"
+        expr: PERCENTILE_5
+        data_type: "NUMBER(18,2)"
+        access_modifier: public_access
+      - name: percentile_95
+        description: "Ninety-fifth percentile terminal value (upside)"
+        expr: PERCENTILE_95
+        data_type: "NUMBER(18,2)"
+        access_modifier: public_access
+      - name: prob_loss
+        description: "Probability of loss in simulation"
+        expr: PROBLOSS
+        data_type: "NUMBER(8,4)"
+        access_modifier: public_access
+    metrics:
+      - name: max_median
+        synonyms:
+          - median_outcome
+          - median_value
+          - expected_outcome
+        description: Median terminal portfolio value from simulation
+        expr: MAX(median)
+        access_modifier: public_access
+      - name: max_percentile_5
+        synonyms:
+          - downside_case
+          - worst_case_95
+          - p5
+        description: 5th percentile terminal value (downside scenario)
+        expr: MAX(percentile_5)
+        access_modifier: public_access
+      - name: max_percentile_95
+        synonyms:
+          - upside_case
+          - best_case_95
+          - p95
+        description: 95th percentile terminal value (upside scenario)
+        expr: MAX(percentile_95)
+        access_modifier: public_access
+      - name: max_prob_loss
+        synonyms:
+          - loss_probability
+          - shortfall_risk
+        description: Probability of loss (terminal < initial)
+        expr: MAX(prob_loss)
+        access_modifier: public_access
+  - name: security_returns
+    synonyms:
+      - daily_returns
+      - historical_returns
+      - price_returns
+      - return_history
+    description: Daily security returns computed from close prices, with period-to-date aggregates. Use for historical return analysis, volatility computation, and portfolio analytics.
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: V_SECURITY_RETURNS
+    dimensions:
+      - name: securityid
+        description: Security foreign key
+        expr: SECURITYID
+        data_type: NUMBER
+      - name: security_return_id
+        description: Composite key (SECURITYID, PRICE_DATE)
+        expr: CONCAT(SECURITYID, '_', PRICE_DATE)
+        data_type: VARCHAR
+    facts:
+      - name: price_close
+        description: "Closing price of the security"
+        expr: PRICE_CLOSE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: daily_return_pct
+        description: "Daily return as percentage"
+        expr: DAILY_RETURN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: mtd_return_pct
+        description: "Month-to-date return percentage"
+        expr: MTD_RETURN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: qtd_return_pct
+        description: "Quarter-to-date return percentage"
+        expr: QTD_RETURN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: ytd_return_pct
+        description: "Year-to-date return percentage"
+        expr: YTD_RETURN_PCT
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: average_daily_return
+        synonyms:
+          - avg_return
+          - mean_daily_return
+        description: Average daily return percentage
+        expr: AVG(daily_return_pct)
+        access_modifier: public_access
+      - name: return_volatility
+        synonyms:
+          - daily_volatility
+          - return_std
+          - stddev_return
+        description: Standard deviation of daily returns
+        expr: STDDEV(daily_return_pct)
+        access_modifier: public_access
+      - name: total_return
+        synonyms:
+          - cumulative_return
+          - period_return
+        description: Sum of daily returns over period
+        expr: SUM(daily_return_pct)
+        access_modifier: public_access
+      - name: observation_count
+        synonyms:
+          - trading_days
+          - data_points
+        description: Number of return observations
+        expr: COUNT(daily_return_pct)
+        access_modifier: public_access
+    time_dimensions:
+      - name: price_date
+        synonyms:
+          - trading_date
+          - return_date
+        description: Trading date for the return observation
+        expr: PRICE_DATE
+        data_type: DATE
+  - name: covariance_matrix
+    synonyms:
+      - covariance
+      - cov_matrix
+      - risk_matrix
+      - correlation_matrix
+    description: Pre-computed pairwise covariance and correlation matrix between securities. Use for portfolio optimisation, risk decomposition, and diversification analysis. Each row represents one security pair.
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_COVARIANCE_MATRIX
+    primary_key:
+      columns:
+        - covarianceid
+    dimensions:
+      - name: covarianceid
+        description: Covariance record identifier
+        expr: COVARIANCEID
+        data_type: NUMBER
+      - name: securityid_row
+        description: Row security foreign key
+        expr: SECURITYID_ROW
+        data_type: NUMBER
+      - name: securityid_col
+        description: Column security foreign key
+        expr: SECURITYID_COL
+        data_type: NUMBER
+    facts:
+      - name: covariance
+        expr: COVARIANCE
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: covariance_annualized
+        description: "Annualized return covariance between two securities"
+        expr: COVARIANCE_ANNUALIZED
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: correlation
+        description: "Return correlation between two securities"
+        expr: CORRELATION
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: observation_count
+        expr: OBSERVATIONCOUNT
+        data_type: NUMBER
+        access_modifier: public_access
+      - name: lookback_days
+        description: "Number of lookback days for covariance calculation"
+        expr: LOOKBACKDAYS
+        data_type: NUMBER
+        access_modifier: public_access
+    metrics:
+      - name: average_covariance_annualized
+        synonyms:
+          - avg_covariance
+          - mean_covariance
+        description: Average annualized covariance across pairs
+        expr: AVG(covariance_annualized)
+        access_modifier: public_access
+      - name: average_correlation
+        synonyms:
+          - avg_correlation
+          - mean_correlation
+        description: Average correlation across pairs
+        expr: AVG(correlation)
+        access_modifier: public_access
+    time_dimensions:
+      - name: covariance_date
+        synonyms:
+          - as_of_date
+          - calculation_date
+        description: Date the covariance was computed
+        expr: ASOFDATE
+        data_type: DATE
+relationships:
+  - name: backtests_to_model
+    left_table: backtests
+    right_table: model_portfolios
+    relationship_columns:
+      - left_column: modelportfolioid
+        right_column: modelportfolioid
+  - name: expected_to_securities
+    left_table: expected_returns
+    right_table: securities
+    relationship_columns:
+      - left_column: securityid
+        right_column: securityid
+  - name: weights_to_model
+    left_table: model_weights
+    right_table: model_portfolios
+    relationship_columns:
+      - left_column: modelportfolioid
+        right_column: modelportfolioid
+  - name: weights_to_securities
+    left_table: model_weights
+    right_table: securities
+    relationship_columns:
+      - left_column: securityid
+        right_column: securityid
+  - name: securities_to_issuers
+    left_table: securities
+    right_table: issuers
+    relationship_columns:
+      - left_column: issuerid
+        right_column: issuerid
+  - name: returns_to_securities
+    left_table: security_returns
+    right_table: securities
+    relationship_columns:
+      - left_column: securityid
+        right_column: securityid
+  - name: covariance_row_to_securities
+    left_table: covariance_matrix
+    right_table: securities
+    relationship_columns:
+      - left_column: securityid_row
+        right_column: securityid
+  - name: covariance_col_to_securities
+    left_table: covariance_matrix
+    right_table: securities
+    relationship_columns:
+      - left_column: securityid_col
+        right_column: securityid
+verified_queries:
+  - name: covariance_matrix_for_tickers
+    question: Show me the covariance matrix for AAPL, MSFT, NVDA, COST, JPM, LLY
+    sql: "WITH __covariance_matrix AS (SELECT securityid_row, securityid_col, covariance_annualized, correlation, covariance_date FROM __covariance_matrix), __securities AS (SELECT securityid, ticker AS ticker FROM __securities) SELECT sr.ticker AS row_ticker, sc.ticker AS col_ticker, cm.covariance_annualized, cm.correlation, cm.covariance_date FROM __covariance_matrix AS cm JOIN __securities AS sr ON cm.securityid_row = sr.securityid JOIN __securities AS sc ON cm.securityid_col = sc.securityid WHERE sr.ticker IN ('AAPL', 'MSFT', 'NVDA', 'COST', 'JPM', 'LLY') AND sc.ticker IN ('AAPL', 'MSFT', 'NVDA', 'COST', 'JPM', 'LLY') AND cm.covariance_date = (SELECT MAX(covariance_date) FROM __covariance_matrix) ORDER BY sr.ticker, sc.ticker"
+  - name: annualised_returns_for_tickers
+    question: Show me the annualised returns for AAPL, MSFT, NVDA over the last 3 years
+    sql: "WITH __security_returns AS (SELECT securityid, price_date AS price_date, daily_return_pct AS daily_return_pct FROM __security_returns), __securities AS (SELECT securityid, ticker AS ticker FROM __securities) SELECT s.ticker, COUNT(sr.daily_return_pct) AS trading_days, AVG(sr.daily_return_pct) * 252 AS annualized_return, STDDEV(sr.daily_return_pct) * SQRT(252) AS annualized_volatility, MIN(sr.price_date) AS start_date, MAX(sr.price_date) AS end_date FROM __security_returns AS sr JOIN __securities AS s ON sr.securityid = s.securityid WHERE s.ticker IN ('AAPL', 'MSFT', 'NVDA') AND sr.price_date >= DATEADD(YEAR, -3, CURRENT_DATE) GROUP BY s.ticker ORDER BY s.ticker"

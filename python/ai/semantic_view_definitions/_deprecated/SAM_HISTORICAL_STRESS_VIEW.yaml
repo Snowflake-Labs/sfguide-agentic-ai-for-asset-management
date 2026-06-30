@@ -1,0 +1,93 @@
+name: SAM_HISTORICAL_STRESS_VIEW
+description: "Historical stress periods semantic view for backtesting analysis. Includes major market events: COVID-19 Crash (2020), Global Financial Crisis (2008-09), Taper Tantrum (2013), Rate Hike Cycle (2022), Banking Crisis (2023). Use with backtest tool to estimate portfolio performance during historical crises."
+tables:
+  - name: stress_periods
+    synonyms:
+      - historical_crises
+      - market_crashes
+      - past_stress_events
+      - financial_crises
+    description: Historical market stress periods for backtesting portfolio resilience
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_HISTORICAL_STRESS_PERIODS
+    primary_key:
+      columns:
+        - period_id
+    dimensions:
+      - name: stress_period_description
+        synonyms:
+          - crisis_description
+          - event_name
+        description: Description of the stress event
+        expr: DESCRIPTION
+        data_type: VARCHAR(30)
+      - name: period_id
+        synonyms:
+          - crisis_id
+          - event_id
+        description: "Unique identifier for stress period (COVID_CRASH, GFC, TAPER_TANTRUM, RATE_HIKE_2022, BANKING_CRISIS_2023)"
+        expr: PERIOD_ID
+        data_type: VARCHAR(19)
+    facts:
+      - name: duration_days
+        expr: DURATION_DAYS
+        data_type: "NUMBER(3,0)"
+        access_modifier: public_access
+      - name: linked_scenario_id
+        expr: LINKED_SCENARIO_ID
+        data_type: "NUMBER(2,0)"
+        access_modifier: public_access
+      - name: market_return
+        expr: MARKET_RETURN
+        data_type: "NUMBER(3,2)"
+        access_modifier: public_access
+      - name: peak_vix
+        expr: PEAK_VIX
+        data_type: "NUMBER(4,2)"
+        access_modifier: public_access
+    metrics:
+      - name: average_market_return
+        synonyms:
+          - market_loss
+          - drawdown
+        description: Total market return during period (negative = loss)
+        expr: AVG(market_return)
+        access_modifier: public_access
+      - name: max_linked_scenario_id
+        synonyms:
+          - scenario_link
+          - related_scenario
+        description: ID of linked stress scenario for backtesting
+        expr: MAX(linked_scenario_id)
+        access_modifier: public_access
+      - name: max_peak_vix
+        synonyms:
+          - max_volatility
+          - crisis_vix
+        description: Peak VIX level during crisis
+        expr: MAX(peak_vix)
+        access_modifier: public_access
+      - name: total_duration_days
+        synonyms:
+          - crisis_length
+          - event_duration
+        description: Duration of stress period in days
+        expr: SUM(duration_days)
+        access_modifier: public_access
+    time_dimensions:
+      - name: start_date
+        synonyms:
+          - crisis_start
+          - event_begin
+        description: Start date of stress period
+        expr: START_DATE
+        data_type: DATE
+      - name: end_date
+        synonyms:
+          - crisis_end
+          - event_end
+        description: End date of stress period
+        expr: END_DATE
+        data_type: DATE
