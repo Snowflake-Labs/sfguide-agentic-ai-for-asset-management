@@ -34,7 +34,7 @@ The marketplace database and schema are configured in `REAL_DATA_SOURCES` in `py
 | `FSI_DEMO_BUILD_ROLE` | Role | Owns and builds all objects |
 | `SAM_DEMO_USER_ROLE` | Role | Runtime role for agents and notebooks |
 | `FSI_DEMO_PYPI_ACCESS` | External access integration | PyPI access for Code Bundles and notebooks |
-| `SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT` | Snowflake Intelligence object | Agents are registered here |
+| `SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT` | Snowflake CoWork object | Agents are registered here |
 | `CORTEX_ENABLED_CROSS_REGION` | Account parameter | Set to `ANY_REGION` |
 
 ### 1.3 Build steps

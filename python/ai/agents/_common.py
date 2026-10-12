@@ -573,28 +573,28 @@ def build_skills_yaml(skill_names, database_name):
 
 def verify_snowflake_intelligence(session: Session) -> bool:
     """
-    Verify that Snowflake Intelligence exists.
+    Verify that Snowflake CoWork exists.
     
     Returns:
-        True if Snowflake Intelligence exists, False otherwise
+        True if Snowflake CoWork exists, False otherwise
     """
     try:
         result = session.sql("SHOW SNOWFLAKE INTELLIGENCES").collect()
         if len(result) == 0:
-            log_error("No Snowflake Intelligence found")
-            log_warning("Before creating agents, you must first create a Snowflake Intelligence object.")
+            log_error("No Snowflake CoWork found")
+            log_warning("Before creating agents, you must first create a Snowflake CoWork object.")
             log_warning("Run: CREATE SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;")
             log_warning("See: https://docs.snowflake.com/en/user-guide/snowflake-intelligence")
             return False
         return True
     except Exception as e:
-        log_error(f" Failed to check for Snowflake Intelligence: {e}")
+        log_error(f" Failed to check for Snowflake CoWork: {e}")
         return False
 
 
 def register_agent_with_intelligence(session: Session, database_name: str, ai_schema: str, agent_name: str) -> bool:
     """
-    Register an agent with Snowflake Intelligence.
+    Register an agent with Snowflake CoWork.
     First attempts to drop the agent (if it exists from previous run), then adds it.
     
     Args:
@@ -630,7 +630,7 @@ def register_agent_with_intelligence(session: Session, database_name: str, ai_sc
         """).collect()
         return True
     except Exception as e:
-        log_warning(f"  Warning: Failed to register agent {agent_name} with Snowflake Intelligence: {e}")
+        log_warning(f"  Warning: Failed to register agent {agent_name} with Snowflake CoWork: {e}")
         return False
 
 

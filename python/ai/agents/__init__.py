@@ -16,7 +16,7 @@
 # Created by Mats Stellwall, Snowflake, and Snowflake CoCo
 
 """
-Snowflake Intelligence agent creation package for SAM Demo.
+Snowflake CoWork agent creation package for SAM Demo.
 
 Split into one file per agent for maintainability.
 """
@@ -61,14 +61,14 @@ AGENT_CREATORS = {
 
 def create_all_agents(session: Session, scenarios: List[str] = None):
     """
-    Create Snowflake Intelligence agents for the specified scenarios.
+    Create Snowflake CoWork agents for the specified scenarios.
     
     Only creates agents for scenarios that have an agent defined in config.SCENARIOS.
     """
-    log_detail("Creating Snowflake Intelligence agents...")
+    log_detail("Creating Snowflake CoWork agents...")
     
     if not verify_snowflake_intelligence(session):
-        raise Exception("Snowflake Intelligence not found. Cannot create agents.")
+        raise Exception("Snowflake CoWork not found. Cannot create agents.")
     
     database_name = config.DATABASE['name']
     ai_schema = config.DATABASE['schemas']['ai']
@@ -112,7 +112,7 @@ def create_all_agents(session: Session, scenarios: List[str] = None):
 
 def cleanup_all_agents(session: Session):
     """
-    Remove all SAM agents from Snowflake Intelligence before database drop.
+    Remove all SAM agents from Snowflake CoWork before database drop.
     
     This function should be called before DROP DATABASE or CREATE OR REPLACE DATABASE
     to cleanly unregister agents from SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT.
@@ -122,7 +122,7 @@ def cleanup_all_agents(session: Session):
     database_name = config.DATABASE['name']
     ai_schema = config.DATABASE['schemas']['ai']
     
-    log_detail("Cleaning up agents from Snowflake Intelligence...")
+    log_detail("Cleaning up agents from Snowflake CoWork...")
     
     removed_count = 0
     for scenario_key, agent_info in config.SCENARIO_AGENTS.items():

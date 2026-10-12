@@ -90,7 +90,7 @@ AI_SPEAKER_IDENTIFICATION_MODEL = 'openai-gpt-5-nano' # Only AWS alternative cla
 
 AI_SIGNAL_EXTRACTION_MODEL = 'openai-gpt-5-nano' # Only AWS alternative claude-haiku-4-5
 
-# Model used for agent orchestration (Snowflake Intelligence agents).
+# Model used for agent orchestration (Snowflake CoWork agents).
 # 'auto' is the Snowflake-recommended setting: Cortex selects the highest-quality
 # model available to the account, so agents improve as new models ship instead of
 # being frozen on a pinned version. Pin an explicit model name only when you need
@@ -604,7 +604,7 @@ SUPPLY_CHAIN_RELATIONSHIP_STRENGTHS = REF_DATA['scenarios']['supply_chain_streng
 # views, search services, tools. Subsystems resolve what to build from here.
 #
 # Scenario types:
-#   "agent" — Demoed via Snowflake Intelligence or the Cockpit (has a Cortex Agent)
+#   "agent" — Demoed via Snowflake CoWork or the Cockpit (has a Cortex Agent)
 #   "ml"    — Demoed via notebooks (ML model training/inference, no agent)
 # =============================================================================
 

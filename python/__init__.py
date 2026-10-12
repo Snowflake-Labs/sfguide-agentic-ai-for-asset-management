@@ -40,7 +40,7 @@ Package Structure:
     │   └── pipelines      # Task orchestration
     ├── ai/                # AI components
     │   ├── builder        # Main orchestrator
-    │   ├── agents         # Snowflake Intelligence agents
+    │   ├── agents         # Snowflake CoWork agents
     │   ├── semantic_views # Cortex Analyst views
     │   └── cortex_search  # Search services
     ├── core/              # Business logic

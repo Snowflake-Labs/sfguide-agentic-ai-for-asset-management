@@ -457,7 +457,7 @@ def main():
             print(f"    - {agent_name}")
         print()
         print("  Next Steps:")
-        print("    1. Open Snowflake Intelligence")
+        print("    1. Open Snowflake CoWork")
         print("    2. Select any of the agents above")
         print("    3. Start asking questions!")
     print("=" * 60)

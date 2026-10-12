@@ -367,7 +367,7 @@ GRANT MONITOR ON ALL TASKS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
 GRANT MONITOR ON FUTURE TASKS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
 
 -- ============================================================================
--- SECTION 8: Snowflake Intelligence
+-- SECTION 8: Snowflake CoWork
 -- ============================================================================
 
 CREATE SNOWFLAKE INTELLIGENCE IF NOT EXISTS SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;
@@ -469,7 +469,7 @@ EXECUTE CODE BUNDLE SAM_DEMO.AI.SAM_BUILD_BUNDLE
 -- The build above created the data, semantic views, search services and agents.
 --
 -- After completion:
---   - Open Snowflake Intelligence to interact with the agents
+--   - Open Snowflake CoWork to interact with the agents
 --   - Open the notebooks (factor_discovery, market_regime_detection, credit_risk_model)
 --     for ML workflow demonstrations. Attach the notebook service to
 --     SAM_DEMO_ML_POOL, which is sized for them (memory-optimised, 6 vCPU /

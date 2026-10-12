@@ -20,7 +20,7 @@ AI component builders for SAM Demo.
 
 Modules:
     builder: Main orchestrator (build_all function)
-    agents: Snowflake Intelligence agent creation
+    agents: Snowflake CoWork agent creation
     semantic_views: Cortex Analyst semantic view creation
     cortex_search: Cortex Search service creation
 """

@@ -163,7 +163,7 @@ def build_all(session: Session, scenarios: List[str], build_semantic: bool = Tru
         scenarios: List of scenario names
         build_semantic: Whether to build semantic views
         build_search: Whether to build search services
-        build_agents: Whether to create Snowflake Intelligence agents
+        build_agents: Whether to create Snowflake CoWork agents
         verify_only: If True, validate YAML definitions without creating views
     """
     

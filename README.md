@@ -40,7 +40,7 @@ infrastructure:
 - `FSI_DEMO_BUILD_ROLE` (build) and `SAM_DEMO_USER_ROLE` (demo consumption) with required privileges
 - Compute pools, including `SAM_DEMO_ML_POOL` for the ML notebooks
 - Marketplace data share (Snowflake Public Data - Free)
-- Cortex AI enablement and Snowflake Intelligence
+- Cortex AI enablement and Snowflake CoWork
 
 Section 9 then creates a Code Bundle from your workspace and runs the build, which
 builds everything sequentially:
@@ -165,7 +165,7 @@ them as well only if no other FSI demo uses this account.
 
 - Snowflake account with Cortex features enabled
 - ACCOUNTADMIN role (for initial setup)
-- Snowflake Intelligence available
+- Snowflake CoWork available
 - A Snowflake Workspace created from this Git repository (Step 1)
 
 ## License
