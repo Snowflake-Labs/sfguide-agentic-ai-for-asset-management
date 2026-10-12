@@ -126,19 +126,20 @@ scripts/
 ## Demo Scenarios
 
 Select the agent in Snowflake CoWork and start with the opening prompt, then follow the
-agent's suggested next steps:
+agent's suggested next steps. Each scenario has a full presenter script (PDF) with the
+follow-up prompts, expected responses and talking points:
 
-| Agent | Scenario | Opening prompt |
-|-------|----------|----------------|
-| Portfolio Management | Portfolio insights and benchmarking | *What are my top 10 holdings by market value in the SAM Technology & Infrastructure portfolio?* |
-| Portfolio Management | Performance decomposition | *Break down the performance attribution for SAM Global Flagship portfolio versus S&P 500 for the most recent quarter. What drove our performance?* |
-| Research | Investment memo (NVDA) | *What is the latest research saying about AI and cloud computing opportunities in technology companies?* |
-| Risk & Compliance | Concentration breach, remediation and verification | *Run a concentration check across all portfolios using the latest month-end holdings. Show me any positions above the 6.5% warning threshold, sorted by weight.* |
-| Client Advisory | RFP response | *I need to prepare an RFP response for a pension fund that wants an ESG equity mandate.* |
-| Operations | NAV and settlement monitoring | *Show me all failed settlements from the past 3 business days and help me understand what's causing them.* |
-| Executive Leadership | Complete executive briefing | *Prepare a complete executive briefing for the board covering firm-wide AUM and performance across all strategies, client flow analysis with any concentration concerns, our top and bottom performing strategies with context, and relevant investment philosophy positioning that explains our current strategic direction. Generate a professional PDF for board distribution.* |
-| Private Equity | Portfolio company performance and value creation | *Give me an overview of our portfolio company performance. Which companies are on track and which need attention?* |
-| Private Credit | Covenant breach investigation | *Check for covenant breaches across the portfolio. Show me any borrowers with breaches or headroom below 10%.* |
+| Agent | Scenario | Opening prompt | Script |
+|-------|----------|----------------|--------|
+| Portfolio Management | Portfolio insights and benchmarking | *What are my top 10 holdings by market value in the SAM Technology & Infrastructure portfolio?* | [PDF](docs/demo_scripts/01_portfolio_insights_and_benchmarking.pdf) |
+| Portfolio Management | Performance decomposition | *Break down the performance attribution for SAM Global Flagship portfolio versus S&P 500 for the most recent quarter. What drove our performance?* | [PDF](docs/demo_scripts/02_performance_decomposition.pdf) |
+| Research | Investment memo (NVDA) | *What is the latest research saying about AI and cloud computing opportunities in technology companies?* | [PDF](docs/demo_scripts/03_investment_memo_nvda.pdf) |
+| Risk & Compliance | Concentration breach, remediation and verification | *Run a concentration check across all portfolios using the latest month-end holdings. Show me any positions above the 6.5% warning threshold, sorted by weight.* | [PDF](docs/demo_scripts/04_concentration_breach_remediation.pdf) |
+| Client Advisory | RFP response | *I need to prepare an RFP response for a pension fund that wants an ESG equity mandate.* | [PDF](docs/demo_scripts/05_rfp_response.pdf) |
+| Operations | NAV and settlement monitoring | *Show me all failed settlements from the past 3 business days and help me understand what's causing them.* | [PDF](docs/demo_scripts/06_nav_and_settlement_monitoring.pdf) |
+| Executive Leadership | Complete executive briefing | *Prepare a complete executive briefing for the board covering firm-wide AUM and performance across all strategies, client flow analysis with any concentration concerns, our top and bottom performing strategies with context, and relevant investment philosophy positioning that explains our current strategic direction. Generate a professional PDF for board distribution.* | [PDF](docs/demo_scripts/07_complete_executive_briefing.pdf) |
+| Private Equity | Portfolio company performance and value creation | *Give me an overview of our portfolio company performance. Which companies are on track and which need attention?* | [PDF](docs/demo_scripts/08_portfolio_company_performance.pdf) |
+| Private Credit | Covenant breach investigation | *Check for covenant breaches across the portfolio. Show me any borrowers with breaches or headroom below 10%.* | [PDF](docs/demo_scripts/09_covenant_breach_investigation.pdf) |
 
 The demo date is the latest price date available in the Snowflake Public Data share at
 build time, and positions are month-end, so "current" means the latest month-end.

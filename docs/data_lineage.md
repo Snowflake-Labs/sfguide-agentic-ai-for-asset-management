@@ -1,289 +1,342 @@
 # SAM Demo - Data Lineage
 
-This document is organised around four questions:
-
-1. What data comes from marketplace or external sources, and what is generated or synthesised?
-2. What tables and views depend on other tables and views?
-3. What tables and views feed which semantic views and search services?
-4. What semantic views and search services are used by which agents?
+This document traces how data moves through the build: from the Snowflake Marketplace and generated content, through the curated model, document pipelines and ML models, to the semantic views, search services, tools and agents. It is derived from the build code; object definitions and columns are in [`docs/data_model.md`](data_model.md).
 
 ---
 
-## 1. Source Provenance
+## 1. Sources
 
-### 1.1 Marketplace / External Sources
+| Source | What it provides | Lands in |
+|---|---|---|
+| Snowflake Marketplace (`REAL_DATA_SOURCES` in `python/config.py`, tables in `data/reference_data/data_sources.yaml`) | Company index, stock and ETF prices, SEC financials, segments, filing text, insider and 13F filings, N-PORT benchmark holdings, proxy compensation, policy rates, FX, economic indicators, Treasury yields, emissions, IMF fiscal data, earnings call transcripts | `CURATED.DIM_ISSUER` enrichment, `MARKET_DATA.*`, `CURATED.FACT_BENCHMARK_HOLDINGS`, `CURATED.FACT_INSIDER_TRANSACTIONS`, `CURATED.FACT_INSTITUTIONAL_HOLDINGS`, `RAW.COMPANY_EVENT_TRANSCRIPTS_RAW`, `RAW.SEC_FILING_TEXT_RAW` |
+| Configuration (`python/config.py`, `data/reference_data/*.yaml`) | Issuers, portfolios, benchmarks, clients, managers, brokers, stress scenarios, private markets entities, ML settings | Dimensions and synthetic facts |
+| Synthetic generation (`python/data/structured.py`, `python/data/recommendations.py`) | Transactions, ESG, risk, operations, attribution inputs, private markets facts, recommendations, private markets corpora | `CURATED.*`, some `MARKET_DATA.*` |
+| Template documents (`content_library/`, `python/data/unstructured.py`) | Broker research, internal research, memos, policies, press releases, NGO reports | PDFs on `RAW.PDF_*_STAGE` |
+| Regulatory PDFs (`data/reference_data/regulation_sources.yaml`) | Published regulations | `RAW.PDF_REGULATORY_STAGE` |
+| Cortex AI functions | `AI_PARSE_DOCUMENT`, `AI_FILTER`, `AI_COMPLETE`, `AI_EXTRACT` enrichments | Raw tables, corpora, `FACT_DIVIDENDS`, `FACT_ESG_CONTROVERSY`, signals and insights |
 
-| Source Type | Source Object | Target Table(s) | Notes |
-|-------------|---------------|-----------------|-------|
-| Marketplace | `PUBLIC_DATA_FREE.COMPANY_INDEX` | `CURATED.DIM_ISSUER` enrichment | Company master, identifiers, CIK, LEI |
-| Marketplace | `PUBLIC_DATA_FREE.COMPANY_CHARACTERISTICS` | `CURATED.DIM_ISSUER` enrichment | Sector, country, and company attributes |
-| Marketplace | `PUBLIC_DATA_FREE.STOCK_PRICE_TIMESERIES` | `MARKET_DATA.FACT_STOCK_PRICES` | Daily OHLCV prices |
-| Marketplace | `PUBLIC_DATA_FREE.SEC_CORPORATE_REPORT_ATTRIBUTES` | `MARKET_DATA.FACT_SEC_FINANCIALS` | SEC XBRL financial statements |
-| Marketplace | `PUBLIC_DATA_FREE.SEC_METRICS_TIMESERIES` | `MARKET_DATA.FACT_SEC_SEGMENTS` | Revenue and segment metrics |
-| Marketplace | `PUBLIC_DATA_FREE.SEC_REPORT_TEXT_ATTRIBUTES` | `MARKET_DATA.FACT_SEC_FILING_TEXT`, `MARKET_DATA.FACT_DIVIDENDS` | Filing text and dividend extraction |
-| Marketplace | `PUBLIC_DATA_FREE.SEC_HOLDING_FILING_ATTRIBUTES` + `PUBLIC_DATA_FREE.SEC_HOLDING_FILING_INDEX` | `CURATED.FACT_INSTITUTIONAL_HOLDINGS` | 13F institutional holdings |
-| Marketplace | `PUBLIC_DATA_FREE.SEC_INSIDER_TRADING_SECURITIES_INDEX` joined to `PUBLIC_DATA_FREE.SEC_INSIDER_TRADING_REPORTING_OWNERS_INDEX` on `ADSH` | `CURATED.FACT_INSIDER_TRANSACTIONS` | Insider trading events (Forms 3/4/5), enriched with the reporting person's name and role |
-| Marketplace | `PUBLIC_DATA_FREE.COMPANY_EVENT_TRANSCRIPT_ATTRIBUTES` | `RAW.COMPANY_EVENT_TRANSCRIPTS_RAW` -> `CURATED.COMPANY_EVENT_TRANSCRIPTS_CORPUS` | Real company-event transcripts |
-| Marketplace | `PUBLIC_DATA_FREE.BANK_FOR_INTERNATIONAL_SETTLEMENTS_TIMESERIES` joined to `PUBLIC_DATA_FREE.BANK_FOR_INTERNATIONAL_SETTLEMENTS_ATTRIBUTES` | `MARKET_DATA.FACT_POLICY_RATES` | Central bank policy rates |
-| Marketplace | `PUBLIC_DATA_FREE.FX_RATES_TIMESERIES` | `MARKET_DATA.FACT_FX_RATES` | FX rates |
-| Marketplace | `PUBLIC_DATA_FREE.FINANCIAL_ECONOMIC_INDICATORS_TIMESERIES` joined to `PUBLIC_DATA_FREE.FINANCIAL_ECONOMIC_INDICATORS_ATTRIBUTES` | `MARKET_DATA.FACT_ECONOMIC_INDICATORS` | Economic indicators |
-| Marketplace | `PUBLIC_DATA_FREE.US_TREASURY_TIMESERIES` joined to `PUBLIC_DATA_FREE.US_TREASURY_ATTRIBUTES` | `MARKET_DATA.FACT_TREASURY_YIELDS` | Treasury yields |
-| Marketplace | `PUBLIC_DATA_FREE.CLIMATE_WATCH_TIMESERIES` joined to `PUBLIC_DATA_FREE.CLIMATE_WATCH_ATTRIBUTES` | `MARKET_DATA.FACT_COUNTRY_EMISSIONS` | Country emissions data |
-| Marketplace | `PUBLIC_DATA_FREE.INTERNATIONAL_MONETARY_FUND_TIMESERIES` joined to `PUBLIC_DATA_FREE.INTERNATIONAL_MONETARY_FUND_ATTRIBUTES` | `MARKET_DATA.FACT_SOVEREIGN_FISCAL_OUTLOOK` | IMF Fiscal Monitor sovereign fiscal data, incl. projections to 2030 |
-| Marketplace | `PUBLIC_DATA_FREE.SEC_14A_ATTRIBUTES` | `MARKET_DATA.FACT_EXECUTIVE_COMPENSATION` | DEF 14A executive compensation |
-
-### 1.2 Generated / Synthesised Tables
-
-| Target Table / View | Generated From | Type |
-|---------------------|----------------|------|
-| `CURATED.DIM_ISSUER` | Demo companies config + marketplace enrichment | derived |
-| `CURATED.DIM_SECURITY` | `CURATED.DIM_ISSUER` | derived |
-| `CURATED.DIM_PORTFOLIO` | Portfolio config | synthetic |
-| `CURATED.DIM_BENCHMARK` | Benchmark config | synthetic |
-| `CURATED.DIM_CLIENT` | Client seed/config data | synthetic |
-| `CURATED.DIM_CLIENT_MANDATES` | Client mandate seed logic | synthetic |
-| `CURATED.DIM_SUPPLY_CHAIN_RELATIONSHIPS` | Demo supply-chain config | synthetic |
-| `CURATED.FACT_TRANSACTION` | Demo transaction generation anchored to market dates | synthetic |
-| `CURATED.FACT_POSITION_DAILY_ABOR` | `CURATED.FACT_TRANSACTION` + `MARKET_DATA.FACT_STOCK_PRICES` | derived |
-| `CURATED.FACT_ESG_SCORES` | Demo ESG generation logic | synthetic |
-| `CURATED.FACT_FACTOR_EXPOSURES` | Market data + calculated factor model logic | calculated |
-| `CURATED.FACT_COMPLIANCE_ALERTS` | Portfolio/compliance generation logic | synthetic |
-| `CURATED.FACT_CLIENT_FLOWS` | Demo flow generation | synthetic |
-| `CURATED.FACT_FUND_FLOWS` | Demo flow generation | synthetic |
-| `CURATED.FACT_STRATEGY_PERFORMANCE` | Derived strategy performance logic | calculated |
-| `CURATED.FACT_TRADE_SETTLEMENT` | Operations seed logic | synthetic |
-| `CURATED.FACT_RECONCILIATION` | Operations seed logic | synthetic |
-| `CURATED.FACT_NAV_CALCULATION` | Operations seed logic | synthetic |
-| `CURATED.FACT_CORPORATE_ACTIONS` | Corporate action generation + dividend import | derived |
-| `CURATED.FACT_CASH_MOVEMENTS` | Operations seed logic | synthetic |
-| `CURATED.FACT_CASH_POSITIONS` | Operations seed logic | synthetic |
-| `CURATED.DIM_MODEL_PORTFOLIO` | Portfolio modelling seed logic | synthetic |
-| `CURATED.FACT_MODEL_PORTFOLIO_WEIGHTS` | Portfolio modelling generation | synthetic |
-| `CURATED.FACT_EXPECTED_RETURNS` | Portfolio modelling generation | calculated |
-| `CURATED.FACT_COVARIANCE_MATRIX` | Return series calculation | calculated |
-| `CURATED.FACT_BACKTEST_RESULTS` | Backtest tool output / modelling generation | calculated |
-| `CURATED.FACT_SIMULATION_RESULTS` | Monte Carlo simulation logic | calculated |
-| `CURATED.FACT_BRINSON_*`, `CURATED.FACT_FACTOR_ATTRIBUTION`, `CURATED.FACT_CURRENCY_ATTRIBUTION` | Attribution build logic | calculated |
-| `CURATED.DIM_DEAL_PIPELINE`, `CURATED.DIM_PORTFOLIO_COMPANY`, `CURATED.FACT_VALUE_CREATION_PLAN`, `CURATED.FACT_PORTFOLIO_COMPANY_KPI`, `CURATED.FACT_BOARD_PACK_METRICS` | Private equity scenario generation | synthetic |
-| `CURATED.DIM_CREDIT_BORROWER`, `CURATED.DIM_CREDIT_FACILITY`, `CURATED.FACT_CREDIT_*` | Private credit scenario generation | synthetic |
-| `AI.FACT_PROACTIVE_INSIGHTS`, `AI.FACT_PROACTIVE_ALERTS`, `AI.FACT_SIGNALS`, `AI.FACT_REGIME_PREDICTIONS`, `AI.FACT_FACTOR_*`, `AI.FACT_CREDIT_RISK_SCORES` | AI scoring, signal extraction, ML workflows | calculated |
-
-### 1.3 Generated / Source Documents
-
-| Document Family | Raw / Staging Object | Corpus / Search Target | Provenance |
-|-----------------|----------------------|------------------------|------------|
-| Broker research | `RAW.BROKER_RESEARCH_RAW` | `CURATED.PDF_EXTERNAL_CORPUS` -> `SAM_EXTERNAL_DOCS` | generated |
-| Press releases | `RAW.PRESS_RELEASES_RAW` | `CURATED.PDF_EXTERNAL_CORPUS` -> `SAM_EXTERNAL_DOCS` | generated |
-| NGO reports | `RAW.NGO_REPORTS_RAW` | `CURATED.PDF_EXTERNAL_CORPUS` -> `SAM_EXTERNAL_DOCS` | generated |
-| Policy docs | `RAW.POLICY_DOCS_RAW` | `CURATED.PDF_INTERNAL_CORPUS` -> `SAM_INTERNAL_DOCS` | generated |
-| Sales templates | `RAW.SALES_TEMPLATES_RAW` | `CURATED.PDF_INTERNAL_CORPUS` -> `SAM_INTERNAL_DOCS` | generated |
-| Philosophy docs | `RAW.PHILOSOPHY_DOCS_RAW` | `CURATED.PDF_INTERNAL_CORPUS` -> `SAM_INTERNAL_DOCS` | generated |
-| Report templates | `RAW.REPORT_TEMPLATES_RAW` | `CURATED.PDF_INTERNAL_CORPUS` -> `SAM_INTERNAL_DOCS` | generated |
-| Macro events | `RAW.MACRO_EVENTS_RAW` | `CURATED.PDF_INTERNAL_CORPUS` -> `SAM_INTERNAL_DOCS` | generated |
-| Engagement notes | `RAW.ENGAGEMENT_NOTES_RAW` | `CURATED.PDF_INTERNAL_CORPUS` -> `SAM_INTERNAL_DOCS` | generated |
-| IPS docs | `RAW.IPS_RAW` or generated internal corpus entries | `CURATED.PDF_INTERNAL_CORPUS` -> `SAM_INTERNAL_DOCS` | generated |
-| Custodian / reconciliation / SSI / ops / strategy / methodology docs | corresponding `RAW.*_RAW` tables | `CURATED.PDF_INTERNAL_CORPUS` -> `SAM_INTERNAL_DOCS` | generated |
-| Regulatory PDFs | `RAW.PDF_REGULATORY_STAGE` / `CURATED.PDF_REGULATORY_CORPUS` | `SAM_REGULATORY_DOCS` | source PDF |
-| Company event transcripts | `RAW.COMPANY_EVENT_TRANSCRIPTS_RAW` | `CURATED.COMPANY_EVENT_TRANSCRIPTS_CORPUS` -> `SAM_COMPANY_EVENTS` | marketplace |
-| PE due diligence docs | directly generated curated corpus | `CURATED.PE_DUE_DILIGENCE_CORPUS` -> `SAM_PE_DUE_DILIGENCE` | generated |
-| PE board packs | directly generated curated corpus | `CURATED.PE_BOARD_PACKS_CORPUS` -> `SAM_PE_BOARD_PACKS` | generated |
-| PE expert notes | directly generated curated corpus | `CURATED.PE_EXPERT_NETWORK_CORPUS` -> `SAM_PE_EXPERT_NETWORK` | generated |
-| Credit agreements | directly generated curated corpus | `CURATED.CREDIT_AGREEMENTS_CORPUS` -> `SAM_CREDIT_AGREEMENTS` | generated |
-| Compliance certificates | directly generated curated corpus | `CURATED.COMPLIANCE_CERTS_CORPUS` -> `SAM_COMPLIANCE_CERTS` | generated |
-| IC memos | directly generated curated corpus | `CURATED.IC_MEMOS_CORPUS` -> `SAM_IC_MEMOS` | generated |
+Market prices anchor the build: `MARKET_DATA.FACT_STOCK_PRICES` is loaded first and its latest date sets the end date for every generated fact table.
 
 ---
 
-## 2. Table and View Dependencies
+## 2. Build flow
 
-### 2.1 Foundation and Master Data
+```mermaid
+flowchart TD
+    MP[Snowflake Marketplace] --> S1
+    CFG[config and reference YAML] --> S1
+    S1[1 Foundation: DIM_ISSUER, DIM_SECURITY, DIM_PORTFOLIO, DIM_BENCHMARK, ...] --> S2
+    S2[2 Market data: FACT_STOCK_PRICES, SEC financials, macro, FACT_RECOMMENDATION, estimates] --> S3
+    S3[3 Curated: transactions, positions, ESG, risk, operations, private markets, attribution] --> S4
+    S4[4 Pipelines: coverage universe, PDF, transcript and SEC corpora, ESG controversies] --> S5
+    S5[5 NLP: transcript NLP scores, hidden factor exposures] --> S5B
+    S5B[5b ML: feature views, Feature Store, models, scores, PREDICT_BORROWER_PD] --> S6
+    S6[6 AI: semantic views, search services, tools, agents, skills, evaluations] --> S7
+    S7[7 Signals and morning briefings] --> S8
+    S8[8 Earnings insights] --> S9
+    S9[9 Automation: SAM_WEEKLY_BUNDLE, WEEKLY_REFRESH_TASK]
+```
 
-| Table / View | Depends On | Notes |
-|--------------|------------|-------|
-| `CURATED.DIM_ISSUER` | `data/reference_data/companies.yaml`, `PUBLIC_DATA_FREE.COMPANY_INDEX`, `PUBLIC_DATA_FREE.COMPANY_CHARACTERISTICS` | Core issuer master |
-| `CURATED.DIM_SECURITY` | `CURATED.DIM_ISSUER` | Security master derived from issuers |
-| `CURATED.DIM_PORTFOLIO` | `config.PORTFOLIOS` (in `python/config.py`) | Independent portfolio master |
-| `CURATED.DIM_BENCHMARK` | `config.BENCHMARKS` (in `python/config.py`) | Independent benchmark master |
-| `CURATED.DIM_CLIENT` | `data/reference_data/clients.yaml` | Independent client master |
-| `CURATED.DIM_CLIENT_MANDATES` | `CURATED.DIM_CLIENT`, `CURATED.DIM_PORTFOLIO` | Mandate constraints |
-| `CURATED.DIM_SUPPLY_CHAIN_RELATIONSHIPS` | `CURATED.DIM_ISSUER`, `data/reference_data/companies.yaml` | Portfolio event contagion analysis |
-| `CURATED.DIM_MODEL_PORTFOLIO` | `CURATED.DIM_PORTFOLIO`, seed rows in `python/data/structured.py` | Modelling scenarios |
-
-### 2.2 Portfolio, Analytics, and Business Facts
-
-| Table / View | Depends On | Notes |
-|--------------|------------|-------|
-| `CURATED.FACT_TRANSACTION` | `CURATED.DIM_SECURITY`, `CURATED.DIM_PORTFOLIO`, `MARKET_DATA.FACT_STOCK_PRICES` | Synthetic transactions |
-| `CURATED.FACT_POSITION_DAILY_ABOR` | `CURATED.FACT_TRANSACTION`, `MARKET_DATA.FACT_STOCK_PRICES` | Daily holdings and values |
-| `CURATED.FACT_BENCHMARK_HOLDINGS` | `CURATED.DIM_BENCHMARK`, `CURATED.DIM_SECURITY`, `PUBLIC_DATA_FREE.SEC_FUND_HOLDING_INDEX` | Benchmark constituents |
-| `CURATED.FACT_BENCHMARK_PERFORMANCE` | `CURATED.DIM_BENCHMARK`, `MARKET_DATA.FACT_STOCK_PRICES` | Benchmark return history |
-| `CURATED.FACT_ESG_SCORES` | `CURATED.DIM_SECURITY`, `CURATED.DIM_ISSUER` | ESG ratings |
-| `CURATED.FACT_FACTOR_EXPOSURES` | `CURATED.DIM_SECURITY`, `MARKET_DATA.FACT_STOCK_PRICES`, `MARKET_DATA.FACT_SEC_FINANCIALS` | Calculated factor loadings |
-| `CURATED.FACT_TRANSACTION_COSTS` | `CURATED.DIM_SECURITY`, `MARKET_DATA.FACT_STOCK_PRICES` | Implementation analytics |
-| `CURATED.FACT_PORTFOLIO_LIQUIDITY` | `CURATED.FACT_POSITION_DAILY_ABOR`, `CURATED.FACT_TRANSACTION_COSTS` | Portfolio liquidity summary |
-| `CURATED.FACT_RISK_LIMITS` | `CURATED.DIM_PORTFOLIO` | Portfolio constraints |
-| `CURATED.FACT_TRADING_CALENDAR` | `MARKET_DATA.FACT_STOCK_PRICES` | Trading blackout / volatility assumptions |
-| `CURATED.FACT_TAX_IMPLICATIONS` | `CURATED.FACT_POSITION_DAILY_ABOR` | Tax analytics |
-| `CURATED.FACT_COMPLIANCE_ALERTS` | `CURATED.FACT_POSITION_DAILY_ABOR`, `CURATED.FACT_ESG_SCORES`, `CURATED.DIM_CLIENT_MANDATES` | Compliance breaches |
-| `CURATED.FACT_PRE_SCREENED_REPLACEMENTS` | `CURATED.FACT_COMPLIANCE_ALERTS`, `CURATED.DIM_SECURITY`, `CURATED.FACT_ESG_SCORES` | ESG/compliance remediation |
-| `CURATED.FACT_CLIENT_FLOWS` | `CURATED.DIM_CLIENT`, `CURATED.DIM_PORTFOLIO` | Client subscriptions/redemptions |
-| `CURATED.FACT_FUND_FLOWS` | `CURATED.FACT_CLIENT_FLOWS`, `CURATED.DIM_PORTFOLIO` | Fund-level flows |
-| `CURATED.FACT_STRATEGY_PERFORMANCE` | `CURATED.FACT_POSITION_DAILY_ABOR`, `CURATED.DIM_PORTFOLIO`, `MARKET_DATA.FACT_STOCK_PRICES` | Strategy-level returns |
-| `CURATED.FACT_TRADE_SETTLEMENT` | `CURATED.FACT_TRANSACTION`, `CURATED.DIM_SECURITY`, `CURATED.DIM_PORTFOLIO` | Operations monitoring |
-| `CURATED.FACT_RECONCILIATION` | `CURATED.FACT_POSITION_DAILY_ABOR`, `CURATED.FACT_TRADE_SETTLEMENT` | Reconciliation breaks |
-| `CURATED.FACT_NAV_CALCULATION` | `CURATED.FACT_POSITION_DAILY_ABOR`, `CURATED.FACT_CASH_POSITIONS`, `MARKET_DATA.FACT_STOCK_PRICES` | NAV analytics |
-| `CURATED.FACT_NAV_COMPONENTS` | `CURATED.FACT_NAV_CALCULATION` | NAV breakdown |
-| `CURATED.FACT_CORPORATE_ACTIONS` | `MARKET_DATA.FACT_DIVIDENDS`, `CURATED.DIM_SECURITY` | Corporate actions |
-| `CURATED.FACT_CORPORATE_ACTION_IMPACT` | `CURATED.FACT_CORPORATE_ACTIONS`, positions | Corporate action impact |
-| `CURATED.FACT_CASH_MOVEMENTS` | `CURATED.DIM_PORTFOLIO` | Cash movement history |
-| `CURATED.FACT_CASH_POSITIONS` | `CURATED.DIM_PORTFOLIO`, `CURATED.FACT_CASH_MOVEMENTS` | Cash balances |
-| `CURATED.FACT_MODEL_PORTFOLIO_WEIGHTS` | `CURATED.DIM_MODEL_PORTFOLIO`, `CURATED.DIM_SECURITY` | Model allocations |
-| `CURATED.FACT_RISK_FACTORS` | `MARKET_DATA.FACT_STOCK_PRICES`, `CURATED.FACT_FACTOR_EXPOSURES` | Portfolio modelling inputs |
-| `CURATED.FACT_EXPECTED_RETURNS` | `CURATED.DIM_SECURITY`, `MARKET_DATA.FACT_STOCK_PRICES`, `CURATED.FACT_FACTOR_EXPOSURES` | Forward assumptions |
-| `CURATED.FACT_COVARIANCE_MATRIX` | `CURATED.V_SECURITY_RETURNS` | Portfolio optimisation input |
-| `CURATED.FACT_BACKTEST_RESULTS` | `CURATED.FACT_MODEL_PORTFOLIO_WEIGHTS`, `CURATED.V_SECURITY_RETURNS` | Backtest output |
-| `CURATED.FACT_SIMULATION_RESULTS` | `CURATED.FACT_MODEL_PORTFOLIO_WEIGHTS`, `CURATED.FACT_EXPECTED_RETURNS`, `CURATED.FACT_COVARIANCE_MATRIX` | Simulation paths |
-| `CURATED.FACT_BRINSON_BY_SECTOR` | `CURATED.FACT_POSITION_DAILY_ABOR`, `CURATED.FACT_BENCHMARK_HOLDINGS`, `CURATED.V_SECURITY_RETURNS` | Sector attribution |
-| `CURATED.FACT_BRINSON_ATTRIBUTION` | `CURATED.FACT_POSITION_DAILY_ABOR`, `CURATED.FACT_BENCHMARK_HOLDINGS`, `CURATED.V_SECURITY_RETURNS` | Portfolio attribution |
-| `CURATED.FACT_BRINSON_ATTRIBUTION_DETAIL` | `CURATED.FACT_BRINSON_ATTRIBUTION`, `CURATED.DIM_SECURITY`, `CURATED.DIM_ISSUER` | Industry/country drill-down |
-| `CURATED.FACT_BRINSON_LINKED` | `CURATED.FACT_BRINSON_ATTRIBUTION` | Linked multi-period attribution |
-| `CURATED.FACT_FACTOR_ATTRIBUTION` | `CURATED.FACT_FACTOR_EXPOSURES`, `CURATED.V_SECURITY_RETURNS` | Factor contribution analysis |
-| `CURATED.FACT_HIDDEN_FACTOR_EXPOSURES` | `MARKET_DATA.FACT_TRANSCRIPT_NLP_SCORES`, `CURATED.FACT_FACTOR_EXPOSURES`, `CURATED.FACT_POSITION_DAILY_ABOR` | Hidden factor analysis |
-| `CURATED.FACT_CURRENCY_ATTRIBUTION` | `MARKET_DATA.FACT_FX_RATES`, `CURATED.FACT_POSITION_DAILY_ABOR`, `CURATED.FACT_BENCHMARK_HOLDINGS` | Currency attribution |
-| `CURATED.V_SECURITY_RETURNS` | `MARKET_DATA.FACT_STOCK_PRICES` | Daily returns |
-| `CURATED.V_SECURITY_RETURNS_LATEST` | `CURATED.V_SECURITY_RETURNS` | Latest return snapshot |
-| `CURATED.V_SECURITY_LOG_RETURNS` | `CURATED.V_SECURITY_RETURNS` | Log returns |
-| `CURATED.V_ESG_LATEST` | `CURATED.FACT_ESG_SCORES` | Latest ESG snapshot |
-| `CURATED.V_HOLDINGS_WITH_ESG` | `CURATED.FACT_POSITION_DAILY_ABOR`, `CURATED.FACT_ESG_SCORES`, `CURATED.DIM_SECURITY`, `CURATED.DIM_ISSUER` | Holdings plus ESG context |
-| `CURATED.V_PORTFOLIO_BENCHMARK_COMPARISON` | `CURATED.FACT_POSITION_DAILY_ABOR`, `CURATED.FACT_BENCHMARK_HOLDINGS`, `CURATED.V_SECURITY_RETURNS` | Portfolio vs benchmark view |
-| `CURATED.V_PORTFOLIO_RISK_METRICS` | `CURATED.FACT_POSITION_DAILY_ABOR`, `CURATED.V_SECURITY_RETURNS`, `CURATED.FACT_FACTOR_EXPOSURES`, `CURATED.FACT_BENCHMARK_HOLDINGS` | Portfolio risk summary |
-
-### 2.3 Market Data Layer
-
-| Table / View | Depends On | Notes |
-|--------------|------------|-------|
-| `MARKET_DATA.FACT_STOCK_PRICES` | `PUBLIC_DATA_FREE.STOCK_PRICE_TIMESERIES`, `CURATED.DIM_SECURITY`, `CURATED.DIM_ISSUER` | Real price history |
-| `MARKET_DATA.FACT_SEC_FINANCIALS` | `PUBLIC_DATA_FREE.SEC_CORPORATE_REPORT_ATTRIBUTES`, `CURATED.DIM_ISSUER` | SEC financial statements |
-| `MARKET_DATA.FACT_SEC_SEGMENTS` | `PUBLIC_DATA_FREE.SEC_METRICS_TIMESERIES`, `CURATED.DIM_ISSUER` | Segment metrics |
-| `MARKET_DATA.FACT_SEC_FILING_TEXT` | `PUBLIC_DATA_FREE.SEC_REPORT_TEXT_ATTRIBUTES`, `CURATED.DIM_ISSUER` | Filing text corpus |
-| `MARKET_DATA.FACT_DIVIDENDS` | `PUBLIC_DATA_FREE.SEC_REPORT_TEXT_ATTRIBUTES` | Dividend events |
-| `MARKET_DATA.FACT_POLICY_RATES` | `PUBLIC_DATA_FREE.BANK_FOR_INTERNATIONAL_SETTLEMENTS_TIMESERIES`, `PUBLIC_DATA_FREE.BANK_FOR_INTERNATIONAL_SETTLEMENTS_ATTRIBUTES` | Policy-rate history |
-| `MARKET_DATA.FACT_FX_RATES` | `PUBLIC_DATA_FREE.FX_RATES_TIMESERIES` | FX history |
-| `MARKET_DATA.FACT_ECONOMIC_INDICATORS` | `PUBLIC_DATA_FREE.FINANCIAL_ECONOMIC_INDICATORS_TIMESERIES`, `PUBLIC_DATA_FREE.FINANCIAL_ECONOMIC_INDICATORS_ATTRIBUTES` | Macro indicators |
-| `MARKET_DATA.FACT_TREASURY_YIELDS` | `PUBLIC_DATA_FREE.US_TREASURY_TIMESERIES`, `PUBLIC_DATA_FREE.US_TREASURY_ATTRIBUTES` | Rates curve |
-| `MARKET_DATA.FACT_COUNTRY_EMISSIONS` | `PUBLIC_DATA_FREE.CLIMATE_WATCH_TIMESERIES`, `PUBLIC_DATA_FREE.CLIMATE_WATCH_ATTRIBUTES` | Country-level emissions |
-| `MARKET_DATA.FACT_SOVEREIGN_FISCAL_OUTLOOK` | `PUBLIC_DATA_FREE.INTERNATIONAL_MONETARY_FUND_TIMESERIES`, `PUBLIC_DATA_FREE.INTERNATIONAL_MONETARY_FUND_ATTRIBUTES` | Sovereign fiscal, incl. IMF projections to 2030 |
-| `MARKET_DATA.FACT_EXECUTIVE_COMPENSATION` | `PUBLIC_DATA_FREE.SEC_14A_ATTRIBUTES`, `CURATED.DIM_ISSUER` | Executive compensation from DEF 14A proxies |
-| `MARKET_DATA.FACT_ESTIMATE_CONSENSUS` | `MARKET_DATA.FACT_SEC_FINANCIALS`, `MARKET_DATA.FACT_ESTIMATE_DATA` | Consensus estimates |
-| `MARKET_DATA.FACT_ESTIMATE_DATA` | `MARKET_DATA.FACT_SEC_FINANCIALS`, `CURATED.DIM_ISSUER` | Analyst estimates |
-| `MARKET_DATA.FACT_VIX_DAILY` | `MARKET_DATA.FACT_STOCK_PRICES` | Regime analytics |
-| `MARKET_DATA.FACT_SECTOR_RETURNS` | `MARKET_DATA.FACT_STOCK_PRICES`, `CURATED.DIM_SECURITY`, `CURATED.DIM_ISSUER` | Sector proxies |
-| `RAW.COMP_EVENT_SPEAKER_MAPPING` | `RAW.COMPANY_EVENT_TRANSCRIPTS_RAW` | Transcript enrichment |
-| `MARKET_DATA.FACT_TRANSCRIPT_NLP_SCORES` | `CURATED.COMPANY_EVENT_TRANSCRIPTS_CORPUS`, `RAW.COMP_EVENT_SPEAKER_MAPPING` | Sentiment / hidden factor signals |
-
-### 2.4 Document and Corpus Layer
-
-| Table / View | Depends On | Notes |
-|--------------|------------|-------|
-| `RAW.BROKER_RESEARCH_RAW` | `content_library/`, `data/reference_data/documents.yaml` | External generated docs |
-| `RAW.PRESS_RELEASES_RAW` | `content_library/`, `data/reference_data/documents.yaml` | External generated docs |
-| `RAW.NGO_REPORTS_RAW` | `content_library/`, `data/reference_data/documents.yaml` | External generated docs |
-| `RAW.ENGAGEMENT_NOTES_RAW` | `content_library/`, `data/reference_data/documents.yaml` | Internal generated docs |
-| `RAW.POLICY_DOCS_RAW` | `content_library/`, `data/reference_data/documents.yaml` | Internal generated docs |
-| `RAW.SALES_TEMPLATES_RAW` | `content_library/`, `data/reference_data/documents.yaml` | Internal generated docs |
-| `RAW.PHILOSOPHY_DOCS_RAW` | `content_library/`, `data/reference_data/documents.yaml` | Internal generated docs |
-| `RAW.REPORT_TEMPLATES_RAW` | `content_library/`, `data/reference_data/documents.yaml` | Internal generated docs |
-| `RAW.MACRO_EVENTS_RAW` | `content_library/`, `data/reference_data/documents.yaml` | Internal generated docs |
-| `RAW.CUSTODIAN_REPORTS_RAW` | `content_library/`, `data/reference_data/documents.yaml` | Internal generated docs |
-| `RAW.RECONCILIATION_NOTES_RAW` | `content_library/`, `data/reference_data/documents.yaml` | Internal generated docs |
-| `RAW.SSI_DOCUMENTS_RAW` | `content_library/`, `data/reference_data/documents.yaml` | Internal generated docs |
-| `RAW.OPS_PROCEDURES_RAW` | `content_library/`, `data/reference_data/documents.yaml` | Internal generated docs |
-| `RAW.STRATEGY_DOCUMENTS_RAW` | `content_library/`, `data/reference_data/documents.yaml` | Internal generated docs |
-| `RAW.METHODOLOGY_DOCS_RAW` | `content_library/`, `data/reference_data/documents.yaml` | Internal generated docs |
-| `RAW.COMPANY_EVENT_TRANSCRIPTS_RAW` | `PUBLIC_DATA_FREE.COMPANY_EVENT_TRANSCRIPT_ATTRIBUTES` | Real transcript staging |
-| `CURATED.PDF_INTERNAL_CORPUS` | `RAW.ENGAGEMENT_NOTES_RAW`, `RAW.POLICY_DOCS_RAW`, `RAW.SALES_TEMPLATES_RAW`, `RAW.PHILOSOPHY_DOCS_RAW`, `RAW.REPORT_TEMPLATES_RAW`, `RAW.MACRO_EVENTS_RAW`, `RAW.CUSTODIAN_REPORTS_RAW`, `RAW.RECONCILIATION_NOTES_RAW`, `RAW.SSI_DOCUMENTS_RAW`, `RAW.OPS_PROCEDURES_RAW`, `RAW.STRATEGY_DOCUMENTS_RAW`, `RAW.METHODOLOGY_DOCS_RAW`, `RAW.IPS_RAW` | Shared internal document corpus |
-| `CURATED.PDF_EXTERNAL_CORPUS` | `RAW.BROKER_RESEARCH_RAW`, `RAW.PRESS_RELEASES_RAW`, `RAW.NGO_REPORTS_RAW` | Shared external document corpus |
-| `CURATED.PDF_REGULATORY_CORPUS` | `RAW.PDF_REGULATORY_STAGE` | Regulatory corpus |
-| `CURATED.COMPANY_EVENT_TRANSCRIPTS_CORPUS` | `RAW.COMPANY_EVENT_TRANSCRIPTS_RAW`, `RAW.COMP_EVENT_SPEAKER_MAPPING` | Real transcript corpus |
-| `CURATED.PE_BOARD_PACKS_CORPUS` | `CURATED.DIM_PORTFOLIO_COMPANY` | PE search corpus |
-| `CURATED.PE_DUE_DILIGENCE_CORPUS` | `CURATED.DIM_DEAL_PIPELINE` | PE search corpus |
-| `CURATED.PE_EXPERT_NETWORK_CORPUS` | `CURATED.DIM_DEAL_PIPELINE` | PE search corpus |
-| `CURATED.CREDIT_AGREEMENTS_CORPUS` | `CURATED.DIM_CREDIT_FACILITY`, `CURATED.DIM_CREDIT_BORROWER` | Credit search corpus |
-| `CURATED.COMPLIANCE_CERTS_CORPUS` | `CURATED.DIM_CREDIT_BORROWER`, `CURATED.FACT_CREDIT_COVENANT_TRACKING` | Credit search corpus |
-| `CURATED.IC_MEMOS_CORPUS` | `CURATED.FACT_CREDIT_DEAL_PIPELINE`, `CURATED.DIM_CREDIT_BORROWER` | Credit search corpus |
+`scripts/setup.sql` creates the account objects and runs `SAM_BUILD_BUNDLE`, which executes `python/workspace_main.py`.
 
 ---
 
-## 3. AI Surface Inputs
+## 3. Structured dependencies
 
-### 3.1 Semantic Views
+### 3.1 Core model
 
-| Semantic View | Feeds From | Provenance Mix |
-|---------------|------------|----------------|
-| `SAM_PORTFOLIO_VIEW` | `CURATED.FACT_POSITION_DAILY_ABOR`, `CURATED.DIM_PORTFOLIO`, `CURATED.DIM_SECURITY`, `CURATED.DIM_ISSUER`, `CURATED.V_HOLDINGS_WITH_ESG`, `CURATED.V_PORTFOLIO_BENCHMARK_COMPARISON` | both |
-| `SAM_IMPLEMENTATION_VIEW` | `CURATED.FACT_TRANSACTION`, `CURATED.FACT_TRANSACTION_COSTS`, `CURATED.FACT_PORTFOLIO_LIQUIDITY`, `CURATED.FACT_RISK_LIMITS`, `CURATED.FACT_TRADE_SETTLEMENT`, `CURATED.FACT_TRADING_CALENDAR` | generated + derived |
-| `SAM_ATTRIBUTION_VIEW` | `CURATED.FACT_BRINSON_ATTRIBUTION`, `CURATED.FACT_BRINSON_BY_SECTOR`, `CURATED.FACT_BRINSON_ATTRIBUTION_DETAIL`, `CURATED.FACT_BRINSON_LINKED`, `CURATED.FACT_FACTOR_ATTRIBUTION`, `CURATED.FACT_HIDDEN_FACTOR_EXPOSURES`, `CURATED.FACT_CURRENCY_ATTRIBUTION` | calculated |
-| `SAM_MARKET_VIEW` | `MARKET_DATA.FACT_STOCK_PRICES`, `MARKET_DATA.FACT_TREASURY_YIELDS`, `MARKET_DATA.FACT_FX_RATES`, `MARKET_DATA.FACT_ECONOMIC_INDICATORS`, `MARKET_DATA.FACT_POLICY_RATES`, `MARKET_DATA.FACT_COUNTRY_EMISSIONS`, `CURATED.DIM_STRESS_SCENARIOS`, `CURATED.FACT_SCENARIO_SHOCKS`, `CURATED.FACT_HISTORICAL_STRESS_PERIODS` | both |
-| `SAM_RESEARCH_VIEW` | `MARKET_DATA.FACT_SEC_FINANCIALS`, `MARKET_DATA.FACT_SEC_SEGMENTS`, `MARKET_DATA.FACT_ESTIMATE_CONSENSUS`, `MARKET_DATA.FACT_ESTIMATE_DATA`, `CURATED.FACT_INSIDER_TRANSACTIONS`, `CURATED.FACT_INSTITUTIONAL_HOLDINGS`, `MARKET_DATA.FACT_EXECUTIVE_COMPENSATION`, `CURATED.DIM_ISSUER` | both |
-| `SAM_EXECUTIVE_VIEW` | `CURATED.DIM_CLIENT`, `CURATED.FACT_CLIENT_FLOWS`, `CURATED.FACT_FUND_FLOWS`, `CURATED.FACT_STRATEGY_PERFORMANCE`, `CURATED.DIM_PORTFOLIO` | generated + derived |
-| `SAM_MIDDLE_OFFICE_VIEW` | `CURATED.FACT_TRADE_SETTLEMENT`, `CURATED.FACT_RECONCILIATION`, `CURATED.FACT_NAV_CALCULATION`, `CURATED.FACT_CORPORATE_ACTIONS`, `CURATED.FACT_CASH_MOVEMENTS`, `CURATED.FACT_CASH_POSITIONS` | generated + derived |
-| `SAM_PROACTIVE_INSIGHTS_VIEW` | `AI.FACT_PROACTIVE_INSIGHTS`, `AI.FACT_PROACTIVE_ALERTS` | calculated |
-| `SAM_SIGNALS_VIEW` | `AI.FACT_SIGNALS`, `MARKET_DATA.FACT_TRANSCRIPT_NLP_SCORES`, `CURATED.FACT_HIDDEN_FACTOR_EXPOSURES` | calculated |
-| `SAM_PORTFOLIO_MODELLING_VIEW` | `CURATED.DIM_MODEL_PORTFOLIO`, `CURATED.FACT_MODEL_PORTFOLIO_WEIGHTS`, `CURATED.FACT_EXPECTED_RETURNS`, `CURATED.FACT_COVARIANCE_MATRIX`, `CURATED.FACT_BACKTEST_RESULTS`, `CURATED.FACT_SIMULATION_RESULTS`, `CURATED.V_SECURITY_RETURNS` | both |
-| `SAM_TOOL_RESULTS_VIEW` | `AI.TOOL_BACKTEST_RUNS`, `AI.TOOL_BACKTEST_TIMESERIES`, `AI.TOOL_RUN_PORTFOLIOS`, `AI.TOOL_SIMULATION_PATHS`, `AI.TOOL_SIMULATION_RUNS`, `AI.TOOL_SIMULATION_TERMINAL_VALUES` | calculated |
-| `SAM_REGIME_VIEW` | `AI.FACT_REGIME_PREDICTIONS`, `MARKET_DATA.FACT_VIX_DAILY`, `MARKET_DATA.FACT_BENCHMARK_RETURNS`, `MARKET_DATA.FACT_SOVEREIGN_FISCAL_OUTLOOK` | both |
-| `SAM_FACTOR_MODEL_VIEW` | `AI.FACT_FACTOR_RETURNS`, `AI.FACT_FACTOR_SCORES`, `AI.FACT_ML_FACTOR_PREDICTIONS`, `AI.FACT_OPTIMAL_PORTFOLIO` | calculated |
-| `SAM_CREDIT_PORTFOLIO_VIEW` | `CURATED.DIM_CREDIT_BORROWER`, `CURATED.DIM_CREDIT_FACILITY`, `CURATED.FACT_CREDIT_COVENANT_TRACKING`, `CURATED.FACT_CREDIT_BORROWER_FINANCIALS`, `CURATED.FACT_CREDIT_SECTOR_BENCHMARKS`, `CURATED.FACT_CREDIT_DEAL_PIPELINE`, `MARKET_DATA.FACT_SOVEREIGN_FISCAL_OUTLOOK` | generated + derived |
-| `SAM_CREDIT_RISK_VIEW` | `AI.FACT_CREDIT_RISK_SCORES`, `AI.FACT_CREDIT_SHAP_EXPLANATIONS`, `CURATED.DIM_CREDIT_BORROWER` | calculated |
-| `SAM_PE_DEAL_PIPELINE_VIEW` | `CURATED.DIM_DEAL_PIPELINE` | generated |
-| `SAM_PE_VALUE_CREATION_VIEW` | `CURATED.DIM_PORTFOLIO_COMPANY`, `CURATED.FACT_VALUE_CREATION_PLAN`, `CURATED.FACT_BOARD_PACK_METRICS`, `CURATED.FACT_PORTFOLIO_COMPANY_KPI` | generated |
+```mermaid
+flowchart LR
+    DIM_ISSUER --> DIM_SECURITY
+    DIM_SECURITY --> FACT_STOCK_PRICES
+    DIM_PORTFOLIO --> FACT_TRANSACTION
+    DIM_SECURITY --> FACT_TRANSACTION
+    FACT_STOCK_PRICES --> FACT_TRANSACTION
+    FACT_TRANSACTION --> FACT_POSITION_DAILY_ABOR
+    FACT_STOCK_PRICES --> FACT_POSITION_DAILY_ABOR
+    FACT_STOCK_PRICES --> V_SECURITY_RETURNS
+    V_SECURITY_RETURNS --> V_SECURITY_RETURNS_LATEST
+    FACT_ESG_SCORES --> V_ESG_LATEST
+    FACT_POSITION_DAILY_ABOR --> V_HOLDINGS_WITH_ESG
+    V_ESG_LATEST --> V_HOLDINGS_WITH_ESG
+    V_SECURITY_RETURNS_LATEST --> V_HOLDINGS_WITH_ESG
+    FACT_POSITION_DAILY_ABOR --> FACT_STRATEGY_PERFORMANCE
+    FACT_BENCHMARK_HOLDINGS --> FACT_BENCHMARK_PERFORMANCE
+    FACT_STRATEGY_PERFORMANCE --> V_PORTFOLIO_BENCHMARK_COMPARISON
+    FACT_BENCHMARK_PERFORMANCE --> V_PORTFOLIO_BENCHMARK_COMPARISON
+```
 
-### 3.2 Search Services
+### 3.2 Derived tables and views
 
-| Search Service | Feeds From | Content Type | Provenance |
-|----------------|------------|--------------|------------|
-| `SAM_INTERNAL_DOCS` | `CURATED.PDF_INTERNAL_CORPUS` | Internal policies, IPS, templates, engagement, ops, strategy docs | generated |
-| `SAM_EXTERNAL_DOCS` | `CURATED.PDF_EXTERNAL_CORPUS` | Broker research, press releases, NGO reports | generated |
-| `SAM_REGULATORY_DOCS` | `CURATED.PDF_REGULATORY_CORPUS` | Regulatory reference documents | source PDF |
-| `SAM_COMPANY_EVENTS` | `CURATED.COMPANY_EVENT_TRANSCRIPTS_CORPUS` | Earnings calls, investor days, AGMs | marketplace |
-| `SAM_REAL_SEC_FILINGS` | `MARKET_DATA.FACT_SEC_FILING_TEXT` | SEC filing text | marketplace |
-| `SAM_PE_BOARD_PACKS` | `CURATED.PE_BOARD_PACKS_CORPUS` | PE board packs | generated |
-| `SAM_PE_DUE_DILIGENCE` | `CURATED.PE_DUE_DILIGENCE_CORPUS` | PE due diligence documents | generated |
-| `SAM_PE_EXPERT_NETWORK` | `CURATED.PE_EXPERT_NETWORK_CORPUS` | PE expert notes | generated |
-| `SAM_CREDIT_AGREEMENTS` | `CURATED.CREDIT_AGREEMENTS_CORPUS` | Credit agreements | generated |
-| `SAM_COMPLIANCE_CERTS` | `CURATED.COMPLIANCE_CERTS_CORPUS` | Compliance certificates | generated |
-| `SAM_IC_MEMOS` | `CURATED.IC_MEMOS_CORPUS` | Investment committee memos | generated |
+| Object | Built from |
+|---|---|
+| `FACT_ESG_SCORES` | `DIM_SECURITY`, `DIM_ISSUER` |
+| `FACT_BENCHMARK_HOLDINGS` | `DIM_SECURITY`, marketplace N-PORT filings |
+| `FACT_FACTOR_EXPOSURES` | `V_SECURITY_RETURNS`, `FACT_SEC_FINANCIALS`, `FACT_BENCHMARK_RETURNS` |
+| `FACT_TAX_IMPLICATIONS` | `FACT_POSITION_DAILY_ABOR` |
+| `FACT_COMPLIANCE_ALERTS` | `DIM_PORTFOLIO_IPS`, `FACT_POSITION_DAILY_ABOR` |
+| `FACT_CLIENT_FLOWS`, `FACT_FUND_FLOWS` | `DIM_CLIENT`, `DIM_PORTFOLIO`; fund flows aggregate client flows |
+| `FACT_TRADE_SETTLEMENT` | `FACT_TRANSACTION`, `DIM_COUNTERPARTY`, `DIM_CUSTODIAN` |
+| `FACT_RECONCILIATION`, `FACT_NAV_CALCULATION`, `FACT_NAV_COMPONENTS` | `FACT_POSITION_DAILY_ABOR` |
+| `FACT_CORPORATE_ACTIONS`, `FACT_CORPORATE_ACTION_IMPACT` | `DIM_SECURITY`, `FACT_DIVIDENDS`, positions |
+| `FACT_CASH_MOVEMENTS`, `FACT_CASH_POSITIONS` | Transactions and flows; positions aggregate movements |
+| `FACT_EXPECTED_RETURNS`, `FACT_COVARIANCE_MATRIX` | `V_SECURITY_RETURNS`, `V_SECURITY_LOG_RETURNS` |
+| `V_SECURITY_LOG_RETURNS`, `V_PORTFOLIO_RISK_METRICS` | `FACT_STOCK_PRICES`; risk metrics add positions |
+| `FACT_BENCHMARK_RETURNS`, `FACT_VIX_DAILY`, `FACT_SECTOR_RETURNS` | Marketplace ETF prices |
+| `FACT_BRINSON_BY_SECTOR` | Positions, `FACT_BENCHMARK_SECTOR_WEIGHTS`, `FACT_SECTOR_RETURNS` |
+| `FACT_BRINSON_ATTRIBUTION` | `FACT_BRINSON_BY_SECTOR` |
+| `FACT_FACTOR_ATTRIBUTION` | `FACT_FACTOR_EXPOSURES`, positions |
+| `FACT_BRINSON_ATTRIBUTION_DETAIL` | Positions, benchmark holdings, `V_SECURITY_RETURNS` |
+| `FACT_CURRENCY_ATTRIBUTION` | Positions, `FACT_FX_RATES` |
+| `FACT_BRINSON_LINKED` | `FACT_BRINSON_ATTRIBUTION_DETAIL` |
+| `V_MACRO_REGIME` | `FACT_VIX_DAILY`, `FACT_BENCHMARK_RETURNS` |
+| `V_REGIME_TRANSITIONS` | `V_MACRO_REGIME` |
+| `V_FACTOR_ROLLING_ANALYTICS` | `FACT_FACTOR_ATTRIBUTION`, `V_MACRO_REGIME` |
+| `V_ATTRIBUTION_ANOMALIES`, `V_CROSS_PORTFOLIO_ANALYTICS` | `V_FACTOR_ROLLING_ANALYTICS`, Brinson and factor attribution |
+| `FACT_HISTORICAL_STRESS_PERIODS` | `FACT_VIX_DAILY`, `FACT_BENCHMARK_RETURNS` |
+| `FACT_RECOMMENDATION` | `FACT_STOCK_PRICES`, `FACT_SEC_FINANCIALS`, `DIM_SECTOR_VALUATION`, `DIM_BROKER_BIAS` |
+| `FACT_ESTIMATE_CONSENSUS`, `FACT_ESTIMATE_DATA` | `FACT_SEC_FINANCIALS`; estimate data adds `FACT_RECOMMENDATION`, `FACT_ANALYST_COVERAGE` |
+| `FACT_TRANSCRIPT_NLP_SCORES` | `COMPANY_EVENT_TRANSCRIPTS_CORPUS`, `FACT_SEC_SEGMENTS` |
+| `FACT_HIDDEN_FACTOR_EXPOSURES` | `FACT_TRANSCRIPT_NLP_SCORES`, positions |
+| `FACT_ESG_CONTROVERSY` | `PDF_EXTERNAL_CORPUS` (NGO reports) |
+| `DIM_COVERAGE_UNIVERSE` | `DIM_ISSUER`, holdings |
+
+### 3.3 Private markets
+
+```mermaid
+flowchart LR
+    DIM_PE_FUND --> DIM_PORTFOLIO_COMPANY
+    DIM_PORTFOLIO_COMPANY --> FACT_VALUE_CREATION_PLAN
+    DIM_PORTFOLIO_COMPANY --> FACT_BOARD_PACK_METRICS
+    DIM_PORTFOLIO_COMPANY --> FACT_PORTFOLIO_COMPANY_KPI
+    FACT_BOARD_PACK_METRICS --> PE_BOARD_PACKS_CORPUS
+    FACT_PORTFOLIO_COMPANY_KPI --> PE_BOARD_PACKS_CORPUS
+    DIM_DEAL_PIPELINE --> PE_DUE_DILIGENCE_CORPUS
+    DIM_DEAL_PIPELINE --> PE_EXPERT_NETWORK_CORPUS
+    DIM_CREDIT_FUND --> DIM_CREDIT_BORROWER
+    DIM_CREDIT_BORROWER --> DIM_CREDIT_FACILITY
+    DIM_CREDIT_FACILITY --> FACT_CREDIT_COVENANT_TRACKING
+    DIM_CREDIT_BORROWER --> FACT_CREDIT_BORROWER_FINANCIALS
+    FACT_CREDIT_COVENANT_TRACKING --> FACT_CREDIT_BORROWER_FINANCIALS
+    DIM_CREDIT_FACILITY --> CREDIT_AGREEMENTS_CORPUS
+    FACT_CREDIT_BORROWER_FINANCIALS --> COMPLIANCE_CERTS_CORPUS
+    FACT_CREDIT_COVENANT_TRACKING --> COMPLIANCE_CERTS_CORPUS
+    FACT_CREDIT_DEAL_PIPELINE --> IC_MEMOS_CORPUS
+```
+
+The private markets corpora are written directly by `python/data/structured.py` from the facts above, so their documents always agree with the numbers.
 
 ---
 
-## 4. Custom Tools
+## 4. Document pipelines
 
-This section covers only project-defined custom tools. Built-in Cortex Agent tools such as `server_skill`, `code_execution`, and `data_to_chart` are intentionally excluded.
+Created by `create_all_pipelines` and run once by `run_all_pipelines` in `python/data/pipelines.py`. After the run every pipeline task is suspended. The weekly refresh drives each graph again when new data arrives by executing the suspended root task with its child tasks resumed, so the schedules below apply only if a root task is resumed manually.
 
-| Tool Name | Fully Qualified Name | Type | Depends On |
-|-----------|----------------------|------|------------|
-| `pdf_generator` | `SAM_DEMO.AI.GENERATE_PDF_REPORT` | Python stored procedure | `SAM_DEMO.AI.PDF_REPORTS_STAGE` |
-| `explain_data_origin` | `SAM_DEMO.AI.EXPLAIN_DATA_ORIGIN` | SQL stored procedure | semantic views, upstream table/view metadata via `GET_LINEAGE` |
-| `backtest_historical_stress` | `SAM_DEMO.AI.RUN_STRESS_BACKTEST_TOOL` | Python stored procedure | `SAM_DEMO.CURATED.FACT_POSITION_DAILY_ABOR`, `SAM_DEMO.CURATED.DIM_PORTFOLIO`, `SAM_DEMO.CURATED.DIM_SECURITY`, `SAM_DEMO.MARKET_DATA.FACT_STOCK_PRICES`, `SAM_DEMO.CURATED.FACT_HISTORICAL_STRESS_PERIODS` |
-| `scenario_sensitivity` | `SAM_DEMO.AI.RUN_SCENARIO_SENSITIVITY_TOOL` | Python stored procedure | `SAM_DEMO.CURATED.FACT_POSITION_DAILY_ABOR`, `SAM_DEMO.CURATED.DIM_PORTFOLIO`, `SAM_DEMO.CURATED.FACT_FACTOR_EXPOSURES`, `SAM_DEMO.CURATED.FACT_SCENARIO_SHOCKS` |
-| `run_counterfactual` | `SAM_DEMO.AI.RUN_COUNTERFACTUAL_ANALYSIS` | Python stored procedure | `SAM_DEMO.CURATED.FACT_POSITION_DAILY_ABOR`, `SAM_DEMO.CURATED.FACT_BENCHMARK_HOLDINGS`, `SAM_DEMO.CURATED.V_SECURITY_RETURNS`, `SAM_DEMO.CURATED.FACT_BRINSON_ATTRIBUTION_DETAIL` |
-| `run_backtest` | `SAM_DEMO.AI.RUN_BACKTEST_TOOL` | SQL stored procedure | `SAM_DEMO.CURATED.V_SECURITY_RETURNS`, `SAM_DEMO.CURATED.DIM_SECURITY`, `SAM_DEMO.AI.TOOL_RUN_PORTFOLIOS`, `SAM_DEMO.AI.TOOL_BACKTEST_TIMESERIES`, `SAM_DEMO.AI.TOOL_BACKTEST_RUNS` |
-| `run_monte_carlo` | `SAM_DEMO.AI.RUN_MONTE_CARLO_TOOL` | SQL stored procedure backed by helper UDFs | `SAM_DEMO.AI.NORM_PPF`, `SAM_DEMO.AI.SIMULATE_PATH`, `SAM_DEMO.AI.SIMULATE_PATH_BATCH`, `SAM_DEMO.CURATED.V_SECURITY_RETURNS`, `SAM_DEMO.CURATED.DIM_SECURITY`, `SAM_DEMO.AI.TOOL_RUN_PORTFOLIOS`, `SAM_DEMO.AI.TOOL_SIMULATION_PATHS`, `SAM_DEMO.AI.TOOL_SIMULATION_RUNS`, `SAM_DEMO.AI.TOOL_SIMULATION_TERMINAL_VALUES` |
-| `run_attribution` | `SAM_DEMO.AI.RUN_ATTRIBUTION_TOOL` | Python stored procedure | `SAM_DEMO.CURATED.FACT_POSITION_DAILY_ABOR`, `SAM_DEMO.CURATED.FACT_BENCHMARK_HOLDINGS`, `SAM_DEMO.CURATED.V_SECURITY_RETURNS`, `SAM_DEMO.CURATED.DIM_SECURITY`, `SAM_DEMO.CURATED.DIM_ISSUER` |
-| `ma_simulation` | `SAM_DEMO.AI.MA_SIMULATION_TOOL` | Python UDF | input parameters only (no direct table dependency) |
-| `thesis_manager` | `SAM_DEMO.AI.SP_UPSERT_RESEARCH_THESIS` | SQL stored procedure | thesis-tracking tables in `SAM_DEMO.AI` |
+```mermaid
+flowchart LR
+    subgraph PDF[PDF pipelines: INTERNAL, EXTERNAL, REGULATORY]
+        G[unstructured.build_all renders PDFs] --> ST[RAW.PDF_x_STAGE]
+        ST --> SS[RAW.PDF_x_STREAM]
+        SS --> PT[PDF_x_PARSE task: AI_PARSE_DOCUMENT]
+        PT --> RW[RAW.PDF_x_RAW]
+        RW --> CT[PDF_x_CHUNK task: chunk, AI_FILTER issuer link]
+        CT --> CO[CURATED.PDF_x_CORPUS]
+    end
+    subgraph TR[Transcripts]
+        M1[Marketplace transcripts] --> TRAW[RAW.COMPANY_EVENT_TRANSCRIPTS_RAW]
+        TRAW --> TS[TRANSCRIPTS_SPEAKER_STREAM and TRANSCRIPTS_CORPUS_STREAM]
+        TS --> TROOT[TRANSCRIPTS_PIPELINE_ROOT]
+        TROOT --> TSP[TRANSCRIPTS_SPEAKER_MAPPING: AI_COMPLETE]
+        TSP --> MAP[RAW.COMP_EVENT_SPEAKER_MAPPING]
+        TSP --> TCB[TRANSCRIPTS_CORPUS_BUILD]
+        TCB --> TCO[CURATED.COMPANY_EVENT_TRANSCRIPTS_CORPUS]
+    end
+    subgraph SEC[SEC filings]
+        M2[Marketplace filing text] --> SRAW[RAW.SEC_FILING_TEXT_RAW]
+        SRAW --> SSTR[SEC_FILINGS_RAW_STREAM]
+        SSTR --> SROOT[SEC_FILINGS_PIPELINE_ROOT]
+        SROOT --> SCH[SEC_FILINGS_CHUNK]
+        SCH --> SCO[MARKET_DATA.FACT_SEC_FILING_TEXT]
+    end
+```
+
+| Pipeline | Schedule | Notes |
+|---|---|---|
+| PDF parse tasks | Every 5 minutes, on new stage files | `AI_PARSE_DOCUMENT` in LAYOUT mode |
+| PDF chunk tasks | After the parse task | 2000-character chunks with 200 overlap; `AI_FILTER` links chunks to issuers; regulatory chunks join `RAW.REGULATION_LOOKUP` |
+| Transcript graph | Every 5 minutes when the stream has data | Speaker identification with `AI_COMPLETE`, then segment and chunk |
+| SEC filing graph | Every 5 minutes when the stream has data | `SPLIT_TEXT_RECURSIVE_CHARACTER` chunking |
 
 ---
 
-## 5. Agent Consumption
+## 5. AI layer
 
-| Agent | Semantic Views Used | Search Services Used | Custom Tools |
-|-------|---------------------|----------------------|--------------|
-| `AM_portfolio_management_copilot` | `SAM_PORTFOLIO_VIEW`, `SAM_IMPLEMENTATION_VIEW`, `SAM_ATTRIBUTION_VIEW`, `SAM_MARKET_VIEW`, `SAM_PROACTIVE_INSIGHTS_VIEW`, `SAM_SIGNALS_VIEW`, `SAM_RESEARCH_VIEW`, `SAM_FACTOR_MODEL_VIEW`, `SAM_REGIME_VIEW`, `SAM_PORTFOLIO_MODELLING_VIEW`, `SAM_TOOL_RESULTS_VIEW` | `SAM_COMPANY_EVENTS`, `SAM_REAL_SEC_FILINGS`, `SAM_EXTERNAL_DOCS`, `SAM_INTERNAL_DOCS` | `backtest_historical_stress`, `scenario_sensitivity`, `run_counterfactual`, `run_backtest`, `run_monte_carlo`, `run_attribution`, `explain_data_origin`, `pdf_generator` |
-| `AM_research_copilot` | `SAM_RESEARCH_VIEW` | `SAM_EXTERNAL_DOCS`, `SAM_COMPANY_EVENTS`, `SAM_REAL_SEC_FILINGS` | `thesis_manager`, `pdf_generator` |
-| `AM_risk_compliance_copilot` | `SAM_PORTFOLIO_VIEW`, `SAM_RESEARCH_VIEW`, `SAM_MARKET_VIEW` | `SAM_REAL_SEC_FILINGS`, `SAM_REGULATORY_DOCS`, `SAM_EXTERNAL_DOCS`, `SAM_INTERNAL_DOCS`, `SAM_COMPANY_EVENTS` | `pdf_generator` |
-| `AM_client_advisory_copilot` | `SAM_PORTFOLIO_VIEW`, `SAM_EXECUTIVE_VIEW`, `SAM_RESEARCH_VIEW`, `SAM_ATTRIBUTION_VIEW` | `SAM_INTERNAL_DOCS`, `SAM_REGULATORY_DOCS` | `pdf_generator` |
-| `AM_operations_copilot` | `SAM_MIDDLE_OFFICE_VIEW` | `SAM_INTERNAL_DOCS` | `pdf_generator` |
-| `AM_executive_leadership_copilot` | `SAM_EXECUTIVE_VIEW`, `SAM_PORTFOLIO_VIEW`, `SAM_RESEARCH_VIEW`, `SAM_ATTRIBUTION_VIEW`, `SAM_IMPLEMENTATION_VIEW` | `SAM_INTERNAL_DOCS`, `SAM_EXTERNAL_DOCS` | `ma_simulation`, `explain_data_origin`, `pdf_generator` |
-| `AM_private_equity_copilot` | `SAM_PE_DEAL_PIPELINE_VIEW`, `SAM_PE_VALUE_CREATION_VIEW`, `SAM_RESEARCH_VIEW` | `SAM_PE_DUE_DILIGENCE`, `SAM_PE_BOARD_PACKS`, `SAM_PE_EXPERT_NETWORK`, `SAM_REAL_SEC_FILINGS` | — |
-| `AM_private_credit_copilot` | `SAM_CREDIT_PORTFOLIO_VIEW`, `SAM_CREDIT_RISK_VIEW`, `SAM_MARKET_VIEW`, `SAM_RESEARCH_VIEW` | `SAM_CREDIT_AGREEMENTS`, `SAM_COMPLIANCE_CERTS`, `SAM_IC_MEMOS`, `SAM_REAL_SEC_FILINGS` | — |
+### 5.1 Semantic views
+
+All semantic views live in `SAM_DEMO.AI` and are defined in `python/ai/semantic_view_definitions/`. Several also bind `SAM_ISSUER_NAME_SEARCH` for fuzzy company name matching.
+
+| Semantic view | Base tables |
+|---|---|
+| `SAM_PORTFOLIO_VIEW` | `DIM_PORTFOLIO`, `DIM_SECURITY`, `DIM_ISSUER`, `DIM_BENCHMARK`, `V_HOLDINGS_WITH_ESG`, `FACT_BENCHMARK_HOLDINGS`, `FACT_BENCHMARK_PERFORMANCE`, `V_PORTFOLIO_BENCHMARK_COMPARISON`, `FACT_FACTOR_EXPOSURES`, `FACT_COMPLIANCE_ALERTS`, `DIM_SUPPLY_CHAIN_RELATIONSHIPS`, `FACT_ESG_CONTROVERSY` |
+| `SAM_ATTRIBUTION_VIEW` | `FACT_BRINSON_BY_SECTOR`, `FACT_BRINSON_ATTRIBUTION`, `FACT_BRINSON_ATTRIBUTION_DETAIL`, `FACT_BRINSON_LINKED`, `FACT_FACTOR_ATTRIBUTION`, `FACT_CURRENCY_ATTRIBUTION`, `FACT_HIDDEN_FACTOR_EXPOSURES`, `V_FACTOR_ROLLING_ANALYTICS`, `V_ATTRIBUTION_ANOMALIES`, `V_CROSS_PORTFOLIO_ANALYTICS`, `DIM_PORTFOLIO`, `DIM_SECURITY` |
+| `SAM_IMPLEMENTATION_VIEW` | `FACT_POSITION_DAILY_ABOR`, `DIM_PORTFOLIO`, `DIM_SECURITY`, `DIM_CLIENT_MANDATES`, `FACT_PORTFOLIO_LIQUIDITY`, `FACT_RISK_LIMITS`, `FACT_TAX_IMPLICATIONS`, `FACT_TRADE_SETTLEMENT`, `FACT_TRADING_CALENDAR`, `FACT_TRANSACTION_COSTS` |
+| `SAM_MARKET_VIEW` | `V_MACRO_REGIME`, `DIM_STRESS_SCENARIOS`, `FACT_SCENARIO_SHOCKS`, `FACT_HISTORICAL_STRESS_PERIODS`, `DIM_ISSUER`, `DIM_SECURITY`, `MARKET_DATA.FACT_TREASURY_YIELDS`, `FACT_STOCK_PRICES`, `FACT_ECONOMIC_INDICATORS`, `FACT_FX_RATES`, `FACT_POLICY_RATES`, `FACT_COUNTRY_EMISSIONS` |
+| `SAM_RESEARCH_VIEW` | `DIM_ISSUER`, `FACT_RECOMMENDATION`, `FACT_INSIDER_TRANSACTIONS`, `FACT_INSTITUTIONAL_HOLDINGS`, `FACT_RESEARCH_THESES`, `MARKET_DATA.DIM_ANALYST`, `DIM_BROKER`, `FACT_ESTIMATE_DATA`, `FACT_ESTIMATE_CONSENSUS`, `FACT_SEC_FINANCIALS`, `FACT_SEC_SEGMENTS`, `FACT_EXECUTIVE_COMPENSATION` |
+| `SAM_EXECUTIVE_VIEW` | `DIM_CLIENT`, `FACT_CLIENT_FLOWS`, `FACT_FUND_FLOWS`, `DIM_PORTFOLIO`, `FACT_STRATEGY_PERFORMANCE`, `DIM_PORTFOLIO_MANAGER`, `FACT_PORTFOLIO_PM_ASSIGNMENT` |
+| `SAM_MIDDLE_OFFICE_VIEW` | `FACT_CASH_MOVEMENTS`, `FACT_CASH_POSITIONS`, `FACT_CORPORATE_ACTIONS`, `DIM_COUNTERPARTY`, `DIM_CUSTODIAN`, `FACT_NAV_CALCULATION`, `FACT_RECONCILIATION`, `FACT_TRADE_SETTLEMENT`, `DIM_PORTFOLIO`, `DIM_SECURITY` |
+| `SAM_PORTFOLIO_MODELLING_VIEW` | `FACT_BACKTEST_RESULTS`, `FACT_EXPECTED_RETURNS`, `DIM_MODEL_PORTFOLIO`, `FACT_MODEL_PORTFOLIO_WEIGHTS`, `FACT_RISK_FACTORS`, `FACT_SIMULATION_RESULTS`, `V_SECURITY_RETURNS`, `FACT_COVARIANCE_MATRIX`, `DIM_ISSUER`, `DIM_SECURITY` |
+| `SAM_TOOL_RESULTS_VIEW` | `AI.TOOL_RUN_PORTFOLIOS`, `TOOL_BACKTEST_RUNS`, `TOOL_BACKTEST_TIMESERIES`, `TOOL_SIMULATION_RUNS`, `TOOL_SIMULATION_PATHS`, `TOOL_SIMULATION_TERMINAL_VALUES` |
+| `SAM_PROACTIVE_INSIGHTS_VIEW` | `FACT_PROACTIVE_INSIGHTS`, `FACT_PROACTIVE_ALERTS` |
+| `SAM_SIGNALS_VIEW` | `FACT_SIGNALS` |
+| `SAM_FACTOR_MODEL_VIEW` | `ML.FACT_FACTOR_RETURNS`, `FACT_FACTOR_SCORES`, `FACT_ML_FACTOR_PREDICTIONS`, `FACT_OPTIMAL_PORTFOLIO` |
+| `SAM_REGIME_VIEW` | `ML.FACT_REGIME_PREDICTIONS`, `MARKET_DATA.FACT_BENCHMARK_RETURNS`, `FACT_VIX_DAILY`, `FACT_SOVEREIGN_FISCAL_OUTLOOK` |
+| `SAM_CREDIT_PORTFOLIO_VIEW` | `DIM_CREDIT_BORROWER`, `DIM_CREDIT_FACILITY`, `FACT_CREDIT_COVENANT_TRACKING`, `FACT_CREDIT_BORROWER_FINANCIALS`, `FACT_CREDIT_DEAL_PIPELINE`, `MARKET_DATA.FACT_CREDIT_SECTOR_BENCHMARKS`, `FACT_SOVEREIGN_FISCAL_OUTLOOK` |
+| `SAM_CREDIT_RISK_VIEW` | `DIM_CREDIT_BORROWER`, `ML.FACT_CREDIT_RISK_SCORES`, `FACT_CREDIT_SHAP_EXPLANATIONS` |
+| `SAM_PE_DEAL_PIPELINE_VIEW` | `DIM_DEAL_PIPELINE` |
+| `SAM_PE_VALUE_CREATION_VIEW` | `DIM_PORTFOLIO_COMPANY`, `FACT_VALUE_CREATION_PLAN`, `FACT_PORTFOLIO_COMPANY_KPI`, `FACT_BOARD_PACK_METRICS` |
+
+Tables without a schema prefix are in `CURATED`; a prefix applies to the names that follow it in the same cell.
+
+### 5.2 Cortex Search services
+
+Created by `python/ai/cortex_search.py` on `SAM_DEMO_CORTEX_WH` with `snowflake-arctic-embed-m-v1.5` and a 5-minute target lag, unless stated otherwise.
+
+| Service | Source | Search column |
+|---|---|---|
+| `SAM_INTERNAL_DOCS` | `CURATED.PDF_INTERNAL_CORPUS` | `DOCUMENT_TEXT` |
+| `SAM_EXTERNAL_DOCS` | `CURATED.PDF_EXTERNAL_CORPUS` | `DOCUMENT_TEXT` |
+| `SAM_REGULATORY_DOCS` | `CURATED.PDF_REGULATORY_CORPUS` | `DOCUMENT_TEXT` |
+| `SAM_COMPANY_EVENTS` | `CURATED.COMPANY_EVENT_TRANSCRIPTS_CORPUS` | `DOCUMENT_TEXT` |
+| `SAM_REAL_SEC_FILINGS` | `MARKET_DATA.FACT_SEC_FILING_TEXT` joined to `CURATED.DIM_ISSUER` | `FILING_TEXT` |
+| `SAM_PE_BOARD_PACKS` | `CURATED.PE_BOARD_PACKS_CORPUS` | `DOCUMENT_TEXT` |
+| `SAM_PE_DUE_DILIGENCE` | `CURATED.PE_DUE_DILIGENCE_CORPUS` | `DOCUMENT_TEXT` |
+| `SAM_PE_EXPERT_NETWORK` | `CURATED.PE_EXPERT_NETWORK_CORPUS` | `DOCUMENT_TEXT` |
+| `SAM_CREDIT_AGREEMENTS` | `CURATED.CREDIT_AGREEMENTS_CORPUS` | `DOCUMENT_TEXT` |
+| `SAM_COMPLIANCE_CERTS` | `CURATED.COMPLIANCE_CERTS_CORPUS` | `DOCUMENT_TEXT` |
+| `SAM_IC_MEMOS` | `CURATED.IC_MEMOS_CORPUS` | `DOCUMENT_TEXT` |
+| `SAM_ISSUER_NAME_SEARCH` | Distinct `LEGALNAME` from `CURATED.DIM_ISSUER` | `LEGALNAME` (1-day target lag) |
+
+### 5.3 Custom tools
+
+| Tool | Reads | Writes |
+|---|---|---|
+| `EXPLAIN_DATA_ORIGIN` | Semantic view and view definitions | — |
+| `GENERATE_PDF_REPORT` | — | `@AI.PDF_REPORTS` |
+| `RUN_MONTE_CARLO_TOOL` (uses `SIMULATE_PATH_BATCH`) | `V_SECURITY_RETURNS`, `DIM_SECURITY` | `TOOL_RUN_PORTFOLIOS`, `TOOL_SIMULATION_RUNS`, `TOOL_SIMULATION_PATHS`, `TOOL_SIMULATION_TERMINAL_VALUES` |
+| `RUN_BACKTEST_TOOL` | `V_SECURITY_RETURNS`, `DIM_SECURITY` | `TOOL_RUN_PORTFOLIOS`, `TOOL_BACKTEST_RUNS`, `TOOL_BACKTEST_TIMESERIES` |
+| `RUN_ATTRIBUTION_TOOL` | `DIM_PORTFOLIO`, `DIM_BENCHMARK`, `FACT_POSITION_DAILY_ABOR`, `FACT_BENCHMARK_HOLDINGS`, `DIM_SECURITY`, `DIM_ISSUER`, `FACT_STOCK_PRICES` | — |
+| `RUN_STRESS_BACKTEST_TOOL` | `FACT_HISTORICAL_STRESS_PERIODS`, `FACT_FACTOR_ATTRIBUTION`, `FACT_SCENARIO_SHOCKS` | — |
+| `RUN_SCENARIO_SENSITIVITY_TOOL` | `DIM_STRESS_SCENARIOS`, `FACT_SCENARIO_SHOCKS`, factor attribution | — |
+| `RUN_COUNTERFACTUAL_ANALYSIS` | `DIM_PORTFOLIO`, `FACT_BRINSON_ATTRIBUTION_DETAIL` | — |
+| `SP_UPSERT_RESEARCH_THESIS` | `FACT_RESEARCH_THESES` | `FACT_RESEARCH_THESES` |
+| `MA_SIMULATION_TOOL` (uses `MA_SIMULATION_ENGINE`) | `FACT_POSITION_DAILY_ABOR` | — |
+| `PREDICT_BORROWER_PD` | `DIM_CREDIT_BORROWER`, `ML."CREDIT_RISK_FEATURES$BUILD"`, model `ML.CREDIT_RISK_XGBOOST` (`PRODUCTION`) | — |
+
+### 5.4 Agents
+
+Every agent also has the built-in `server_skill`, `code_execution` and `data_to_chart` tools. Skills are loaded from `@AI.SKILL_STAGE`.
+
+| Agent | Semantic views | Search services | Custom tools |
+|---|---|---|---|
+| `AM_portfolio_management_copilot` | PORTFOLIO, IMPLEMENTATION, ATTRIBUTION, MARKET, PROACTIVE_INSIGHTS, SIGNALS, RESEARCH, FACTOR_MODEL, REGIME, PORTFOLIO_MODELLING, TOOL_RESULTS | COMPANY_EVENTS, REAL_SEC_FILINGS, EXTERNAL_DOCS, INTERNAL_DOCS | `GENERATE_PDF_REPORT`, `EXPLAIN_DATA_ORIGIN`, `RUN_COUNTERFACTUAL_ANALYSIS`, `RUN_STRESS_BACKTEST_TOOL`, `RUN_SCENARIO_SENSITIVITY_TOOL`, `RUN_BACKTEST_TOOL`, `RUN_MONTE_CARLO_TOOL`, `RUN_ATTRIBUTION_TOOL` |
+| `AM_research_copilot` | RESEARCH | EXTERNAL_DOCS, COMPANY_EVENTS, REAL_SEC_FILINGS | `GENERATE_PDF_REPORT`, `SP_UPSERT_RESEARCH_THESIS` |
+| `AM_risk_compliance_copilot` | PORTFOLIO, RESEARCH, MARKET | REAL_SEC_FILINGS, REGULATORY_DOCS, EXTERNAL_DOCS, INTERNAL_DOCS, COMPANY_EVENTS | `GENERATE_PDF_REPORT` |
+| `AM_client_advisory_copilot` | PORTFOLIO, EXECUTIVE, RESEARCH, ATTRIBUTION | INTERNAL_DOCS, REGULATORY_DOCS | `GENERATE_PDF_REPORT` |
+| `AM_operations_copilot` | MIDDLE_OFFICE | INTERNAL_DOCS | `GENERATE_PDF_REPORT` |
+| `AM_executive_leadership_copilot` | EXECUTIVE, PORTFOLIO, RESEARCH, ATTRIBUTION, IMPLEMENTATION | INTERNAL_DOCS, EXTERNAL_DOCS | `MA_SIMULATION_TOOL`, `GENERATE_PDF_REPORT`, `EXPLAIN_DATA_ORIGIN` |
+| `AM_private_equity_copilot` | PE_DEAL_PIPELINE, PE_VALUE_CREATION, RESEARCH | REAL_SEC_FILINGS, PE_DUE_DILIGENCE, PE_BOARD_PACKS, PE_EXPERT_NETWORK | — |
+| `AM_private_credit_copilot` | CREDIT_PORTFOLIO, CREDIT_RISK, MARKET, RESEARCH | CREDIT_AGREEMENTS, COMPLIANCE_CERTS, IC_MEMOS, REAL_SEC_FILINGS | `PREDICT_BORROWER_PD` |
+
+View names omit the `SAM_` prefix and `_VIEW` suffix; service names omit the `SAM_` prefix.
+
+### 5.5 Proactive insights and signals
+
+```mermaid
+flowchart LR
+    POS[CURATED.FACT_POSITION_DAILY_ABOR] --> PCS[AI.POSITION_CHANGE_STREAM]
+    PCS --> PCI[POSITION_CHANGE_INSIGHT task]
+    DAB[DAILY_ATTRIBUTION_BRIEFING task] --> AAC[ANOMALY_ALERT_CHECK task]
+    AAC --> AAP[ANOMALY_ALERT_PROMOTE task]
+    MBT[MORNING_BRIEFING_TASK: agent per portfolio] --> INS
+    PCI --> INS[CURATED.FACT_PROACTIVE_INSIGHTS]
+    DAB --> INS
+    AAC --> INS
+    AAP --> ALR[CURATED.FACT_PROACTIVE_ALERTS]
+    INS --> SV1[SAM_PROACTIVE_INSIGHTS_VIEW]
+    ALR --> SV1
+    CORP[Corpora and facts] --> SIG[CURATED.FACT_SIGNALS]
+    SIG --> SV2[SAM_SIGNALS_VIEW]
+    TCO[COMPANY_EVENT_TRANSCRIPTS_CORPUS] --> EI[CURATED.FACT_EARNINGS_INSIGHTS]
+```
+
+The proactive tasks are created suspended; build steps 7 and 8 seed `FACT_SIGNALS`, `FACT_PROACTIVE_INSIGHTS` and `FACT_EARNINGS_INSIGHTS` directly.
+
+---
+
+## 6. ML lineage
+
+```mermaid
+flowchart LR
+    VIX[MARKET_DATA.FACT_VIX_DAILY] --> VRF[ML.V_REGIME_FEATURES]
+    BR[MARKET_DATA.FACT_BENCHMARK_RETURNS] --> VRF
+    SR[MARKET_DATA.FACT_SECTOR_RETURNS] --> VRF
+    VRF --> FVR[Feature view REGIME_FEATURES/BUILD]
+    FVR --> DSR[Dataset REGIME_TRAINING_DS]
+    DSR --> MRG[Model MARKET_REGIME_GMM PRODUCTION]
+    FVR --> SCR[score_regime]
+    MRG --> SCR
+    SCR --> FRP[ML.FACT_REGIME_PREDICTIONS]
+    FIN[CURATED.FACT_CREDIT_BORROWER_FINANCIALS] --> VCF[ML.V_CREDIT_RISK_FEATURES]
+    COV[CURATED.FACT_CREDIT_COVENANT_TRACKING] --> VCF
+    BOR[CURATED.DIM_CREDIT_BORROWER] --> VCF
+    FRP --> VCF
+    COV --> VCL[ML.V_CREDIT_RISK_LABELS]
+    VCF --> FVC[Feature view CREDIT_RISK_FEATURES/BUILD]
+    FVC --> DSC[Dataset CREDIT_RISK_TRAINING_DS]
+    VCL --> DSC
+    DSC --> MCX[Model CREDIT_RISK_XGBOOST PRODUCTION]
+    FVC --> SCC[score_credit_risk]
+    MCX --> SCC
+    SCC --> FCS[ML.FACT_CREDIT_RISK_SCORES]
+    SCC --> FSH[ML.FACT_CREDIT_SHAP_EXPLANATIONS]
+    FVC --> PBP[AI.PREDICT_BORROWER_PD]
+    MCX --> PBP
+```
+
+- The regime predictions feed the credit features (the regime at each quarter end), so the regime model is always scored before the credit model.
+- Training datasets are generated from the feature views with `generate_dataset` and a point-in-time check; the Model Registry records lineage from each model version to its dataset and feature views.
+- `_promote` moves the `PRODUCTION` alias to the new version and makes it the default; scoring and `PREDICT_BORROWER_PD` always use `PRODUCTION`.
+- `PREDICT_BORROWER_PD` takes a borrower name and optional overrides (absolute, `+`/`-` or `%` changes), propagates leverage and coverage changes into covenant headroom, and returns the baseline and stressed probability with `EXPLAIN` drivers.
+- The factor tables `FACT_FACTOR_SCORES` and `FACT_ML_FACTOR_PREDICTIONS` are filled by the `factor_discovery` notebook. `FACT_FACTOR_RETURNS` and `FACT_OPTIMAL_PORTFOLIO` are derived from them by `python/ai/tools/factor_engine.py` once they contain rows.
+
+---
+
+## 7. Weekly refresh
+
+`AI.WEEKLY_REFRESH_TASK` runs every Monday at 06:00 UTC and executes `SAM_WEEKLY_BUNDLE` with `python/weekly_refresh_main.py --mode weekly`, which calls `run()` in `python/data/weekly_refresh.py`. The window starts the day after the watermark in `FSI_DEMO_CONFIG.APP.REFRESH_STATE` and ends at the latest marketplace price date.
+
+| Step | Function | Writes |
+|---|---|---|
+| 0 Window | `cadence.get_watermark`, `incremental.get_source_max_price_date` | — |
+| 1 Prices | `incremental.append_stock_prices` | `FACT_STOCK_PRICES` |
+| 2 Structured | `incremental.refresh_structured` | `FACT_TRANSACTION`, `FACT_POSITION_DAILY_ABOR`, `FACT_FACTOR_EXPOSURES`, `FACT_VIX_DAILY`, `FACT_BENCHMARK_RETURNS`, `FACT_SECTOR_RETURNS`, Brinson tables, `FACT_STRATEGY_PERFORMANCE`, `FACT_COVARIANCE_MATRIX`, middle office facts |
+| 3 Private markets | `private_markets.refresh_private_markets` (quarterly cadence) | PE KPIs and board packs, `FACT_CREDIT_BORROWER_FINANCIALS`, `FACT_CREDIT_COVENANT_TRACKING` |
+| 3b ML | `ml_models.score_ml_models` (rescore with `PRODUCTION`, no retraining) | `FACT_REGIME_PREDICTIONS`, `FACT_CREDIT_RISK_SCORES`, `FACT_CREDIT_SHAP_EXPLANATIONS` |
+| 4 Marketplace corpora | `transcripts.load_raw_table`, `load_sec_filings_raw`, transcript and SEC task graphs | `COMPANY_EVENT_TRANSCRIPTS_CORPUS`, `FACT_SEC_FILING_TEXT` |
+| 5 Recommendations | `recommendations.ensure_vintage`, `market_data.build_estimate_data` | `FACT_RECOMMENDATION`, estimates |
+| 5b Coverage gaps | `backfill_coverage_gaps` | Documents and recommendations for names new to `DIM_COVERAGE_UNIVERSE` |
+| 6 Due documents | `_evaluate_due_documents` | — |
+| 7 Generate documents | `_generate_documents`, `_log_generated_vintages` | PDFs, `RAW.DOCUMENT_VINTAGE_LOG` |
+| 8 Document pipelines | `_run_document_pipelines` | `PDF_*_RAW`, `PDF_*_CORPUS` |
+| 8b ESG controversies | `structured.build_fact_esg_controversy` | `FACT_ESG_CONTROVERSY` |
+| 9 Briefings | `seed_morning_briefings` (7-day expiry) | `FACT_PROACTIVE_INSIGHTS` |
+| 10 Prune | `prune_expired_insights` | Deletes expired insights and alerts |
+| 11 Watermark | `cadence.set_watermark` | `REFRESH_STATE`: `SUCCESS`, `PARTIAL` or `FAILED` |
+
+Search services pick up corpus changes through their target lag, and semantic views read the refreshed tables directly, so no AI object is rebuilt by the refresh.
+
+---
+
+## Related documentation
+
+- [`docs/data_model.md`](data_model.md) - Objects, columns and builders
