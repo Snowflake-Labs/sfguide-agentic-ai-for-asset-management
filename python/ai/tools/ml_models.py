@@ -160,12 +160,104 @@ def create_feature_views(session: Session) -> None:
         JOIN cov ON cov.BORROWERID = fin.BORROWERID AND cov.QUARTER_DATE = fin.QUARTER_DATE
         ASOF JOIN regime MATCH_CONDITION (fin.QUARTER_DATE::TIMESTAMP_NTZ >= regime.RegimeTs)
     )
-    SELECT
-        *,
-        LEAD(STRESS_FLAG) OVER (PARTITION BY BORROWERID ORDER BY QUARTER_DATE) AS NEXT_QUARTER_STRESS
+    SELECT * EXCLUDE (STRESS_FLAG)
     FROM joined
     """).collect()
     log_detail(f"  Created view: {credit_cfg['features_view']}")
+
+    session.sql(f"""
+    CREATE OR REPLACE VIEW {ml_ref}.{credit_cfg['labels_view']}
+    COMMENT = 'Training spine for the PD model: next-quarter covenant stress per borrower-quarter'
+    AS
+    WITH stress AS (
+        SELECT
+            BORROWERID,
+            TO_DATE(TESTDATE) AS QUARTER_DATE,
+            IFF(COUNT_IF(BREACHFLAG) > 0 OR MIN(HEADROOM_PCT) < {stress_headroom}, 1, 0) AS STRESS_FLAG
+        FROM {database_name}.CURATED.FACT_CREDIT_COVENANT_TRACKING
+        GROUP BY BORROWERID, TO_DATE(TESTDATE)
+    )
+    SELECT
+        BORROWERID,
+        QUARTER_DATE::TIMESTAMP_NTZ AS QUARTER_DATE,
+        LEAD(STRESS_FLAG) OVER (PARTITION BY BORROWERID ORDER BY QUARTER_DATE) AS {credit_cfg['label']}
+    FROM stress
+    QUALIFY {credit_cfg['label']} IS NOT NULL
+    """).collect()
+    log_detail(f"  Created view: {credit_cfg['labels_view']}")
+
+
+def _fv_ref(model_key: str) -> str:
+    cfg = config.ML_CONFIG[model_key]
+    return f"{get_ml_schema_ref()}.\"{cfg['feature_view']}${config.ML_CONFIG['feature_view_version']}\""
+
+
+def register_feature_views(session: Session):
+    from snowflake.ml.feature_store import FeatureView
+    from snowflake.snowpark import functions as F
+    from .ml_common import get_feature_store, register_entity
+
+    ml_ref = get_ml_schema_ref()
+    version = config.ML_CONFIG['feature_view_version']
+    regime_cfg = config.ML_CONFIG['regime_model']
+    credit_cfg = config.ML_CONFIG['credit_risk_model']
+    fs = get_feature_store(session)
+
+    market_name, market_key, market_value = regime_cfg['entity']
+    market = register_entity(session, market_name, [market_key], 'Single global market entity for daily regime features', fs=fs)
+    borrower_name, borrower_key = credit_cfg['entity']
+    borrower = register_entity(session, borrower_name, [borrower_key], 'Private credit borrower', fs=fs)
+
+    regime_df = session.table(f"{ml_ref}.{regime_cfg['features_view']}").select(
+        F.lit(market_value).alias(market_key),
+        F.col('DATE').cast('TIMESTAMP_NTZ').alias('DATE'),
+        *regime_cfg['features'],
+    )
+    regime_fv = FeatureView(
+        name=regime_cfg['feature_view'],
+        entities=[market],
+        feature_df=regime_df,
+        timestamp_col='DATE',
+        refresh_freq=None,
+        desc='Build-owned daily market regime features (VIX, realised vol, momentum, sector dispersion). External view over V_REGIME_FEATURES.',
+    ).attach_feature_desc({
+        'VIX_LEVEL': 'VIX close',
+        'VIX_20D_MA': '20 trading-day average VIX',
+        'REALISED_VOL_20D': '20 trading-day standard deviation of SPX daily returns',
+        'REALISED_VOL_60D': '60 trading-day standard deviation of SPX daily returns',
+        'MOMENTUM_20D': '20 trading-day cumulative SPX return',
+        'MOMENTUM_60D': '60 trading-day cumulative SPX return',
+        'SECTOR_DISPERSION': 'Cross-sectional standard deviation of sector returns',
+        'VOL_RISK_PREMIUM': 'VIX minus annualised 20-day realised volatility',
+    })
+    fs.register_feature_view(regime_fv, version=version, overwrite=True)
+
+    credit_df = session.table(f"{ml_ref}.{credit_cfg['features_view']}").select(
+        borrower_key,
+        F.col('QUARTER_DATE').cast('TIMESTAMP_NTZ').alias('QUARTER_DATE'),
+        *credit_cfg['features'],
+    )
+    credit_fv = FeatureView(
+        name=credit_cfg['feature_view'],
+        entities=[borrower],
+        feature_df=credit_df,
+        timestamp_col='QUARTER_DATE',
+        refresh_freq=None,
+        desc='Build-owned borrower-quarter PD features: leverage, coverage, cash flow, covenant headroom, rating and market regime. External view over V_CREDIT_RISK_FEATURES.',
+    ).attach_feature_desc({
+        'MIN_COVENANT_HEADROOM': 'Tightest covenant headroom this quarter, in percent',
+        'AVG_COVENANT_HEADROOM': 'Average covenant headroom this quarter, in percent',
+        'BREACH_COUNT': 'Covenants flagged as breached this quarter',
+        'RATING_ORDINAL': 'External rating as an ordinal (0 = BBB-, higher = weaker, -1 = unknown)',
+        'REGIME_ORDINAL': 'Market regime at the quarter date (0 RISK_ON, 1 TRANSITIONAL, 2 RISK_OFF, -1 unknown)',
+    })
+    fs.register_feature_view(credit_fv, version=version, overwrite=True)
+
+    runtime_role = config.RBAC['demo_runtime_role']
+    for key in ('regime_model', 'credit_risk_model'):
+        session.sql(f"GRANT SELECT ON VIEW {_fv_ref(key)} TO ROLE {runtime_role}").collect()
+    log_detail(f"  Feature views registered: {regime_cfg['feature_view']}/{version}, {credit_cfg['feature_view']}/{version}")
+    return fs, regime_fv, credit_fv
 
 
 def _version_name() -> str:
@@ -239,6 +331,34 @@ def _build_regime_model_class():
     return RegimeGMM
 
 
+def _training_dataset(session: Session, model_key: str, spine_df, version_name: str, label_cols=None):
+    from .ml_common import get_feature_store
+    cfg = config.ML_CONFIG[model_key]
+    fs = get_feature_store(session)
+    fv = fs.get_feature_view(cfg['feature_view'], config.ML_CONFIG['feature_view_version'])
+    timestamp_col = fv.timestamp_col
+    dataset = fs.generate_dataset(
+        name=cfg['training_dataset'],
+        version=version_name,
+        spine_df=spine_df,
+        features=[fv],
+        spine_timestamp_col=timestamp_col,
+        spine_label_cols=label_cols,
+        include_feature_view_timestamp_col=True,
+        desc=f"Point-in-time training set for {cfg['name']} {version_name} from {cfg['feature_view']}/{config.ML_CONFIG['feature_view_version']}",
+    )
+    pdf = dataset.read.to_pandas()
+    fv_ts_cols = [c for c in pdf.columns if c != timestamp_col and c.endswith(timestamp_col)]
+    if fv_ts_cols:
+        future = (pdf[fv_ts_cols[0]] > pdf[timestamp_col]).sum()
+        if future:
+            raise ValueError(f"{cfg['training_dataset']}: {future} rows use features later than the spine timestamp")
+    else:
+        log_warning(f"  {cfg['training_dataset']}: feature view timestamp column not found; point-in-time check skipped")
+    log_detail(f"  Dataset {cfg['training_dataset']}/{version_name}: {len(pdf)} rows")
+    return dataset, pdf
+
+
 def train_regime_model(session: Session) -> str:
     import numpy as np
     from sklearn.mixture import GaussianMixture
@@ -248,9 +368,11 @@ def train_regime_model(session: Session) -> str:
 
     regime_cfg = config.ML_CONFIG['regime_model']
     features = regime_cfg['features']
-    ml_ref = get_ml_schema_ref()
-    feature_df = session.table(f"{ml_ref}.{regime_cfg['features_view']}").select(features)
-    pdf = feature_df.to_pandas().dropna()
+    _, market_key, _ = regime_cfg['entity']
+    version_name = _version_name()
+    spine = session.table(_fv_ref('regime_model')).select(market_key, 'DATE')
+    dataset, pdf = _training_dataset(session, 'regime_model', spine, version_name)
+    pdf = pdf.dropna(subset=features)
 
     scaler = StandardScaler()
     scaled = scaler.fit_transform(pdf[features].astype(float).values)
@@ -281,16 +403,17 @@ def train_regime_model(session: Session) -> str:
         with open(path, 'wb') as handle:
             pickle.dump({'scaler': scaler, 'gmm': gmm, 'features': features, 'order': order, 'labels': labels}, handle)
         model = _build_regime_model_class()(custom_model.ModelContext(artifacts={'pipeline': path}))
-        version_name = _version_name()
         _get_registry(session).log_model(
             model,
             model_name=regime_cfg['name'],
             version_name=version_name,
-            sample_input_data=feature_df.limit(20),
+            sample_input_data=dataset.read.to_snowpark_dataframe().select(features).limit(20),
             conda_dependencies=['scikit-learn', 'pandas'],
             target_platforms=['WAREHOUSE'],
             metrics=metrics,
-            comment='Build-trained GMM market regime model (RISK_ON / TRANSITIONAL / RISK_OFF ordered by mean VIX)',
+            comment=(f"Build-trained GMM market regime model (RISK_ON / TRANSITIONAL / RISK_OFF ordered by mean VIX). "
+                     f"Features: {regime_cfg['feature_view']}/{config.ML_CONFIG['feature_view_version']}; "
+                     f"dataset {regime_cfg['training_dataset']}/{version_name}"),
         )
     _promote(session, 'regime_model', version_name)
     log_info(f"  Regime model {version_name}: silhouette={metrics['silhouette_score']:.3f}, n={metrics['n_samples']}")
@@ -316,7 +439,7 @@ def score_regime(session: Session) -> int:
     WITH scored AS (
         SELECT f.DATE, f.VIX_LEVEL, f.MOMENTUM_20D, f.REALISED_VOL_20D,
                MODEL({model_ref}, {alias})!PREDICT({cols}) AS P
-        FROM {ml_ref}.{regime_cfg['features_view']} f
+        FROM {_fv_ref('regime_model')} f
     )
     SELECT DATE, P:REGIME_LABEL::VARCHAR, P:REGIME_PROBABILITY::FLOAT,
            P:CLUSTER_0_PROB::FLOAT, P:CLUSTER_1_PROB::FLOAT, P:CLUSTER_2_PROB::FLOAT,
@@ -336,13 +459,14 @@ def train_credit_risk_model(session: Session) -> str:
 
     credit_cfg = config.ML_CONFIG['credit_risk_model']
     features = credit_cfg['features']
+    label = credit_cfg['label']
     ml_ref = get_ml_schema_ref()
-    view = session.table(f"{ml_ref}.{credit_cfg['features_view']}")
-    labelled = view.filter("NEXT_QUARTER_STRESS IS NOT NULL")
-    pdf = labelled.select(['QUARTER_DATE'] + features + ['NEXT_QUARTER_STRESS']).to_pandas()
-    pdf = pdf.sort_values('QUARTER_DATE').reset_index(drop=True)
+    version_name = _version_name()
+    spine = session.table(f"{ml_ref}.{credit_cfg['labels_view']}")
+    dataset, pdf = _training_dataset(session, 'credit_risk_model', spine, version_name, label_cols=[label])
+    pdf = pdf.dropna(subset=features).sort_values('QUARTER_DATE').reset_index(drop=True)
     X = pdf[features].astype(float)
-    y = pdf['NEXT_QUARTER_STRESS'].astype(int)
+    y = pdf[label].astype(int)
     positive_rate = float(y.mean())
 
     params = dict(credit_cfg['xgb_params'])
@@ -368,17 +492,18 @@ def train_credit_risk_model(session: Session) -> str:
         'positive_rate': positive_rate,
     }
 
-    version_name = _version_name()
     _get_registry(session).log_model(
         model,
         model_name=credit_cfg['name'],
         version_name=version_name,
-        sample_input_data=labelled.select(features).limit(20),
+        sample_input_data=dataset.read.to_snowpark_dataframe().select(features).limit(20),
         conda_dependencies=['xgboost', 'shap'],
         target_platforms=['WAREHOUSE'],
         options={'enable_explainability': True},
         metrics=metrics,
-        comment='Build-trained XGBoost PD model: P(covenant breach or headroom < 5% next quarter)',
+        comment=(f"Build-trained XGBoost PD model: P(covenant breach or headroom < 5% next quarter). "
+                 f"Features: {credit_cfg['feature_view']}/{config.ML_CONFIG['feature_view_version']}; "
+                 f"dataset {credit_cfg['training_dataset']}/{version_name}"),
     )
     _promote(session, 'credit_risk_model', version_name)
     log_info(f"  Credit risk model {version_name}: AUC={metrics['mean_auc']:.3f} over {metrics['evaluated_folds']} folds, n={metrics['n_samples']}, positive rate={positive_rate:.1%}")
@@ -401,7 +526,7 @@ def score_credit_risk(session: Session) -> int:
     if not version_name:
         log_warning("  No PRODUCTION credit risk model; skipping credit risk scoring")
         return 0
-    view = f"{ml_ref}.{credit_cfg['features_view']}"
+    view = _fv_ref('credit_risk_model')
     cols = ", ".join(f"f.{c}" for c in features)
     shap_obj = ", ".join(f"'{c}', e.{c}_EXPLANATION" for c in features)
     value_obj = ", ".join(f"'{c}', f.{c}" for c in features)
@@ -460,7 +585,9 @@ def create_pd_what_if_tool(session: Session) -> None:
     features = credit_cfg['features']
     model_ref = _model_ref('credit_risk_model')
     alias = _alias()
-    view = f"{ml_ref}.{credit_cfg['features_view']}"
+    view = _fv_ref('credit_risk_model')
+    borrowers = (f"(SELECT b.BORROWERID, b.BORROWERNAME FROM {database_name}.CURATED.DIM_CREDIT_BORROWER b "
+                 f"WHERE b.BORROWERID IN (SELECT BORROWERID FROM {view}))")
     feature_list = _sql_array(features)
     base_obj = ", ".join(f"'{c}', f.{c}" for c in features)
     base_args = ", ".join(f"b:{c}::FLOAT" for c in features)
@@ -505,16 +632,16 @@ DECLARE
 BEGIN
     SELECT COUNT(DISTINCT BORROWERID), MIN(BORROWERID), MIN(BORROWERNAME)
       INTO :match_count, :matched_id, :matched_name
-      FROM {view}
+      FROM {borrowers}
      WHERE UPPER(BORROWERNAME) = UPPER(:BORROWER_NAME);
     IF (match_count = 0) THEN
         SELECT COUNT(DISTINCT BORROWERID), MIN(BORROWERID), MIN(BORROWERNAME)
           INTO :match_count, :matched_id, :matched_name
-          FROM {view}
+          FROM {borrowers}
          WHERE BORROWERNAME ILIKE '%' || :BORROWER_NAME || '%';
     END IF;
     IF (match_count <> 1) THEN
-        SELECT ARRAY_AGG(DISTINCT BORROWERNAME) INTO :unknown_keys FROM {view};
+        SELECT ARRAY_AGG(DISTINCT BORROWERNAME) INTO :unknown_keys FROM {borrowers};
         RETURN OBJECT_CONSTRUCT('error', IFF(match_count = 0, 'Borrower not found', 'Borrower name is ambiguous'),
                                 'requested', :BORROWER_NAME, 'valid_borrowers', :unknown_keys);
     END IF;
@@ -532,7 +659,7 @@ BEGIN
     SELECT COALESCE(OBJECT_AGG(UPPER(o.KEY), o.VALUE), OBJECT_CONSTRUCT()) INTO :overrides_obj
       FROM TABLE(FLATTEN(INPUT => :overrides_obj)) o;
 
-    SELECT f.QUARTER_DATE, OBJECT_CONSTRUCT({base_obj})
+    SELECT f.QUARTER_DATE::DATE, OBJECT_CONSTRUCT({base_obj})
       INTO :quarter_date, :baseline
       FROM {view} f
      WHERE f.BORROWERID = :matched_id
@@ -639,6 +766,7 @@ $$
 
 def score_ml_models(session: Session) -> Dict[str, int]:
     create_feature_views(session)
+    register_feature_views(session)
     regime_rows = score_regime(session)
     credit_rows = score_credit_risk(session)
     populate_factor_standins(session)
@@ -651,8 +779,9 @@ def build_ml_models(session: Session) -> Dict[str, str]:
     create_regime_prediction_table(session)
     create_credit_risk_tables(session)
 
-    log_step("Creating feature views")
+    log_step("Creating feature views and registering them in the Feature Store")
     create_feature_views(session)
+    register_feature_views(session)
 
     log_step("Training market regime model")
     regime_version = train_regime_model(session)
