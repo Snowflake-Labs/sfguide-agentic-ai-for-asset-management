@@ -214,7 +214,7 @@ ALTER STAGE SAM_DEMO.RAW.PDF_INTERNAL_STAGE REFRESH;
 ## SQL Scripts
 
 Human-readable SQL scripts for all pipelines are available in:
-`am_ai_demo/sql/pipelines/`
+`emea_am_ai_demo/sql/pipelines/`
 
 These can be opened in Snowsight worksheets for detailed walkthrough:
 - `01_pdf_internal_pipeline.sql`
@@ -222,3 +222,4 @@ These can be opened in Snowsight worksheets for detailed walkthrough:
 - `03_corpus_build_example.sql`
 - `04_transcripts_pipeline.sql`
 - `05_sec_filings_pipeline.sql`
+- `06_factor_ml_population.sql`

@@ -27,7 +27,7 @@ real data from SNOWFLAKE_PUBLIC_DATA_FREE. Includes:
 - Analyst estimates and consensus data (derived from real SEC data)
 
 Usage:
-    Called by main.py as part of the build process.
+    Called by workspace_main.py as part of the build process.
     
     IMPORTANT: This module requires access to SNOWFLAKE_PUBLIC_DATA_FREE.
     The build will fail if this data source is not available.
@@ -42,6 +42,7 @@ import random
 import config
 from utils.logging import log_step, log_substep, log_detail, log_warning, log_error, log_success, log_phase, log_phase_complete
 from utils.snowflake import get_max_price_date, reset_max_price_date, verify_table_access
+from data import recommendations
 
 
 def build_price_anchor(session: Session, test_mode: bool = False):
@@ -138,10 +139,17 @@ def build_all(session: Session, test_mode: bool = False):
     
     log_substep("Country emissions (Climate Watch GHG)")
     build_fact_country_emissions(session, test_mode)
-    
-    log_substep("SEC insider transactions (Form 4)")
+
+    # After stock prices: the forecast flag is anchored on the max price date.
+    log_substep("Sovereign fiscal outlook (IMF Fiscal Monitor, incl. forecasts to 2030)")
+    build_fact_sovereign_fiscal_outlook(session, test_mode)
+
+    log_substep("SEC insider transactions (Forms 3/4/5, with insider name and role)")
     build_fact_insider_transactions(session, test_mode)
-    
+
+    log_substep("Executive compensation (SEC DEF 14A proxy statements)")
+    build_fact_executive_compensation(session, test_mode)
+
     log_substep("Institutional holdings (SEC 13F)")
     build_fact_institutional_holdings(session, test_mode)
     
@@ -538,17 +546,50 @@ def build_real_sec_financials(session: Session, test_mode: bool = False) -> None
                 LEFT JOIN bs_snapshot bs
                     ON d.CIK = bs.CIK AND d.PERIOD_END_DATE = bs.PERIOD_END_DATE
             ),
-            with_growth AS (
-                SELECT 
+            with_lags AS (
+                SELECT
                     dd.*,
-                    LAG(dd.REVENUE) OVER (PARTITION BY dd.CIK ORDER BY dd.FISCAL_YEAR, dd.FISCAL_PERIOD) as PREV_REVENUE,
-                    CASE 
-                        WHEN LAG(dd.REVENUE) OVER (PARTITION BY dd.CIK ORDER BY dd.FISCAL_YEAR, dd.FISCAL_PERIOD) > 0 
-                        THEN (dd.REVENUE - LAG(dd.REVENUE) OVER (PARTITION BY dd.CIK ORDER BY dd.FISCAL_YEAR, dd.FISCAL_PERIOD)) 
-                             / LAG(dd.REVENUE) OVER (PARTITION BY dd.CIK ORDER BY dd.FISCAL_YEAR, dd.FISCAL_PERIOD) * 100
-                        ELSE NULL 
-                    END as REVENUE_GROWTH_PCT
+                    -- Growth must compare like-for-like periods. This previously
+                    -- partitioned only by CIK and ordered by FISCAL_YEAR,
+                    -- FISCAL_PERIOD, so a quarterly revenue was compared against
+                    -- an annual one (~300% "growth"), and FISCAL_PERIOD sorted as
+                    -- text ('FY' < 'Q1' < 'Q2' < 'Q2_YTD') so periods were not even
+                    -- chronological. Median growth came out at 82.8% with a maximum
+                    -- of 273,736%, and that value reached document text.
+                    --
+                    -- Partition by PERIOD_TYPE and COVERED_QTRS and order by
+                    -- PERIOD_END_DATE so each tier compares against itself. Both
+                    -- lags are materialised because Snowflake requires the LAG
+                    -- offset to be a constant.
+                    LAG(dd.REVENUE, 1) OVER (
+                        PARTITION BY dd.CIK, dd.PERIOD_TYPE, dd.COVERED_QTRS
+                        ORDER BY dd.PERIOD_END_DATE) AS PREV_REVENUE_1,
+                    LAG(dd.REVENUE, 4) OVER (
+                        PARTITION BY dd.CIK, dd.PERIOD_TYPE, dd.COVERED_QTRS
+                        ORDER BY dd.PERIOD_END_DATE) AS PREV_REVENUE_4
                 FROM enriched dd
+            ),
+            with_growth AS (
+                SELECT
+                    wl.*,
+                    -- Single quarters need a 4-period lag for year-on-year; annual
+                    -- and cumulative_ytd rows compare against the prior year at a
+                    -- 1-period lag because each partition already holds one row per
+                    -- year for that window.
+                    IFF(wl.COVERED_QTRS = 1, wl.PREV_REVENUE_4, wl.PREV_REVENUE_1)
+                        AS PREV_REVENUE,
+                    CASE
+                        -- Require a meaningful prior-year base. Below ~$1M the
+                        -- ratio is a base effect rather than growth: those rows
+                        -- had a median of 121-293% and a maximum of 364,263%,
+                        -- versus 7.7% for the 1,768 rows above a $10M base.
+                        WHEN IFF(wl.COVERED_QTRS = 1, wl.PREV_REVENUE_4, wl.PREV_REVENUE_1) > 1000000
+                        THEN (wl.REVENUE
+                              - IFF(wl.COVERED_QTRS = 1, wl.PREV_REVENUE_4, wl.PREV_REVENUE_1))
+                             / IFF(wl.COVERED_QTRS = 1, wl.PREV_REVENUE_4, wl.PREV_REVENUE_1) * 100
+                        ELSE NULL
+                    END as REVENUE_GROWTH_PCT
+                FROM with_lags wl
             )
             SELECT 
                 ROW_NUMBER() OVER (ORDER BY oc.IssuerID, wg.FISCAL_YEAR DESC, wg.FISCAL_PERIOD) as FINANCIAL_ID,
@@ -762,6 +803,14 @@ def build_sec_segments(session: Session, test_mode: bool = False) -> None:
                 AND smt.ADSH = la.ADSH
             WHERE smt.VALUE IS NOT NULL
               AND smt.FISCAL_YEAR >= YEAR(CURRENT_DATE()) - {config.YEARS_OF_HISTORY}
+            QUALIFY smt.PERIOD_END_DATE = MAX(smt.PERIOD_END_DATE) OVER (
+                        PARTITION BY smt.COMPANY_ID, smt.ADSH, smt.FISCAL_PERIOD, smt.FREQUENCY)
+                AND ROW_NUMBER() OVER (
+                        PARTITION BY smt.COMPANY_ID, smt.ADSH, smt.TAG, smt.FREQUENCY,
+                                     smt.PERIOD_START_DATE, smt.PERIOD_END_DATE,
+                                     smt.GEO_NAME, smt.BUSINESS_SEGMENT, smt.BUSINESS_SUBSEGMENT,
+                                     smt.CUSTOMER, smt.LEGAL_ENTITY, smt.UNIT
+                        ORDER BY IFF(UPPER(smt.MEASURE) = 'REVENUE', 0, 1), LENGTH(smt.MEASURE), smt.MEASURE) = 1
             {limit_clause}
         """).collect()
         
@@ -1069,7 +1118,13 @@ def build_transcript_nlp_scores(session: Session, test_mode: bool = False) -> No
                                 '{model}',
                                 'You are a financial analyst specializing in AI/ML exposure scoring. Analyze this earnings call transcript for a single company. Score the company''s exposure to artificial intelligence and machine learning on a scale of 0 to 100. Consider: AI/ML product revenue, AI R&D investment, AI chip/GPU sales, cloud AI services, generative AI initiatives, AI partnerships, and AI-driven business transformation. 100 = pure AI company like NVIDIA. 50 = significant AI exposure like Microsoft/Google. 10 = minimal AI mentions. 0 = no AI relevance at all. Return ONLY a single integer between 0 and 100, nothing else. Transcript: ' || a.FULL_TRANSCRIPT
                             ),
-                            '\\d+'
+                            -- '[0-9]+', not '\\d+'. Snowflake treats backslash as an escape
+                            -- character inside a string literal, so a Python '\\d+' arrives
+                            -- as '\\d+' in the SQL text and is then read as 'd+' - matching
+                            -- the letter d, never a digit. Every score came back NULL and
+                            -- the COALESCE below silently turned it into 0, so this column
+                            -- was uniformly zero while still paying for every AI call.
+                            '[0-9]+'
                         ) AS INT
                     ) AS AI_EXPOSURE_SCORE
                 FROM aggregated_text a
@@ -1453,12 +1508,105 @@ def build_fact_country_emissions(session: Session, test_mode: bool = False) -> N
         raise RuntimeError(f"Error building FACT_COUNTRY_EMISSIONS: {e}")
 
 
+def build_fact_sovereign_fiscal_outlook(session: Session, test_mode: bool = False) -> None:
+    """
+    Build FACT_SOVEREIGN_FISCAL_OUTLOOK from the IMF Fiscal Monitor.
+
+    This is the only forward-looking macro series in the demo. Everything else stops at
+    the present: FACT_TREASURY_YIELDS and FACT_POLICY_RATES have no future rows at all, and
+    FACT_ECONOMIC_INDICATORS has a handful. The IMF publishes projections five years out,
+    which is what makes sovereign debt trajectory questions answerable.
+
+    IS_FORECAST is the important column. A 2030 debt-to-GDP figure is an IMF projection,
+    not history, and an agent that presents one as an observed value is wrong in a way a
+    client would notice. The boundary is the demo's own anchor - the latest stock price
+    date - rather than CURRENT_DATE(), so the flag agrees with the rest of the demo's sense
+    of "now". At annual granularity the two rarely differ, but tying it to the anchor means
+    it stays correct if the demo is presented as of a past date.
+
+    Scope is all 195 countries the Fiscal Monitor covers rather than a curated subset:
+    the table is small, and an arbitrary country list would be a guess about which
+    sovereigns a given demo conversation cares about.
+    """
+    verify_real_data_access(session)
+
+    from utils.snowflake import get_max_price_date
+
+    database_name = config.DATABASE['name']
+    schema_name = config.DATABASE['schemas']['market_data']
+    real_db = config.REAL_DATA_SOURCES['database']
+    real_schema = config.REAL_DATA_SOURCES['schema']
+    ts_table = config.REAL_DATA_SOURCES['tables']['imf_indicators']['table']
+    attr_table = config.REAL_DATA_SOURCES['tables']['imf_indicators']['attributes_table']
+
+    # Requires FACT_STOCK_PRICES, which is built earlier in the same market-data phase.
+    anchor_date = get_max_price_date(session)
+
+    log_detail("Building FACT_SOVEREIGN_FISCAL_OUTLOOK from IMF Fiscal Monitor data...")
+
+    limit_clause = "LIMIT 10000" if test_mode else ""
+
+    try:
+        session.sql(f"""
+            CREATE OR REPLACE TABLE {database_name}.{schema_name}.FACT_SOVEREIGN_FISCAL_OUTLOOK AS
+            SELECT
+                ROW_NUMBER() OVER (ORDER BY t.DATE DESC, t.GEO_ID, t.VARIABLE) AS SOVEREIGN_FISCAL_ID,
+                t.GEO_ID,
+                REPLACE(t.GEO_ID, 'country/', '') AS COUNTRY_ISO3,
+                t.DATE AS PERIOD_DATE,
+                YEAR(t.DATE) AS FISCAL_YEAR,
+                -- Strip the "Fiscal Monitor: " prefix and the trailing unit/frequency
+                -- segments, leaving a readable measure name for the semantic layer.
+                TRIM(SPLIT_PART(REPLACE(a.VARIABLE_NAME, 'Fiscal Monitor: ', ''), '|', 1)) AS MEASURE_NAME,
+                t.VARIABLE,
+                t.VALUE AS VALUE_PCT_GDP,
+                a.UNIT,
+                a.FREQUENCY,
+                t.DATE > '{anchor_date}'::DATE AS IS_FORECAST,
+                'IMF_FISCAL_MONITOR' AS DATA_SOURCE,
+                CURRENT_TIMESTAMP() AS LOADED_AT
+            FROM {real_db}.{real_schema}.{ts_table} t
+            JOIN {real_db}.{real_schema}.{attr_table} a
+                ON t.VARIABLE = a.VARIABLE
+            WHERE a.VARIABLE_NAME ILIKE 'Fiscal Monitor:%'
+              AND t.GEO_ID LIKE 'country/%'
+              -- Bilateral series would double-count a country against each counterpart.
+              AND t.COUNTERPART_GEO_ID IS NULL
+              AND t.VALUE IS NOT NULL
+            {limit_clause}
+        """).collect()
+
+        stats = session.sql(f"""
+            SELECT COUNT(*) AS cnt,
+                   COUNT(DISTINCT COUNTRY_ISO3) AS countries,
+                   COUNT(DISTINCT MEASURE_NAME) AS measures,
+                   SUM(IFF(IS_FORECAST, 1, 0)) AS forecast_rows
+            FROM {database_name}.{schema_name}.FACT_SOVEREIGN_FISCAL_OUTLOOK
+        """).collect()[0]
+
+        log_detail(
+            f"  FACT_SOVEREIGN_FISCAL_OUTLOOK: {stats['CNT']:,} rows, "
+            f"{stats['COUNTRIES']} countries, {stats['MEASURES']} measures, "
+            f"{stats['FORECAST_ROWS']:,} forecast rows (REAL DATA)"
+        )
+
+    except Exception as e:
+        raise RuntimeError(f"Error building FACT_SOVEREIGN_FISCAL_OUTLOOK: {e}")
+
+
 def build_fact_insider_transactions(session: Session, test_mode: bool = False) -> None:
     """
-    Build FACT_INSIDER_TRANSACTIONS from SEC Form 4 insider trading data.
-    
+    Build FACT_INSIDER_TRANSACTIONS from SEC insider trading data (Forms 3, 4 and 5).
+
     Creates a physical table with insider buy/sell transactions for demo companies.
-    Sourced from SEC_INSIDER_TRADING_SECURITIES_INDEX.
+    Sourced from SEC_INSIDER_TRADING_SECURITIES_INDEX, enriched with the reporting
+    person from SEC_INSIDER_TRADING_REPORTING_OWNERS_INDEX so a consumer can say "the
+    CFO sold" rather than just "someone sold".
+
+    The owner join is aggregated to one row per ADSH on purpose. A filing can name
+    several reporting owners - about 2.5% do, occasionally 10 or more - so joining the
+    owners index directly would multiply transaction rows and silently inflate every
+    share and value aggregate built on this table.
     """
     verify_real_data_access(session)
     
@@ -1467,7 +1615,7 @@ def build_fact_insider_transactions(session: Session, test_mode: bool = False) -
     real_db = config.REAL_DATA_SOURCES['database']
     real_schema = config.REAL_DATA_SOURCES['schema']
     
-    log_detail("Building FACT_INSIDER_TRANSACTIONS from SEC Form 4 data...")
+    log_detail("Building FACT_INSIDER_TRANSACTIONS from SEC Forms 3/4/5 data...")
     
     from utils.demo_helpers import get_demo_company_ciks
     from utils.sql import safe_sql_tuple
@@ -1478,6 +1626,36 @@ def build_fact_insider_transactions(session: Session, test_mode: bool = False) -
     try:
         session.sql(f"""
             CREATE OR REPLACE TABLE {database_name}.{curated_schema}.FACT_INSIDER_TRANSACTIONS AS
+            WITH owner_ranked AS (
+                -- One row per reporting person per filing. Rank them so a filing with
+                -- several owners still yields a single, stable primary owner: an officer
+                -- or director is the meaningful signal, a passive 10%+ holder the weakest,
+                -- and the name breaks ties so rebuilds are deterministic.
+                SELECT
+                    o.ADSH,
+                    o.REPORTING_OWNER_NAME,
+                    ARRAY_TO_STRING(o.REPORTING_OWNER_RELATIONSHIP, ', ') AS OWNER_ROLE,
+                    COUNT(DISTINCT o.REPORTING_OWNER_NAME)
+                        OVER (PARTITION BY o.ADSH) AS OWNER_COUNT,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY o.ADSH
+                        ORDER BY
+                            CASE
+                                WHEN ARRAY_TO_STRING(o.REPORTING_OWNER_RELATIONSHIP, ',') ILIKE '%Officer%' THEN 0
+                                WHEN ARRAY_TO_STRING(o.REPORTING_OWNER_RELATIONSHIP, ',') ILIKE '%Director%' THEN 1
+                                ELSE 2
+                            END,
+                            o.REPORTING_OWNER_NAME
+                    ) AS owner_rank
+                FROM {real_db}.{real_schema}.SEC_INSIDER_TRADING_REPORTING_OWNERS_INDEX o
+                WHERE o.ISSUER_CIK IN {cik_tuple}
+            ),
+            owners AS (
+                -- Exactly one row per ADSH, so the join below cannot fan out.
+                SELECT ADSH, REPORTING_OWNER_NAME, OWNER_ROLE, OWNER_COUNT
+                FROM owner_ranked
+                WHERE owner_rank = 1
+            )
             SELECT 
                 ROW_NUMBER() OVER (ORDER BY sit.TRANSACTION_DATE DESC, sit.ISSUER_NAME) AS INSIDER_TX_ID,
                 sit.ISSUER_CIK AS CIK,
@@ -1493,10 +1671,18 @@ def build_fact_insider_transactions(session: Session, test_mode: bool = False) -
                 sit.TRANSACTION_PRICE_PER_SHARE,
                 sit.POST_TRANSACTION_SHARES_OWNED,
                 sit.OWNERSHIP,
+                sit.ADSH,
+                w.REPORTING_OWNER_NAME AS PRIMARY_INSIDER_NAME,
+                w.OWNER_ROLE AS PRIMARY_INSIDER_ROLE,
+                -- How many reporting owners the filing named. 1 for the vast majority;
+                -- higher means the primary above is one of several co-filers.
+                COALESCE(w.OWNER_COUNT, 0) AS REPORTING_OWNER_COUNT,
                 ds.SecurityID,
                 'SEC_INSIDER_TRADING' AS DATA_SOURCE,
                 CURRENT_TIMESTAMP() AS LOADED_AT
             FROM {real_db}.{real_schema}.SEC_INSIDER_TRADING_SECURITIES_INDEX sit
+            LEFT JOIN owners w
+                ON sit.ADSH = w.ADSH
             LEFT JOIN {database_name}.{curated_schema}.DIM_ISSUER di
                 ON sit.ISSUER_CIK = di.CIK
             LEFT JOIN {database_name}.{curated_schema}.DIM_SECURITY ds
@@ -1514,6 +1700,130 @@ def build_fact_insider_transactions(session: Session, test_mode: bool = False) -
         
     except Exception as e:
         raise RuntimeError(f"Error building FACT_INSIDER_TRANSACTIONS: {e}")
+
+
+def build_fact_executive_compensation(session: Session, test_mode: bool = False) -> None:
+    """
+    Build FACT_EXECUTIVE_COMPENSATION from SEC DEF 14A proxy statements.
+
+    One row per issuer, named executive and fiscal year, with the Summary Compensation
+    Table components pivoted into columns. Supports say-on-pay and pay-for-performance
+    questions: how a CEO's package is structured, how much is at risk versus fixed, and
+    how it moved year on year.
+
+    Two things the source requires care with:
+
+    1. The data is long format - one row per component - so it is pivoted here. A missing
+       component means the company did not report it, which is not the same as zero, so
+       those stay NULL rather than being coalesced.
+    2. A fiscal year is restated in later proxies: a FY2024 figure appears in both the 2024
+       and 2025 filings. Taking the latest FILED_DATE keeps the authoritative version and
+       stops the same executive-year appearing twice.
+
+    Only the executive_compensation category is populated upstream. Board composition and
+    shareholder proposals are announced for this dataset but absent from the share, so
+    there is deliberately nothing here for them.
+    """
+    verify_real_data_access(session)
+
+    database_name = config.DATABASE['name']
+    schema_name = config.DATABASE['schemas']['market_data']
+    curated_schema = config.DATABASE['schemas']['curated']
+    real_db = config.REAL_DATA_SOURCES['database']
+    real_schema = config.REAL_DATA_SOURCES['schema']
+    source_table = config.REAL_DATA_SOURCES['tables']['sec_14a_attributes']['table']
+
+    log_detail("Building FACT_EXECUTIVE_COMPENSATION from SEC DEF 14A proxy data...")
+
+    limit_clause = "LIMIT 5000" if test_mode else ""
+
+    try:
+        session.sql(f"""
+            CREATE OR REPLACE TABLE {database_name}.{schema_name}.FACT_EXECUTIVE_COMPENSATION AS
+            WITH deduped AS (
+                SELECT
+                    a.CIK,
+                    a.COMPANY_NAME,
+                    a.ENTITY_NAME,
+                    a.ENTITY_TYPE,
+                    a.FISCAL_YEAR,
+                    a.TAG,
+                    TRY_TO_NUMBER(a.VALUE) AS AMOUNT,
+                    a.FILED_DATE,
+                    a.ADSH,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY a.CIK, a.ENTITY_NAME, a.FISCAL_YEAR, a.TAG
+                        ORDER BY a.FILED_DATE DESC
+                    ) AS restatement_rank
+                FROM {real_db}.{real_schema}.{source_table} a
+                WHERE a.CATEGORY = 'executive_compensation'
+                  AND a.FISCAL_YEAR IS NOT NULL
+            )
+            SELECT
+                ROW_NUMBER() OVER (ORDER BY d.FISCAL_YEAR DESC, d.CIK, d.ENTITY_NAME) AS EXEC_COMP_ID,
+                d.CIK,
+                di.IssuerID,
+                d.COMPANY_NAME,
+                d.ENTITY_NAME AS EXECUTIVE_NAME,
+                d.ENTITY_TYPE AS EXECUTIVE_ROLE,
+                d.FISCAL_YEAR,
+                MAX(IFF(d.TAG = 'SALARY', d.AMOUNT, NULL)) AS SALARY,
+                MAX(IFF(d.TAG = 'BONUS', d.AMOUNT, NULL)) AS BONUS,
+                MAX(IFF(d.TAG = 'STOCK_AWARDS', d.AMOUNT, NULL)) AS STOCK_AWARDS,
+                MAX(IFF(d.TAG = 'OPTION_AWARDS', d.AMOUNT, NULL)) AS OPTION_AWARDS,
+                MAX(IFF(d.TAG = 'NON_EQUITY_INCENTIVE', d.AMOUNT, NULL)) AS NON_EQUITY_INCENTIVE,
+                MAX(IFF(d.TAG = 'CHANGE_IN_PENSION', d.AMOUNT, NULL)) AS CHANGE_IN_PENSION,
+                MAX(IFF(d.TAG = 'ALL_OTHER_COMPENSATION', d.AMOUNT, NULL)) AS ALL_OTHER_COMPENSATION,
+                MAX(IFF(d.TAG = 'TOTAL', d.AMOUNT, NULL)) AS TOTAL_COMPENSATION,
+                -- Equity plus incentive pay as a share of the total. The usual proxy for
+                -- "how much of this package is at risk" in a pay-for-performance question.
+                --
+                -- About 0.1% of filings are extracted upstream with the same amount written
+                -- to both STOCK_AWARDS and OPTION_AWARDS, which pushes the components past
+                -- the reported total and yields ratios above 1.6. The components are left
+                -- as filed, but the derived ratio is NULLed when the inputs contradict the
+                -- total: "cannot be computed" is honest, where "166% of pay is variable"
+                -- is a number no one should present to a client.
+                IFF(
+                    COALESCE(MAX(IFF(d.TAG = 'STOCK_AWARDS', d.AMOUNT, NULL)), 0)
+                      + COALESCE(MAX(IFF(d.TAG = 'OPTION_AWARDS', d.AMOUNT, NULL)), 0)
+                      + COALESCE(MAX(IFF(d.TAG = 'NON_EQUITY_INCENTIVE', d.AMOUNT, NULL)), 0)
+                    > MAX(IFF(d.TAG = 'TOTAL', d.AMOUNT, NULL)),
+                    NULL,
+                    DIV0(
+                        COALESCE(MAX(IFF(d.TAG = 'STOCK_AWARDS', d.AMOUNT, NULL)), 0)
+                          + COALESCE(MAX(IFF(d.TAG = 'OPTION_AWARDS', d.AMOUNT, NULL)), 0)
+                          + COALESCE(MAX(IFF(d.TAG = 'NON_EQUITY_INCENTIVE', d.AMOUNT, NULL)), 0),
+                        MAX(IFF(d.TAG = 'TOTAL', d.AMOUNT, NULL))
+                    )
+                ) AS VARIABLE_PAY_RATIO,
+                MAX(d.FILED_DATE) AS FILED_DATE,
+                MAX(d.ADSH) AS ADSH,
+                'SEC_14A' AS DATA_SOURCE,
+                CURRENT_TIMESTAMP() AS LOADED_AT
+            FROM deduped d
+            JOIN {database_name}.{curated_schema}.DIM_ISSUER di
+                ON d.CIK = di.CIK
+            WHERE d.restatement_rank = 1
+            GROUP BY d.CIK, di.IssuerID, d.COMPANY_NAME, d.ENTITY_NAME, d.ENTITY_TYPE, d.FISCAL_YEAR
+            HAVING MAX(IFF(d.TAG = 'TOTAL', d.AMOUNT, NULL)) IS NOT NULL
+            {limit_clause}
+        """).collect()
+
+        stats = session.sql(f"""
+            SELECT COUNT(*) AS cnt,
+                   COUNT(DISTINCT CIK) AS issuers,
+                   COUNT(DISTINCT EXECUTIVE_NAME) AS people
+            FROM {database_name}.{schema_name}.FACT_EXECUTIVE_COMPENSATION
+        """).collect()[0]
+
+        log_detail(
+            f"  FACT_EXECUTIVE_COMPENSATION: {stats['CNT']:,} rows, "
+            f"{stats['ISSUERS']} issuers, {stats['PEOPLE']} executives (REAL DATA)"
+        )
+
+    except Exception as e:
+        raise RuntimeError(f"Error building FACT_EXECUTIVE_COMPENSATION: {e}")
 
 
 def build_fact_institutional_holdings(session: Session, test_mode: bool = False) -> None:
@@ -2025,35 +2335,61 @@ def build_estimate_data(session: Session, test_mode: bool = False):
     consensus_count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.{market_data_schema}.FACT_ESTIMATE_CONSENSUS").collect()[0]['CNT']
     log_detail(f" FACT_ESTIMATE_CONSENSUS: {consensus_count} consensus records")
     
-    # Generate price targets and ratings
-    log_detail("Building FACT_ESTIMATE_DATA (price targets & ratings)...")
-    
+    # Price targets and ratings are projected from CURATED.FACT_RECOMMENDATION,
+    # which derives them from real prices and SEC fundamentals. They used to be
+    # HASH(COVERAGE_ID), which produced targets unrelated to the share price (a
+    # $45 stock could carry a $480 target) and a rating unrelated to both.
+    log_detail("Building FACT_ESTIMATE_DATA from grounded recommendations...")
+
+    recommendation_rows = recommendations.ensure_vintage(session, max_price_date)
+    if not recommendation_rows:
+        raise RuntimeError(
+            "FACT_RECOMMENDATION produced no rows for the price anchor date - cannot "
+            "build FACT_ESTIMATE_DATA. Check FACT_SEC_FINANCIALS, FACT_STOCK_PRICES "
+            "and FACT_ANALYST_COVERAGE."
+        )
+
+    rating_code_sql = '\n'.join(
+        f"                    WHEN '{rating}' THEN {code}"
+        for rating, code in sorted(config.RATING_TO_CODE.items(), key=lambda kv: kv[1])
+    )
+
+    # Only the latest vintage is projected. SAM_RESEARCH_VIEW aggregates this
+    # table with AVG/MAX/MIN and exposes no date dimension, so loading multiple
+    # vintages would silently blend weeks of history into "the" price target.
+    # Full rating history stays queryable in CURATED.FACT_RECOMMENDATION.
     session.sql(f"""
         CREATE OR REPLACE TABLE {database_name}.{market_data_schema}.FACT_ESTIMATE_DATA AS
-        WITH analyst_estimates AS (
-            SELECT 
-                ac.COVERAGE_ID,
+        WITH latest_vintage AS (
+            SELECT MAX(VintageDate) AS VintageDate
+            FROM {database_name}.{curated_schema}.FACT_RECOMMENDATION
+        ),
+        house_view AS (
+            SELECT r.IssuerID, r.BrokerName, r.PriceTarget, r.Rating, r.VintageDate
+            FROM {database_name}.{curated_schema}.FACT_RECOMMENDATION r
+            JOIN latest_vintage lv ON lv.VintageDate = r.VintageDate
+        ),
+        -- FACT_RECOMMENDATION holds one house view per broker. Fan it back out
+        -- across every analyst covering that issuer for the broker, preserving
+        -- the per-analyst grain that SAM_RESEARCH_VIEW and the cockpit expect.
+        analyst_estimates AS (
+            SELECT
                 ac.IssuerID,
                 ac.ANALYST_ID,
                 ac.BROKER_ID,
-                -- Generate price target using HASH for deterministic values (50-500 range with variance)
-                ROUND(50 + (ABS(MOD(HASH(ac.COVERAGE_ID * 1000), 450))) * 
-                    (0.8 + ABS(MOD(HASH(ac.COVERAGE_ID * 1001), 50)) / 100.0), 2) as PRICE_TARGET,
-                -- Generate rating (1=Buy, 2=Outperform, 3=Hold, 4=Underperform, 5=Sell)
-                -- Using HASH to get deterministic distribution
-                CASE 
-                    WHEN MOD(ABS(HASH(ac.COVERAGE_ID * 1002)), 100) < 35 THEN 1  -- 35% Buy
-                    WHEN MOD(ABS(HASH(ac.COVERAGE_ID * 1002)), 100) < 55 THEN 2  -- 20% Outperform
-                    WHEN MOD(ABS(HASH(ac.COVERAGE_ID * 1002)), 100) < 85 THEN 3  -- 30% Hold
-                    WHEN MOD(ABS(HASH(ac.COVERAGE_ID * 1002)), 100) < 95 THEN 4  -- 10% Underperform
-                    ELSE 5  -- 5% Sell
-                END as RATING_CODE,
-                -- Estimate dates within 90 days before max_price_date
-                DATEADD(day, -(1 + MOD(ABS(HASH(ac.COVERAGE_ID * 1003)), 89)), '{max_price_date}'::DATE) as ESTIMATE_DATE
+                hv.PriceTarget AS PRICE_TARGET,
+                CASE hv.Rating
+{rating_code_sql}
+                END AS RATING_CODE,
+                hv.VintageDate AS ESTIMATE_DATE
             FROM {database_name}.{market_data_schema}.FACT_ANALYST_COVERAGE ac
+            JOIN {database_name}.{market_data_schema}.DIM_BROKER br
+                ON br.BROKER_ID = ac.BROKER_ID
+            JOIN house_view hv
+                ON hv.IssuerID = ac.IssuerID AND hv.BrokerName = br.BROKER_NAME
             WHERE ac.IS_ACTIVE = TRUE
         )
-        SELECT 
+        SELECT
             ROW_NUMBER() OVER (ORDER BY IssuerID, ANALYST_ID) as ESTIMATE_ID,
             IssuerID,
             ANALYST_ID,
@@ -2063,10 +2399,10 @@ def build_estimate_data(session: Session, test_mode: bool = False):
             ESTIMATE_DATE,
             CURRENT_TIMESTAMP() as LAST_UPDATED
         FROM analyst_estimates
-        
+
         UNION ALL
-        
-        SELECT 
+
+        SELECT
             ROW_NUMBER() OVER (ORDER BY IssuerID, ANALYST_ID) + 1000000,
             IssuerID,
             ANALYST_ID,
@@ -2077,9 +2413,9 @@ def build_estimate_data(session: Session, test_mode: bool = False):
             CURRENT_TIMESTAMP()
         FROM analyst_estimates
     """).collect()
-    
+
     estimate_count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.{market_data_schema}.FACT_ESTIMATE_DATA").collect()[0]['CNT']
-    log_detail(f" FACT_ESTIMATE_DATA: {estimate_count} estimate records")
+    log_detail(f" FACT_ESTIMATE_DATA: {estimate_count} estimate records (grounded)")
 
 
 def build_fact_credit_sector_benchmarks(session: Session, test_mode: bool = False):

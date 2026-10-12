@@ -11,7 +11,7 @@ Business Context:
 
 Organization:
 - Simulated Asset Management (SAM), multi-asset investment firm
-- £2.5B AUM across 10 active investment strategies
+- $7.367bn AUM across 11 portfolios and 6 investment strategies
 - FCA-regulated with quarterly compliance reviews
 - Data refreshes daily at market close (4 PM ET)
 

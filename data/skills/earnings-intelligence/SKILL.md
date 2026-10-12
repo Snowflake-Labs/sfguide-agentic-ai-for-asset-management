@@ -9,15 +9,22 @@ description: Use this skill when the user asks about earnings analysis, quarterl
 
 Trigger when user asks: "earnings analysis", "quarterly results", "earnings call", "management commentary", "guidance", "what did management say", "earnings surprise", "beat/miss", "tone of the call", "red flags", "sentiment analysis", "IC earnings summary", "earnings deep-dive"
 
+## Identifying the Latest Quarter (mandatory)
+
+"Latest" means the most recent call by date, not the first search hit. Fiscal years differ from calendar years (Microsoft's Q4 FY26 call was dated 2026-07-29, after its Q3 FY26 call):
+1. Search `search_company_events` with a TICKER filter and EVENT_TYPE = 'Earnings Call', and compare the returned FISCAL_YEAR, FISCAL_PERIOD and PUBLISH_DATE values. Pick the call with the latest PUBLISH_DATE; Q4 / FY results are a valid quarter.
+2. If needed, run a second search filtered to the expected next FISCAL_PERIOD (e.g. Q4 after Q3) or to PUBLISH_DATE after the call you found, to confirm nothing newer exists.
+3. State the quarter and call date you used, e.g. "Q4 FY26 (call of 29 Jul 2026)". Use the same fiscal period for the `research_analyzer` financials.
+
 ## Workflow
 
 ### Step 1: Integrated Earnings Snapshot
 
-Tool: `financial_analyzer`
+Tool: `research_analyzer`
 Query: Latest quarterly financials for the specified company — revenue, EPS, margins, year-over-year growth, beat/miss vs estimates
 
 Tool: `search_company_events`
-Query: Most recent earnings call transcript — key management quotes on guidance, strategy, and outlook
+Query: Most recent earnings call transcript, selected per "Identifying the Latest Quarter" — key management quotes on guidance, strategy, and outlook
 
 Present:
 - Headline: "[Company] Q[X] [Year]: Revenue [beat/missed] by [X]%, EPS [beat/missed] by [X]%"
@@ -52,7 +59,7 @@ Present:
 Tool: `search_company_events`
 Query: Current AND prior quarter transcripts — compare commentary on key themes (growth strategy, margins, capital allocation, competitive position)
 
-Tool: `financial_analyzer`
+Tool: `research_analyzer`
 Query: Prior quarter financials for comparison
 
 Present:
@@ -86,8 +93,8 @@ Synthesise all data gathered into IC-ready format:
 
 ### Step 2d: Analyst Reactions (if user chooses cross-reference)
 
-Tool: `search_external_docs`
-Query: Broker research mentioning [company] published within 7 days of earnings
+Tool: `search_external_docs` (filter: broker_research; also press_releases for company-reported reaction)
+Query: Broker research mentioning [company] published within 7 days of earnings. Always use this tool for analyst reactions; do not infer reactions from rating changes in `research_analyzer` alone
 
 Present:
 - Analyst reactions summary: upgrades, downgrades, target price changes

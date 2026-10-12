@@ -17,12 +17,15 @@
 
 | Metric | FY-2 | FY-1 | FY (Latest) | FY+1E | FY+2E |
 |--------|------|------|-------------|-------|-------|
-| Revenue ($M) | | | | | |
+| Revenue ($B) | | | | | |
 | Revenue Growth (%) | | | | | |
 | Gross Margin (%) | | | | | |
 | Operating Margin (%) | | | | | |
 | EPS | | | | | |
-| FCF ($M) | | | | | |
+| FCF ($B) | | | | | |
+
+Use $M instead of $B when revenue is under $1B. Precede the table with the margin trend
+chart (see Step 3 in SKILL.md).
 
 ## Risk Assessment Template
 

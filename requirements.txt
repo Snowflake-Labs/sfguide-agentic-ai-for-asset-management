@@ -13,14 +13,20 @@ markdown>=3.4.0
 # PDF generation (branded reports)
 reportlab>=4.0.0
 
+# ML model training and registration (ai/tools/ml_models.py, build step 5b).
+# shap is needed by the registry to generate the credit model's EXPLAIN function;
+# xgboost >= 3.1 requires shap >= 0.50. log_model pins each dependency to the
+# installed minor version (>=x.y,<x+1), so the upper bounds must not exceed what the
+# warehouse conda channel offers: check INFORMATION_SCHEMA.PACKAGES before raising them.
+snowflake-ml-python>=1.51.0
+scikit-learn>=1.6,<=1.9.1
+xgboost>=3.1,<=3.4.1
+shap>=0.50,<=0.51.0
+
 # -----------------------------------------------------------
 # OPTIONAL: For running ML notebooks (not needed for setup)
 # -----------------------------------------------------------
 # numpy>=1.24.0
-# scikit-learn>=1.3.0
-# xgboost>=2.0.0
-# shap>=0.43.0
 # matplotlib>=3.7.0
 # plotly>=5.18.0
 # scipy>=1.11.0
-# snowflake-ml-python>=1.5.0

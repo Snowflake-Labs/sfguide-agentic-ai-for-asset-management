@@ -209,7 +209,7 @@ The proposed {{POSITION_SIZE_PCT}}% position size reflects:
 
 ## CONCLUSION
 
-{{COMPANY_NAME}} represents an attractive investment opportunity for {{PORTFOLIO_NAME}}, offering compelling value with favourable risk-reward from rate normalization, operational improvements, and capital efficiency. The company's diversified business model, strong balance sheet, and disciplined risk management position it well for sustained outperformance.
+{{COMPANY_NAME}} warrants a {{THESIS_STANCE}} stance for {{PORTFOLIO_NAME}}. {{CONVICTION_PHRASE}}, reflecting rate normalization, operational improvements, and capital efficiency. The company's diversified business model, strong balance sheet, and disciplined risk management position it well for sustained outperformance.
 
 The proposed {{POSITION_SIZE_PCT}}% position size appropriately balances conviction in the investment thesis against inherent macroeconomic and competitive risks.
 

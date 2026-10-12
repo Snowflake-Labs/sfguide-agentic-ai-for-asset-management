@@ -201,7 +201,7 @@ Demo scenarios must follow a standardized structure that provides clear business
 ```markdown
 - Q4 2024 Return: +8.2%
 - Benchmark (MSCI ACWI): +7.5%
-- Top Holding: Apple at 8.2% (£41.2M)
+- Top Holding: Apple at 8.2% ($41.2M)
 ```
 
 **Presenter Transition Guidelines (REQUIRED for Steps 2+):**
@@ -368,9 +368,9 @@ Ensure all expected flagging behaviors are reflected in corresponding agent inst
 ### ❌ Bad Example - Expected Response (Too Specific)
 ```markdown
 **Expected Response**:
-- Apple: 8.2% (£41.2M) - 🚨 BREACH
-- Microsoft: 7.4% (£37.1M) - 🚨 BREACH
-- NVIDIA: 6.8% (£34.1M) - ⚠️ WARNING
+- Apple: 8.2% ($41.2M) - 🚨 BREACH
+- Microsoft: 7.4% ($37.1M) - 🚨 BREACH
+- NVIDIA: 6.8% ($34.1M) - ⚠️ WARNING
 - Q4 2024 Return: +8.2%
 ```
 
@@ -437,15 +437,15 @@ Demo scenarios with multiple steps must ensure logical progression where each st
 # ✅ CORRECT - Status in overview only (at document top)
 ## Available Scenarios by Role
 
-### Portfolio Manager
-**Agent: Portfolio Copilot**
+### Portfolio Management
+**Agent: Portfolio Management Copilot**
 - Portfolio Insights & Benchmarking ✅ **IMPLEMENTED**
 
 ---
 
-## Portfolio Manager
+## Portfolio Management
 
-### Portfolio Copilot - Portfolio Insights & Benchmarking
+### Portfolio Management Copilot - Portfolio Insights & Benchmarking
 {Clean header with no status - Level 3 heading}
 
 #### Business Context Setup
@@ -458,7 +458,7 @@ Demo scenarios with multiple steps must ensure logical progression where each st
 {Level 5 heading}
 
 # ❌ WRONG - Status in scenario headers
-### Portfolio Copilot - Portfolio Insights & Benchmarking ✅ **IMPLEMENTED**
+### Portfolio Management Copilot - Portfolio Insights & Benchmarking ✅ **IMPLEMENTED**
 ```
 
 **Document Organization Benefits:**

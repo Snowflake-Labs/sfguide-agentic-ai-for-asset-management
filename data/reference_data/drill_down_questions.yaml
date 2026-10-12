@@ -1,7 +1,7 @@
 # Drill-Down Questions — Context-aware follow-up prompts
 #
 # These are displayed as clickable action buttons when a user interacts with
-# entities in the cockpit UI. Each question is resolved with template variables
+# entities in a front-end UI. Each question is resolved with template variables
 # from the entity context (e.g. {ticker}, {portfolioName}, {borrowerName}).
 #
 # Fields:

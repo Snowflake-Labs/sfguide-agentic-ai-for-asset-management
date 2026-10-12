@@ -130,10 +130,10 @@ CREATE TABLE {TYPE}_CORPUS (
 
 | Agent | Primary Documents |
 |-------|-------------------|
-| pm_cockpit | broker_research, company_events, press_releases |
-| research_copilot | broker_research, company_events |
+| portfolio_management | broker_research, company_events, press_releases |
+| research | broker_research, company_events |
 | risk_compliance | ngo_reports, engagement_notes, policy_docs |
-| sales_advisor | sales_templates, philosophy_docs |
+| client_advisory | sales_templates, philosophy_docs |
 
 ## Quality Standards
 

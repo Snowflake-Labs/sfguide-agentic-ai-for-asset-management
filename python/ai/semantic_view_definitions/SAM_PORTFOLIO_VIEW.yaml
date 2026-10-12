@@ -511,9 +511,14 @@ tables:
         synonyms:
           - issuer_name
           - company_name
-        description: Legal issuer name
+        description: "Company legal name exactly as stored, e.g. ELI LILLY & CO, TAIWAN SEMICONDUCTOR MANUFACTURING CO LTD, MICROSOFT CORP. Identifies the issuer for filtering and grouping. Users give informal names (Lilly, TSMC): look up the stored value with this column's search lookup and filter with =, never LIKE or ILIKE. If none of the returned names is the company the user meant, the company is not covered - say so rather than substituting a similar name."
         expr: LEGALNAME
         data_type: VARCHAR(16777216)
+        cortex_search_service:
+          service: SAM_ISSUER_NAME_SEARCH
+          literal_column: LEGALNAME
+          database: {{DATABASE}}
+          schema: AI
   - name: portfolios
     synonyms:
       - funds
@@ -540,7 +545,7 @@ tables:
         synonyms:
           - fund_name
           - strategy_name
-        description: "Portfolio or fund name. All portfolio names start with \"SAM \" prefix, e.g. \"SAM Technology & Infrastructure\", \"SAM ESG Leaders Global Equity\", \"SAM Global Flagship Multi-Asset\", \"SAM US Core Equity\", \"SAM Renewable & Climate Solutions\", \"SAM Sustainable Global Equity\", \"SAM AI & Digital Innovation\", \"SAM Global Balanced 60/40\", \"SAM Tech Disruptors Equity\", \"SAM US Value Equity\", \"SAM Multi-Asset Income\". Always include the \"SAM \" prefix when filtering."
+        description: "Portfolio name, one of 11 exact names that all start with \"SAM \" (see values). Filter with = on the exact name, never LIKE or ILIKE. Map short names to the full name first - Tech or Technology means SAM Technology & Infrastructure (not SAM Tech Disruptors Equity), Flagship means SAM Global Flagship Multi-Asset, ESG means SAM ESG Leaders Global Equity, 60/40 or Balanced means SAM Global Balanced 60/40."
         expr: PortfolioName
         data_type: VARCHAR(134217728)
         is_enum: true
@@ -605,9 +610,22 @@ tables:
         synonyms:
           - compared_portfolio
           - performance_portfolio
-        description: Portfolio name in comparison view
+        description: "Portfolio name in the portfolio-versus-benchmark comparison, one of 11 exact names that all start with \"SAM \" (see values). Filter with = on the exact name, never LIKE or ILIKE. Map short names to the full name first - Tech or Technology means SAM Technology & Infrastructure (not SAM Tech Disruptors Equity), Flagship means SAM Global Flagship Multi-Asset, ESG means SAM ESG Leaders Global Equity, 60/40 or Balanced means SAM Global Balanced 60/40."
         expr: PortfolioName
         data_type: VARCHAR(134217728)
+        is_enum: true
+        sample_values:
+          - SAM Technology & Infrastructure
+          - SAM ESG Leaders Global Equity
+          - SAM Global Flagship Multi-Asset
+          - SAM US Core Equity
+          - SAM Renewable & Climate Solutions
+          - SAM Sustainable Global Equity
+          - SAM AI & Digital Innovation
+          - SAM Global Balanced 60/40
+          - SAM Tech Disruptors Equity
+          - SAM US Value Equity
+          - SAM Multi-Asset Income
     facts:
       - name: active_qtd_return
         description: "Active (portfolio minus benchmark) QTD return"
@@ -742,9 +760,14 @@ tables:
           - company
           - security_name
           - description
-        description: Security description or company name
+        description: "Security name, which for these equities is the issuer's legal name exactly as stored, e.g. ELI LILLY & CO, NVIDIA CORP. Users give informal names (Lilly, Nvidia): look up the stored value with this column's search lookup and filter with =, never LIKE or ILIKE, or filter by ticker. If none of the returned names is the company the user meant, the company is not held or covered - say so rather than substituting a similar name."
         expr: Description
         data_type: VARCHAR(16777216)
+        cortex_search_service:
+          service: SAM_ISSUER_NAME_SEARCH
+          literal_column: LEGALNAME
+          database: {{DATABASE}}
+          schema: AI
       - name: ticker
         synonyms:
           - ticker_symbol
@@ -911,9 +934,14 @@ tables:
           - counterparty
           - supplier
           - supplier_name
-        description: "Supplier/counterparty legal name (e.g. Taiwan semiconductor suppliers like TSMC)"
+        description: "Supplier or customer legal name exactly as stored, e.g. TAIWAN SEMICONDUCTOR MANUFACTURING CO LTD. Users give informal names (TSMC): look up the stored value with this column's search lookup and filter with =, never LIKE or ILIKE. If none of the returned names is the company the user meant, it is not in the supply chain data - say so rather than substituting a similar name."
         expr: LEGALNAME
         data_type: VARCHAR(16777216)
+        cortex_search_service:
+          service: SAM_ISSUER_NAME_SEARCH
+          literal_column: LEGALNAME
+          database: {{DATABASE}}
+          schema: AI
       - name: counterparty_sector
         synonyms:
           - supplier_sector
@@ -1028,6 +1056,70 @@ tables:
         description: Start date of the supply chain relationship
         expr: STARTDATE
         data_type: DATE
+  - name: esg_controversies
+    synonyms:
+      - controversies
+      - esg_incidents
+      - esg_controversy
+    description: "ESG controversy reports, one row per issuer-report. Join to securities on SecurityID. Use is_active = TRUE for current controversies; severity High or Medium disqualifies a security as an ESG replacement candidate."
+    base_table:
+      database: "{{DATABASE}}"
+      schema: CURATED
+      table: FACT_ESG_CONTROVERSY
+    dimensions:
+      - name: ec_security_id
+        description: Security identifier for the controversy
+        expr: SECURITYID
+        data_type: "NUMBER(38,0)"
+      - name: ec_issuer_id
+        description: Issuer identifier for the controversy
+        expr: ISSUERID
+        data_type: "NUMBER(38,0)"
+      - name: controversy_ticker
+        description: Ticker of the security the controversy relates to
+        expr: TICKER
+        data_type: VARCHAR(16777216)
+      - name: controversy_severity
+        synonyms:
+          - severity
+          - controversy_level
+        description: "Controversy severity: High, Medium or Low"
+        expr: SEVERITY
+        data_type: VARCHAR(16777216)
+        is_enum: true
+        sample_values:
+          - "High"
+          - "Medium"
+          - "Low"
+      - name: controversy_category
+        synonyms:
+          - controversy_type
+          - category
+        description: Controversy category (e.g. environmental, labour, governance)
+        expr: CATEGORY
+        data_type: VARCHAR(16777216)
+      - name: controversy_is_active
+        synonyms:
+          - is_active
+          - active_controversy
+        description: "TRUE when the controversy is still open"
+        expr: ISACTIVE
+        data_type: BOOLEAN
+    time_dimensions:
+      - name: controversy_report_date
+        synonyms:
+          - report_date
+        description: Date the controversy was reported
+        expr: REPORTDATE
+        data_type: DATE
+    metrics:
+      - name: active_controversy_count
+        synonyms:
+          - open_controversies
+          - number_of_active_controversies
+        description: Number of active (open) controversy reports
+        expr: COUNT(CASE WHEN controversy_is_active THEN 1 END)
+        access_modifier: public_access
 relationships:
   - name: benchmark_to_securities
     left_table: benchmark_holdings
@@ -1095,8 +1187,14 @@ relationships:
     relationship_columns:
       - left_column: sc_counterparty_issuer_id
         right_column: sc_cp_issuer_id
+  - name: controversies_to_securities
+    left_table: esg_controversies
+    right_table: securities
+    relationship_columns:
+      - left_column: ec_security_id
+        right_column: s_security_id
 module_custom_instructions:
-  sql_generation: "PORTFOLIO NAME FILTERING: Always include the SAM prefix when filtering portfolio_name. Use ILIKE: portfolio_name ILIKE 'SAM %Technology%'. CRITICAL: Always filter holdings to the latest date unless the user explicitly requests historical data. Use WHERE holding_date = (SELECT MAX(holding_date) FROM __holdings). ANNUAL REVIEW: For year-end queries, filter to December 31 of the most recent complete year using a non-correlated scalar subquery. For portfolio weight percentages, multiply by 100. Round market values to 2dp and weights to 1dp. SUPPLY CHAIN: Use supply_chain and sc_counterparty_issuers tables together."
+  sql_generation: "ESG REPLACEMENT CANDIDATES: ESG grade and score exist only on holdings, so the candidate universe is securities held in any SAM portfolio at the latest holding_date. Exclude securities with an active (controversy_is_active = TRUE) High or Medium controversy in esg_controversies and those held in the target portfolio; see ESG_REPLACEMENT_CANDIDATES. If no candidates remain, say so rather than relaxing the ESG grade or controversy screen. CRITICAL: Always filter holdings to the latest date unless the user explicitly requests historical data. Use WHERE holding_date = (SELECT MAX(holding_date) FROM __holdings). ANNUAL REVIEW: For year-end queries, filter to December 31 of the most recent complete year using a non-correlated scalar subquery. For portfolio weight percentages, multiply by 100. Round market values to 2dp and weights to 1dp. SUPPLY CHAIN: Use supply_chain and sc_counterparty_issuers tables together."
   question_categorization: "Unless the user explicitly asks for historical trends, assume they want current holdings (latest date only). For performance questions, use qtd_return_pct, ytd_return_pct, mtd_return_pct metrics. For benchmark performance, use benchmark_qtd_return_pct from benchmark_performance table. For portfolio vs benchmark comparison, use portfolio_benchmark table metrics. COMPLIANCE: For breach/alert queries, use compliance_alerts table. Filter by alert_type. Active alerts have resolved_date IS NULL."
 verified_queries:
   - name: PORTFOLIO_HOLDINGS
@@ -1143,3 +1241,7 @@ verified_queries:
     sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_PORTFOLIO_VIEW METRICS total_compliance_alerts, active_compliance_alerts, compliance_breach_count, compliance_warning_count, esg_violation_count)"
     question: What are the current compliance alerts?
     use_as_onboarding_question: true
+  - name: ESG_REPLACEMENT_CANDIDATES
+    sql: "WITH latest AS (SELECT MAX(holding_date) AS max_date FROM __holdings), esg AS (SELECT __holdings.h_security_id AS security_id, MAX(__holdings.esg_grade) AS esg_grade, AVG(__holdings.esg_score) AS esg_score FROM __holdings WHERE __holdings.holding_date = (SELECT max_date FROM latest) AND __holdings.esg_grade IN ('AAA', 'AA', 'A', 'BBB') GROUP BY __holdings.h_security_id), held AS (SELECT DISTINCT __holdings.h_security_id AS security_id FROM __holdings JOIN __portfolios ON __holdings.h_portfolio_id = __portfolios.p_portfolio_id WHERE __portfolios.portfolio_name = 'SAM Sustainable Global Equity' AND __holdings.holding_date = (SELECT max_date FROM latest)), flagged AS (SELECT DISTINCT __esg_controversies.ec_security_id AS security_id FROM __esg_controversies WHERE __esg_controversies.controversy_is_active = TRUE AND __esg_controversies.controversy_severity IN ('High', 'Medium')) SELECT __securities.ticker, __securities.security_description, __issuers.gics_sector, esg.esg_grade, esg.esg_score FROM __securities JOIN __issuers ON __securities.s_issuer_id = __issuers.issuer_id JOIN esg ON __securities.s_security_id = esg.security_id WHERE __issuers.gics_sector = 'Information Technology' AND __securities.s_security_id NOT IN (SELECT security_id FROM held) AND __securities.s_security_id NOT IN (SELECT security_id FROM flagged) ORDER BY esg.esg_score DESC LIMIT 10"
+    question: "Suggest replacement candidates in Information Technology for SAM Sustainable Global Equity: ESG grade BBB or better, no active High or Medium controversy, not already held, ranked by ESG score."
+    use_as_onboarding_question: false

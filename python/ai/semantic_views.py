@@ -58,6 +58,3 @@ def create_semantic_views(session: Session, scenarios: List[str] = None):
                 log_warning(f"  Warning: Could not create {view_name}: {e}")
 
 
-def create_ml_semantic_views(session: Session, scenarios: List[str] = None):
-    """No-op — ML views are now created in the main create_semantic_views pass."""
-    pass

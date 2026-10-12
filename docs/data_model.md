@@ -1,6 +1,6 @@
 # SAM Demo - Data Model Documentation
 
-Data architecture documentation for Simulated Asset Management (SAM) demo using 79 real companies from `DEMO_COMPANIES` configuration with industry-standard asset management data practices. All companies have CIK identifiers enabling full SEC data integration.
+Data architecture documentation for Simulated Asset Management (SAM) demo using 503 securities from the `companies.yaml` coverage universe with industry-standard asset management data practices. All companies have CIK identifiers enabling full SEC data integration.
 
 **Pipeline-Only Architecture**: All unstructured data flows exclusively through Snowflake pipelines (no direct SQL corpus creation). PDF documents are parsed via `AI_PARSE_DOCUMENT`, real data triggers stream-based task DAGs, and all corpus tables are populated by pipeline tasks.
 
@@ -16,7 +16,7 @@ Data architecture documentation for Simulated Asset Management (SAM) demo using 
 | **RAW** | 17 tables, stages, streams, tasks | Provider simulation, raw unstructured documents, pipeline objects |
 | **CURATED** | 55 tables, 8 views | Industry-standard dimension/fact model ready for analysis |
 | **MARKET_DATA** | 17+ tables | Real market data from Snowflake Marketplace + AI-extracted dividends + NLP scores |
-| **AI** | 28 semantic views (YAML-based), search services, agents | AI components |
+| **AI** | 17 semantic views (YAML-based), 11 search services, 8 agents | AI components |
 
 **Warehouses**:
 | Warehouse | Size | Purpose |
@@ -57,7 +57,7 @@ Data architecture documentation for Simulated Asset Management (SAM) demo using 
 | `FACT_FACTOR_EXPOSURES` | Monthly factor scores (Value, Growth, Quality, etc.) | SecurityID, FactorName, Exposure, RSquared |
 | `FACT_BENCHMARK_HOLDINGS` | Benchmark constituent positions | BenchmarkID, SecurityID, Weight |
 | `FACT_BENCHMARK_PERFORMANCE` | Benchmark-level returns (MTD, QTD, YTD) | BenchmarkID, Date, DailyReturn |
-| `FACT_INSIDER_TRANSACTIONS` | SEC Form 4 insider trading for demo companies | InsiderTxID, CIK, Ticker, TransactionType, TransactionShares |
+| `FACT_INSIDER_TRANSACTIONS` | SEC insider trading (Forms 3, 4 and 5) for demo companies, enriched with the reporting person | InsiderTxID, CIK, Ticker, TransactionType, TransactionShares, PRIMARY_INSIDER_NAME, PRIMARY_INSIDER_ROLE, REPORTING_OWNER_COUNT |
 | `FACT_INSTITUTIONAL_HOLDINGS` | SEC 13F institutional ownership | HoldingID, Ticker, InstitutionName, MarketValueUSD, SharesHeld |
 
 ### Implementation Planning Tables
@@ -207,6 +207,29 @@ Calculates:
 | `FACT_ECONOMIC_INDICATORS` | `CYBERSYN_FINANCIAL_ECONOMIC_INDICATORS_TIMESERIES` | US economic indicators from FRED (GDP, CPI, unemployment) |
 | `FACT_TREASURY_YIELDS` | `US_TREASURY_PAR_YIELD_CURVE_RATES` | US Treasury yield curve rates (14 maturities, 1M-30Y) |
 | `FACT_COUNTRY_EMISSIONS` | `CLIMATE_WATCH_GHG_EMISSIONS_TIMESERIES` | Country-level greenhouse gas emissions by sector (190+ countries) |
+| `FACT_SOVEREIGN_FISCAL_OUTLOOK` | `INTERNATIONAL_MONETARY_FUND_TIMESERIES` joined to `INTERNATIONAL_MONETARY_FUND_ATTRIBUTES` | IMF Fiscal Monitor sovereign fiscal data — gross and net debt to GDP, fiscal balances, revenue and expenditure. 42,422 rows, 195 countries, 8 measures. **The only forward-looking macro series in the demo**: 5,812 rows are IMF projections running to 2030, flagged by `IS_FORECAST`. Filter `COUNTERPART_GEO_ID IS NULL` upstream or bilateral series double-count each country. Deliberately not joined to borrowers or holdings — borrower geography is a region label (`US`, `Europe`), not a country code |
+
+### Executive Compensation (SEC DEF 14A Proxy Statements)
+
+| Table | Cybersyn Source | Description |
+|-------|-----------------|-------------|
+| `FACT_EXECUTIVE_COMPENSATION` | `SEC_14A_ATTRIBUTES` | Summary Compensation Table pivoted to one row per issuer, executive and fiscal year. 7,734 rows, 417 issuers, 2,629 executives, FY2021-2025. Components: salary, bonus, stock and option awards, non-equity incentive, pension change, all other, and reported total |
+
+Two things to know when querying it:
+
+- A fiscal year is **restated in later proxies** — a FY2024 figure appears in both the 2024
+  and 2025 filings — so the build dedupes on the latest `FILED_DATE`. Roughly 5% of the
+  source grain is affected.
+- A NULL component means the company did not report it, which is **not** zero. Do not sum
+  components to derive a total when `TOTAL_COMPENSATION` is already reported.
+- `VARIABLE_PAY_RATIO` (equity plus incentive over total) is a **fraction**, not a
+  percentage. It is NULL for around 10 rows where the source wrote the same amount to both
+  `STOCK_AWARDS` and `OPTION_AWARDS`, pushing components past the reported total; the
+  components are kept as filed but the derived ratio is suppressed rather than published as
+  166%.
+
+Only the `executive_compensation` category is populated upstream. Board composition and
+shareholder proposals are announced for this dataset but absent from the share.
 
 ### Portfolio Manager Co-Pilot Market Data
 
@@ -257,70 +280,14 @@ Available in `FACT_SEC_FINANCIALS`:
 
 ## AI Schema
 
-### Semantic Views (20 views)
+The AI schema holds 17 semantic views, 11 Cortex Search services, and 8 Cortex Agents.
 
-| Semantic View | Description | Key Tables |
-|---------------|-------------|------------|
-| `SAM_PORTFOLIO_VIEW` | Portfolio analytics with holdings, ESG, factors, benchmark comparison | V_HOLDINGS_WITH_ESG, DIM_PORTFOLIO, DIM_SECURITY, FACT_FACTOR_EXPOSURES, FACT_BENCHMARK_HOLDINGS |
-| `SAM_IMPLEMENTATION_VIEW` | Trading implementation planning | FACT_TRANSACTION_COSTS, FACT_PORTFOLIO_LIQUIDITY, FACT_RISK_LIMITS, FACT_TRADING_CALENDAR, FACT_TAX_IMPLICATIONS |
-| `SAM_PORTFOLIO_VIEW` | Supply chain risk analysis | DIM_SUPPLY_CHAIN_RELATIONSHIPS, DIM_ISSUER |
-| `SAM_MIDDLE_OFFICE_VIEW` | Operations monitoring | FACT_TRADE_SETTLEMENT, FACT_RECONCILIATION, FACT_NAV_CALCULATION, FACT_CORPORATE_ACTIONS, FACT_CASH_POSITIONS |
-| `SAM_PORTFOLIO_VIEW` | Compliance breach tracking | FACT_COMPLIANCE_ALERTS, FACT_RISK_LIMITS |
-| `SAM_EXECUTIVE_VIEW` | Firm-wide KPIs | DIM_CLIENT, FACT_CLIENT_FLOWS, FACT_FUND_FLOWS, FACT_STRATEGY_PERFORMANCE |
-| `SAM_RESEARCH_VIEW` | Financial analysis (real SEC data) | FACT_SEC_FINANCIALS, FACT_ESTIMATE_CONSENSUS, DIM_ISSUER |
-| `SAM_MARKET_VIEW` | Real stock prices | FACT_STOCK_PRICES, DIM_SECURITY, DIM_ISSUER |
-| `SAM_RESEARCH_VIEW` | Comprehensive SEC financials | FACT_SEC_FINANCIALS, DIM_ISSUER |
-| `SAM_RESEARCH_VIEW` | SEC revenue segments | FACT_SEC_SEGMENTS, DIM_ISSUER |
-| `SAM_PORTFOLIO_MODELLING_VIEW` | Portfolio modelling analytics | FACT_COVARIANCE_MATRIX, FACT_EXPECTED_RETURNS, FACT_BACKTEST_RESULTS, FACT_SIMULATION_RESULTS |
-| `SAM_ATTRIBUTION_VIEW` | Brinson attribution analysis | FACT_BRINSON_ATTRIBUTION, FACT_BRINSON_BY_SECTOR, DIM_BENCHMARKS |
-| `SAM_ATTRIBUTION_VIEW` | Factor contribution analysis | FACT_FACTOR_ATTRIBUTION, FACT_FACTOR_EXPOSURES |
-| `SAM_ATTRIBUTION_VIEW` | Hidden/alternative factor detection | FACT_HIDDEN_FACTOR_EXPOSURES |
-| `SAM_MARKET_VIEW` | Market regime classification | V_MACRO_REGIME, FACT_VIX_DAILY |
-| `SAM_MARKET_VIEW` | Stress test scenarios | DIM_STRESS_SCENARIOS, FACT_SCENARIO_SHOCKS |
-| `SAM_MARKET_VIEW` | Historical crisis periods | FACT_HISTORICAL_STRESS_PERIODS |
-| `SAM_MARKET_VIEW` | Global macroeconomic indicators and emissions | FACT_POLICY_RATES, FACT_FX_RATES, FACT_ECONOMIC_INDICATORS, FACT_COUNTRY_EMISSIONS |
-| `SAM_MARKET_VIEW` | US Treasury yield curve rates | FACT_TREASURY_YIELDS |
-| `SAM_RESEARCH_VIEW` | SEC Form 4 insider transactions | FACT_INSIDER_TRANSACTIONS |
-| `SAM_RESEARCH_VIEW` | SEC 13F institutional ownership | FACT_INSTITUTIONAL_HOLDINGS |
-| `SAM_PE_DEAL_PIPELINE_VIEW` | PE deal sourcing and screening | DIM_DEAL_PIPELINE |
-| `SAM_PE_VALUE_CREATION_VIEW` | PE portfolio company monitoring | DIM_PORTFOLIO_COMPANY, FACT_BOARD_PACK_METRICS, FACT_VALUE_CREATION_PLAN |
+These are documented in [`docs/data_lineage.md`](data_lineage.md), which is the single source of truth for the AI surface:
 
-### Cortex Search Services (10 services)
-
-All services use **multi-index search** (GA March 12, 2026): TEXT INDEXES for keyword/lexical matching on names, tickers, categories + VECTOR INDEXES for semantic search on document body. PDF-based document types are consolidated into 2 services with agent-side filtering via `filter: {"@eq": {"DOCUMENT_TYPE": "<doc_type>"}}` at query time.
-
-| Search Service | Corpus Table | TEXT INDEXES | VECTOR INDEXES | Filterable Attributes | Doc Types |
-|----------------|--------------|-------------|----------------|----------------------|----------|
-| **`SAM_INTERNAL_DOCS`** | PDF_INTERNAL_CORPUS | DOCUMENT_TITLE, TICKER, COMPANY_NAME, GICS_SECTOR | DOCUMENT_TEXT | DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE, TICKER, COMPANY_NAME, GICS_SECTOR | 13 types: policy_docs, sales_templates, philosophy_docs, report_templates, macro_events, custodian_reports, reconciliation_notes, ssi_documents, ops_procedures, strategy_documents, methodology_docs, engagement_notes, ips |
-| **`SAM_EXTERNAL_DOCS`** | PDF_EXTERNAL_CORPUS | DOCUMENT_TITLE, TICKER, COMPANY_NAME, GICS_SECTOR | DOCUMENT_TEXT | DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE, TICKER, COMPANY_NAME, GICS_SECTOR | 3 types: broker_research, press_releases, ngo_reports |
-| `SAM_COMPANY_EVENTS` | COMPANY_EVENT_TRANSCRIPTS_CORPUS | DOCUMENT_TITLE, TICKER, COMPANY_NAME, GICS_SECTOR, EVENT_TYPE, SPEAKER_NAME | DOCUMENT_TEXT | SecurityID, IssuerID, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE, EVENT_TYPE, TICKER, COMPANY_NAME, GICS_SECTOR, SPEAKER_NAME, SPEAKER_ROLE | - |
-| `SAM_REAL_SEC_FILINGS` | FACT_SEC_FILING_TEXT | DOCUMENT_TITLE, TICKER, COMPANY_NAME, GICS_SECTOR, FILING_TYPE | FILING_TEXT | COMPANY_NAME, TICKER, GICS_SECTOR, FILING_TYPE, FISCAL_YEAR, FISCAL_QUARTER, VARIABLE_NAME, CIK | - |
-| `SAM_PE_BOARD_PACKS` | PE_BOARD_PACKS_CORPUS | DOCUMENT_TITLE, CompanyName | DOCUMENT_TEXT | CompanyName, PortfolioCompanyID, DOCUMENT_TYPE, ReportPeriod | - |
-| `SAM_PE_DUE_DILIGENCE` | PE_DUE_DILIGENCE_CORPUS | DOCUMENT_TITLE, TargetCompanyName | DOCUMENT_TEXT | TargetCompanyName, DealID, DOCUMENT_TYPE | - |
-| `SAM_PE_EXPERT_NETWORK` | PE_EXPERT_NETWORK_CORPUS | DOCUMENT_TITLE, TargetCompanyName, ExpertRole | DOCUMENT_TEXT | TargetCompanyName, ExpertRole, DealID, PortfolioCompanyID, CallDate | - |
-| `SAM_CREDIT_AGREEMENTS` | CREDIT_AGREEMENTS_CORPUS | DOCUMENT_TITLE, BORROWERNAME | DOCUMENT_TEXT | BORROWERNAME, FACILITYID, DOCUMENT_TYPE | - |
-| `SAM_COMPLIANCE_CERTS` | COMPLIANCE_CERTS_CORPUS | DOCUMENT_TITLE, BORROWERNAME | DOCUMENT_TEXT | BORROWERNAME, BORROWERID, DOCUMENT_TYPE, REPORTPERIOD | - |
-| `SAM_IC_MEMOS` | IC_MEMOS_CORPUS | DOCUMENT_TITLE, TARGETNAME | DOCUMENT_TEXT | TARGETNAME, DEALID, DOCUMENT_TYPE | - |
-
-### Agents (13 agents)
-
-| Agent | Display Name | Key Tools |
-|-------|--------------|-----------|
-| `AM_portfolio_manager_copilot` | Portfolio Manager Co-Pilot | quantitative_analyzer (SAM_PORTFOLIO_VIEW), stock_prices, sec_financials, supply_chain_analyzer, implementation_analyzer, search_broker_research, search_press_releases, search_macro_events, search_policies, search_report_templates, search_ips_documents, search_company_events, search_sec_filings, pdf_generator |
-| `AM_research_copilot` | Research Analyst | fundamentals_analyzer (SAM_RESEARCH_VIEW), sec_financials, search_broker_research, search_press_releases, search_company_events, search_sec_filings |
-| `AM_investment_strategy` | Investment Strategy | quantitative_analyzer, search_broker_research, search_press_releases, search_macro_events, search_sec_filings |
-| `AM_risk_compliance` | Risk & Compliance | quantitative_analyzer, search_ngo_reports, search_engagement_notes, search_policies, search_press_releases, search_report_templates, search_sec_filings |
-| `AM_risk_compliance` | Risk & Compliance | compliance_analyzer (SAM_PORTFOLIO_VIEW), search_policies, search_engagement_notes, search_report_templates, search_ips_documents, pdf_generator |
-| `AM_sales_advisor` | Sales Advisor | quantitative_analyzer, search_sales_templates, search_philosophy_docs, search_policies, pdf_generator |
-| `AM_investment_strategy` | Investment Strategy | quantitative_analyzer, stock_prices, search_broker_research |
-| `AM_middle_office_copilot` | Middle Office Co-Pilot | middle_office_analyzer (SAM_MIDDLE_OFFICE_VIEW), search_custodian_reports, search_reconciliation_notes, search_ssi_documents, search_ops_procedures |
-| `AM_executive_copilot` | Executive Co-Pilot | executive_analyzer (SAM_EXECUTIVE_VIEW), search_strategy_docs, search_press_releases, search_broker_research |
-| `AM_portfolio_modelling_copilot` | Portfolio Modelling Copilot | portfolio_modelling_analyzer, search_methodology_docs, run_backtest, run_simulation |
-| `AM_portfolio_manager_copilot` | Portfolio Manager Co-Pilot | brinson_analyzer, factor_analyzer, hidden_factor_analyzer, macro_regime_analyzer, stress_scenario_analyzer, historical_stress_analyzer, global_macro_analyzer, backtest_historical_stress |
-| `AM_pe_deal_sourcing_copilot` | PE Deal Sourcing Copilot | deal_pipeline_analyzer, search_due_diligence, search_expert_network |
-| `AM_pe_portfolio_monitor` | PE Portfolio Monitor | value_creation_analyzer, search_board_packs |
-
----
+- [Semantic views and their inputs](data_lineage.md#31-semantic-views) — section 3.1
+- [Search services and their corpus tables](data_lineage.md#32-search-services) — section 3.2
+- [Custom tools](data_lineage.md#4-custom-tools) — section 4
+- [Agent consumption: which agent uses which view, service, and tool](data_lineage.md#5-agent-consumption) — section 5
 
 ## RAW Schema - Pipeline Objects
 
@@ -410,7 +377,9 @@ REAL_DATA_SOURCES = {
 | `COMPANY_INDEX` | `CURATED.DIM_ISSUER` (enrichment) | Company master with CIK, EIN, LEI |
 | `US_TREASURY_PAR_YIELD_CURVE_RATES` | `MARKET_DATA.FACT_TREASURY_YIELDS` | Treasury yield curve (14 maturities) |
 | `CLIMATE_WATCH_GHG_EMISSIONS_TIMESERIES` | `MARKET_DATA.FACT_COUNTRY_EMISSIONS` | Country GHG emissions by sector |
-| `SEC_CIK_INDEX` + `SEC_INSIDER_TRANSACTIONS` | `CURATED.FACT_INSIDER_TRANSACTIONS` | Form 4 insider trading |
+| `SEC_INSIDER_TRADING_SECURITIES_INDEX` + `SEC_INSIDER_TRADING_REPORTING_OWNERS_INDEX` | `CURATED.FACT_INSIDER_TRANSACTIONS` | Forms 3/4/5 insider trading, joined on `ADSH` to name the reporting person |
+| `SEC_14A_ATTRIBUTES` | `MARKET_DATA.FACT_EXECUTIVE_COMPENSATION` | DEF 14A executive compensation |
+| `INTERNATIONAL_MONETARY_FUND_TIMESERIES` + `..._ATTRIBUTES` | `MARKET_DATA.FACT_SOVEREIGN_FISCAL_OUTLOOK` | IMF Fiscal Monitor, incl. projections to 2030 |
 | `SEC_CIK_INDEX` + `SEC_INSTITUTIONAL_HOLDINGS` | `CURATED.FACT_INSTITUTIONAL_HOLDINGS` | 13F institutional holdings |
 | `NPORT_FUND_CHARACTERISTICS` + `NPORT_PORTFOLIO_HOLDINGS` | `CURATED.FACT_BENCHMARK_HOLDINGS` | N-PORT real benchmark weights |
 
@@ -466,6 +435,5 @@ REAL_DATA_SOURCES = {
 
 - [`docs/data_lineage.md`](data_lineage.md) - Data flow, dependencies, and impact analysis
 - [`docs/production_pipelines_demo.md`](production_pipelines_demo.md) - Pipeline demo runbook
-- [`docs/DATA_SOURCING_STRATEGY.md`](DATA_SOURCING_STRATEGY.md) - Real vs synthetic data strategy
-- [`.cursor/rules/data-index.mdc`](../.cursor/rules/data-index.mdc) - Data generation patterns
-- [`.cursor/rules/pipelines.mdc`](../.cursor/rules/pipelines.mdc) - Pipeline development patterns
+- [`docs/rules/data/structured.md`](rules/data/structured.md) - Structured data generation patterns
+- [`docs/rules/infrastructure/pipelines.md`](rules/infrastructure/pipelines.md) - Pipeline development patterns

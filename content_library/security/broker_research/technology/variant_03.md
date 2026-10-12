@@ -71,8 +71,8 @@ The {{SIC_DESCRIPTION}} market represents a total addressable market (TAM) of ${
 
 ## Unit Economics
 
-Strong unit economics support our growth thesis:
-- **Net Revenue Retention**: {{NRR_PCT}}% indicates excellent customer expansion
+{{UNIT_ECONOMICS_FRAMING}}:
+- **Net Revenue Retention**: {{NRR_PCT}}%
 - **CAC Payback**: {{CAC_PAYBACK_MONTHS}} months, within healthy range
 - **LTV/CAC Ratio**: {{LTV_CAC_RATIO}}x demonstrates efficient acquisition
 - **Customer Segment Mix**: Enterprise {{ENTERPRISE_PCT}}%, Mid-Market {{MIDMARKET_PCT}}%, SMB {{SMB_PCT}}%
@@ -89,7 +89,7 @@ AI and machine learning capabilities are becoming increasingly central to the co
 
 {{COMPANY_NAME}}'s financial results reflect strong operational execution and market share gains. Revenue growth of {{YOY_REVENUE_GROWTH_PCT}}% significantly exceeds broader technology sector trends, demonstrating the company's ability to outperform in both favourable and challenging market conditions. EBIT margin of {{EBIT_MARGIN_PCT}}% positions the company amongst the most profitable in its peer group.
 
-The company's subscription-based revenue model provides excellent visibility and predictability. Annual recurring revenue continues to grow at impressive rates, supported by high customer retention metrics and expanding average contract values. We forecast continued acceleration as new cloud products gain traction and cross-selling opportunities mature.
+The company's subscription-based revenue model provides revenue visibility. Annual recurring revenue continues to grow, supported by high customer retention metrics and expanding average contract values. We forecast continued acceleration as new cloud products gain traction and cross-selling opportunities mature.
 
 Management's disciplined approach to capital allocation enhances shareholder value creation. The company balances growth investments in R&D and sales capacity with consistent shareholder returns through dividends and buybacks. This financial framework supports sustainable long-term value creation whilst maintaining balance sheet strength and strategic flexibility.
 

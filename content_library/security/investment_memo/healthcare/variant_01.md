@@ -51,7 +51,7 @@ disclosure:
 
 ## EXECUTIVE SUMMARY
 
-I am recommending the Investment Committee approve a **{{RATING}}** position in {{COMPANY_NAME}}, a leading healthcare company operating in the {{SUB_INDUSTRY}} segment. This recommendation is based on:
+I am recommending the Investment Committee approve a **{{RATING}}** position in {{COMPANY_NAME}}, a healthcare company operating in the {{SUB_INDUSTRY}} segment. This recommendation is based on:
 
 1. **Robust growth profile** driven by innovative product portfolio and favourable demographic trends
 2. **Pricing power** through intellectual property protection and clinical differentiation
@@ -65,7 +65,7 @@ The proposed investment aligns with {{PORTFOLIO_NAME}}'s mandate to identify hig
 
 ## INVESTMENT THESIS
 
-### 1. Compelling Growth Drivers
+### 1. Growth Drivers
 
 {{COMPANY_NAME}} is positioned to deliver {{YOY_REVENUE_GROWTH_PCT}}% annual revenue growth over our investment horizon, significantly above healthcare sector averages. Growth will be driven by:
 
@@ -195,7 +195,7 @@ The proposed {{POSITION_SIZE_PCT}}% position size reflects:
 
 ## CONCLUSION
 
-{{COMPANY_NAME}} represents an attractive investment opportunity for {{PORTFOLIO_NAME}}, offering a compelling combination of growth, quality, and defensive characteristics at a reasonable valuation. The company's innovative product portfolio, robust pipeline, and sustainable competitive advantages position it well for sustained outperformance.
+{{COMPANY_NAME}} warrants a {{THESIS_STANCE}} stance for {{PORTFOLIO_NAME}}. {{CONVICTION_PHRASE}}, weighing growth, quality and defensive characteristics against the current valuation. The company's innovative product portfolio, robust pipeline, and sustainable competitive advantages position it well for sustained outperformance.
 
 The proposed {{POSITION_SIZE_PCT}}% position size appropriately balances conviction in the investment thesis against inherent risks around clinical development, regulatory approval, and commercial execution.
 

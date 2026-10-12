@@ -69,7 +69,7 @@ On a relative basis, {{COMPANY_NAME}} trades at {{PE_RATIO}}x forward earnings, 
 
 ## Conclusion and Recommendation
 
-{{COMPANY_NAME}} represents a compelling investment opportunity within the {{SIC_DESCRIPTION}} sector. The combination of innovation-driven growth, strong market positions, and disciplined financial management supports our **{{RATING}}** rating. We recommend investors accumulate positions for long-term appreciation potential, viewing the company as a high-quality core healthcare holding.
+{{COMPANY_NAME}} warrants a {{THESIS_STANCE}} stance within the {{SIC_DESCRIPTION}} sector. The combination of innovation-driven growth, market positioning, and financial management {{THESIS_VERB}} our **{{RATING}}** rating. We recommend investors accumulate positions for long-term appreciation potential, viewing the company as a high-quality core healthcare holding.
 
 The favourable risk-reward profile, supported by visible catalysts and defensive business characteristics, makes {{TICKER}} an attractive investment at current valuation levels. Our ${{PRICE_TARGET_USD}} price target offers meaningful upside whilst the company's market-leading position and financial strength provide downside protection.
 

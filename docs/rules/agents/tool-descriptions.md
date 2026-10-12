@@ -26,7 +26,7 @@ Description: |
   - Historical: 12 months of position and transaction history
   - Current: End-of-day holdings updated daily at 4 PM ET
   - Sources: DIM_SECURITY, DIM_PORTFOLIO, FACT_POSITION_DAILY_ABOR
-  - Records: 14,000+ real securities, 10 portfolios, 27,000+ holdings
+  - Records: 503 real securities, 11 portfolios, 27,000+ holdings
   
   When to Use:
   - Questions about portfolio holdings, weights, and composition

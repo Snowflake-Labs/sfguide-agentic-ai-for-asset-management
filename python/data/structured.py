@@ -27,8 +27,10 @@ This module generates:
 """
 
 from snowflake.snowpark import Session
-from typing import List
+from snowflake.snowpark import types as T
+from typing import Any, Dict, List
 import random
+import re
 from datetime import datetime, timedelta, date
 import config
 from utils.logging import log_detail, log_info, log_warning, log_error, log_success, log_phase, log_step, log_substep, log_phase_complete
@@ -46,7 +48,7 @@ from utils.sql import (
     get_factor_r_squared,
     build_country_settlement_case_sql
 )
-from utils.demo_helpers import build_demo_portfolios_sql_mapping, get_demo_portfolio_names, get_demo_clients_sorted, get_demo_company_tickers, get_all_demo_clients_sorted, get_at_risk_client_ids, get_new_client_ids, get_new_demo_clients
+from utils.demo_helpers import build_demo_portfolios_sql_mapping, get_demo_portfolio_names, get_demo_clients_sorted, get_demo_company_tickers, get_all_demo_clients_sorted, get_at_risk_client_ids, get_new_client_ids, get_new_demo_clients, get_portfolio_target_weights_sql, get_all_portfolio_target_weights_sql, get_pinned_portfolio_names, get_pinned_pairs_condition_sql, get_excluded_pairs_condition_sql
 
 _completed_shared_builds = set()
 
@@ -182,8 +184,8 @@ def build_fact_tables(session: Session, test_mode: bool = False):
     _run_build_step(build_fact_position_daily_abor, session)
     _run_build_step(build_esg_scores, session)
     _run_build_step(build_v_esg_latest, session)  # Standalone ESG view (no returns dependency)
-    # Note: V_HOLDINGS_WITH_ESG is built later in main.py after V_SECURITY_RETURNS exists
-    # Note: build_factor_exposures moved to main.py — requires FACT_SEC_FINANCIALS + V_SECURITY_RETURNS + FACT_BENCHMARK_RETURNS (from build_attribution_market_data)
+    # Note: V_HOLDINGS_WITH_ESG is built later in workspace_main.py after V_SECURITY_RETURNS exists
+    # Note: build_factor_exposures moved to workspace_main.py — requires FACT_SEC_FINANCIALS + V_SECURITY_RETURNS + FACT_BENCHMARK_RETURNS (from build_attribution_market_data)
     _run_build_step(build_benchmark_holdings, session)
     _run_build_step(build_transaction_cost_data, session)
     _run_build_step(build_liquidity_data, session)
@@ -209,7 +211,7 @@ def build_fact_tables(session: Session, test_mode: bool = False):
     
     # Portfolio modelling tables (backtesting, simulation, risk analysis)
     # Note: Tables that don't depend on V_SECURITY_RETURNS are built here
-    # build_fact_covariance_matrix depends on V_SECURITY_RETURNS and is built later in main.py
+    # build_fact_covariance_matrix depends on V_SECURITY_RETURNS and is built later in workspace_main.py
     _run_build_step(build_dim_model_portfolio, session)
     _run_build_step(build_fact_model_portfolio_weights, session)
     _run_build_step(build_fact_risk_factors, session)
@@ -250,6 +252,51 @@ def build_foundation_tables(session: Session, test_mode: bool = False):
 
 
 
+ISSUER_COUNTRY_OVERRIDES = {
+    'TSM': 'TW',
+    'ASX': 'TW',
+}
+
+
+ISSUER_SECTOR_OVERRIDES = {
+    'AES': 'Utilities',
+    'AMCR': 'Materials',
+    'AVTR': 'Healthcare',
+    'BBWI': 'Consumer Discretionary',
+    'BKR': 'Energy',
+    'CCL': 'Consumer Discretionary',
+    'CVNA': 'Consumer Discretionary',
+    'DLTR': 'Consumer Staples',
+    'EXPE': 'Consumer Discretionary',
+    'FTI': 'Energy',
+    'HAS': 'Consumer Discretionary',
+    'ILMN': 'Healthcare',
+    'INCY': 'Healthcare',
+    'JD': 'Consumer Discretionary',
+    'KSS': 'Consumer Discretionary',
+    'LRCX': 'Information Technology',
+    'LULU': 'Consumer Discretionary',
+    'M': 'Consumer Discretionary',
+    'MAT': 'Consumer Discretionary',
+    'NCLH': 'Consumer Discretionary',
+    'NWSA': 'Communication Services',
+    'ORLY': 'Consumer Discretionary',
+    'PAA': 'Energy',
+    'PTON': 'Consumer Discretionary',
+    'SNDL': 'Healthcare',
+    'SONO': 'Consumer Discretionary',
+    'TAL': 'Consumer Discretionary',
+    'TER': 'Information Technology',
+    'TLRY': 'Healthcare',
+    'TRMB': 'Information Technology',
+    'TSCO': 'Consumer Discretionary',
+    'TXG': 'Healthcare',
+    'UAA': 'Consumer Discretionary',
+    'VFC': 'Consumer Discretionary',
+    'WEN': 'Consumer Discretionary',
+}
+
+
 def build_dim_issuer(session: Session, test_mode: bool = False):
     """
     Build DIM_ISSUER as the DRIVER TABLE directly from config.DEMO_COMPANIES.
@@ -274,7 +321,9 @@ def build_dim_issuer(session: Session, test_mode: bool = False):
     demo_companies = config.DEMO_COMPANIES
 
     rows = [
-        (ticker, d['company_name'], d['provider_company_id'], d['cik'], d['sector'], d['tier'])
+        (ticker, d['company_name'], d['provider_company_id'], d['cik'],
+         ISSUER_SECTOR_OVERRIDES.get(ticker, d['sector']), d['tier'],
+         d.get('country_of_incorporation') or ISSUER_COUNTRY_OVERRIDES.get(ticker))
         for ticker, d in demo_companies.items()
     ]
     schema = StructType([
@@ -284,6 +333,7 @@ def build_dim_issuer(session: Session, test_mode: bool = False):
         StructField("CIK", StringType()),
         StructField("SECTOR", StringType()),
         StructField("TIER", StringType()),
+        StructField("COUNTRY_OVERRIDE", StringType()),
     ])
     dc_df = session.create_dataframe(rows, schema=schema)
     dc_df.write.save_as_table(
@@ -304,14 +354,16 @@ def build_dim_issuer(session: Session, test_mode: bool = False):
                 dc.CIK,
                 dc.SECTOR,
                 dc.TIER,
+                dc.COUNTRY_OVERRIDE,
                 ci.LEI,
-                MAX(CASE WHEN cc.RELATIONSHIP_TYPE = 'business_address_country' THEN cc.VALUE END) as CountryFromIndex
+                MAX(CASE WHEN cc.RELATIONSHIP_TYPE = 'business_address_country' THEN cc.VALUE END) as CountryFromIndex,
+                MAX(CASE WHEN cc.RELATIONSHIP_TYPE = 'sic_description' THEN cc.VALUE END) as IndustryFromIndex
             FROM {config.DATABASE['name']}.CURATED.STG_DEMO_COMPANIES dc
             INNER JOIN {db}.{sch}.COMPANY_INDEX ci
                 ON dc.PROVIDER_COMPANY_ID = ci.COMPANY_ID
             LEFT JOIN {db}.{sch}.COMPANY_CHARACTERISTICS cc
                 ON ci.COMPANY_ID = cc.COMPANY_ID
-            GROUP BY dc.TICKER, dc.COMPANY_NAME, dc.PROVIDER_COMPANY_ID, dc.CIK, dc.SECTOR, dc.TIER, ci.LEI
+            GROUP BY dc.TICKER, dc.COMPANY_NAME, dc.PROVIDER_COMPANY_ID, dc.CIK, dc.SECTOR, dc.TIER, dc.COUNTRY_OVERRIDE, ci.LEI
         )
         SELECT 
             ROW_NUMBER() OVER (ORDER BY 
@@ -325,7 +377,8 @@ def build_dim_issuer(session: Session, test_mode: bool = False):
             SUBSTR(TRIM(COMPANY_NAME), 1, 255) as LegalName,
             SECTOR as SIC_DESCRIPTION,
             SECTOR as GICS_SECTOR,
-            COALESCE(CountryFromIndex, 'US') as CountryOfIncorporation,
+            COALESCE(COUNTRY_OVERRIDE, CountryFromIndex, 'US') as CountryOfIncorporation,
+            SUBSTR(COALESCE(NULLIF(TRIM(IndustryFromIndex), ''), SECTOR), 1, 200) as Industry,
             LEI[0]::VARCHAR as LEI,
             TIER as Tier
         FROM enriched
@@ -768,7 +821,9 @@ def build_dim_supply_chain_relationships(session: Session, test_mode: bool = Fal
     relationships = []
     relationship_id = 1
     
-    for company_ticker, counterparty_ticker, rel_type, share, criticality in config.SUPPLY_CHAIN_DEMO_RELATIONSHIPS:
+    for rel in config.SUPPLY_CHAIN_DEMO_RELATIONSHIPS:
+        company_ticker, counterparty_ticker, rel_type, share, criticality = rel[:5]
+        note_suffix = f'. {rel[5]}' if len(rel) > 5 and rel[5] else ''
         if company_ticker in issuer_map and counterparty_ticker in issuer_map:
             # Create supplier relationship
             if rel_type == 'Customer':
@@ -784,7 +839,7 @@ def build_dim_supply_chain_relationships(session: Session, test_mode: bool = Fal
                     'SourceConfidence': 85.0,
                     'StartDate': date(2020, 1, 1),
                     'EndDate': None,
-                    'Notes': f'Demo relationship: {company_ticker} supplies to {counterparty_ticker}'
+                    'Notes': f'Demo relationship: {company_ticker} supplies to {counterparty_ticker}{note_suffix}'
                 })
                 relationship_id += 1
                 
@@ -800,7 +855,7 @@ def build_dim_supply_chain_relationships(session: Session, test_mode: bool = Fal
                     'SourceConfidence': 85.0,
                     'StartDate': date(2020, 1, 1),
                     'EndDate': None,
-                    'Notes': f'Demo relationship: {counterparty_ticker} sources from {company_ticker}'
+                    'Notes': f'Demo relationship: {counterparty_ticker} sources from {company_ticker}{note_suffix}'
                 })
                 relationship_id += 1
     
@@ -922,6 +977,7 @@ def build_fact_transaction(session: Session, test_mode: bool = False):
                 END as portfolio_priority,
                 -- Random ordering within priority groups for portfolio diversification
                 ROW_NUMBER() OVER (PARTITION BY p.PortfolioID ORDER BY 
+                    CASE WHEN {get_pinned_pairs_condition_sql('p.PortfolioName', 's.Ticker')} THEN 0 ELSE 1 END,
                     CASE 
                         WHEN p.PortfolioName IN {safe_sql_tuple(get_demo_portfolio_names())} THEN
                             CASE 
@@ -937,12 +993,14 @@ def build_fact_transaction(session: Session, test_mode: bool = False):
                 ) as rn
             FROM {config.DATABASE['name']}.CURATED.DIM_PORTFOLIO p
             CROSS JOIN all_securities s
+            WHERE NOT {get_excluded_pairs_condition_sql('p.PortfolioName', 's.Ticker')}
         ),
         selected_holdings AS (
             -- Step 3: Limit each portfolio to ~45 securities with theme-specific filtering
             SELECT PortfolioID, SecurityID
             FROM portfolio_securities
-            WHERE rn <= 45  -- Typical large-cap equity portfolio size
+            WHERE {get_pinned_pairs_condition_sql('PortfolioName', 'Ticker')}
+            OR rn <= 45  -- Typical large-cap equity portfolio size
             AND (
                 -- For demo portfolios, only include securities with valid priorities (from config.PORTFOLIOS)
                 (PortfolioName IN {safe_sql_tuple(get_demo_portfolio_names())} AND portfolio_priority < 999)
@@ -970,11 +1028,11 @@ def build_fact_transaction(session: Session, test_mode: bool = False):
                 CASE 
                     -- Use hash-based approach for deterministic but varied trading patterns
                     -- 15% of days are busy (market events, rebalancing dates)
-                    WHEN (HASH(trade_date) % 100) < 15 THEN 0.6
+                    WHEN (ABS(HASH(trade_date)) % 100) < 15 THEN 0.6
                     -- 25% of days are moderate (regular portfolio activity)  
-                    WHEN (HASH(trade_date) % 100) < 40 THEN 0.3
+                    WHEN (ABS(HASH(trade_date)) % 100) < 40 THEN 0.3
                     -- 35% of days are quiet (minimal trading)
-                    WHEN (HASH(trade_date) % 100) < 75 THEN 0.1
+                    WHEN (ABS(HASH(trade_date)) % 100) < 75 THEN 0.1
                     -- 25% of days are very quiet (no trading)
                     ELSE 0.0
                 END as portfolio_trade_probability
@@ -989,7 +1047,7 @@ def build_fact_transaction(session: Session, test_mode: bool = False):
             FROM {config.DATABASE['name']}.CURATED.DIM_PORTFOLIO p
             CROSS JOIN trading_intensity ti
             WHERE ti.portfolio_trade_probability > 0
-            AND (HASH(p.PortfolioID, ti.trade_date) % 100) < (ti.portfolio_trade_probability * 100)
+            AND (ABS(HASH(p.PortfolioID, ti.trade_date)) % 100) < (ti.portfolio_trade_probability * 100)
         )
         -- Step 5: Generate final transaction records with realistic attributes
         -- Creates BUY transactions that build up portfolio positions over time
@@ -1003,7 +1061,10 @@ def build_fact_transaction(session: Session, test_mode: bool = False):
             sh.PortfolioID,
             sh.SecurityID,
             -- Transaction attributes
-            'BUY' as TransactionType,  -- Simplified: mostly buys to build positions over time
+            -- Explicitly widened: CTAS from a bare 'BUY' literal inferred
+            -- VARCHAR(3), so appending a 'SELL' later failed with "String
+            -- 'SELL' is too long and would be truncated".
+            'BUY'::VARCHAR(16) as TransactionType,
             DATEADD(day, 2, ptd.trade_date) as SettleDate,  -- Standard T+2 settlement cycle
             -- Strategic position sizing: larger positions for demo portfolio top holdings (from DEMO_COMPANIES)
             CASE 
@@ -1015,13 +1076,13 @@ def build_fact_transaction(session: Session, test_mode: bool = False):
                     AND s.Ticker IN {demo_sql_mapping['large_position_tickers']}  -- Holdings with position_size='large' in DEMO_COMPANIES
                 ) THEN UNIFORM(50000, 100000, RANDOM())  -- Large positions as specified in config
                 ELSE UNIFORM(100, 10000, RANDOM())  -- Normal positions for others
-            END as Quantity,
+            END::NUMBER(18,0) as Quantity,
             -- Realistic stock prices ($50-$500 range)
-            UNIFORM(50, 500, RANDOM()) as Price,
+            UNIFORM(50, 500, RANDOM())::NUMBER(18,4) as Price,
             -- Gross amount calculated as Quantity * Price
-            Quantity * Price as GrossAmount_Local,
+            (Quantity * Price)::NUMBER(20,2) as GrossAmount_Local,
             -- Realistic commission costs ($5-$50)
-            UNIFORM(5, 50, RANDOM()) as Commission_Local,
+            UNIFORM(5, 50, RANDOM())::NUMBER(12,2) as Commission_Local,
             -- Standard currency and system identifiers
             'USD' as Currency,
             'ABOR' as SourceSystem,  -- Accounting Book of Record
@@ -1029,7 +1090,7 @@ def build_fact_transaction(session: Session, test_mode: bool = False):
             CONCAT('TXN_', ROW_NUMBER() OVER (ORDER BY sh.PortfolioID, sh.SecurityID, ptd.trade_date)) as SourceTransactionID
         FROM selected_holdings sh
         JOIN portfolio_trading_days ptd ON sh.PortfolioID = ptd.PortfolioID
-        WHERE (HASH(sh.SecurityID, ptd.trade_date) % 100) < 20  -- 20% of portfolio-security-day combinations create transactions
+        WHERE (ABS(HASH(sh.SecurityID, ptd.trade_date)) % 100) < 20  -- 20% of portfolio-security-day combinations create transactions
     """).collect()
     
 
@@ -1044,6 +1105,9 @@ def build_fact_position_daily_abor(session: Session):
             "Run generate_market_data.build_price_anchor() first."
         )
     
+    target_weights_sql = get_all_portfolio_target_weights_sql()
+    pinned_portfolios_sql = safe_sql_tuple(get_pinned_portfolio_names())
+
     session.sql(f"""
         CREATE OR REPLACE TABLE {config.DATABASE['name']}.CURATED.FACT_POSITION_DAILY_ABOR AS
         WITH monthly_dates AS (
@@ -1061,6 +1125,15 @@ def build_fact_position_daily_abor(session: Session):
             GROUP BY PortfolioID, SecurityID
             HAVING TotalQuantity > 0
         ),
+        target_weights AS (
+            SELECT
+                p.PortfolioID,
+                s.SecurityID,
+                {target_weights_sql} AS target_weight
+            FROM {config.DATABASE['name']}.CURATED.DIM_PORTFOLIO p
+            JOIN {config.DATABASE['name']}.CURATED.DIM_SECURITY s ON 1 = 1
+            WHERE p.PortfolioName IN {pinned_portfolios_sql}
+        ),
         nearest_price AS (
             SELECT
                 md.position_date,
@@ -1069,6 +1142,7 @@ def build_fact_position_daily_abor(session: Session):
                 tb.TotalQuantity,
                 tb.AvgPrice,
                 sp.PRICE_CLOSE,
+                tw.target_weight,
                 ROW_NUMBER() OVER (
                     PARTITION BY md.position_date, tb.PortfolioID, tb.SecurityID
                     ORDER BY sp.PRICE_DATE DESC
@@ -1079,6 +1153,19 @@ def build_fact_position_daily_abor(session: Session):
                 ON tb.SecurityID = sp.SECURITYID
                 AND sp.PRICE_DATE <= md.position_date
                 AND sp.PRICE_DATE >= DATEADD('day', -5, md.position_date)
+            LEFT JOIN target_weights tw
+                ON tb.PortfolioID = tw.PortfolioID
+                AND tb.SecurityID = tw.SecurityID
+        ),
+        override_values AS (
+            SELECT
+                np.position_date,
+                np.PortfolioID,
+                SUM(CASE WHEN np.target_weight IS NULL THEN np.TotalQuantity * np.PRICE_CLOSE ELSE 0 END) AS non_override_market_value,
+                SUM(COALESCE(np.target_weight, 0)) AS total_target_weight
+            FROM nearest_price np
+            WHERE np.rn = 1
+            GROUP BY np.position_date, np.PortfolioID
         ),
         position_snapshots AS (
             SELECT 
@@ -1086,12 +1173,23 @@ def build_fact_position_daily_abor(session: Session):
                 np.PortfolioID,
                 np.SecurityID,
                 np.TotalQuantity as Quantity,
-                np.TotalQuantity * np.PRICE_CLOSE as MarketValue_Local,
-                np.TotalQuantity * np.PRICE_CLOSE as MarketValue_Base,
+                CASE
+                    WHEN np.target_weight IS NOT NULL AND ov.total_target_weight < 1 THEN
+                        (ov.non_override_market_value / (1 - ov.total_target_weight)) * np.target_weight
+                    ELSE np.TotalQuantity * np.PRICE_CLOSE
+                END as MarketValue_Local,
+                CASE
+                    WHEN np.target_weight IS NOT NULL AND ov.total_target_weight < 1 THEN
+                        (ov.non_override_market_value / (1 - ov.total_target_weight)) * np.target_weight
+                    ELSE np.TotalQuantity * np.PRICE_CLOSE
+                END as MarketValue_Base,
                 np.TotalQuantity * np.AvgPrice as CostBasis_Local,
                 np.TotalQuantity * np.AvgPrice as CostBasis_Base,
                 0 as AccruedInterest_Local
             FROM nearest_price np
+            LEFT JOIN override_values ov
+                ON np.position_date = ov.position_date
+                AND np.PortfolioID = ov.PortfolioID
             WHERE np.rn = 1
         ),
         portfolio_totals AS (
@@ -1208,7 +1306,6 @@ def build_esg_scores(session: Session):
         override_tickers = list(config.ESG_DEMO_OVERRIDES.keys())
         for ticker, override in config.ESG_DEMO_OVERRIDES.items():
             esg_score = override['esg_score']
-            esg_grade = override['esg_grade']
             override_cases.append(f"WHEN s.Ticker = '{ticker}' THEN {esg_score}")
         
         score_case_sql = f"CASE {' '.join(override_cases)} END"
@@ -1485,6 +1582,95 @@ def build_portfolio_modelling_views(session: Session):
     log_detail("Created V_PORTFOLIO_RISK_METRICS view")
 
 
+ESG_CONTROVERSY_ACTIVE_DAYS = 365
+
+
+def build_fact_esg_controversy(session: Session) -> int:
+    """Build FACT_ESG_CONTROVERSY from the generated NGO report corpus.
+
+    One row per NGO report. Severity and category are read from the header that
+    every NGO template renders ("Severity: High", "Category: Social - ...",
+    "Report Category: Environmental"), so the table always agrees with the
+    documents agents retrieve through search. IsActive marks the latest report per
+    issuer and category published within ESG_CONTROVERSY_ACTIVE_DAYS of the latest
+    NGO report. Requires the PDF_EXTERNAL_CORPUS pipeline to have run; until then
+    the table is created empty.
+    """
+    database = config.DATABASE['name']
+    curated = config.DATABASE['schemas']['curated']
+    active_days = ESG_CONTROVERSY_ACTIVE_DAYS
+    table = f"{database}.{curated}.FACT_ESG_CONTROVERSY"
+
+    session.sql(f"""
+        CREATE OR REPLACE TABLE {table} (
+            SecurityID BIGINT,
+            IssuerID BIGINT,
+            Ticker VARCHAR,
+            Severity VARCHAR,
+            Category VARCHAR,
+            ReportDate DATE,
+            IsActive BOOLEAN
+        )
+    """).collect()
+
+    try:
+        session.sql(f"SELECT 1 FROM {database}.{curated}.PDF_EXTERNAL_CORPUS LIMIT 1").collect()
+    except Exception:
+        log_warning("  PDF_EXTERNAL_CORPUS not built; FACT_ESG_CONTROVERSY left empty")
+        return 0
+
+    session.sql(f"""
+        INSERT INTO {table} (SecurityID, IssuerID, Ticker, Severity, Category, ReportDate, IsActive)
+        WITH reports AS (
+            SELECT
+                SOURCE_FILE_PATH,
+                MAX(TICKER) AS TICKER,
+                MAX(PUBLISH_DATE) AS REPORT_DATE,
+                MAX(INITCAP(REGEXP_SUBSTR(DOCUMENT_TEXT, 'Severity( Assessment)?\\\\W*(High|Medium|Low)', 1, 1, 'ie', 2))) AS SEVERITY,
+                MAX(INITCAP(REGEXP_SUBSTR(DOCUMENT_TEXT, 'Category\\\\W*(Environmental|Social|Governance)', 1, 1, 'ie', 1))) AS CATEGORY
+            FROM {database}.{curated}.PDF_EXTERNAL_CORPUS
+            WHERE DOCUMENT_TYPE = 'ngo_reports'
+            GROUP BY SOURCE_FILE_PATH
+        ),
+        primary_security AS (
+            SELECT IssuerID, MIN(SecurityID) AS SecurityID
+            FROM {database}.{curated}.DIM_SECURITY
+            WHERE AssetClass = 'Equity'
+            GROUP BY IssuerID
+        ),
+        latest AS (
+            SELECT MAX(REPORT_DATE) AS LATEST_DATE FROM reports
+        )
+        SELECT
+            ps.SecurityID,
+            i.IssuerID,
+            r.TICKER,
+            r.SEVERITY,
+            r.CATEGORY,
+            r.REPORT_DATE,
+            r.REPORT_DATE >= DATEADD('day', -{active_days}, l.LATEST_DATE)
+                AND ROW_NUMBER() OVER (
+                    PARTITION BY i.IssuerID, r.CATEGORY ORDER BY r.REPORT_DATE DESC, r.SOURCE_FILE_PATH DESC
+                ) = 1 AS IsActive
+        FROM reports r
+        CROSS JOIN latest l
+        JOIN {database}.{curated}.DIM_ISSUER i ON i.PrimaryTicker = r.TICKER
+        LEFT JOIN primary_security ps ON ps.IssuerID = i.IssuerID
+        WHERE r.SEVERITY IS NOT NULL AND r.CATEGORY IS NOT NULL
+    """).collect()
+
+    stats = session.sql(f"""
+        SELECT COUNT(*) AS N, COUNT_IF(IsActive) AS ACTIVE,
+            (SELECT COUNT(DISTINCT SOURCE_FILE_PATH) FROM {database}.{curated}.PDF_EXTERNAL_CORPUS
+             WHERE DOCUMENT_TYPE = 'ngo_reports') AS DOCS
+        FROM {table}
+    """).collect()[0]
+    if stats['N'] < stats['DOCS']:
+        log_warning(f"  FACT_ESG_CONTROVERSY: {stats['DOCS'] - stats['N']} NGO reports had no parsable severity, category or issuer")
+    log_detail(f"  Created FACT_ESG_CONTROVERSY: {stats['N']} reports, {stats['ACTIVE']} active")
+    return stats['N']
+
+
 def build_v_esg_latest(session: Session):
     """Create standalone V_ESG_LATEST view with one row per security.
     
@@ -1594,7 +1780,9 @@ def build_v_holdings_with_esg(session: Session):
 def build_factor_exposures(session: Session):
     """Build factor exposures from real data: prices, returns, and SEC financials.
     
-    Calculates 7 factors monthly, cross-sectionally z-scored and winsorized at ±3σ:
+    Calculates 7 factors monthly. Market is the raw beta, bounded to [-0.5, 3].
+    The style factors are winsorised at the 1st/99th percentile, then
+    cross-sectionally z-scored and capped at ±3σ:
     - Market Beta: REGR_SLOPE of security daily returns vs SPY
     - Size: LN(SHARES_OUTSTANDING * PRICE_CLOSE) = LN(Market Cap)
     - Value: composite of earnings yield (EPS/Price) and book-to-market
@@ -1692,8 +1880,8 @@ def build_factor_exposures(session: Session):
                 ms.SecurityID,
                 ms.MONTH_END AS EXPOSURE_DATE,
                 'Market' AS FACTOR_NAME,
-                REGR_SLOPE(drj.DAILY_RETURN_PCT, drj.SPX_RETURN) AS RAW_VALUE,
-                REGR_R2(drj.DAILY_RETURN_PCT, drj.SPX_RETURN) AS R2_VALUE
+                REGR_SLOPE(drj.DAILY_RETURN_PCT / 100.0, drj.SPX_RETURN) AS RAW_VALUE,
+                REGR_R2(drj.DAILY_RETURN_PCT / 100.0, drj.SPX_RETURN) AS R2_VALUE
             FROM month_spine ms
             JOIN daily_returns_joined drj
                 ON drj.SecurityID = ms.SecurityID
@@ -1714,6 +1902,7 @@ def build_factor_exposures(session: Session):
                 AND lf.PERIOD_END_DATE <= mp.MONTH_END
                 AND lf.PERIOD_END_DATE >= DATEADD('month', -6, mp.MONTH_END)
             WHERE lf.SHARES_OUTSTANDING > 0 AND mp.CLOSE_PRICE > 0
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY mp.SecurityID, mp.MONTH_END ORDER BY lf.PERIOD_END_DATE DESC) = 1
         ),
         factor_value AS (
             SELECT
@@ -1729,6 +1918,7 @@ def build_factor_exposures(session: Session):
                 AND lf.PERIOD_END_DATE <= mp.MONTH_END
                 AND lf.PERIOD_END_DATE >= DATEADD('month', -6, mp.MONTH_END)
             WHERE mp.CLOSE_PRICE > 0
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY mp.SecurityID, mp.MONTH_END ORDER BY lf.PERIOD_END_DATE DESC) = 1
         ),
         factor_momentum AS (
             SELECT
@@ -1753,6 +1943,7 @@ def build_factor_exposures(session: Session):
             JOIN latest_financials lf ON mp.SecurityID = lf.SecurityID
                 AND lf.PERIOD_END_DATE <= mp.MONTH_END
                 AND lf.PERIOD_END_DATE >= DATEADD('month', -6, mp.MONTH_END)
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY mp.SecurityID, mp.MONTH_END ORDER BY lf.PERIOD_END_DATE DESC) = 1
         ),
         factor_quality AS (
             SELECT
@@ -1768,6 +1959,7 @@ def build_factor_exposures(session: Session):
             JOIN latest_financials lf ON mp.SecurityID = lf.SecurityID
                 AND lf.PERIOD_END_DATE <= mp.MONTH_END
                 AND lf.PERIOD_END_DATE >= DATEADD('month', -6, mp.MONTH_END)
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY mp.SecurityID, mp.MONTH_END ORDER BY lf.PERIOD_END_DATE DESC) = 1
         ),
         factor_volatility AS (
             SELECT
@@ -1799,26 +1991,42 @@ def build_factor_exposures(session: Session):
             UNION ALL
             SELECT SecurityID, EXPOSURE_DATE, FACTOR_NAME, RAW_VALUE, R2_VALUE FROM factor_volatility
         ),
-        factor_stats AS (
+        factor_bounds AS (
             SELECT FACTOR_NAME, EXPOSURE_DATE,
-                   AVG(RAW_VALUE) AS MEAN_VAL,
-                   STDDEV(RAW_VALUE) AS STD_VAL
+                   PERCENTILE_CONT(0.01) WITHIN GROUP (ORDER BY RAW_VALUE) AS LO_VAL,
+                   PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY RAW_VALUE) AS HI_VAL
             FROM all_factors
             WHERE RAW_VALUE IS NOT NULL
             GROUP BY FACTOR_NAME, EXPOSURE_DATE
         ),
+        winsorised AS (
+            SELECT af.SecurityID, af.EXPOSURE_DATE, af.FACTOR_NAME, af.R2_VALUE,
+                   af.RAW_VALUE,
+                   GREATEST(fb.LO_VAL, LEAST(fb.HI_VAL, af.RAW_VALUE)) AS CLIPPED_VALUE
+            FROM all_factors af
+            JOIN factor_bounds fb ON af.FACTOR_NAME = fb.FACTOR_NAME AND af.EXPOSURE_DATE = fb.EXPOSURE_DATE
+            WHERE af.RAW_VALUE IS NOT NULL
+        ),
+        factor_stats AS (
+            SELECT FACTOR_NAME, EXPOSURE_DATE,
+                   AVG(CLIPPED_VALUE) AS MEAN_VAL,
+                   STDDEV(CLIPPED_VALUE) AS STD_VAL
+            FROM winsorised
+            GROUP BY FACTOR_NAME, EXPOSURE_DATE
+        ),
         z_scored AS (
             SELECT
-                af.SecurityID,
-                af.EXPOSURE_DATE,
-                af.FACTOR_NAME,
-                CASE WHEN fs.STD_VAL > 0
-                     THEN GREATEST(-3, LEAST(3, (af.RAW_VALUE - fs.MEAN_VAL) / fs.STD_VAL))
+                w.SecurityID,
+                w.EXPOSURE_DATE,
+                w.FACTOR_NAME,
+                CASE WHEN w.FACTOR_NAME = 'Market'
+                     THEN GREATEST(-0.5, LEAST(3, w.RAW_VALUE))
+                     WHEN fs.STD_VAL > 0
+                     THEN GREATEST(-3, LEAST(3, (w.CLIPPED_VALUE - fs.MEAN_VAL) / fs.STD_VAL))
                      ELSE 0 END AS EXPOSURE_VALUE,
-                af.R2_VALUE AS R_SQUARED
-            FROM all_factors af
-            JOIN factor_stats fs ON af.FACTOR_NAME = fs.FACTOR_NAME AND af.EXPOSURE_DATE = fs.EXPOSURE_DATE
-            WHERE af.RAW_VALUE IS NOT NULL
+                w.R2_VALUE AS R_SQUARED
+            FROM winsorised w
+            JOIN factor_stats fs ON w.FACTOR_NAME = fs.FACTOR_NAME AND w.EXPOSURE_DATE = fs.EXPOSURE_DATE
         )
         SELECT SecurityID, EXPOSURE_DATE, FACTOR_NAME,
                ROUND(EXPOSURE_VALUE, 6) AS EXPOSURE_VALUE,
@@ -2468,7 +2676,7 @@ def build_dim_client(session: Session, test_mode: bool = False):
     - primary_contacts, client_types, regions
     
     I/O Pattern: 
-    - Demo clients: Build in Python, batch write with write_pandas_overwrite
+    - Demo clients: Build in Python, batch write via create_dataframe().write.save_as_table()
     - Generated clients: Set-based INSERT...SELECT (no collect-in-loop)
     
     Used by: Executive Copilot for client flow analysis
@@ -2536,8 +2744,8 @@ def build_dim_client(session: Session, test_mode: bool = False):
     
     # Step 2: Write demo clients using write_pandas (single batch write)
     import pandas as pd
-    from utils.snowflake import cleanup_temp_stages
-    cleanup_temp_stages(session)  # Clean up any leftover temp stages
+    from utils.snowflake import cleanup_temp_objects
+    cleanup_temp_objects(session)  # Clean up any leftover temp stages
     
     df = pd.DataFrame(rows)
     session.write_pandas(
@@ -2722,7 +2930,11 @@ def build_fact_client_flows(session: Session, test_mode: bool = False):
                     CASE 
                         -- ESG strategies getting more inflows recently (multiplier from config)
                         WHEN p.Strategy = 'ESG' AND d.FlowDate > DATEADD('month', -{esg_months}, '{max_price_date}'::DATE) 
-                             AND cpm.ClientID NOT IN {at_risk_ids_sql} THEN {esg_mult}
+                             AND cpm.ClientID NOT IN {at_risk_ids_sql} THEN 
+                            CASE
+                                WHEN c.ClientType IN ('PENSION', 'ENDOWMENT', 'FOUNDATION', 'SOVEREIGN') THEN {esg_mult}
+                                ELSE {esg_mult} * 0.75
+                            END
                         -- Growth strategies volatile (range from config)
                         WHEN p.Strategy = 'Growth' THEN UNIFORM({growth_vol_range[0]}, {growth_vol_range[1]}, RANDOM())
                         ELSE 1.0
@@ -2796,63 +3008,127 @@ def build_fact_fund_flows(session: Session):
             'USD' as Currency
         FROM flow_aggregates
     """).collect()
-    
-    # Verify creation
-    count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.FACT_FUND_FLOWS").collect()[0]['CNT']
+
+
+
+def portfolio_monthly_returns_sql(session: Session) -> str:
+    """SELECT of (DATE, PortfolioID, PORTFOLIO_RETURN) monthly portfolio returns.
+
+    The single source of portfolio returns for attribution, strategy KPIs and the
+    benchmark comparison: beginning-of-period weights times the month's holding
+    returns, as written to FACT_BRINSON_ATTRIBUTION. DATE is the month end, which
+    equals the HoldingDate that month's KPIs are reported against. When the
+    attribution phase has not run, the same beginning-of-period calculation is
+    made directly from positions and prices.
+    """
+    database = config.DATABASE['name']
+    curated = config.DATABASE['schemas']['curated']
+    market_data = config.DATABASE['schemas']['market_data']
+    position_returns = f"""
+        WITH month_end_prices AS (
+            SELECT SECURITYID, DATE_TRUNC('month', PRICE_DATE) AS RETURN_MONTH, PRICE_CLOSE,
+                LAG(PRICE_CLOSE) OVER (PARTITION BY SECURITYID ORDER BY PRICE_DATE) AS PREV_MONTH_CLOSE
+            FROM {database}.{market_data}.FACT_STOCK_PRICES
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY SECURITYID, DATE_TRUNC('month', PRICE_DATE) ORDER BY PRICE_DATE DESC) = 1
+        )
+        SELECT LAST_DAY(DATEADD('month', 1, p.HoldingDate)) AS DATE,
+            p.PortfolioID,
+            SUM(p.PortfolioWeight * (mep.PRICE_CLOSE - mep.PREV_MONTH_CLOSE) / NULLIF(mep.PREV_MONTH_CLOSE, 0)) AS PORTFOLIO_RETURN
+        FROM {database}.{curated}.FACT_POSITION_DAILY_ABOR p
+        JOIN month_end_prices mep
+            ON mep.SECURITYID = p.SecurityID
+            AND mep.RETURN_MONTH = DATE_TRUNC('month', DATEADD('month', 1, p.HoldingDate))
+            AND mep.PREV_MONTH_CLOSE IS NOT NULL
+        GROUP BY 1, 2
+    """
+    try:
+        session.sql(f"SELECT 1 FROM {database}.{curated}.FACT_BRINSON_ATTRIBUTION LIMIT 1").collect()
+    except Exception:
+        log_warning("  FACT_BRINSON_ATTRIBUTION not built; computing beginning-of-period portfolio returns from positions")
+        return position_returns
+    return f"""
+        SELECT DATE, PORTFOLIOID AS PortfolioID, TOTAL_PORTFOLIO_RETURN AS PORTFOLIO_RETURN
+        FROM {database}.{curated}.FACT_BRINSON_ATTRIBUTION
+        UNION ALL
+        SELECT pr.DATE, pr.PortfolioID, pr.PORTFOLIO_RETURN
+        FROM ({position_returns}) pr
+        WHERE NOT EXISTS (
+            SELECT 1 FROM {database}.{curated}.FACT_BRINSON_ATTRIBUTION b
+            WHERE b.DATE = pr.DATE AND b.PORTFOLIOID = pr.PortfolioID
+        )
+    """
 
 
 def build_fact_strategy_performance(session: Session):
     """
     Build aggregated strategy-level performance metrics for executive KPI queries.
-    Aggregates portfolio-level returns and AUM by strategy for executive reporting.
-    
+
+    MTD, QTD and YTD are compounded from portfolio_monthly_returns_sql(), the same
+    beginning-of-period returns the Brinson attribution uses, so KPI, RFP and
+    attribution figures agree. AUM and holding count come from the holdings at
+    each HoldingDate.
+
     Used by: Executive Copilot for strategy performance in executive briefings
     Supports: "Top and bottom performing strategies", "Performance by strategy"
-    
-    Note: Calculates FIRM_AUM from actual holdings (distinct from client-reported AUM)
     """
     database_name = config.DATABASE['name']
-    
-    # Check if V_HOLDINGS_WITH_ESG exists with returns data
+
     try:
-        session.sql(f"SELECT QTD_RETURN_PCT FROM {database_name}.CURATED.V_HOLDINGS_WITH_ESG LIMIT 1").collect()
+        session.sql(f"SELECT MarketValue_Base FROM {database_name}.CURATED.V_HOLDINGS_WITH_ESG LIMIT 1").collect()
     except Exception as e:
         raise RuntimeError(
-            f"V_HOLDINGS_WITH_ESG missing returns columns - cannot build FACT_STRATEGY_PERFORMANCE: {e}. "
-            "Run build_esg_latest_view() after build_security_returns_view() first."
+            f"V_HOLDINGS_WITH_ESG not available - cannot build FACT_STRATEGY_PERFORMANCE: {e}. "
+            "Run build_v_holdings_with_esg() first."
         )
-    
-    # Build strategy performance with returns data
+
+    returns_sql = portfolio_monthly_returns_sql(session)
     session.sql(f"""
         CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_STRATEGY_PERFORMANCE AS
-        WITH portfolio_performance AS (
-            -- Note: PortfolioName, Strategy available via PortfolioID -> DIM_PORTFOLIO join
-            SELECT 
+        WITH holdings AS (
+            SELECT
                 h.HoldingDate,
                 h.PortfolioID,
-                SUM(h.MarketValue_Base) as Portfolio_AUM,
-                -- Weighted average returns (by market value)
-                SUM(h.MarketValue_Base * COALESCE(h.MTD_RETURN_PCT, 0)) / NULLIF(SUM(h.MarketValue_Base), 0) as Weighted_MTD_Return,
-                SUM(h.MarketValue_Base * COALESCE(h.QTD_RETURN_PCT, 0)) / NULLIF(SUM(h.MarketValue_Base), 0) as Weighted_QTD_Return,
-                SUM(h.MarketValue_Base * COALESCE(h.YTD_RETURN_PCT, 0)) / NULLIF(SUM(h.MarketValue_Base), 0) as Weighted_YTD_Return,
-                COUNT(DISTINCT h.SecurityID) as Holding_Count
+                SUM(h.MarketValue_Base) AS Portfolio_AUM,
+                COUNT(DISTINCT h.SecurityID) AS Holding_Count
             FROM {database_name}.CURATED.V_HOLDINGS_WITH_ESG h
             GROUP BY h.HoldingDate, h.PortfolioID
+        ),
+        monthly_returns AS (
+            {returns_sql}
+        ),
+        compounded AS (
+            SELECT
+                h.HoldingDate,
+                h.PortfolioID,
+                MAX(IFF(r.DATE = LAST_DAY(h.HoldingDate), r.PORTFOLIO_RETURN, NULL)) AS MTD,
+                EXP(SUM(IFF(DATE_TRUNC('quarter', r.DATE) = DATE_TRUNC('quarter', h.HoldingDate),
+                    LN(1 + r.PORTFOLIO_RETURN), 0))) - 1 AS QTD,
+                EXP(SUM(LN(1 + r.PORTFOLIO_RETURN))) - 1 AS YTD,
+                COUNT(IFF(DATE_TRUNC('quarter', r.DATE) = DATE_TRUNC('quarter', h.HoldingDate), r.DATE, NULL)) AS Quarter_Months,
+                COUNT(r.DATE) AS Year_Months
+            FROM holdings h
+            JOIN monthly_returns r
+                ON r.PortfolioID = h.PortfolioID
+                AND r.DATE <= LAST_DAY(h.HoldingDate)
+                AND DATE_TRUNC('year', r.DATE) = DATE_TRUNC('year', h.HoldingDate)
+                AND r.PORTFOLIO_RETURN > -1
+            GROUP BY h.HoldingDate, h.PortfolioID
         )
-        SELECT 
-            ROW_NUMBER() OVER (ORDER BY HoldingDate, PortfolioID) as StrategyPerfID,
-            HoldingDate,
-            PortfolioID,
-            ROUND(Portfolio_AUM, 2) as Strategy_AUM,
-            ROUND(Weighted_MTD_Return, 2) as Strategy_MTD_Return,
-            ROUND(Weighted_QTD_Return, 2) as Strategy_QTD_Return,
-            ROUND(Weighted_YTD_Return, 2) as Strategy_YTD_Return,
-            Holding_Count,
-            'USD' as Currency
-        FROM portfolio_performance
+        SELECT
+            ROW_NUMBER() OVER (ORDER BY h.HoldingDate, h.PortfolioID) AS StrategyPerfID,
+            h.HoldingDate,
+            h.PortfolioID,
+            ROUND(h.Portfolio_AUM, 2) AS Strategy_AUM,
+            ROUND(c.MTD * 100, 2) AS Strategy_MTD_Return,
+            ROUND(IFF(c.Quarter_Months = MONTH(h.HoldingDate) - 3 * (QUARTER(h.HoldingDate) - 1), c.QTD, NULL) * 100, 2) AS Strategy_QTD_Return,
+            ROUND(IFF(c.Year_Months = MONTH(h.HoldingDate), c.YTD, NULL) * 100, 2) AS Strategy_YTD_Return,
+            h.Holding_Count,
+            'USD' AS Currency
+        FROM holdings h
+        LEFT JOIN compounded c
+            ON c.HoldingDate = h.HoldingDate AND c.PortfolioID = h.PortfolioID
     """).collect()
-    
-    # Verify creation
+
     count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.FACT_STRATEGY_PERFORMANCE").collect()[0]['CNT']
     log_detail(f"  Created FACT_STRATEGY_PERFORMANCE with {count:,} records")
 
@@ -2878,33 +3154,30 @@ def build_portfolio_benchmark_comparison_view(session: Session):
     
     # Check if required source views/tables exist
     try:
-        session.sql(f"SELECT 1 FROM {database_name}.CURATED.V_HOLDINGS_WITH_ESG LIMIT 1").collect()
+        session.sql(f"SELECT 1 FROM {database_name}.CURATED.FACT_STRATEGY_PERFORMANCE LIMIT 1").collect()
         session.sql(f"SELECT 1 FROM {database_name}.CURATED.FACT_BENCHMARK_PERFORMANCE LIMIT 1").collect()
     except Exception as e:
         raise RuntimeError(
             f"Required tables not found for V_PORTFOLIO_BENCHMARK_COMPARISON: {e}. "
-            "Ensure V_HOLDINGS_WITH_ESG and FACT_BENCHMARK_PERFORMANCE are built first."
+            "Ensure FACT_STRATEGY_PERFORMANCE and FACT_BENCHMARK_PERFORMANCE are built first."
         )
     
     session.sql(f"""
         CREATE OR REPLACE VIEW {database_name}.CURATED.V_PORTFOLIO_BENCHMARK_COMPARISON AS
         WITH portfolio_returns AS (
-            -- Aggregate holding-level returns to portfolio level
-            SELECT 
-                h.PortfolioID,
+            SELECT
+                sp.PortfolioID,
                 p.PortfolioName,
                 p.Strategy,
                 p.BenchmarkID,
-                h.HoldingDate as PerformanceDate,
-                -- Weight-average the holding returns
-                SUM(h.PortfolioWeight * COALESCE(h.MTD_RETURN_PCT, 0)) / NULLIF(SUM(h.PortfolioWeight), 0) as PORTFOLIO_MTD_RETURN,
-                SUM(h.PortfolioWeight * COALESCE(h.QTD_RETURN_PCT, 0)) / NULLIF(SUM(h.PortfolioWeight), 0) as PORTFOLIO_QTD_RETURN,
-                SUM(h.PortfolioWeight * COALESCE(h.YTD_RETURN_PCT, 0)) / NULLIF(SUM(h.PortfolioWeight), 0) as PORTFOLIO_YTD_RETURN,
-                COUNT(DISTINCT h.SecurityID) as HOLDING_COUNT,
-                SUM(h.MarketValue_Base) as PORTFOLIO_AUM
-            FROM {database_name}.CURATED.V_HOLDINGS_WITH_ESG h
-            JOIN {database_name}.CURATED.DIM_PORTFOLIO p ON h.PortfolioID = p.PortfolioID
-            GROUP BY h.PortfolioID, p.PortfolioName, p.Strategy, p.BenchmarkID, h.HoldingDate
+                sp.HoldingDate as PerformanceDate,
+                sp.Strategy_MTD_Return as PORTFOLIO_MTD_RETURN,
+                sp.Strategy_QTD_Return as PORTFOLIO_QTD_RETURN,
+                sp.Strategy_YTD_Return as PORTFOLIO_YTD_RETURN,
+                sp.Holding_Count as HOLDING_COUNT,
+                sp.Strategy_AUM as PORTFOLIO_AUM
+            FROM {database_name}.CURATED.FACT_STRATEGY_PERFORMANCE sp
+            JOIN {database_name}.CURATED.DIM_PORTFOLIO p ON sp.PortfolioID = p.PortfolioID
         ),
         benchmark_returns AS (
             -- Get benchmark returns by date
@@ -3197,7 +3470,12 @@ def generate_concentration_breach_alerts(session: Session):
     
     # Get positions exceeding warning threshold from latest holdings, joined with IPS limits
     concentration_issues = session.sql(f"""
-        WITH latest_holdings AS (
+        WITH latest_dates AS (
+            SELECT PortfolioID, MAX(HoldingDate) AS LatestDate
+            FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR
+            GROUP BY PortfolioID
+        ),
+        latest_holdings AS (
             SELECT 
                 h.PortfolioID,
                 h.SecurityID,
@@ -3206,8 +3484,9 @@ def generate_concentration_breach_alerts(session: Session):
                 p.PortfolioName,
                 s.Ticker,
                 s.Description,
-                ROW_NUMBER() OVER (PARTITION BY h.PortfolioID, h.SecurityID ORDER BY h.HoldingDate DESC) as rn
+                1 as rn
             FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR h
+            JOIN latest_dates ld ON h.PortfolioID = ld.PortfolioID AND h.HoldingDate = ld.LatestDate
             JOIN {database_name}.CURATED.DIM_PORTFOLIO p ON h.PortfolioID = p.PortfolioID
             JOIN {database_name}.CURATED.DIM_SECURITY s ON h.SecurityID = s.SecurityID
             WHERE h.PortfolioWeight >= {global_warning_threshold * 0.9}
@@ -3231,8 +3510,7 @@ def generate_concentration_breach_alerts(session: Session):
     """).collect()
     
     if not concentration_issues:
-        log_detail("  No concentration issues found - skipping breach alerts")
-        return
+        log_detail("  No current concentration issues found")
     
     # Generate alerts with dates spread over last 30 days for demo realism
     today = datetime.now().date()
@@ -3264,24 +3542,9 @@ def generate_concentration_breach_alerts(session: Session):
             f"Market value: ${issue['MARKETVALUE_BASE']:,.0f}"
         )
         
-        # Determine remediation status for demo purposes:
-        # - Older WARNING alerts (>20 days old): mark as resolved
-        # - Some older BREACH alerts (>25 days old, every other one): mark as resolved
-        # - Recent alerts: leave unresolved to show active breaches
         resolved_date = None
         resolved_by = None
         resolution_notes = None
-        
-        if not is_breach and days_ago > 20:
-            # Older warnings - mark as resolved (position naturally decreased)
-            resolved_date = alert_date + timedelta(days=10)
-            resolved_by = pm_names[i % len(pm_names)]
-            resolution_notes = f"Position weight decreased to below warning threshold through market movement and natural rebalancing."
-        elif is_breach and days_ago > 25 and i % 2 == 0:
-            # Some older breaches - mark as resolved (PM took action)
-            resolved_date = alert_date + timedelta(days=15)
-            resolved_by = pm_names[i % len(pm_names)]
-            resolution_notes = f"Position reduced to {threshold_pct - 0.5:.1f}% per remediation plan. Executed via TWAP over 3 trading days to minimise market impact."
         
         rows.append({
             'AlertDate': alert_date,
@@ -3300,6 +3563,92 @@ def generate_concentration_breach_alerts(session: Session):
             'ResolvedDate': resolved_date,
             'ResolvedBy': resolved_by,
             'ResolutionNotes': resolution_notes
+        })
+    
+    resolved_history = session.sql(f"""
+        WITH holding_dates AS (
+            SELECT PortfolioID, HoldingDate,
+                   DENSE_RANK() OVER (PARTITION BY PortfolioID ORDER BY HoldingDate DESC) AS DateRank
+            FROM (SELECT DISTINCT PortfolioID, HoldingDate FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR)
+        ),
+        thresholds AS (
+            SELECT p.PortfolioID,
+                   COALESCE(ips.MaxSingleIssuerPct / 100.0, {global_breach_threshold}) AS BreachThreshold,
+                   COALESCE(ips.MaxSingleIssuerPct / 100.0 * 0.95, {global_warning_threshold}) AS WarningThreshold,
+                   ips.RiskProfile
+            FROM {database_name}.CURATED.DIM_PORTFOLIO p
+            LEFT JOIN {database_name}.CURATED.DIM_PORTFOLIO_IPS ips ON ips.PortfolioID = p.PortfolioID
+        ),
+        weights AS (
+            SELECT h.PortfolioID, h.SecurityID, h.HoldingDate, hd.DateRank, h.PortfolioWeight, h.MarketValue_Base
+            FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR h
+            JOIN holding_dates hd ON hd.PortfolioID = h.PortfolioID AND hd.HoldingDate = h.HoldingDate
+            WHERE hd.DateRank <= 4
+        ),
+        latest AS (
+            SELECT hd.PortfolioID, hd.HoldingDate AS LatestDate
+            FROM holding_dates hd WHERE hd.DateRank = 1
+        ),
+        past_breaches AS (
+            SELECT w.PortfolioID, w.SecurityID, w.HoldingDate, w.DateRank, w.PortfolioWeight, w.MarketValue_Base
+            FROM weights w
+            JOIN thresholds t ON t.PortfolioID = w.PortfolioID
+            WHERE w.DateRank > 1 AND w.PortfolioWeight >= t.WarningThreshold
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY w.PortfolioID, w.SecurityID ORDER BY w.HoldingDate DESC) = 1
+        )
+        SELECT pb.PortfolioID, pb.SecurityID, pb.HoldingDate AS BreachDate, pb.PortfolioWeight AS BreachWeight,
+               pb.MarketValue_Base, COALESCE(lw.PortfolioWeight, 0) AS LatestWeight, l.LatestDate,
+               (SELECT MIN(w2.HoldingDate) FROM weights w2
+                WHERE w2.PortfolioID = pb.PortfolioID AND w2.HoldingDate > pb.HoldingDate) AS ClearedDate,
+               t.BreachThreshold, t.WarningThreshold, t.RiskProfile,
+               p.PortfolioName, s.Ticker, s.Description
+        FROM past_breaches pb
+        JOIN latest l ON l.PortfolioID = pb.PortfolioID
+        JOIN thresholds t ON t.PortfolioID = pb.PortfolioID
+        JOIN {database_name}.CURATED.DIM_PORTFOLIO p ON p.PortfolioID = pb.PortfolioID
+        JOIN {database_name}.CURATED.DIM_SECURITY s ON s.SecurityID = pb.SecurityID
+        LEFT JOIN weights lw
+            ON lw.PortfolioID = pb.PortfolioID AND lw.SecurityID = pb.SecurityID AND lw.DateRank = 1
+        WHERE COALESCE(lw.PortfolioWeight, 0) < t.WarningThreshold
+        ORDER BY pb.PortfolioWeight DESC
+    """).collect()
+    
+    for i, past in enumerate(resolved_history):
+        breach_threshold = float(past['BREACHTHRESHOLD'])
+        warning_threshold = float(past['WARNINGTHRESHOLD'])
+        breach_weight = float(past['BREACHWEIGHT'])
+        latest_weight = float(past['LATESTWEIGHT'])
+        is_breach = breach_weight >= breach_threshold
+        severity = 'BREACH' if is_breach else 'WARNING'
+        threshold_pct = (breach_threshold if is_breach else warning_threshold) * 100
+        risk_profile = past['RISKPROFILE'] or 'N/A'
+        ips_source = f" (IPS {risk_profile} profile)" if risk_profile != 'N/A' else ""
+        alert_date = past['BREACHDATE']
+        cleared_date = past['CLEAREDDATE'] or past['LATESTDATE']
+        rows.append({
+            'AlertDate': alert_date,
+            'PortfolioID': past['PORTFOLIOID'],
+            'SecurityID': past['SECURITYID'],
+            'AlertType': 'CONCENTRATION_BREACH' if is_breach else 'CONCENTRATION_WARNING',
+            'AlertSeverity': severity,
+            'OriginalValue': f"{threshold_pct:.1f}%",
+            'CurrentValue': f"{latest_weight * 100:.1f}%",
+            'RequiresAction': False,
+            'ActionDeadline': None,
+            'AlertDescription': (
+                f"{past['TICKER']} ({past['DESCRIPTION']}) position at {breach_weight * 100:.1f}% "
+                f"exceeded {threshold_pct:.1f}% {severity.lower()} threshold{ips_source} in {past['PORTFOLIONAME']} "
+                f"as of {alert_date}. Market value: ${past['MARKETVALUE_BASE']:,.0f}"
+            ),
+            'IPSSection': 'Section 4.1 - Concentration Limits' if risk_profile != 'N/A' else None,
+            'IPSLimitValue': f"{breach_threshold * 100:.0f}%" if risk_profile != 'N/A' else None,
+            'IPSCurrentValue': f"{latest_weight * 100:.1f}%",
+            'ResolvedDate': cleared_date,
+            'ResolvedBy': pm_names[i % len(pm_names)],
+            'ResolutionNotes': (
+                f"Position at {latest_weight * 100:.1f}% as of {past['LATESTDATE']}, "
+                f"below the {warning_threshold * 100:.1f}% warning threshold."
+            )
         })
     
     # Batch insert all alerts using write_pandas
@@ -3391,8 +3740,8 @@ def generate_demo_pre_screened_replacements(session: Session):
     # Write all rows in a single batch
     if rows:
         import pandas as pd
-        from utils.snowflake import cleanup_temp_stages
-        cleanup_temp_stages(session)
+        from utils.snowflake import cleanup_temp_objects
+        cleanup_temp_objects(session)
         df = pd.DataFrame(rows)
         df.columns = [col.upper() for col in df.columns]
         session.write_pandas(
@@ -3446,8 +3795,8 @@ def build_dim_counterparty(session: Session):
     
     # Write using native write_pandas
     import pandas as pd
-    from utils.snowflake import cleanup_temp_stages
-    cleanup_temp_stages(session)
+    from utils.snowflake import cleanup_temp_objects
+    cleanup_temp_objects(session)
     df = pd.DataFrame(counterparties)
     df.columns = [col.upper() for col in df.columns]
     session.write_pandas(
@@ -3478,8 +3827,8 @@ def build_dim_custodian(session: Session):
     
     # Write using native write_pandas
     import pandas as pd
-    from utils.snowflake import cleanup_temp_stages
-    cleanup_temp_stages(session)
+    from utils.snowflake import cleanup_temp_objects
+    cleanup_temp_objects(session)
     df = pd.DataFrame(custodians)
     df.columns = [col.upper() for col in df.columns]
     session.write_pandas(
@@ -3566,32 +3915,40 @@ def build_fact_trade_settlement(session: Session, test_mode: bool = False):
             FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR
             WHERE HoldingDate = (SELECT MAX(HoldingDate) FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR)
         ),
+        recent_window_draws AS (
+            SELECT
+                rd.recent_date,
+                rs.SecurityID,
+                rs.PortfolioID,
+                UNIFORM(0, 100, RANDOM()) AS status_draw,
+                UNIFORM(0, 2, RANDOM()) AS reason_draw
+            FROM recent_dates rd
+            CROSS JOIN (SELECT * FROM recent_securities ORDER BY RANDOM() LIMIT 5) rs
+        ),
         recent_window_settlements AS (
             SELECT 
-                -1 * (ROW_NUMBER() OVER (ORDER BY rd.recent_date, rs.SecurityID)) as TradeID,
-                DATEADD(day, -{default_settlement_days}, rd.recent_date) as TradeDate,
-                rd.recent_date as SettlementDate,
-                -- Higher failure/pending rate for demo visibility (15% failed, 10% pending)
+                -1 * (ROW_NUMBER() OVER (ORDER BY d.recent_date, d.SecurityID)) as TradeID,
+                DATEADD(day, -{default_settlement_days}, d.recent_date) as TradeDate,
+                d.recent_date as SettlementDate,
                 CASE 
-                    WHEN UNIFORM(0, 100, RANDOM()) <= 15 THEN 'Failed'
-                    WHEN UNIFORM(0, 100, RANDOM()) <= 25 THEN 'Pending'
+                    WHEN d.status_draw <= 15 THEN 'Failed'
+                    WHEN d.status_draw <= 25 THEN 'Pending'
                     ELSE 'Settled'
                 END as Status,
-                rs.PortfolioID,
-                rs.SecurityID,
-                MOD(ABS(HASH(rs.SecurityID + DATEDIFF(day, '2020-01-01', rd.recent_date))), 20) + 1 as CounterpartyID,
-                MOD(ABS(HASH(rs.SecurityID * 2)), 8) + 1 as CustodianID,
+                d.PortfolioID,
+                d.SecurityID,
+                MOD(ABS(HASH(d.SecurityID + DATEDIFF(day, '2020-01-01', d.recent_date))), 20) + 1 as CounterpartyID,
+                MOD(ABS(HASH(d.SecurityID * 2)), 8) + 1 as CustodianID,
                 UNIFORM(50000, 500000, RANDOM()) as SettlementValue,
                 'USD' as Currency,
                 CASE 
-                    WHEN UNIFORM(0, 100, RANDOM()) <= 5 THEN 'SSI mismatch'
-                    WHEN UNIFORM(0, 100, RANDOM()) <= 10 THEN 'Insufficient shares'
-                    WHEN UNIFORM(0, 100, RANDOM()) <= 15 THEN 'Counterparty system issue'
-                    ELSE NULL
+                    WHEN d.status_draw > 15 THEN NULL
+                    WHEN d.reason_draw = 0 THEN 'SSI mismatch'
+                    WHEN d.reason_draw = 1 THEN 'Insufficient shares'
+                    ELSE 'Counterparty system issue'
                 END as FailureReason,
                 NULL as ResolvedDate
-            FROM recent_dates rd
-            CROSS JOIN (SELECT * FROM recent_securities ORDER BY RANDOM() LIMIT 5) rs
+            FROM recent_window_draws d
         ),
         all_settlements AS (
             SELECT * FROM historical_settlements
@@ -3878,6 +4235,40 @@ def build_fact_nav_components(session: Session, test_mode: bool = False):
 
 
 
+SYNTHETIC_CORPORATE_ACTION_TYPES = [
+    ('Share Buyback', "'Share repurchase programme announced: ' || TO_VARCHAR(ROUND({draw2} * 8 + 2, 1)) || '% of shares outstanding'", '0.0', 0.55),
+    ('Special Dividend', "'Special dividend: $' || TO_VARCHAR(ROUND({draw2} * 2.5 + 0.5, 2)) || ' per share'", 'ROUND({draw2} * 2.5 + 0.5, 2)', 0.20),
+    ('Split', "IFF({draw2} < 0.7, '2-for-1 stock split', '3-for-1 stock split')", 'IFF({draw2} < 0.7, 2.0, 3.0)', 0.12),
+    ('Spin-off', "'Spin-off of non-core business unit announced'", '0.0', 0.08),
+    ('Merger', "'Acquisition announcement - pending regulatory approval'", '0.0', 0.05),
+]
+
+
+def _corporate_action_type_sql(draw: str, draw2: str, include_dividend_weight: float = 0.0, dividend_sql: str = '0') -> tuple:
+    entries = []
+    if include_dividend_weight > 0:
+        entries.append(('Dividend', f"'Quarterly dividend: $' || TO_VARCHAR({dividend_sql}) || ' per share'", dividend_sql, include_dividend_weight))
+    entries.extend(
+        (t, d.format(draw2=draw2), v.format(draw2=draw2), w * (1 - include_dividend_weight))
+        for t, d, v, w in SYNTHETIC_CORPORATE_ACTION_TYPES
+    )
+    total = sum(e[3] for e in entries)
+    type_cases, detail_cases, impact_cases = [], [], []
+    cumulative = 0.0
+    for action_type, detail_sql, impact_sql, weight in entries:
+        cumulative += weight / total
+        bound = round(cumulative, 6)
+        type_cases.append(f"WHEN {draw} < {bound} THEN '{action_type}'")
+        detail_cases.append(f"WHEN {draw} < {bound} THEN {detail_sql}")
+        impact_cases.append(f"WHEN {draw} < {bound} THEN {impact_sql}")
+    last_type, last_detail, last_impact = entries[-1][0], entries[-1][1], entries[-1][2]
+    return (
+        f"CASE {' '.join(type_cases)} ELSE '{last_type}' END",
+        f"CASE {' '.join(detail_cases)} ELSE {last_detail} END",
+        f"CASE {' '.join(impact_cases)} ELSE {last_impact} END",
+    )
+
+
 def build_fact_corporate_actions(session: Session, test_mode: bool = False):
     """Build corporate actions fact table using real dividend data and synthetic splits/mergers.
     
@@ -3911,16 +4302,22 @@ def build_fact_corporate_actions(session: Session, test_mode: bool = False):
         SELECT COUNT(*) as cnt FROM {database_name}.{market_data_schema}.FACT_DIVIDENDS
     """).collect()[0]['CNT']
     
-    if dividend_count > 0:
+    seed = config.RNG_SEED
+    hist_draw = f"(MOD(ABS(HASH(SecurityID, HoldingDate, {seed})), 100000) / 100000.0)"
+    hist_draw2 = f"(MOD(ABS(HASH(SecurityID, HoldingDate, {seed} + 1)), 100000) / 100000.0)"
+    fwd_draw = f"(MOD(ABS(HASH(fs.SecurityID, fd.future_date, {seed})), 100000) / 100000.0)"
+    fwd_draw2 = f"(MOD(ABS(HASH(fs.SecurityID, fd.future_date, {seed} + 1)), 100000) / 100000.0)"
+    fwd_dividend_sql = f"ROUND({dividend_range[0]} + ({dividend_range[1]} - {dividend_range[0]}) * {fwd_draw2}, 2)"
+    hist_dividend_sql = f"ROUND({dividend_range[0]} + ({dividend_range[1]} - {dividend_range[0]}) * {hist_draw2}, 2)"
+
+    real_dividends_available = dividend_count > 0
+    if real_dividends_available:
         log_detail(f"  Using {dividend_count:,} real dividend records from SEC 8-K filings")
-        
-        # Build with real dividends + synthetic splits/mergers
-        session.sql(f"""
-            CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_CORPORATE_ACTIONS AS
-            WITH 
-            -- Real dividends from SEC 8-K filings (with AI_EXTRACT parsed dates)
+        hist_type, hist_detail, hist_impact = _corporate_action_type_sql(hist_draw, hist_draw2)
+        fwd_type, fwd_detail, fwd_impact = _corporate_action_type_sql(fwd_draw, fwd_draw2, 0.6, fwd_dividend_sql)
+        real_dividends_cte = f"""
             real_dividends AS (
-                SELECT 
+                SELECT
                     d.SecurityID,
                     d.IssuerID,
                     'Dividend' as ActionType,
@@ -3930,247 +4327,134 @@ def build_fact_corporate_actions(session: Session, test_mode: bool = False):
                     d.PAYMENT_DATE as PaymentDate,
                     d.DIVIDEND_TYPE || ' dividend: $' || ROUND(d.DIVIDEND_PER_SHARE, 2) || ' per share' as ActionDetails,
                     d.DIVIDEND_PER_SHARE as ImpactValue,
-                    CASE 
+                    CASE
                         WHEN d.EX_DATE <= '{max_price_date}'::DATE THEN 'Processed'
                         ELSE 'Pending'
                     END as ProcessingStatus,
-                    UNIFORM(1, 10, RANDOM()) as PortfoliosAffected
+                    UNIFORM(1, 10, RANDOM()) as PortfoliosAffected,
+                    0 as SourcePriority
                 FROM {database_name}.{market_data_schema}.FACT_DIVIDENDS d
                 WHERE d.DIVIDEND_PER_SHARE > 0
                   AND d.EX_DATE IS NOT NULL
-            ),
-            -- Synthetic splits and mergers for demo (no real data source)
-            top_securities AS (
-                SELECT DISTINCT
-                    p.SecurityID,
-                    s.IssuerID,
-                    p.HoldingDate,
-                    ROW_NUMBER() OVER (PARTITION BY p.SecurityID ORDER BY p.HoldingDate) as day_num
-                FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR p
-                JOIN {database_name}.CURATED.DIM_SECURITY s ON p.SecurityID = s.SecurityID
-                WHERE p.SecurityID IN (
-                    SELECT TOP 50 SecurityID 
-                    FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR
-                    GROUP BY SecurityID
-                    ORDER BY SUM(MarketValue_Base) DESC
-                )
-            ),
-            synthetic_actions AS (
-                SELECT 
-                    SecurityID,
-                    IssuerID,
-                    CASE WHEN UNIFORM(0, 1, RANDOM()) < 0.7 THEN 'Split' ELSE 'Merger' END as ActionType,
-                    HoldingDate as AnnouncementDate,
-                    DATEADD(day, {ex_offset}, HoldingDate) as ExDate,
-                    DATEADD(day, {record_offset}, HoldingDate) as RecordDate,
-                    DATEADD(day, {payment_offset}, HoldingDate) as PaymentDate,
-                    CASE WHEN UNIFORM(0, 1, RANDOM()) < 0.7 THEN '2-for-1 stock split' ELSE 'Acquisition announcement' END as ActionDetails,
-                    CASE WHEN UNIFORM(0, 1, RANDOM()) < 0.7 THEN 2.0 ELSE 0.0 END as ImpactValue,
-                    CASE WHEN HoldingDate <= '{max_price_date}'::DATE THEN 'Announced' ELSE 'Pending' END as ProcessingStatus,
-                    UNIFORM(1, 10, RANDOM()) as PortfoliosAffected
-                FROM top_securities
-                WHERE MOD(day_num, 365) = 0  -- ~1 split/merger per security per year
-            ),
-            -- Forward window: pending actions in next 10 days for demo queries
-            forward_dates AS (
-                SELECT DATEADD(day, seq4() + 1, '{max_price_date}'::DATE) as future_date
-                FROM TABLE(GENERATOR(rowcount => 10))
-                WHERE DAYOFWEEK(DATEADD(day, seq4() + 1, '{max_price_date}'::DATE)) BETWEEN 2 AND 6
-            ),
-            forward_securities AS (
-                SELECT DISTINCT s.SecurityID, s.IssuerID
-                FROM {database_name}.CURATED.DIM_SECURITY s
-                WHERE EXISTS (
-                    SELECT 1 FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR p
-                    WHERE p.SecurityID = s.SecurityID
-                )
-                ORDER BY RANDOM()
-                LIMIT 10
-            ),
-            forward_actions AS (
-                SELECT 
-                    fs.SecurityID,
-                    fs.IssuerID,
-                    CASE 
-                        WHEN UNIFORM(0, 100, RANDOM()) <= 60 THEN 'Dividend'
-                        WHEN UNIFORM(0, 100, RANDOM()) <= 85 THEN 'Split'
-                        ELSE 'Merger'
-                    END as ActionType,
-                    DATEADD(day, -5, fd.future_date) as AnnouncementDate,
-                    fd.future_date as ExDate,
-                    DATEADD(day, 1, fd.future_date) as RecordDate,
-                    DATEADD(day, 15, fd.future_date) as PaymentDate,
-                    CASE 
-                        WHEN UNIFORM(0, 100, RANDOM()) <= 60 THEN 'Quarterly dividend: $' || ROUND({dividend_sql}, 2) || ' per share'
-                        WHEN UNIFORM(0, 100, RANDOM()) <= 85 THEN '2-for-1 stock split'
-                        ELSE 'Acquisition announcement - pending regulatory approval'
-                    END as ActionDetails,
-                    CASE 
-                        WHEN UNIFORM(0, 100, RANDOM()) <= 60 THEN {dividend_sql}
-                        WHEN UNIFORM(0, 100, RANDOM()) <= 85 THEN 2.0
-                        ELSE 0.0
-                    END as ImpactValue,
-                    'Pending' as ProcessingStatus,
-                    UNIFORM(3, 8, RANDOM()) as PortfoliosAffected
-                FROM forward_dates fd
-                CROSS JOIN (SELECT * FROM forward_securities ORDER BY RANDOM() LIMIT 3) fs
-            ),
-            all_actions AS (
-                SELECT * FROM real_dividends
-                UNION ALL
-                SELECT * FROM synthetic_actions
-                UNION ALL
-                SELECT * FROM forward_actions
-            )
-            SELECT 
-                ROW_NUMBER() OVER (ORDER BY AnnouncementDate, SecurityID) as ActionID,
-                SecurityID,
-                IssuerID,
-                ActionType,
-                AnnouncementDate,
-                ExDate,
-                RecordDate,
-                PaymentDate,
-                ActionDetails,
-                ImpactValue,
-                ProcessingStatus,
-                PortfoliosAffected
-            FROM all_actions
-        """).collect()
+            ),"""
+        real_dividends_union = "SELECT * FROM real_dividends UNION ALL"
+        top_n = 50
+        forward_pool = 10
     else:
-        # Fallback to fully synthetic if no real dividend data
         log_warning("  No real dividend data found - using fully synthetic corporate actions")
-        
         action_weights = get_global_value('corporate_actions.action_type_weights', {'Dividend': 0.90, 'Split': 0.07, 'Merger': 0.03})
-        event_freq = get_global_value('corporate_actions.quarterly_event_frequency_days', 90)
-        
-        total_weight = sum(action_weights.values())
-        dividend_threshold = action_weights['Dividend'] / total_weight * 3
-        split_threshold = dividend_threshold + action_weights['Split'] / total_weight * 3
-        
-        session.sql(f"""
-            CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_CORPORATE_ACTIONS AS
-            WITH top_securities AS (
-                SELECT DISTINCT
-                    p.SecurityID,
-                    s.IssuerID,
-                    p.HoldingDate,
-                    ROW_NUMBER() OVER (PARTITION BY p.SecurityID ORDER BY p.HoldingDate) as day_num
+        dividend_weight = action_weights.get('Dividend', 0.9) / sum(action_weights.values())
+        hist_type, hist_detail, hist_impact = _corporate_action_type_sql(hist_draw, hist_draw2, dividend_weight, hist_dividend_sql)
+        fwd_type, fwd_detail, fwd_impact = _corporate_action_type_sql(fwd_draw, fwd_draw2, 0.7, fwd_dividend_sql)
+        real_dividends_cte = ""
+        real_dividends_union = ""
+        top_n = 100
+        forward_pool = 15
+
+    session.sql(f"""
+        CREATE OR REPLACE TABLE {database_name}.CURATED.FACT_CORPORATE_ACTIONS AS
+        WITH {real_dividends_cte}
+        top_securities AS (
+            SELECT
+                SecurityID,
+                IssuerID,
+                HoldingDate,
+                ROW_NUMBER() OVER (PARTITION BY SecurityID ORDER BY HoldingDate) as month_num
+            FROM (
+                SELECT DISTINCT p.SecurityID, s.IssuerID, p.HoldingDate
                 FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR p
                 JOIN {database_name}.CURATED.DIM_SECURITY s ON p.SecurityID = s.SecurityID
                 WHERE p.SecurityID IN (
-                    SELECT TOP 100 SecurityID 
+                    SELECT TOP {top_n} SecurityID
                     FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR
                     GROUP BY SecurityID
                     ORDER BY SUM(MarketValue_Base) DESC
                 )
-            ),
-            action_dates AS (
-                SELECT 
-                    SecurityID,
-                    IssuerID,
-                    HoldingDate as AnnouncementDate,
-                    day_num,
-                    UNIFORM(0, 3, RANDOM()) as action_type_flag
-                FROM top_securities
-                WHERE MOD(day_num, {event_freq}) = 0
-            ),
-            historical_actions AS (
-                SELECT 
-                    SecurityID,
-                    IssuerID,
-                    CASE 
-                        WHEN action_type_flag < {dividend_threshold} THEN 'Dividend'
-                        WHEN action_type_flag < {split_threshold} THEN 'Split'
-                        ELSE 'Merger'
-                    END as ActionType,
-                    AnnouncementDate,
-                    DATEADD(day, {ex_offset}, AnnouncementDate) as ExDate,
-                    DATEADD(day, {record_offset}, AnnouncementDate) as RecordDate,
-                    DATEADD(day, {payment_offset}, AnnouncementDate) as PaymentDate,
-                    CASE 
-                        WHEN action_type_flag < {dividend_threshold} THEN 'Quarterly dividend: $' || ROUND({dividend_sql}, 2) || ' per share'
-                        WHEN action_type_flag < {split_threshold} THEN '2-for-1 stock split'
-                        ELSE 'Acquisition announcement'
-                    END as ActionDetails,
-                    CASE 
-                        WHEN action_type_flag < {dividend_threshold} THEN {dividend_sql}
-                        WHEN action_type_flag < {split_threshold} THEN 2.0
-                        ELSE 0.0
-                    END as ImpactValue,
-                    CASE 
-                        WHEN action_type_flag < {dividend_threshold} THEN 'Processed'
-                        WHEN action_type_flag < {split_threshold} THEN 'Pending'
-                        ELSE 'Announced'
-                    END as ProcessingStatus,
-                    UNIFORM(1, 10, RANDOM()) as PortfoliosAffected
-                FROM action_dates
-            ),
-            forward_dates AS (
+            )
+        ),
+        synthetic_actions AS (
+            SELECT
+                SecurityID,
+                IssuerID,
+                {hist_type} as ActionType,
+                HoldingDate as AnnouncementDate,
+                DATEADD(day, {ex_offset}, HoldingDate) as ExDate,
+                DATEADD(day, {record_offset}, HoldingDate) as RecordDate,
+                DATEADD(day, {payment_offset}, HoldingDate) as PaymentDate,
+                {hist_detail} as ActionDetails,
+                {hist_impact} as ImpactValue,
+                CASE WHEN DATEADD(day, {ex_offset}, HoldingDate) <= '{max_price_date}'::DATE THEN 'Processed' ELSE 'Announced' END as ProcessingStatus,
+                UNIFORM(1, 10, RANDOM()) as PortfoliosAffected,
+                1 as SourcePriority
+            FROM top_securities
+            WHERE MOD(month_num + MOD(ABS(HASH(SecurityID, {seed})), 12), 12) = 0
+        ),
+        forward_dates AS (
+            SELECT future_date, ROW_NUMBER() OVER (ORDER BY future_date) as date_num, COUNT(*) OVER () as date_count
+            FROM (
                 SELECT DATEADD(day, seq4() + 1, '{max_price_date}'::DATE) as future_date
                 FROM TABLE(GENERATOR(rowcount => 10))
-                WHERE DAYOFWEEK(DATEADD(day, seq4() + 1, '{max_price_date}'::DATE)) BETWEEN 2 AND 6
-            ),
-            forward_securities AS (
+            )
+            WHERE DAYOFWEEK(future_date) BETWEEN 1 AND 5
+        ),
+        forward_securities AS (
+            SELECT SecurityID, IssuerID, ROW_NUMBER() OVER (ORDER BY HASH(SecurityID, {seed})) as sec_num
+            FROM (
                 SELECT DISTINCT s.SecurityID, s.IssuerID
                 FROM {database_name}.CURATED.DIM_SECURITY s
                 WHERE EXISTS (
                     SELECT 1 FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR p
                     WHERE p.SecurityID = s.SecurityID
                 )
-                ORDER BY RANDOM()
-                LIMIT 15
-            ),
-            forward_actions AS (
-                SELECT 
-                    fs.SecurityID,
-                    fs.IssuerID,
-                    CASE 
-                        WHEN UNIFORM(0, 100, RANDOM()) <= 70 THEN 'Dividend'
-                        WHEN UNIFORM(0, 100, RANDOM()) <= 90 THEN 'Split'
-                        ELSE 'Merger'
-                    END as ActionType,
-                    DATEADD(day, -5, fd.future_date) as AnnouncementDate,
-                    fd.future_date as ExDate,
-                    DATEADD(day, 1, fd.future_date) as RecordDate,
-                    DATEADD(day, 15, fd.future_date) as PaymentDate,
-                    CASE 
-                        WHEN UNIFORM(0, 100, RANDOM()) <= 70 THEN 'Quarterly dividend: $' || ROUND({dividend_sql}, 2) || ' per share'
-                        WHEN UNIFORM(0, 100, RANDOM()) <= 90 THEN '2-for-1 stock split'
-                        ELSE 'Acquisition announcement - pending regulatory approval'
-                    END as ActionDetails,
-                    CASE 
-                        WHEN UNIFORM(0, 100, RANDOM()) <= 70 THEN {dividend_sql}
-                        WHEN UNIFORM(0, 100, RANDOM()) <= 90 THEN 2.0
-                        ELSE 0.0
-                    END as ImpactValue,
-                    'Pending' as ProcessingStatus,
-                    UNIFORM(3, 8, RANDOM()) as PortfoliosAffected
-                FROM forward_dates fd
-                CROSS JOIN (SELECT * FROM forward_securities ORDER BY RANDOM() LIMIT 3) fs
-            ),
-            all_actions AS (
-                SELECT SecurityID, IssuerID, ActionType, AnnouncementDate, ExDate, RecordDate, PaymentDate, ActionDetails, ImpactValue, ProcessingStatus, PortfoliosAffected
-                FROM historical_actions
-                UNION ALL
-                SELECT SecurityID, IssuerID, ActionType, AnnouncementDate, ExDate, RecordDate, PaymentDate, ActionDetails, ImpactValue, ProcessingStatus, PortfoliosAffected
-                FROM forward_actions
             )
-            SELECT 
-                ROW_NUMBER() OVER (ORDER BY AnnouncementDate, SecurityID) as ActionID,
-                SecurityID,
-                IssuerID,
-                ActionType,
-                AnnouncementDate,
-                ExDate,
-                RecordDate,
-                PaymentDate,
-                ActionDetails,
-                ImpactValue,
-                ProcessingStatus,
-                PortfoliosAffected
+            QUALIFY sec_num <= {forward_pool}
+        ),
+        forward_actions AS (
+            SELECT
+                fs.SecurityID,
+                fs.IssuerID,
+                {fwd_type} as ActionType,
+                DATEADD(day, -5, fd.future_date) as AnnouncementDate,
+                fd.future_date as ExDate,
+                DATEADD(day, 1, fd.future_date) as RecordDate,
+                DATEADD(day, 15, fd.future_date) as PaymentDate,
+                {fwd_detail} as ActionDetails,
+                {fwd_impact} as ImpactValue,
+                'Pending' as ProcessingStatus,
+                UNIFORM(3, 8, RANDOM()) as PortfoliosAffected,
+                2 as SourcePriority
+            FROM forward_securities fs
+            JOIN forward_dates fd ON MOD(fs.sec_num - 1, fd.date_count) + 1 = fd.date_num
+        ),
+        all_actions AS (
+            {real_dividends_union}
+            SELECT * FROM synthetic_actions
+            UNION ALL
+            SELECT * FROM forward_actions
+        ),
+        one_per_window AS (
+            SELECT *
             FROM all_actions
-        """).collect()
+            QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY SecurityID, DATE_TRUNC('month', ExDate)
+                ORDER BY SourcePriority, AnnouncementDate
+            ) = 1
+        )
+        SELECT
+            ROW_NUMBER() OVER (ORDER BY AnnouncementDate, SecurityID) as ActionID,
+            SecurityID,
+            IssuerID,
+            ActionType,
+            AnnouncementDate,
+            ExDate,
+            RecordDate,
+            PaymentDate,
+            ActionDetails,
+            ImpactValue,
+            ProcessingStatus,
+            PortfoliosAffected
+        FROM one_per_window
+    """).collect()
 
 
 def build_fact_corporate_action_impact(session: Session, test_mode: bool = False):
@@ -4201,7 +4485,7 @@ def build_fact_corporate_action_impact(session: Session, test_mode: bool = False
             JOIN {database_name}.CURATED.FACT_POSITION_DAILY_ABOR p
                 ON ca.SecurityID = p.SecurityID
                 AND p.HoldingDate <= ca.RecordDate
-            WHERE ca.ActionType IN ('Dividend', 'Split')
+            WHERE ca.ActionType IN ('Dividend', 'Special Dividend', 'Split')
         )
         SELECT 
             ROW_NUMBER() OVER (ORDER BY ActionID, PortfolioID) as ImpactID,
@@ -4214,7 +4498,7 @@ def build_fact_corporate_action_impact(session: Session, test_mode: bool = False
                 ELSE Quantity
             END as PositionAfter,
             CASE 
-                WHEN ActionType = 'Dividend' THEN Quantity * ImpactValue
+                WHEN ActionType IN ('Dividend', 'Special Dividend') THEN Quantity * ImpactValue
                 ELSE 0
             END as CashImpact,
             PaymentDate as ProcessedDate,
@@ -4992,8 +5276,8 @@ PE_DEAL_PIPELINE = [
         'target_revenue_mm': 73.1,
         'revenue_growth_pct': 25.0,
         'deal_team_lead': 'Marcus Lindberg',
-        'ic_date': '2025-02-15',
-        'expected_close_date': '2025-04-30',
+        'ic_offset_days': 14,
+        'expected_close_offset_days': 88,
         'competing_bidders': 3,
         'strategic_rationale': 'Leading Nordic cybersecurity platform with strong enterprise customer base. Opportunity for European consolidation play with identified add-on targets.',
         'key_risks': 'Customer concentration (top 3 = 35% revenue), key person dependency on CTO, pending regulatory changes in EU cyber directive'
@@ -5012,8 +5296,8 @@ PE_DEAL_PIPELINE = [
         'target_revenue_mm': 33.8,
         'revenue_growth_pct': 35.0,
         'deal_team_lead': 'Anna Karlsson',
-        'ic_date': '2025-02-20',
-        'expected_close_date': '2025-05-15',
+        'ic_offset_days': 19,
+        'expected_close_offset_days': 103,
         'competing_bidders': 2,
         'strategic_rationale': 'AI-powered healthcare analytics platform with GDPR-compliant data infrastructure. Strong growth trajectory with NHS and EU health system contracts.',
         'key_risks': 'Technology platform migration in progress, regulatory approval for AI diagnostics pending, limited US market presence'
@@ -5032,8 +5316,8 @@ PE_DEAL_PIPELINE = [
         'target_revenue_mm': 289.0,
         'revenue_growth_pct': 8.0,
         'deal_team_lead': 'Erik Johansson',
-        'ic_date': '2025-03-10',
-        'expected_close_date': '2025-07-01',
+        'ic_offset_days': 37,
+        'expected_close_offset_days': 150,
         'competing_bidders': 4,
         'strategic_rationale': 'Carve-out from Siemens AG - non-core automation division with strong DACH market position. Significant operational improvement potential.',
         'key_risks': 'TSA complexity with parent, shared IT systems requiring separation, union negotiations pending',
@@ -5053,8 +5337,8 @@ PE_DEAL_PIPELINE = [
         'target_revenue_mm': 90.0,
         'revenue_growth_pct': 15.0,
         'deal_team_lead': 'Sofia Bergstrom',
-        'ic_date': None,
-        'expected_close_date': '2025-09-01',
+        'ic_offset_days': None,
+        'expected_close_offset_days': 212,
         'competing_bidders': 1,
         'strategic_rationale': 'Sustainable packaging leader aligned with EU plastics directive. Platform for European consolidation in fragmented market.',
         'key_risks': 'Raw material price volatility, customer dependency on food & beverage sector, capex requirements for capacity expansion'
@@ -5073,8 +5357,8 @@ PE_DEAL_PIPELINE = [
         'target_revenue_mm': 197.8,
         'revenue_growth_pct': 12.0,
         'deal_team_lead': 'Klaus Schmidt',
-        'ic_date': '2025-01-15',
-        'expected_close_date': '2025-03-15',
+        'ic_offset_days': -17,
+        'expected_close_offset_days': 42,
         'competing_bidders': 0,
         'strategic_rationale': 'Take-private of listed Nordic fiber operator. Delisting premium 25%. Synergy potential with APX Infrastructure portfolio companies.',
         'key_risks': 'Regulatory approval for delisting, minority shareholder acceptance, interest rate sensitivity on levered returns'
@@ -5093,8 +5377,8 @@ PE_DEAL_PIPELINE = [
         'target_revenue_mm': 56.3,
         'revenue_growth_pct': 45.0,
         'deal_team_lead': 'Marcus Lindberg',
-        'ic_date': None,
-        'expected_close_date': '2025-10-01',
+        'ic_offset_days': None,
+        'expected_close_offset_days': 242,
         'competing_bidders': 5,
         'strategic_rationale': 'High-growth B2B payments platform with PSD2 infrastructure. Potential add-on for existing FinTech portfolio.',
         'key_risks': 'High valuation in competitive process, regulatory evolution in payments, customer acquisition cost trends'
@@ -5113,8 +5397,8 @@ PE_DEAL_PIPELINE = [
         'target_revenue_mm': 51.8,
         'revenue_growth_pct': 18.0,
         'deal_team_lead': 'Anna Karlsson',
-        'ic_date': '2025-02-25',
-        'expected_close_date': '2025-04-15',
+        'ic_offset_days': 24,
+        'expected_close_offset_days': 73,
         'competing_bidders': 1,
         'strategic_rationale': 'Add-on to MedDevice Pro - clinical trial services with complementary customer base. €8M synergy potential.',
         'key_risks': 'Integration complexity, key scientist retention, ongoing clinical trial obligations'
@@ -5133,8 +5417,8 @@ PE_DEAL_PIPELINE = [
         'target_revenue_mm': 90.7,
         'revenue_growth_pct': 20.0,
         'deal_team_lead': 'Klaus Schmidt',
-        'ic_date': '2025-03-20',
-        'expected_close_date': '2025-08-01',
+        'ic_offset_days': 47,
+        'expected_close_offset_days': 181,
         'competing_bidders': 6,
         'strategic_rationale': 'Green data center platform powered by Nordic hydro. AI/cloud demand driver. ESG-aligned infrastructure investment.',
         'key_risks': 'Competitive auction dynamics, power contract renewals 2026, construction cost overruns on expansion'
@@ -5153,8 +5437,8 @@ PE_DEAL_PIPELINE = [
         'target_revenue_mm': 61.9,
         'revenue_growth_pct': 12.0,
         'deal_team_lead': 'Sofia Bergstrom',
-        'ic_date': None,
-        'expected_close_date': '2025-11-01',
+        'ic_offset_days': None,
+        'expected_close_offset_days': 273,
         'competing_bidders': 2,
         'strategic_rationale': 'Omnichannel retail platform with strong Nordics presence. Consolidation opportunity in fragmented European market.',
         'key_risks': 'Retail sector cyclicality, customer churn in SME segment, cloud migration costs'
@@ -5173,13 +5457,29 @@ PE_DEAL_PIPELINE = [
         'target_revenue_mm': 154.5,
         'revenue_growth_pct': 10.0,
         'deal_team_lead': 'Erik Johansson',
-        'ic_date': '2024-12-10',
-        'expected_close_date': '2025-02-28',
+        'ic_offset_days': -53,
+        'expected_close_offset_days': 27,
         'competing_bidders': 0,
         'strategic_rationale': 'Water treatment leader with municipal and industrial customer base. Infrastructure investment with regulatory tailwinds.',
         'key_risks': 'Municipal budget cycles, project execution risk, working capital intensity'
     }
 ]
+
+PE_INITIATIVE_ROOT_CAUSES = {
+    ('NordicTech Solutions', 'Cloud Infrastructure Optimization'): {
+        'root_cause': "Migration delays: the move of legacy on-premise workloads to the public cloud has slipped by two quarters because the core billing platform could not be re-platformed on schedule. Cloud cost overrun: dual-running of on-premise and cloud environments, together with reserved instance commitments not yet in place, has left infrastructure cost at 18% of revenue against a 15% target.",
+        'mitigation': "Billing platform cut-over re-sequenced with an external migration partner, FinOps lead appointed to negotiate reserved capacity and decommission legacy data centre contracts by the end of next quarter.",
+    },
+    ('MedDevice Pro', 'FDA 510(k) Clearance'): {
+        'root_cause': "The FDA issued an additional information request on the predicate device comparison and biocompatibility testing, pushing the clearance decision out and deferring all planned US revenue.",
+        'mitigation': "Regulatory consultants engaged to complete supplementary testing; US commercial launch plan re-phased and US sales hiring paused until clearance.",
+    },
+    ('LogiFlow DACH', 'DACH Region Sales Push'): {
+        'root_cause': "Hiring of regional account managers is three months behind plan, two key accounts in Bavaria were lost to an incumbent on price, and pricing pressure from established carriers has slowed new contract wins.",
+        'mitigation': "Interim sales leadership appointed, targeted pricing for mid-market shippers approved, and a recruitment partner engaged to fill open DACH roles.",
+    },
+}
+
 
 # Value creation initiatives for portfolio companies
 PE_VALUE_CREATION_INITIATIVES = {
@@ -5320,30 +5620,42 @@ def build_dim_deal_pipeline(session: Session, test_mode: bool = False):
         COMMENT = 'Active PE deal pipeline for sourcing analysis'
     """).collect()
     
+    anchor = date.fromisoformat(str(get_max_price_date(session, database_name))[:10])
+
+    def _q(value) -> str:
+        if value is None:
+            return 'NULL'
+        return "'" + str(value).replace("'", "''") + "'"
+
+    def _offset_date(days) -> str:
+        return 'NULL' if days is None else _q(anchor + timedelta(days=int(days)))
+
+    rows = []
     for deal in PE_DEAL_PIPELINE:
-        ic_date = f"'{deal['ic_date']}'" if deal.get('ic_date') else 'NULL'
-        expected_close = f"'{deal['expected_close_date']}'" if deal.get('expected_close_date') else 'NULL'
         issuer_id = deal.get('issuer_id')
-        issuer_id_sql = 'NULL' if issuer_id is None else str(issuer_id)
-        strategic_rationale = deal['strategic_rationale'].replace("'", "''")
-        key_risks = deal['key_risks'].replace("'", "''")
-        
+        rows.append(
+            f"({_q(deal['target_company_name'])}, {_q(deal['sector'])}, {_q(deal['sub_sector'])}, "
+            f"{_q(deal['geography'])}, {_q(deal['deal_stage'])}, {_q(deal['deal_type'])}, "
+            f"{deal['enterprise_value_mm']}, {deal['ev_ebitda_multiple']}, {deal['ev_revenue_multiple']}, "
+            f"{deal['target_ebitda_mm']}, {deal['target_revenue_mm']}, {deal['revenue_growth_pct']}, "
+            f"{_q(deal['deal_team_lead'])}, {_offset_date(deal.get('ic_offset_days'))}, "
+            f"{_offset_date(deal.get('expected_close_offset_days'))}, {deal['competing_bidders']}, "
+            f"{_q(deal['strategic_rationale'])}, {_q(deal['key_risks'])}, "
+            f"{'NULL' if issuer_id is None else int(issuer_id)})"
+        )
+
+    if rows:
         session.sql(f"""
             INSERT INTO {database_name}.CURATED.DIM_DEAL_PIPELINE
-            (TargetCompanyName, Sector, SubSector, Geography, DealStage, DealType, 
+            (TargetCompanyName, Sector, SubSector, Geography, DealStage, DealType,
              EnterpriseValue_MM, EV_EBITDA_Multiple, EV_Revenue_Multiple, TargetEBITDA_MM,
              TargetRevenue_MM, RevenueGrowthPct, DealTeamLead, ICDate, ExpectedCloseDate,
              CompetingBidders, StrategicRationale, KeyRisks, IssuerID)
-            VALUES (
-                '{deal['target_company_name']}', '{deal['sector']}', '{deal['sub_sector']}',
-                '{deal['geography']}', '{deal['deal_stage']}', '{deal['deal_type']}',
-                {deal['enterprise_value_mm']}, {deal['ev_ebitda_multiple']}, {deal['ev_revenue_multiple']},
-                {deal['target_ebitda_mm']}, {deal['target_revenue_mm']}, {deal['revenue_growth_pct']},
-                '{deal['deal_team_lead']}', {ic_date}, {expected_close},
-                {deal['competing_bidders']}, '{strategic_rationale}', '{key_risks}', {issuer_id_sql}
-            )
+            SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+                   TRY_TO_DATE($14::VARCHAR), TRY_TO_DATE($15::VARCHAR), $16, $17, $18, $19::INT
+            FROM VALUES {', '.join(rows)}
         """).collect()
-    
+
     count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.DIM_DEAL_PIPELINE").collect()[0]['CNT']
     log_success(f"  DIM_DEAL_PIPELINE: {count} deals in pipeline")
 
@@ -5405,6 +5717,16 @@ def build_fact_value_creation_plan(session: Session, test_mode: bool = False):
     log_success(f"  FACT_VALUE_CREATION_PLAN: {count} initiatives")
 
 
+def _shift_month_start(month_start: date, months: int) -> date:
+    total = month_start.year * 12 + (month_start.month - 1) + months
+    return date(total // 12, total % 12 + 1, 1)
+
+
+def _pe_anchor_month(session: Session, database_name: str) -> date:
+    anchor = date.fromisoformat(str(get_max_price_date(session, database_name))[:10])
+    return anchor.replace(day=1)
+
+
 def build_fact_board_pack_metrics(session: Session, test_mode: bool = False):
     """Build FACT_BOARD_PACK_METRICS - monthly board pack KPIs."""
     database_name = config.DATABASE['name']
@@ -5438,25 +5760,29 @@ def build_fact_board_pack_metrics(session: Session, test_mode: bool = False):
     """).collect()
     
     months_back = 6 if test_mode else 12
-    
+    anchor_month = _pe_anchor_month(session, database_name)
+
+    rows = []
     for company in companies:
         company_id = company['PORTFOLIOCOMPANYID']
         acq_price = float(company['ACQUISITIONPRICE_MM'])
         entry_multiple = float(company['ENTRYEV_EBITDA'])
-        base_ebitda = acq_price / entry_multiple
-        base_revenue = base_ebitda * random.uniform(4, 8)
-        base_margin = (base_ebitda / base_revenue) * 100
+        annual_ebitda = acq_price / entry_multiple
+        annual_revenue = annual_ebitda * random.uniform(4, 8)
+        base_margin = (annual_ebitda / annual_revenue) * 100
         base_debt = acq_price * random.uniform(0.4, 0.6)
-        base_headcount = int(base_revenue * random.uniform(2, 5))
-        base_customers = int(base_revenue * random.uniform(10, 50))
-        
+        base_headcount = int(annual_revenue * random.uniform(2, 5))
+        base_customers = int(annual_revenue * random.uniform(10, 50))
+        monthly_revenue = annual_revenue / 12
+        monthly_capex_budget = annual_revenue * 0.08 / 12
+
         for month_offset in range(months_back):
-            report_date = date.today().replace(day=1) - timedelta(days=30 * month_offset)
-            
+            report_date = _shift_month_start(anchor_month, -month_offset)
+
             growth_factor = 1 + (months_back - month_offset) * random.uniform(0.005, 0.015)
             variance = random.uniform(-0.08, 0.05)
-            
-            revenue = base_revenue * growth_factor * (1 + random.uniform(-0.03, 0.05))
+
+            revenue = monthly_revenue * growth_factor * (1 + random.uniform(-0.03, 0.05))
             ebitda = revenue * (base_margin / 100) * (1 + random.uniform(-0.05, 0.08))
             margin = (ebitda / revenue) * 100
             net_debt = base_debt * (1 - month_offset * 0.02)
@@ -5465,21 +5791,24 @@ def build_fact_board_pack_metrics(session: Session, test_mode: bool = False):
             customers = int(base_customers * growth_factor)
             nrr = random.uniform(95, 115)
             cash = random.uniform(15, 50)
-            capex_budget = base_revenue * 0.08
-            capex_actual = capex_budget * (1 + random.uniform(-0.1, 0.15))
-            
-            session.sql(f"""
-                INSERT INTO {database_name}.CURATED.FACT_BOARD_PACK_METRICS
-                (PortfolioCompanyID, ReportMonth, Revenue_MM, EBITDA_MM, EBITDAMarginPct,
-                 NetDebt_MM, LeverageRatio, Headcount, CustomerCount, NRR_PCT,
-                 BudgetVariancePct, CashPosition_MM, CapexActual_MM, CapexBudget_MM)
-                VALUES (
-                    {company_id}, '{report_date}', {revenue:.2f}, {ebitda:.2f}, {margin:.1f},
-                    {net_debt:.2f}, {leverage:.2f}, {headcount}, {customers}, {nrr:.1f},
-                    {variance * 100:.1f}, {cash:.2f}, {capex_actual:.2f}, {capex_budget:.2f}
-                )
-            """).collect()
-    
+            capex_actual = monthly_capex_budget * (1 + random.uniform(-0.1, 0.15))
+
+            rows.append(
+                f"({company_id}, '{report_date}', {revenue:.2f}, {ebitda:.2f}, {margin:.1f}, "
+                f"{net_debt:.2f}, {leverage:.2f}, {headcount}, {customers}, {nrr:.1f}, "
+                f"{variance * 100:.1f}, {cash:.2f}, {capex_actual:.2f}, {monthly_capex_budget:.2f})"
+            )
+
+    if rows:
+        session.sql(f"""
+            INSERT INTO {database_name}.CURATED.FACT_BOARD_PACK_METRICS
+            (PortfolioCompanyID, ReportMonth, Revenue_MM, EBITDA_MM, EBITDAMarginPct,
+             NetDebt_MM, LeverageRatio, Headcount, CustomerCount, NRR_PCT,
+             BudgetVariancePct, CashPosition_MM, CapexActual_MM, CapexBudget_MM)
+            SELECT $1, $2::DATE, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+            FROM VALUES {', '.join(rows)}
+        """).collect()
+
     count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.FACT_BOARD_PACK_METRICS").collect()[0]['CNT']
     log_success(f"  FACT_BOARD_PACK_METRICS: {count} monthly records")
 
@@ -5514,33 +5843,64 @@ def build_fact_portfolio_company_kpi(session: Session, test_mode: bool = False):
     ]
     
     companies = session.sql(f"""
-        SELECT PortfolioCompanyID FROM {database_name}.CURATED.DIM_PORTFOLIO_COMPANY WHERE Status = 'Active'
+        SELECT PortfolioCompanyID, CompanyName FROM {database_name}.CURATED.DIM_PORTFOLIO_COMPANY WHERE Status = 'Active'
     """).collect()
-    
+
+    trend_overrides = {
+        ('NordicTech Solutions', 'Employee NPS'): (52.0, 28.0),
+        ('LogiFlow DACH', 'Employee Turnover'): (10.5, 19.5),
+    }
+    quarters = 4 if test_mode else 10
+    from utils.snowflake import get_max_price_date
+    anchor = date.fromisoformat(str(get_max_price_date(session, database_name))[:10])
+    latest_quarter = date(anchor.year, 3 * ((anchor.month - 1) // 3) + 1, 1)
+    kpi_dates = []
+    for back in range(quarters - 1, -1, -1):
+        months = latest_quarter.year * 12 + latest_quarter.month - 1 - 3 * back
+        kpi_dates.append(date(months // 12, months % 12 + 1, 1))
+
+    rows = []
     for company in companies:
         company_id = company['PORTFOLIOCOMPANYID']
-        kpi_date = date.today().replace(day=1)
-        
+        company_name = company['COMPANYNAME']
+
         for kpi in kpi_templates:
-            actual = kpi['base'] + random.uniform(-kpi['variance'], kpi['variance'])
             budget = kpi['base'] * 1.05
-            prior_year = kpi['base'] * random.uniform(0.9, 1.0)
-            
-            if kpi['name'] in ['Employee Turnover', 'Carbon Intensity']:
-                status = 'Green' if actual < budget else ('Amber' if actual < budget * 1.1 else 'Red')
+            override = trend_overrides.get((company_name, kpi['name']))
+            if override:
+                start_value, end_value = override
+                noise = kpi['variance'] * 0.08
             else:
-                status = 'Green' if actual >= budget else ('Amber' if actual >= budget * 0.9 else 'Red')
-            
-            session.sql(f"""
-                INSERT INTO {database_name}.CURATED.FACT_PORTFOLIO_COMPANY_KPI
-                (PortfolioCompanyID, KPIDate, KPIName, KPICategory, ActualValue, BudgetValue, 
-                 PriorYearValue, Unit, Status)
-                VALUES (
-                    {company_id}, '{kpi_date}', '{kpi['name']}', '{kpi['category']}',
-                    {actual:.2f}, {budget:.2f}, {prior_year:.2f}, '{kpi['unit']}', '{status}'
-                )
-            """).collect()
-    
+                start_value = kpi['base'] + random.uniform(-kpi['variance'], kpi['variance'])
+                end_value = start_value + random.uniform(-kpi['variance'], kpi['variance']) * 0.5
+                noise = kpi['variance'] * 0.15
+            step = (end_value - start_value) / max(quarters - 1, 1)
+            series = [
+                start_value + step * i + random.uniform(-noise, noise)
+                for i in range(quarters)
+            ]
+            series[-1] = end_value if override else series[-1]
+
+            for i, kpi_date in enumerate(kpi_dates):
+                actual = series[i]
+                prior_year = series[i - 4] if i >= 4 else start_value - step * (4 - i)
+                if kpi['name'] in ['Employee Turnover', 'Carbon Intensity']:
+                    status = 'Green' if actual < budget else ('Amber' if actual < budget * 1.1 else 'Red')
+                else:
+                    status = 'Green' if actual >= budget else ('Amber' if actual >= budget * 0.9 else 'Red')
+                rows.append({
+                    'PORTFOLIOCOMPANYID': company_id, 'KPIDATE': kpi_date,
+                    'KPINAME': kpi['name'], 'KPICATEGORY': kpi['category'],
+                    'ACTUALVALUE': round(actual, 2), 'BUDGETVALUE': round(budget, 2),
+                    'PRIORYEARVALUE': round(prior_year, 2), 'UNIT': kpi['unit'],
+                    'STATUS': status,
+                })
+
+    if rows:
+        session.create_dataframe(rows).write.mode("append").save_as_table(
+            f"{database_name}.CURATED.FACT_PORTFOLIO_COMPANY_KPI", column_order="name"
+        )
+
     count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.FACT_PORTFOLIO_COMPANY_KPI").collect()[0]['CNT']
     log_success(f"  FACT_PORTFOLIO_COMPANY_KPI: {count} KPI records")
 
@@ -5570,54 +5930,213 @@ def build_pe_board_packs_corpus(session: Session, test_mode: bool = False):
         FROM {database_name}.CURATED.DIM_PORTFOLIO_COMPANY
         WHERE Status = 'Active'
     """).collect()
-    
+
+    initiatives_by_company: Dict[int, List[Any]] = {}
+    for row in session.sql(f"""
+        SELECT PortfolioCompanyID, InitiativeName, InitiativeCategory, TargetMetric,
+               BaselineValue, TargetValue, CurrentValue, Status, ImpactEBITDA_MM
+        FROM {database_name}.CURATED.FACT_VALUE_CREATION_PLAN
+        ORDER BY PortfolioCompanyID, PlanID
+    """).collect():
+        initiatives_by_company.setdefault(row['PORTFOLIOCOMPANYID'], []).append(row)
+
+    metrics_by_key: Dict[tuple, Any] = {}
+    for row in session.sql(f"""
+        SELECT PortfolioCompanyID, ReportMonth, Revenue_MM, EBITDA_MM, EBITDAMarginPct,
+               NetDebt_MM, LeverageRatio, Headcount, CustomerCount, NRR_PCT,
+               BudgetVariancePct, CashPosition_MM, CapexActual_MM, CapexBudget_MM
+        FROM {database_name}.CURATED.FACT_BOARD_PACK_METRICS
+    """).collect():
+        metrics_by_key[(row['PORTFOLIOCOMPANYID'], row['REPORTMONTH'])] = row
+
+    people_kpis: Dict[tuple, List[Any]] = {}
+    for row in session.sql(f"""
+        SELECT PortfolioCompanyID, KPIName, KPIDate, ActualValue, BudgetValue,
+               PriorYearValue, Status
+        FROM {database_name}.CURATED.FACT_PORTFOLIO_COMPANY_KPI
+        WHERE KPIName IN ('Employee NPS', 'Employee Turnover')
+        ORDER BY KPIDate DESC
+    """).collect():
+        people_kpis.setdefault((row['PORTFOLIOCOMPANYID'], row['KPINAME']), []).append(row)
+
+    def _kpi_as_of(company_id: int, kpi_name: str, as_of: date):
+        history = people_kpis.get((company_id, kpi_name), [])
+        for row in history:
+            if row['KPIDATE'] <= as_of:
+                return row
+        return history[-1] if history else None
+
+    def _fmt(value, decimals: int = 1) -> str:
+        return 'n/a' if value is None else f"{float(value):,.{decimals}f}"
+
     months_back = 3 if test_mode else 6
-    
+    anchor_month = _pe_anchor_month(session, database_name)
+    rows = []
+
     for company in companies:
         company_id = company['PORTFOLIOCOMPANYID']
         company_name = company['COMPANYNAME']
         sector = company['SECTOR']
         fund = company['FUNDNAME']
         lead = company['DEALTEAMLEAD']
-        
+        initiatives = initiatives_by_company.get(company_id, [])
+
         for month_offset in range(months_back):
-            report_date = date.today().replace(day=1) - timedelta(days=30 * month_offset)
+            report_date = _shift_month_start(anchor_month, -month_offset)
             month_name = report_date.strftime('%B %Y')
             doc_id = f"BP_{company_id}_{report_date.strftime('%Y%m')}"
-            
+            metrics = metrics_by_key.get((company_id, report_date))
+            prior = metrics_by_key.get((company_id, _shift_month_start(report_date, -1)))
+
+            if metrics:
+                revenue = float(metrics['REVENUE_MM'])
+                ebitda = float(metrics['EBITDA_MM'])
+                variance = float(metrics['BUDGETVARIANCEPCT'] or 0)
+                capex_actual = float(metrics['CAPEXACTUAL_MM'] or 0)
+                capex_budget = float(metrics['CAPEXBUDGET_MM'] or 0)
+                variance_text = 'ahead of' if variance >= 0 else 'behind'
+                financial_section = f"""| Metric | {month_name} |
+|--------|-------|
+| Revenue (month) | EUR {revenue:,.1f}M |
+| Revenue (annualised run-rate) | EUR {revenue * 12:,.1f}M |
+| EBITDA (month) | EUR {ebitda:,.1f}M |
+| EBITDA margin | {_fmt(metrics['EBITDAMARGINPCT'])}% |
+| Net debt | EUR {_fmt(metrics['NETDEBT_MM'])}M |
+| Leverage (net debt / annualised EBITDA) | {_fmt(metrics['LEVERAGERATIO'], 2)}x |
+| Cash position | EUR {_fmt(metrics['CASHPOSITION_MM'])}M |
+| Capex actual vs budget | EUR {capex_actual:,.2f}M vs EUR {capex_budget:,.2f}M |
+| Net revenue retention | {_fmt(metrics['NRR_PCT'])}% |
+| Customers | {int(metrics['CUSTOMERCOUNT']):,} |
+
+**Revenue**: EUR {revenue:,.1f}M for the month, {abs(variance):.1f}% {variance_text} budget.
+
+**EBITDA**: EUR {ebitda:,.1f}M at a {_fmt(metrics['EBITDAMARGINPCT'])}% margin.
+
+**Balance sheet**: Net debt of EUR {_fmt(metrics['NETDEBT_MM'])}M, giving leverage of {_fmt(metrics['LEVERAGERATIO'], 2)}x on an annualised EBITDA basis. Capex of EUR {capex_actual:,.2f}M against a monthly budget of EUR {capex_budget:,.2f}M."""
+            else:
+                variance = 0.0
+                financial_section = "Financial metrics for this period have not yet been finalised by the company finance team."
+
+            if initiatives:
+                initiative_lines = [
+                    "| Initiative | Category | Metric | Baseline | Current | Target | Status | EBITDA impact (EUR M) |",
+                    "|------------|----------|--------|----------|---------|--------|--------|------------------------|",
+                ]
+                for init in initiatives:
+                    initiative_lines.append(
+                        f"| {init['INITIATIVENAME']} | {init['INITIATIVECATEGORY']} | {init['TARGETMETRIC']} | "
+                        f"{_fmt(init['BASELINEVALUE'])} | {_fmt(init['CURRENTVALUE'])} | {_fmt(init['TARGETVALUE'])} | "
+                        f"{init['STATUS']} | {_fmt(init['IMPACTEBITDA_MM'])} |"
+                    )
+                flagged = [i for i in initiatives if i['STATUS'] in ('At Risk', 'Behind')]
+                on_track = len(initiatives) - len(flagged)
+                initiative_table = "\n".join(initiative_lines)
+                if flagged:
+                    cause_blocks = []
+                    for init in flagged:
+                        cause = PE_INITIATIVE_ROOT_CAUSES.get(
+                            (company_name, init['INITIATIVENAME']),
+                            {
+                                'root_cause': f"Progress on {init['TARGETMETRIC']} has stalled at {_fmt(init['CURRENTVALUE'])} against a target of {_fmt(init['TARGETVALUE'])}, reflecting slower than planned execution.",
+                                'mitigation': "Management to present a revised delivery plan with milestones at the next board meeting.",
+                            },
+                        )
+                        cause_blocks.append(
+                            f"**{init['INITIATIVENAME']} ({init['STATUS']})**\n"
+                            f"- Root cause: {cause['root_cause']}\n"
+                            f"- Mitigation: {cause['mitigation']}\n"
+                            f"- EBITDA at risk: EUR {_fmt(init['IMPACTEBITDA_MM'])}M of planned uplift"
+                        )
+                    risk_section = "\n\n".join(cause_blocks)
+                else:
+                    risk_section = "No initiatives are currently flagged At Risk or Behind."
+                flagged_verb = 'is' if len(flagged) == 1 else 'are'
+                initiative_summary = f"{on_track} of {len(initiatives)} value creation initiatives are on track and {len(flagged)} {flagged_verb} flagged At Risk or Behind."
+            else:
+                initiative_table = "No value creation initiatives are recorded for this company."
+                risk_section = "No initiatives are currently flagged At Risk or Behind."
+                initiative_summary = "No value creation initiatives are recorded for this company."
+
+            nps = _kpi_as_of(company_id, 'Employee NPS', report_date)
+            turnover = _kpi_as_of(company_id, 'Employee Turnover', report_date)
+            headcount = int(metrics['HEADCOUNT']) if metrics else None
+            prior_headcount = int(prior['HEADCOUNT']) if prior else None
+            if headcount is not None and prior_headcount is not None:
+                headcount_text = f"Headcount is {headcount:,}, a change of {headcount - prior_headcount:+,} on the prior month."
+            elif headcount is not None:
+                headcount_text = f"Headcount is {headcount:,}."
+            else:
+                headcount_text = "Headcount data for the period is pending."
+
+            if turnover:
+                turnover_actual = float(turnover['ACTUALVALUE'])
+                turnover_budget = float(turnover['BUDGETVALUE'])
+                if turnover_actual > turnover_budget:
+                    turnover_text = (
+                        f"Annualised employee turnover is {turnover_actual:.1f}% against a budget of {turnover_budget:.1f}% "
+                        f"(status {turnover['STATUS']}). Attrition is concentrated in engineering and commercial roles; "
+                        f"management is rolling out a retention programme covering targeted salary adjustments, a "
+                        f"management equity plan top-up for critical staff and improved career pathways."
+                    )
+                else:
+                    turnover_text = (
+                        f"Annualised employee turnover is {turnover_actual:.1f}% against a budget of {turnover_budget:.1f}% "
+                        f"(status {turnover['STATUS']}). Retention of key staff remains stable and no critical departures "
+                        f"were recorded in the period."
+                    )
+            else:
+                turnover_text = "Employee turnover data for the period is pending."
+
+            if nps:
+                nps_actual = float(nps['ACTUALVALUE'])
+                nps_budget = float(nps['BUDGETVALUE'])
+                nps_prior = float(nps['PRIORYEARVALUE']) if nps['PRIORYEARVALUE'] is not None else None
+                trend = '' if nps_prior is None else f", compared with {nps_prior:.1f} a year ago"
+                if nps_actual >= nps_budget:
+                    nps_text = (
+                        f"Employee NPS is {nps_actual:.1f} against a target of {nps_budget:.1f}{trend}. Engagement survey "
+                        f"feedback is positive on leadership communication and the ownership transition."
+                    )
+                else:
+                    nps_text = (
+                        f"Employee NPS is {nps_actual:.1f} against a target of {nps_budget:.1f}{trend}. Survey feedback "
+                        f"points to workload pressure from the transformation programme and uncertainty over reorganisation; "
+                        f"the CHRO will present an engagement action plan to the board."
+                    )
+            else:
+                nps_text = "Employee NPS data for the period is pending."
+
             board_pack_text = f"""
 # {company_name} - Monthly Board Pack
 ## {month_name}
 
 ### Executive Summary
-This report provides the monthly performance update for {company_name}, a {sector} portfolio company held by {fund}. Overall performance continues to track against the value creation plan with key initiatives progressing as expected.
+This report provides the monthly performance update for {company_name}, a {sector} portfolio company held by {fund}. {initiative_summary}
 
 ### Financial Performance
-**Revenue**: Performance in line with budget (+/- 3% variance). The commercial team continues to execute on the sales pipeline with particular strength in enterprise accounts.
-
-**EBITDA**: Margin expansion initiatives are showing early results. Operating leverage is improving as the business scales.
-
-**Cash Position**: Healthy liquidity position maintained. Working capital management remains a focus area.
+{financial_section}
 
 ### Value Creation Initiatives Update
-The 100-day plan initiatives are progressing with the following status:
-- Revenue growth initiatives: On track with new customer wins in target segments
-- Cost optimization: Early wins from procurement consolidation
-- Digital transformation: Technology platform upgrade proceeding to plan
+{initiative_table}
 
-### Key Risks and Mitigations
-1. **Market Risk**: Monitoring competitive dynamics closely. Differentiation strategy remains intact.
-2. **Execution Risk**: Key hires completed. Team capacity now adequate for growth plans.
-3. **Regulatory Risk**: No material changes to regulatory landscape.
+### Initiatives Requiring Board Attention
+{risk_section}
+
+### People, HR and Retention
+{headcount_text}
+
+{turnover_text}
+
+**Employee engagement**: {nps_text}
 
 ### Management Actions Required
+- Review progress on initiatives flagged At Risk or Behind and approve mitigation plans
 - Approve FY budget revision incorporating updated growth assumptions
 - Review proposed acquisition target for add-on opportunity
-- Confirm attendance at upcoming investor conference
 
 ### Next Steps
 - Complete Q{(report_date.month - 1) // 3 + 1} business review with management team
-- Finalize commercial due diligence on add-on target
+- Finalise commercial due diligence on add-on target
 - Prepare materials for LP advisory committee meeting
 
 ---
@@ -5625,21 +6144,24 @@ Prepared by: {lead}
 Fund: {fund}
 Report Date: {report_date.strftime('%d %B %Y')}
 """
-            
-            token_count = len(board_pack_text.split()) * 1.3
-            escaped_text = board_pack_text.replace("'", "''")
-            
-            session.sql(f"""
-                INSERT INTO {database_name}.CURATED.PE_BOARD_PACKS_CORPUS
-                (DOCUMENT_ID, PortfolioCompanyID, CompanyName, DOCUMENT_TITLE, DOCUMENT_TYPE, 
-                 DOCUMENT_TEXT, ReportPeriod, TOKEN_COUNT, PUBLISH_DATE)
-                VALUES (
-                    '{doc_id}', {company_id}, '{company_name}',
-                    '{company_name} Board Pack - {month_name}', 'Monthly Board Pack',
-                    '{escaped_text}', '{report_date}', {int(token_count)}, '{report_date}'
-                )
-            """).collect()
-    
+
+            rows.append({
+                'DOCUMENT_ID': doc_id,
+                'PORTFOLIOCOMPANYID': company_id,
+                'COMPANYNAME': company_name,
+                'DOCUMENT_TITLE': f"{company_name} Board Pack - {month_name}",
+                'DOCUMENT_TYPE': 'Monthly Board Pack',
+                'DOCUMENT_TEXT': board_pack_text,
+                'REPORTPERIOD': report_date,
+                'TOKEN_COUNT': int(len(board_pack_text.split()) * 1.3),
+                'PUBLISH_DATE': report_date,
+            })
+
+    if rows:
+        session.create_dataframe(rows).write.mode("append").save_as_table(
+            f"{database_name}.CURATED.PE_BOARD_PACKS_CORPUS", column_order="name"
+        )
+
     count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.PE_BOARD_PACKS_CORPUS").collect()[0]['CNT']
     log_success(f"  PE_BOARD_PACKS_CORPUS: {count} board packs")
 
@@ -5852,6 +6374,96 @@ Management Confidential
     log_success(f"  PE_DUE_DILIGENCE_CORPUS: {count} DD documents")
 
 
+CARVE_OUT_EXPERT_ROLES = [
+    'Former Group CFO of Parent',
+    'Separation and TSA Advisor',
+    'Former Head of Operations',
+]
+
+
+def _carve_out_expert_call_text(expert_role: str, target: str, sub_sector: str, geography: str,
+                                call_date: date, target_revenue: float) -> str:
+    uplift_low = target_revenue * 0.015
+    uplift_high = target_revenue * 0.03
+    one_off_low = target_revenue * 0.04
+    one_off_high = target_revenue * 0.06
+    header = f"""
+# Expert Network Call Transcript
+## {target} - {expert_role} Interview
+
+**Call Date**: {call_date.strftime('%d %B %Y')}
+**Transaction Context**: Carve-out of a non-core {sub_sector} division from its industrial parent group
+"""
+    footer = """
+---
+Call facilitated by Expert Network Provider
+"""
+    if expert_role == 'Former Group CFO of Parent':
+        body = f"""**Expert**: Former Group CFO of the parent, responsible for divisional reporting covering {target}
+**Duration**: 50 minutes
+
+### Key Discussion Points
+
+**On Stranded Costs**
+Expert: "The divisional P&L you see in the information memorandum carries allocated group charges, not the true cost of running {target} on its own. When the division leaves, the parent keeps a layer of central cost - group finance, treasury, tax, IT infrastructure, procurement - that was partly recovered from this division. Those become stranded costs for the parent, and the parent will push hard in the TSA pricing to recover them."
+
+**On Standalone Cost Uplift**
+Expert: "On a standalone basis you have to rebuild a head office: a CFO and finance team, treasury and cash management, tax, legal, internal audit, insurance, and a board. My estimate is a recurring standalone cost uplift of 1.5% to 3% of revenue. On revenue of around EUR {target_revenue:,.0f}M that is EUR {uplift_low:,.1f}M to EUR {uplift_high:,.1f}M a year, and it should come straight off the carve-out EBITDA before you apply a multiple."
+
+**On One-Off Separation Costs**
+Expert: "Separately, there is a one-off separation cost - ERP cloning and data migration, new legal entities, rebranding, recruitment and advisory fees. For a division of this size I would budget EUR {one_off_low:,.0f}M to EUR {one_off_high:,.0f}M, spent mostly in the first 18 months. Buyers routinely underestimate this because the vendor's figure only covers day-one readiness, not full exit from the TSAs."
+
+**On Quality of Earnings**
+Expert: "Watch the intercompany pricing. Some products were sold to sister divisions at transfer prices, and some shared purchasing discounts will not survive separation. I would ask for a pro forma P&L restated at arm's length prices."
+
+### Expert Assessment
+The business is sound, but carve-out EBITDA should be adjusted down for standalone costs and lost group purchasing benefits before valuation.
+"""
+    elif expert_role == 'Separation and TSA Advisor':
+        body = f"""**Expert**: Partner at a separation advisory firm with experience on several {geography} industrial carve-outs
+**Duration**: 45 minutes
+
+### Key Discussion Points
+
+**On TSA Scope**
+Expert: "For a division like {target} I would expect transitional service agreements covering IT and ERP, HR and payroll, treasury and cash pooling, and in this case shared manufacturing plants where the division operates lines inside parent-owned sites. The shared plants are the hardest to unwind because they involve site services, utilities, health and safety and, ultimately, real estate."
+
+**On TSA Terms and Pricing**
+Expert: "Typical terms are 12 to 24 months, with extension options at a price step-up. Pricing is usually cost-plus with a mark-up of 5% to 10%. The parent will try to load stranded costs into the cost base, so you need a clear cost allocation methodology and audit rights."
+
+**On Exit Risk**
+Expert: "The real risk is not entering the TSAs, it is exiting them. If the standalone IT platform is not ready when the TSA expires you either pay for an extension at a premium or run critical processes without support. I would want a detailed TSA exit plan with milestones, owners and budget agreed before signing."
+
+**On ERP Cloning**
+Expert: "The parent runs a single global ERP instance. The standard approach is to clone the instance, strip out other divisions' data, and stand it up for {target}. Cloning takes 9 to 15 months, and you are restricted from making process changes until cut-over, which delays any operational improvement programme. Data segregation and licence transfer also need to be agreed with the software vendor."
+
+### Expert Assessment
+Separation is achievable but the TSA exit plan, especially ERP cloning and shared plant arrangements, is the critical path and should be priced into the deal.
+"""
+    else:
+        body = f"""**Expert**: Former Head of Operations for the division now known as {target}
+**Duration**: 40 minutes
+
+### Key Discussion Points
+
+**On Shared IP**
+Expert: "A lot of the control software and some patents sit in the parent's central research entity, not in the division. You will need a licence or an assignment, and the parent will want to keep rights to use the same technology in its other businesses. Make sure the licence is perpetual, royalty-free and covers future improvements."
+
+**On Shared Supply Contracts**
+Expert: "Most of the component purchasing runs through group frame agreements with electronics and drives suppliers. Those contracts do not transfer automatically, and the division will lose volume discounts once it is outside the group. I would expect component costs to rise unless you renegotiate early."
+
+**On Change-of-Control Consents**
+Expert: "Several of the large automotive and machine-builder customer contracts have change-of-control clauses or are signed by the parent entity. You need customer consents or novations, and some customers will use the moment to reopen pricing. Getting the top customers consented before closing should be a condition."
+
+**On the German Works Council**
+Expert: "In Germany the works council must be informed and consulted on the transfer, and employees have rights under the business transfer rules. Any restructuring of the plants, shift patterns or pensions will need agreement with the works council and the union. Build that timeline into your value creation plan - nothing on headcount moves quickly."
+
+### Expert Assessment
+Operationally strong business, but shared IP, supply contract re-papering, customer consents and works council consultation must be resolved to protect day-one continuity.
+"""
+    return header + body + footer
+
+
 def build_pe_expert_network_corpus(session: Session, test_mode: bool = False):
     """Build PE_EXPERT_NETWORK_CORPUS - expert call transcripts."""
     database_name = config.DATABASE['name']
@@ -5881,12 +6493,13 @@ def build_pe_expert_network_corpus(session: Session, test_mode: bool = False):
     ]
     
     deals = session.sql(f"""
-        SELECT DealID, TargetCompanyName, Sector, SubSector, Geography
+        SELECT DealID, TargetCompanyName, Sector, SubSector, Geography, DealType, TargetRevenue_MM
         FROM {database_name}.CURATED.DIM_DEAL_PIPELINE
         WHERE DealStage IN ('Due Diligence', 'Indicative Offer')
     """).collect()
     
     calls_per_deal = 2 if test_mode else 3
+    rows = []
     
     for deal in deals:
         deal_id = deal['DEALID']
@@ -5894,13 +6507,21 @@ def build_pe_expert_network_corpus(session: Session, test_mode: bool = False):
         sector = deal['SECTOR']
         sub_sector = deal['SUBSECTOR']
         geography = deal['GEOGRAPHY']
+        deal_type = deal['DEALTYPE']
+        target_revenue = float(deal['TARGETREVENUE_MM'] or 0)
+        is_carve_out = deal_type == 'Carve-out'
+        roles = CARVE_OUT_EXPERT_ROLES if is_carve_out else expert_roles
         
         for call_num in range(calls_per_deal):
-            expert_role = expert_roles[call_num % len(expert_roles)]
+            expert_role = roles[call_num % len(roles)]
             doc_id = f"EXP_{deal_id}_{call_num + 1}"
             call_date = date.today() - timedelta(days=random.randint(5, 30))
             
-            if 'CEO' in expert_role:
+            if is_carve_out:
+                expert_text = _carve_out_expert_call_text(
+                    expert_role, target, sub_sector, geography, call_date, target_revenue
+                )
+            elif 'CEO' in expert_role:
                 expert_text = f"""
 # Expert Network Call Transcript
 ## {target} - {expert_role} Interview
@@ -6001,19 +6622,35 @@ Solid business with identifiable value creation levers. Typical risks for the se
 Call facilitated by Expert Network Provider
 """
             
-            token_count = len(expert_text.split()) * 1.3
-            escaped_text = expert_text.replace("'", "''")
-            
-            session.sql(f"""
-                INSERT INTO {database_name}.CURATED.PE_EXPERT_NETWORK_CORPUS
-                (DOCUMENT_ID, DealID, PortfolioCompanyID, TargetCompanyName, DOCUMENT_TITLE,
-                 ExpertRole, DOCUMENT_TEXT, TOKEN_COUNT, CallDate)
-                VALUES (
-                    '{doc_id}', {deal_id}, NULL, '{target}',
-                    '{target} - {expert_role} Call',
-                    '{expert_role}', '{escaped_text}', {int(token_count)}, '{call_date}'
-                )
-            """).collect()
+            rows.append({
+                'DOCUMENT_ID': doc_id,
+                'DEALID': deal_id,
+                'PORTFOLIOCOMPANYID': None,
+                'TARGETCOMPANYNAME': target,
+                'DOCUMENT_TITLE': f"{target} - {expert_role} Call",
+                'EXPERTROLE': expert_role,
+                'DOCUMENT_TEXT': expert_text,
+                'TOKEN_COUNT': int(len(expert_text.split()) * 1.3),
+                'CALLDATE': call_date,
+            })
+
+    if rows:
+        expert_schema = T.StructType([
+            T.StructField('DOCUMENT_ID', T.StringType()),
+            T.StructField('DEALID', T.LongType()),
+            T.StructField('PORTFOLIOCOMPANYID', T.LongType()),
+            T.StructField('TARGETCOMPANYNAME', T.StringType()),
+            T.StructField('DOCUMENT_TITLE', T.StringType()),
+            T.StructField('EXPERTROLE', T.StringType()),
+            T.StructField('DOCUMENT_TEXT', T.StringType()),
+            T.StructField('TOKEN_COUNT', T.LongType()),
+            T.StructField('CALLDATE', T.DateType()),
+        ])
+        session.create_dataframe(
+            [[r[f.name] for f in expert_schema.fields] for r in rows], schema=expert_schema
+        ).write.mode("append").save_as_table(
+            f"{database_name}.CURATED.PE_EXPERT_NETWORK_CORPUS", column_order="name"
+        )
     
     count = session.sql(f"SELECT COUNT(*) as cnt FROM {database_name}.CURATED.PE_EXPERT_NETWORK_CORPUS").collect()[0]['CNT']
     log_success(f"  PE_EXPERT_NETWORK_CORPUS: {count} expert call transcripts")
@@ -6299,6 +6936,41 @@ def build_fact_credit_borrower_financials(session: Session, test_mode: bool = Fa
     """).collect()
 
     quarters_back = 4 if test_mode else 12
+    # Anchor to the demo's own clock (MAX price date) rather than the wall clock,
+    # so borrower financials stay on the same timeline as prices and positions.
+    from utils.snowflake import get_max_price_date
+    anchor = date.fromisoformat(str(get_max_price_date(session, database_name))[:10])
+    covenant_leverage = {
+        (r['BORROWERID'], str(r['TESTDATE'])[:7]): float(r['ACTUALVALUE'])
+        for r in session.sql(f"""
+            SELECT BORROWERID, TESTDATE, ACTUALVALUE
+            FROM {database_name}.CURATED.FACT_CREDIT_COVENANT_TRACKING
+            WHERE COVENANTTYPE = 'Max Total Leverage' AND ACTUALVALUE IS NOT NULL
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY BORROWERID, TESTDATE ORDER BY FACILITYID) = 1
+        """).collect()
+    }
+    covenant_coverage = {
+        (r['BORROWERID'], str(r['TESTDATE'])[:7]): float(r['ACTUALVALUE'])
+        for r in session.sql(f"""
+            SELECT BORROWERID, TESTDATE, ACTUALVALUE
+            FROM {database_name}.CURATED.FACT_CREDIT_COVENANT_TRACKING
+            WHERE COVENANTTYPE = 'Min Interest Coverage' AND ACTUALVALUE IS NOT NULL
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY BORROWERID, TESTDATE ORDER BY FACILITYID) = 1
+        """).collect()
+    }
+
+    def _align_coverage(b_id, report_date, icr, fccr):
+        tested = covenant_coverage.get((b_id, str(report_date)[:7]))
+        if tested is None or icr <= 0:
+            return icr, fccr
+        return round(tested, 2), round(fccr * tested / icr, 2)
+
+    def _align_to_covenant(b_id, report_date, total_lev, net_debt, annual_ebitda):
+        tested = covenant_leverage.get((b_id, str(report_date)[:7]))
+        if tested is None or annual_ebitda <= 0:
+            return total_lev, net_debt
+        return round(tested, 2), round(tested * annual_ebitda, 2)
+
     rows = []
     for borrower in borrowers:
         b_id = borrower['BORROWERID']
@@ -6308,7 +6980,7 @@ def build_fact_credit_borrower_financials(session: Session, test_mode: bool = Fa
         narrative = BORROWER_NARRATIVES.get(b_name)
 
         for q in range(quarters_back):
-            report_date = date.today().replace(day=1) - timedelta(days=90 * q)
+            report_date = anchor.replace(day=1) - timedelta(days=90 * q)
             report_date = report_date.replace(day=1)
 
             if narrative:
@@ -6321,9 +6993,11 @@ def build_fact_credit_borrower_financials(session: Session, test_mode: bool = Fa
                 margin = round((ebitda / rev) * 100, 2) if rev > 0 else 0
                 net_debt = round(base_ebitda * d_mult, 2)
                 total_lev = round(net_debt / (base_ebitda * growth), 2) if base_ebitda * growth > 0 else 0
+                total_lev, net_debt = _align_to_covenant(b_id, report_date, total_lev, net_debt, base_ebitda * growth)
                 net_lev = round(total_lev * random.uniform(0.88, 0.93), 2)
                 icr = round(ebitda / (net_debt * random.uniform(0.07, 0.09) / 4), 2) if net_debt > 0 else 99.0
                 fccr = round(icr * random.uniform(0.75, 0.88), 2)
+                icr, fccr = _align_coverage(b_id, report_date, icr, fccr)
                 fcf = round(ebitda * random.uniform(0.25, 0.50), 2)
                 capex = round(rev * random.uniform(0.04, 0.07), 2)
                 cash = round(base_rev * random.uniform(0.02, 0.06), 2)
@@ -6335,9 +7009,11 @@ def build_fact_credit_borrower_financials(session: Session, test_mode: bool = Fa
                 margin = round((ebitda / rev) * 100, 2) if rev > 0 else 0
                 net_debt = round(base_ebitda * random.uniform(3.5, 6.0), 2)
                 total_lev = round(net_debt / (base_ebitda * growth), 2) if base_ebitda * growth > 0 else 0
+                total_lev, net_debt = _align_to_covenant(b_id, report_date, total_lev, net_debt, base_ebitda * growth)
                 net_lev = round(total_lev * random.uniform(0.85, 0.95), 2)
                 icr = round(ebitda / (net_debt * random.uniform(0.06, 0.10) / 4), 2) if net_debt > 0 else 99.0
                 fccr = round(icr * random.uniform(0.7, 0.9), 2)
+                icr, fccr = _align_coverage(b_id, report_date, icr, fccr)
                 fcf = round(ebitda * random.uniform(0.3, 0.6), 2)
                 capex = round(rev * random.uniform(0.03, 0.08), 2)
                 cash = round(base_rev * random.uniform(0.02, 0.08), 2)
@@ -6455,6 +7131,7 @@ def build_fact_credit_covenant_tracking(session: Session, test_mode: bool = Fals
     ]
 
     quarters_back = 4 if test_mode else 8
+    anchor = date.fromisoformat(str(get_max_price_date(session, database_name))[:10])
     rows = []
     for fac in facilities:
         fac_id = fac['FACILITYID']
@@ -6471,7 +7148,7 @@ def build_fact_credit_covenant_tracking(session: Session, test_mode: bool = Fals
                 threshold = round(random.uniform(cov_min, cov_max), 2)
 
             for q in range(quarters_back):
-                test_date = date.today().replace(day=1) - timedelta(days=90 * q)
+                test_date = anchor.replace(day=1) - timedelta(days=90 * q)
                 test_date = test_date.replace(day=1)
 
                 if cov_override and q < len(cov_override['actuals']):
@@ -6601,6 +7278,37 @@ def build_credit_agreements_corpus(session: Session, test_mode: bool = False):
         WHERE f.FacilityType IN ('Term Loan B', 'Unitranche')
     """).collect()
 
+    # Covenant thresholds must come from FACT_CREDIT_COVENANT_TRACKING, not a random
+    # draw. The agreement, the amendment and the tracking table are three sources the
+    # agent quotes side by side, and when they disagree the breach narrative becomes
+    # contestable: Orion's agreement said 5.3x, the tracker tested 5.5x and the
+    # amendment granted 6.8x relief, which made a 6.32x "breach" read as compliant
+    # under its own amended terms. All 15 borrowers were mismatched.
+    # tightest_breach is the binding constraint on amendment relief - it must stay
+    # below the NARROWEST breach, not the widest, or the early quarters of a
+    # deteriorating borrower read as compliant.
+    covenant_rows = session.sql(f"""
+        SELECT BORROWERNAME, COVENANTTYPE,
+               MAX(COVENANTTHRESHOLD) AS THRESHOLD,
+               MIN(CASE WHEN ACTUALVALUE > COVENANTTHRESHOLD THEN ACTUALVALUE END)
+                   AS TIGHTEST_BREACH
+        FROM {database_name}.CURATED.FACT_CREDIT_COVENANT_TRACKING
+        GROUP BY BORROWERNAME, COVENANTTYPE
+    """).collect()
+    covenants = {}
+    for row in covenant_rows:
+        covenants.setdefault(row['BORROWERNAME'], {})[row['COVENANTTYPE']] = {
+            'threshold': float(row['THRESHOLD']) if row['THRESHOLD'] is not None else None,
+            'tightest_breach': (float(row['TIGHTEST_BREACH'])
+                                if row['TIGHTEST_BREACH'] is not None else None),
+        }
+
+    def covenant_value(borrower_name: str, covenant_type: str, key: str, fallback):
+        entry = covenants.get(borrower_name, {}).get(covenant_type)
+        if not entry or entry.get(key) is None:
+            return fallback
+        return entry[key]
+
     rows = []
     for fac in facilities:
         fac_id = fac['FACILITYID']
@@ -6618,12 +7326,27 @@ def build_credit_agreements_corpus(session: Session, test_mode: bool = False):
         rating = fac['CREDITRATING']
 
         doc_id = f"CA_{fac_id}"
+
+        trk_leverage = covenant_value(borrower, 'Max Total Leverage', 'threshold',
+                                      round(random.uniform(5.0, 6.5), 1))
+        trk_icr = covenant_value(borrower, 'Min Interest Coverage', 'threshold',
+                                 round(random.uniform(1.5, 2.5), 1))
+        trk_fccr = covenant_value(borrower, 'Min Fixed Charge Coverage', 'threshold',
+                                  round(random.uniform(1.0, 1.3), 1))
+        trk_capex = covenant_value(borrower, 'Max CapEx', 'threshold',
+                                   round(commitment * random.uniform(0.05, 0.10), 0))
+        tightest_breach = covenant_value(borrower, 'Max Total Leverage',
+                                         'tightest_breach', None)
+
         pik_section = ""
         if pik:
+            # The PIK election ceiling sits just above the leverage covenant: a borrower
+            # already through its covenant should not find the toggle freely available.
+            pik_trigger = round(trk_leverage + 0.2, 1)
             pik_section = f"""
 ### PIK Toggle Provisions
 The Borrower may elect to pay interest in kind (PIK) at SOFR + {spread + 200}bps for up to 4 consecutive quarters, subject to:
-- Total leverage not exceeding {round(random.uniform(5.5, 7.0), 1)}x at time of election
+- Total leverage not exceeding {pik_trigger}x at time of election
 - No existing Event of Default
 - PIK interest compounds quarterly and is added to principal
 - Cash pay must resume after 4 consecutive PIK quarters"""
@@ -6647,10 +7370,10 @@ The Borrower may elect to pay interest in kind (PIK) at SOFR + {spread + 200}bps
 - **Call Protection**: {call_prot}
 
 ### Financial Covenants
-1. **Maximum Total Leverage Ratio**: Not to exceed {round(random.uniform(5.0, 6.5), 1)}x, tested quarterly
-2. **Minimum Interest Coverage Ratio**: Not less than {round(random.uniform(1.5, 2.5), 1)}x, tested quarterly
-3. **Minimum Fixed Charge Coverage Ratio**: Not less than {round(random.uniform(1.0, 1.3), 1)}x, tested quarterly
-4. **Maximum Capital Expenditure**: Not to exceed ${round(commitment * random.uniform(0.05, 0.10), 0)}MM per annum
+1. **Maximum Total Leverage Ratio**: Not to exceed {trk_leverage}x, tested quarterly
+2. **Minimum Interest Coverage Ratio**: Not less than {trk_icr}x, tested quarterly
+3. **Minimum Fixed Charge Coverage Ratio**: Not less than {trk_fccr}x, tested quarterly
+4. **Maximum Capital Expenditure**: Not to exceed ${trk_capex}MM per annum
 
 ### Equity Cure Provisions
 The Sponsor shall have the right to cure financial covenant defaults by contributing equity:
@@ -6684,6 +7407,33 @@ Executed: {origination}
         if random.random() > 0.5:
             amend_id = f"CA_{fac_id}_A1"
             amend_date = date.today() - timedelta(days=random.randint(30, 365))
+            # Relief must sit ABOVE the original covenant (or the amendment grants
+            # nothing) and strictly BELOW the borrower's narrowest breach (or a
+            # borrower the tracker records as breached reads as compliant under its own
+            # amended terms, and the whole breach scenario can be argued away).
+            # For a borrower whose first breach only just cleared the threshold there is
+            # no room for both, so the amendment grants pricing and reporting changes
+            # only - which is the honest outcome and keeps the three sources consistent.
+            relief_floor = round(trk_leverage + 0.1, 1)
+            if tightest_breach is None:
+                amend_leverage = round(trk_leverage + random.uniform(0.4, 1.2), 1)
+            elif relief_floor < tightest_breach:
+                headroom = tightest_breach - 0.05
+                amend_leverage = round(min(trk_leverage + 0.5, headroom), 1)
+            else:
+                amend_leverage = None
+
+            if amend_leverage is not None:
+                leverage_clause = (f"1. **Leverage Covenant Relief**: Maximum Total "
+                                   f"Leverage Ratio increased to {amend_leverage}x for "
+                                   f"the next {random.randint(2, 4)} quarters")
+                pricing_period = "during covenant relief period"
+            else:
+                leverage_clause = ("1. **No Covenant Relief Granted**: the Maximum Total "
+                                  f"Leverage Ratio remains {trk_leverage}x. Lenders "
+                                   "declined to reset the level given the pace of "
+                                   "deterioration")
+                pricing_period = "reflecting elevated credit risk"
             amend_text = f"""# First Amendment to Credit Agreement
 ## {borrower} - {fac_type}
 
@@ -6693,8 +7443,8 @@ Executed: {origination}
 This First Amendment modifies the Credit Agreement dated {origination} between {borrower} (Borrower) and the Administrative Agent.
 
 ### Key Modifications
-1. **Leverage Covenant Relief**: Maximum Total Leverage Ratio increased to {round(random.uniform(6.0, 7.5), 1)}x for the next {random.randint(2, 4)} quarters
-2. **Pricing Grid Adjustment**: Spread increased by {random.randint(25, 75)}bps during covenant relief period
+{leverage_clause}
+2. **Pricing Grid Adjustment**: Spread increased by {random.randint(25, 75)}bps {pricing_period}
 3. **Additional Reporting**: Monthly financial reporting required during amendment period
 4. **Amendment Fee**: {random.randint(25, 50)}bps on outstanding commitment
 
@@ -6721,6 +7471,34 @@ Executed: {amend_date}
     log_success(f"  CREDIT_AGREEMENTS_CORPUS: {count} agreement documents")
 
 
+def _resolve_narrative_dates(text: str, report_date: date) -> str:
+    """Rewrite relative date tokens in a compliance-certificate narrative.
+
+    The narratives are fixed strings reused at whatever quarter they land on, so any
+    hardcoded date drifts as the demo clock advances. Orion's latest certificate
+    promised a return to compliance "by Q3 2026" while reporting Q3 2026, and an
+    earlier one forecast improvement in a quarter that had already passed. Resolving
+    against the report period keeps a forward-looking statement forward-looking.
+
+    [[Q+n]] / [[Q-n]]  quarter label n quarters after / before the report quarter
+    [[H+1]]            the half-year following the report quarter
+    """
+    quarter = (report_date.month - 1) // 3 + 1
+
+    def quarter_label(offset: int) -> str:
+        total = (report_date.year * 4) + (quarter - 1) + offset
+        return f"Q{total % 4 + 1} {total // 4}"
+
+    def next_half() -> str:
+        # Q1/Q2 sit in H1, so the following half is H2 of the same year; from H2 the
+        # next half rolls into the new year.
+        return f"H2 {report_date.year}" if quarter <= 2 else f"H1 {report_date.year + 1}"
+
+    text = re.sub(r'\[\[Q([+-]\d+)\]\]',
+                  lambda m: quarter_label(int(m.group(1))), text)
+    return text.replace('[[H+1]]', next_half())
+
+
 COMPLIANCE_CERT_NARRATIVES = {
     'Orion Retail Group': [
         {
@@ -6729,7 +7507,7 @@ COMPLIANCE_CERT_NARRATIVES = {
 
 Management has engaged AlixPartners to conduct a comprehensive operational review. The Board-approved cost reduction program targeting $35MM in annual savings through store rationalization (15-20 closures), corporate headcount reduction (12% of G&A), and supply chain renegotiation has been initiated but savings realization has been slower than projected. Only $8MM of the targeted savings were achieved this quarter.
 
-Ares Management has indicated willingness to provide a further equity cure if needed, but has expressed concern about the pace of operational improvement. Management is targeting a return to covenant compliance by Q3 2026, contingent on the full realization of cost savings and stabilization of same-store sales trends.""",
+Ares Management has indicated willingness to provide a further equity cure if needed, but has expressed concern about the pace of operational improvement. Management is targeting a return to covenant compliance by [[Q+3]], contingent on the full realization of cost savings and stabilization of same-store sales trends.""",
         },
         {
             'performance': 'below',
@@ -6743,13 +7521,13 @@ The company requested and received a waiver for the Min Fixed Charge Coverage co
             'performance': 'below',
             'commentary': """Revenue was 0.7% below the prior quarter, with EBITDA margin reflecting compression from input cost inflation and promotional activity to defend market share. Leverage breached the covenant threshold for the second consecutive quarter, though management notes this includes one-time integration costs from the 2024 acquisition.
 
-Management outlined a three-phase operational improvement plan: (1) immediate cost takeout through procurement optimization, (2) store portfolio rationalization targeting underperforming locations, and (3) accelerated e-commerce investment. Phase 1 is expected to deliver $8-10MM in savings by Q1 2026.
+Management outlined a three-phase operational improvement plan: (1) immediate cost takeout through procurement optimization, (2) store portfolio rationalization targeting underperforming locations, and (3) accelerated e-commerce investment. Phase 1 is expected to deliver $8-10MM in savings by [[Q+2]].
 
 An equity cure was exercised for the Min Fixed Charge Coverage test this quarter, utilizing $12MM of the sponsor's committed cure capacity.""",
         },
         {
             'performance': 'in line with revised',
-            'commentary': """Revenue was broadly in line with revised (downward) expectations. EBITDA benefited from favorable seasonal mix. However, leverage is trending toward the covenant threshold, and management acknowledges that maintaining compliance will require operational execution in H2 2025.
+            'commentary': """Revenue was broadly in line with revised (downward) expectations. EBITDA benefited from favorable seasonal mix. However, leverage is trending toward the covenant threshold, and management acknowledges that maintaining compliance will require operational execution in [[H+1]].
 
 Same-store sales declined 2.1% as the consumer environment remains challenging. Management is reviewing the store portfolio for optimization opportunities and has engaged consultants to assess the supply chain cost structure.
 
@@ -6757,7 +7535,7 @@ No covenant breaches this quarter, though headroom on Max Total Leverage has nar
         },
         {
             'performance': 'below',
-            'commentary': """Revenue represented a 2.7% increase from Q4 2024 but remained below the original budget. EBITDA margin showed improvement from the prior quarter. Leverage provides adequate but narrowing headroom against the covenant threshold.
+            'commentary': """Revenue represented a 2.7% increase from [[Q-1]] but remained below the original budget. EBITDA margin showed improvement from the prior quarter. Leverage provides adequate but narrowing headroom against the covenant threshold.
 
 Management flagged emerging cost pressures from wage inflation and logistics disruptions that may impact margins in coming quarters. The company is exploring procurement efficiencies and has initiated a review of underperforming retail locations.
 
@@ -6765,7 +7543,7 @@ All covenants remain in compliance with adequate headroom, though the trajectory
         },
         {
             'performance': 'below',
-            'commentary': """Revenue was in line with seasonal expectations. Leverage reflects increased borrowing for working capital needs. Management noted seasonal factors and expects improvement in Q1 2025. Cost reduction initiatives are being evaluated.""",
+            'commentary': """Revenue was in line with seasonal expectations. Leverage reflects increased borrowing for working capital needs. Management noted seasonal factors and expects improvement in [[Q+1]]. Cost reduction initiatives are being evaluated.""",
         },
     ],
     'Pinnacle Software Solutions': [
@@ -6845,7 +7623,7 @@ No covenant breaches this quarter, but all metrics are trending in the wrong dir
             'performance': 'below',
             'commentary': """Revenue declined reflecting continued weakness in leisure travel demand and slower-than-expected recovery in group bookings. EBITDA margin compressed. Fixed charge coverage has breached the covenant minimum as interest expense and maintenance CapEx weigh on coverage.
 
-Apollo Global is reviewing options including asset dispositions (2-3 underperforming properties) and a targeted cost reduction program. Management expects seasonal improvement in Q2/Q3 2026 and is focused on revenue management optimization and labor efficiency.
+Apollo Global is reviewing options including asset dispositions (2-3 underperforming properties) and a targeted cost reduction program. Management expects seasonal improvement in [[Q+1]] and [[Q+2]] and is focused on revenue management optimization and labor efficiency.
 
 A waiver has been requested and granted for the FCCR covenant breach this quarter.""",
         },
@@ -6922,6 +7700,9 @@ def build_compliance_certs_corpus(session: Session, test_mode: bool = False):
         cov_lookup[key] = c
 
     quarters_back = 2 if test_mode else 6
+    # Anchor to the demo's own clock (MAX price date) rather than the wall clock.
+    from utils.snowflake import get_max_price_date
+    anchor = date.fromisoformat(str(get_max_price_date(session, database_name))[:10])
     rows = []
     for borrower in borrowers:
         b_id = borrower['BORROWERID']
@@ -6931,7 +7712,7 @@ def build_compliance_certs_corpus(session: Session, test_mode: bool = False):
         rating = borrower['CREDITRATING']
 
         for q in range(quarters_back):
-            report_date = date.today().replace(day=1) - timedelta(days=90 * q)
+            report_date = anchor.replace(day=1) - timedelta(days=90 * q)
             report_date = report_date.replace(day=1)
             quarter_label = f"Q{(report_date.month - 1) // 3 + 1} {report_date.year}"
             doc_id = f"CC_{b_id}_{report_date.strftime('%Y%m')}"
@@ -7003,7 +7784,8 @@ def build_compliance_certs_corpus(session: Session, test_mode: bool = False):
             cert_narrative = COMPLIANCE_CERT_NARRATIVES.get(b_name)
             if cert_narrative and q < len(cert_narrative):
                 perf_text = cert_narrative[q]['performance']
-                commentary_text = cert_narrative[q]['commentary']
+                commentary_text = _resolve_narrative_dates(
+                    cert_narrative[q]['commentary'], report_date)
             else:
                 avg_headroom = (lev_headroom + icr_headroom + fccr_headroom) / 3
                 if avg_headroom > 15:
@@ -7066,7 +7848,10 @@ Date: {(report_date + timedelta(days=45)).strftime('%d %B %Y')}
                 'DOCUMENT_TITLE': f'{b_name} Compliance Certificate - {quarter_label}',
                 'DOCUMENT_TYPE': 'Compliance Certificate', 'DOCUMENT_TEXT': cert_text,
                 'REPORTPERIOD': str(report_date), 'TOKEN_COUNT': int(token_count),
-                'PUBLISH_DATE': str(report_date + timedelta(days=45))
+                # Borrowers file roughly 45 days after period end, but never
+                # later than today - a certificate dated in the future makes the
+                # whole corpus look fabricated.
+                'PUBLISH_DATE': str(min(report_date + timedelta(days=45), anchor))
             })
 
     df = session.create_dataframe(rows)
@@ -7192,8 +7977,8 @@ def build_credit_tables(session: Session, test_mode: bool = False):
     _run_build_step(build_dim_credit_fund, session, test_mode)
     _run_build_step(build_dim_credit_borrower, session, test_mode)
     _run_build_step(build_dim_credit_facility, session, test_mode)
-    _run_build_step(build_fact_credit_borrower_financials, session, test_mode)
     _run_build_step(build_fact_credit_covenant_tracking, session, test_mode)
+    _run_build_step(build_fact_credit_borrower_financials, session, test_mode)
     _run_build_step(build_fact_credit_deal_pipeline, session, test_mode)
     _run_build_step(build_fact_credit_sector_benchmarks, session, test_mode)
 
@@ -7415,12 +8200,27 @@ def build_attribution_market_data(session: Session):
             CLOSE_PRICE,
             LAG(CLOSE_PRICE) OVER (PARTITION BY SECTOR ORDER BY DATE) AS PREV_CLOSE
         FROM etf_prices
+    ),
+    with_split_factor AS (
+        SELECT
+            DATE,
+            SECTOR,
+            CLOSE_PRICE,
+            PREV_CLOSE,
+            CASE
+                WHEN CLOSE_PRICE / NULLIF(PREV_CLOSE, 0) BETWEEN 0.47 AND 0.53 THEN 2
+                WHEN CLOSE_PRICE / NULLIF(PREV_CLOSE, 0) BETWEEN 0.31 AND 0.355 THEN 3
+                WHEN CLOSE_PRICE / NULLIF(PREV_CLOSE, 0) BETWEEN 0.235 AND 0.265 THEN 4
+                WHEN CLOSE_PRICE / NULLIF(PREV_CLOSE, 0) BETWEEN 1.9 AND 2.1 THEN 0.5
+                ELSE 1
+            END AS SPLIT_FACTOR
+        FROM with_lag
     )
     SELECT 
         DATE,
         SECTOR,
-        ROUND((CLOSE_PRICE - PREV_CLOSE) / NULLIF(PREV_CLOSE, 0), 6) AS SECTOR_RETURN
-    FROM with_lag
+        ROUND((CLOSE_PRICE * SPLIT_FACTOR - PREV_CLOSE) / NULLIF(PREV_CLOSE, 0), 6) AS SECTOR_RETURN
+    FROM with_split_factor
     WHERE PREV_CLOSE IS NOT NULL
     """).collect()
     log_detail("  Created: FACT_SECTOR_RETURNS (from Cybersyn sector ETFs)")
@@ -7470,7 +8270,7 @@ def build_attribution_tables(session: Session, test_mode: bool = False):
     ),
     position_with_sector AS (
         SELECT
-            p.HoldingDate AS DATE,
+            LAST_DAY(DATEADD('month', 1, p.HoldingDate)) AS DATE,
             p.PortfolioID,
             p.SecurityID,
             p.PortfolioWeight,
@@ -7479,6 +8279,9 @@ def build_attribution_tables(session: Session, test_mode: bool = False):
         JOIN {database}.{curated}.DIM_SECURITY s ON p.SecurityID = s.SecurityID
         JOIN {database}.{curated}.DIM_ISSUER i ON s.IssuerID = i.IssuerID
         WHERE p.HoldingDate >= DATEADD('year', -2, CURRENT_DATE())
+          AND LAST_DAY(DATEADD('month', 1, p.HoldingDate)) <= (
+              SELECT DATEADD('day', 5, MAX(PRICE_DATE)) FROM {database}.{market_data}.FACT_STOCK_PRICES
+          )
     ),
     portfolio_sector_data AS (
         SELECT
@@ -7505,21 +8308,23 @@ def build_attribution_tables(session: Session, test_mode: bool = False):
     date_portfolio_spine AS (
         SELECT DISTINCT DATE, PortfolioID FROM portfolio_sector_data
     ),
-    nearest_trading_day AS (
-        SELECT
-            dp.DATE AS POSITION_DATE,
-            bw.SECTOR,
-            sr.DATE AS TRADING_DATE,
-            sr.SECTOR_RETURN,
-            ROW_NUMBER() OVER (PARTITION BY dp.DATE, bw.SECTOR ORDER BY sr.DATE DESC) AS RN
-        FROM date_portfolio_spine dp
-        CROSS JOIN benchmark_weights bw
-        JOIN sector_returns sr ON bw.SECTOR = sr.SECTOR AND sr.DATE <= dp.DATE AND sr.DATE >= DATEADD('day', -5, dp.DATE)
+    position_dates AS (
+        SELECT DISTINCT DATE FROM date_portfolio_spine
     ),
     monthly_sector_etf_returns AS (
-        SELECT POSITION_DATE, SECTOR, SECTOR_RETURN
-        FROM nearest_trading_day
-        WHERE RN = 1
+        SELECT
+            pd.DATE AS POSITION_DATE,
+            bw.SECTOR,
+            EXP(SUM(LN(1 + sr.SECTOR_RETURN))) - 1 AS SECTOR_RETURN
+        FROM position_dates pd
+        CROSS JOIN benchmark_weights bw
+        JOIN sector_returns sr
+            ON bw.SECTOR = sr.SECTOR
+            AND sr.DATE > LAST_DAY(DATEADD('month', -1, pd.DATE))
+            AND sr.DATE <= pd.DATE
+            AND sr.SECTOR_RETURN > -1
+        GROUP BY pd.DATE, bw.SECTOR
+        HAVING MAX(sr.DATE) >= DATEADD('day', -5, pd.DATE)
     ),
     all_sector_rows AS (
         SELECT
@@ -7578,72 +8383,136 @@ def build_attribution_tables(session: Session, test_mode: bool = False):
     # 8. FACT_FACTOR_ATTRIBUTION - Real factor attribution from actual exposures
     session.sql(f"""
     CREATE OR REPLACE TABLE {database}.{curated}.FACT_FACTOR_ATTRIBUTION AS
-    WITH month_end_prices AS (
-        SELECT SECURITYID, PRICE_DATE, PRICE_CLOSE,
+    WITH last_px AS (
+        SELECT MAX(PRICE_DATE) AS D FROM {database}.{market_data}.FACT_STOCK_PRICES
+    ),
+    month_end_prices AS (
+        SELECT SECURITYID, DATE_TRUNC('month', PRICE_DATE) AS RETURN_MONTH, PRICE_CLOSE,
             LAG(PRICE_CLOSE) OVER (PARTITION BY SECURITYID ORDER BY PRICE_DATE) AS PREV_MONTH_CLOSE
-        FROM (
-            SELECT SECURITYID, PRICE_DATE, PRICE_CLOSE,
-                ROW_NUMBER() OVER (PARTITION BY SECURITYID, DATE_TRUNC('month', PRICE_DATE) ORDER BY PRICE_DATE DESC) AS RN
-            FROM {database}.MARKET_DATA.FACT_STOCK_PRICES
-        )
-        WHERE RN = 1
+        FROM {database}.{market_data}.FACT_STOCK_PRICES
+        WHERE PRICE_CLOSE > 0
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY SECURITYID, DATE_TRUNC('month', PRICE_DATE) ORDER BY PRICE_DATE DESC) = 1
+    ),
+    raw_monthly_returns AS (
+        SELECT mep.SECURITYID, mep.RETURN_MONTH, mep.PREV_MONTH_CLOSE,
+            mep.PRICE_CLOSE / mep.PREV_MONTH_CLOSE - 1 AS STOCK_RETURN
+        FROM month_end_prices mep
+        CROSS JOIN last_px lp
+        WHERE mep.PREV_MONTH_CLOSE > 0
+          AND LAST_DAY(mep.RETURN_MONTH) <= DATEADD('day', 5, lp.D)
+    ),
+    return_bounds AS (
+        SELECT RETURN_MONTH,
+            PERCENTILE_CONT(0.01) WITHIN GROUP (ORDER BY STOCK_RETURN) AS LO,
+            PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY STOCK_RETURN) AS HI
+        FROM raw_monthly_returns
+        GROUP BY RETURN_MONTH
     ),
     stock_monthly_returns AS (
-        SELECT SECURITYID, PRICE_DATE,
-            (PRICE_CLOSE - PREV_MONTH_CLOSE) / NULLIF(PREV_MONTH_CLOSE, 0) AS STOCK_RETURN
-        FROM month_end_prices
-        WHERE PREV_MONTH_CLOSE IS NOT NULL
+        SELECT r.SECURITYID, r.RETURN_MONTH, r.PREV_MONTH_CLOSE,
+            GREATEST(b.LO, LEAST(b.HI, r.STOCK_RETURN)) AS STOCK_RETURN
+        FROM raw_monthly_returns r
+        JOIN return_bounds b ON b.RETURN_MONTH = r.RETURN_MONTH
     ),
-    factor_quintiles AS (
+    market_monthly_returns AS (
+        SELECT DATE_TRUNC('month', DATE) AS RETURN_MONTH,
+            EXP(SUM(LN(1 + DAILY_RETURN))) - 1 AS MARKET_RETURN
+        FROM {database}.{market_data}.FACT_BENCHMARK_RETURNS
+        WHERE BENCHMARK_CODE = 'SPX' AND DAILY_RETURN > -1
+          AND LAST_DAY(DATE) <= DATEADD('day', 5, (SELECT D FROM last_px))
+        GROUP BY DATE_TRUNC('month', DATE)
+    ),
+    security_month_exposures AS (
+        SELECT SECURITYID, DATE_TRUNC('month', EXPOSURE_DATE) AS EXPOSURE_MONTH, FACTOR_NAME,
+            AVG(EXPOSURE_VALUE) AS EXPOSURE_VALUE
+        FROM {database}.{curated}.FACT_FACTOR_EXPOSURES
+        GROUP BY SECURITYID, DATE_TRUNC('month', EXPOSURE_DATE), FACTOR_NAME
+    ),
+    style_factor_returns AS (
         SELECT
-            fe.EXPOSURE_DATE,
+            DATEADD('month', 1, fe.EXPOSURE_MONTH) AS RETURN_MONTH,
             fe.FACTOR_NAME,
-            fe.SECURITYID,
-            fe.EXPOSURE_VALUE,
-            NTILE(5) OVER (PARTITION BY fe.EXPOSURE_DATE, fe.FACTOR_NAME ORDER BY fe.EXPOSURE_VALUE) AS QUINTILE
-        FROM {database}.{curated}.FACT_FACTOR_EXPOSURES fe
+            GREATEST(-0.05, LEAST(0.05, REGR_SLOPE(smr.STOCK_RETURN, fe.EXPOSURE_VALUE))) AS FACTOR_RETURN
+        FROM security_month_exposures fe
+        JOIN stock_monthly_returns smr
+            ON fe.SECURITYID = smr.SECURITYID
+            AND smr.RETURN_MONTH = DATEADD('month', 1, fe.EXPOSURE_MONTH)
+        WHERE fe.FACTOR_NAME <> 'Market'
+          AND smr.PREV_MONTH_CLOSE >= 1
+        GROUP BY DATEADD('month', 1, fe.EXPOSURE_MONTH), fe.FACTOR_NAME
+        HAVING REGR_COUNT(smr.STOCK_RETURN, fe.EXPOSURE_VALUE) >= 30
+           AND VARIANCE(fe.EXPOSURE_VALUE) > 0
     ),
     factor_returns AS (
-        SELECT
-            fq.EXPOSURE_DATE,
-            fq.FACTOR_NAME,
-            AVG(CASE WHEN fq.QUINTILE = 5 THEN smr.STOCK_RETURN END)
-            - AVG(CASE WHEN fq.QUINTILE = 1 THEN smr.STOCK_RETURN END) AS FACTOR_RETURN
-        FROM factor_quintiles fq
-        JOIN stock_monthly_returns smr
-            ON fq.SECURITYID = smr.SECURITYID
-            AND DATE_TRUNC('month', fq.EXPOSURE_DATE) = DATE_TRUNC('month', smr.PRICE_DATE)
-        GROUP BY fq.EXPOSURE_DATE, fq.FACTOR_NAME
-        HAVING FACTOR_RETURN IS NOT NULL
+        SELECT RETURN_MONTH, FACTOR_NAME, FACTOR_RETURN FROM style_factor_returns
+        UNION ALL
+        SELECT RETURN_MONTH, 'Market', MARKET_RETURN FROM market_monthly_returns
     ),
     position_exposures AS (
         SELECT
-            p.HoldingDate AS DATE,
+            p.HoldingDate,
             p.PortfolioID AS PORTFOLIOID,
+            dp.BenchmarkID,
             fe.FACTOR_NAME,
-            SUM(p.PortfolioWeight * fe.EXPOSURE_VALUE) AS PORTFOLIO_FACTOR_EXPOSURE
+            SUM(p.PortfolioWeight * fe.EXPOSURE_VALUE) / NULLIF(SUM(p.PortfolioWeight), 0) AS PORTFOLIO_FACTOR_EXPOSURE
         FROM {database}.{curated}.FACT_POSITION_DAILY_ABOR p
-        JOIN {database}.{curated}.FACT_FACTOR_EXPOSURES fe
+        JOIN {database}.{curated}.DIM_PORTFOLIO dp ON dp.PortfolioID = p.PortfolioID
+        JOIN security_month_exposures fe
             ON p.SecurityID = fe.SECURITYID
-            AND DATE_TRUNC('month', p.HoldingDate) = DATE_TRUNC('month', fe.EXPOSURE_DATE)
+            AND DATE_TRUNC('month', p.HoldingDate) = fe.EXPOSURE_MONTH
         WHERE p.HoldingDate >= DATEADD('year', -2, CURRENT_DATE())
-        GROUP BY p.HoldingDate, p.PortfolioID, fe.FACTOR_NAME
+        GROUP BY p.HoldingDate, p.PortfolioID, dp.BenchmarkID, fe.FACTOR_NAME
+    ),
+    benchmark_exposures AS (
+        SELECT
+            bh.HOLDING_DATE,
+            bh.BENCHMARKID,
+            fe.FACTOR_NAME,
+            SUM(bh.BENCHMARK_WEIGHT * fe.EXPOSURE_VALUE) / NULLIF(SUM(bh.BENCHMARK_WEIGHT), 0) AS BENCHMARK_FACTOR_EXPOSURE
+        FROM {database}.{curated}.FACT_BENCHMARK_HOLDINGS bh
+        JOIN security_month_exposures fe
+            ON bh.SECURITYID = fe.SECURITYID
+            AND DATE_TRUNC('month', bh.HOLDING_DATE) = fe.EXPOSURE_MONTH
+        WHERE bh.HOLDING_DATE >= DATEADD('year', -2, CURRENT_DATE())
+        GROUP BY bh.HOLDING_DATE, bh.BENCHMARKID, fe.FACTOR_NAME
+    ),
+    combined AS (
+        SELECT
+            LAST_DAY(DATEADD('month', 1, pe.HoldingDate)) AS DATE,
+            pe.PORTFOLIOID,
+            pe.FACTOR_NAME,
+            pe.PORTFOLIO_FACTOR_EXPOSURE,
+            COALESCE(be.BENCHMARK_FACTOR_EXPOSURE, pe.PORTFOLIO_FACTOR_EXPOSURE) AS BENCHMARK_FACTOR_EXPOSURE,
+            fr.FACTOR_RETURN
+        FROM position_exposures pe
+        LEFT JOIN benchmark_exposures be
+            ON be.BENCHMARKID = pe.BenchmarkID
+            AND be.HOLDING_DATE = pe.HoldingDate
+            AND be.FACTOR_NAME = pe.FACTOR_NAME
+        JOIN factor_returns fr
+            ON fr.RETURN_MONTH = DATE_TRUNC('month', DATEADD('month', 1, pe.HoldingDate))
+            AND fr.FACTOR_NAME = pe.FACTOR_NAME
     )
     SELECT
-        pe.DATE,
-        pe.PORTFOLIOID,
-        pe.FACTOR_NAME,
-        ROUND(pe.PORTFOLIO_FACTOR_EXPOSURE, 4) AS PORTFOLIO_FACTOR_EXPOSURE,
-        ROUND(fr.FACTOR_RETURN, 6) AS FACTOR_RETURN,
-        ROUND(pe.PORTFOLIO_FACTOR_EXPOSURE * fr.FACTOR_RETURN, 6) AS FACTOR_CONTRIBUTION
-    FROM position_exposures pe
-    JOIN factor_returns fr
-        ON DATE_TRUNC('month', pe.DATE) = DATE_TRUNC('month', fr.EXPOSURE_DATE)
-        AND pe.FACTOR_NAME = fr.FACTOR_NAME
+        DATE,
+        PORTFOLIOID,
+        FACTOR_NAME,
+        ROUND(PORTFOLIO_FACTOR_EXPOSURE, 4) AS PORTFOLIO_FACTOR_EXPOSURE,
+        ROUND(FACTOR_RETURN, 6) AS FACTOR_RETURN,
+        ROUND((PORTFOLIO_FACTOR_EXPOSURE - BENCHMARK_FACTOR_EXPOSURE) * FACTOR_RETURN, 6) AS FACTOR_CONTRIBUTION,
+        ROUND(BENCHMARK_FACTOR_EXPOSURE, 4) AS BENCHMARK_FACTOR_EXPOSURE,
+        ROUND(PORTFOLIO_FACTOR_EXPOSURE - BENCHMARK_FACTOR_EXPOSURE, 4) AS ACTIVE_FACTOR_EXPOSURE,
+        ROUND(PORTFOLIO_FACTOR_EXPOSURE * FACTOR_RETURN, 6) AS TOTAL_FACTOR_CONTRIBUTION
+    FROM combined
     """).collect()
     log_detail("  Created: FACT_FACTOR_ATTRIBUTION")
     
     # 9. V_MACRO_REGIME - View for macro regime classification
+    from ai.tools.ml_common import ensure_ml_schema
+    from ai.tools.regime_detection import create_regime_prediction_table
+    ensure_ml_schema(session)
+    create_regime_prediction_table(session)
+    ml_schema = config.DATABASE['schemas']['ml']
     session.sql(f"""
     CREATE OR REPLACE VIEW {database}.{curated}.V_MACRO_REGIME AS
     SELECT 
@@ -7658,15 +8527,20 @@ def build_attribution_tables(session: Session, test_mode: bool = False):
             WHEN v.VIX_CLOSE BETWEEN 20 AND 30 THEN 'ELEVATED'
             ELSE 'HIGH_VOL'
         END AS VOLATILITY_REGIME,
-        CASE 
-            WHEN br.DAILY_RETURN > 0.005 AND v.VIX_CLOSE < 20 THEN 'RISK_ON'
-            WHEN br.DAILY_RETURN < -0.005 OR v.VIX_CLOSE > 25 THEN 'RISK_OFF'
-            WHEN ABS(v.VIX_CLOSE - LAG(v.VIX_CLOSE, 5) OVER (ORDER BY v.DATE)) > 5 THEN 'TRANSITIONAL'
-            ELSE 'NEUTRAL'
-        END AS MARKET_REGIME
+        COALESCE(
+            rp.REGIME_LABEL,
+            CASE
+                WHEN v.VIX_CLOSE > 25 THEN 'RISK_OFF'
+                WHEN v.VIX_CLOSE < 18 THEN 'RISK_ON'
+                ELSE 'TRANSITIONAL'
+            END
+        ) AS MARKET_REGIME,
+        IFF(rp.REGIME_LABEL IS NOT NULL, 'ML_MODEL', 'VIX_FALLBACK') AS MARKET_REGIME_SOURCE
     FROM {database}.{market_data}.FACT_VIX_DAILY v
     LEFT JOIN {database}.{market_data}.FACT_BENCHMARK_RETURNS br 
         ON v.DATE = br.DATE AND br.BENCHMARK_CODE = 'SPX'
+    LEFT JOIN {database}.{ml_schema}.FACT_REGIME_PREDICTIONS rp
+        ON rp.DATE = v.DATE
     """).collect()
     log_detail("  Created: V_MACRO_REGIME")
     
@@ -7709,45 +8583,46 @@ def build_attribution_tables(session: Session, test_mode: bool = False):
     WITH scenario_factor_shocks AS (
         SELECT * FROM VALUES
         (1, 'Market', -0.05, 0.85),
-        (1, 'Value', 0.02, 0.75),
-        (1, 'Growth', -0.08, 0.80),
-        (1, 'Quality', 0.01, 0.70),
-        (1, 'Momentum', -0.03, 0.65),
-        (1, 'Size', -0.02, 0.60),
-        (1, 'Volatility', 0.15, 0.90),
+        (1, 'Value', 0.010, 0.75),
+        (1, 'Growth', -0.015, 0.80),
+        (1, 'Quality', 0.005, 0.70),
+        (1, 'Momentum', -0.005, 0.65),
+        (1, 'Size', 0.003, 0.60),
+        (1, 'Volatility', -0.010, 0.90),
         (2, 'Market', -0.20, 0.95),
-        (2, 'Value', -0.15, 0.80),
-        (2, 'Growth', -0.25, 0.85),
-        (2, 'Quality', -0.10, 0.75),
-        (2, 'Momentum', -0.18, 0.80),
-        (2, 'Size', -0.22, 0.85),
-        (2, 'Volatility', 0.80, 0.95),
+        (2, 'Value', -0.010, 0.80),
+        (2, 'Growth', -0.020, 0.85),
+        (2, 'Quality', 0.015, 0.75),
+        (2, 'Momentum', -0.020, 0.80),
+        (2, 'Size', 0.010, 0.85),
+        (2, 'Volatility', -0.030, 0.95),
         (3, 'Market', -0.12, 0.85),
-        (3, 'Value', -0.18, 0.80),
-        (3, 'Quality', 0.05, 0.70),
-        (3, 'Volatility', 0.40, 0.90),
+        (3, 'Value', -0.015, 0.80),
+        (3, 'Quality', 0.015, 0.70),
+        (3, 'Volatility', -0.020, 0.90),
         (4, 'Market', -0.03, 0.70),
-        (4, 'Value', 0.02, 0.65),
-        (4, 'Growth', -0.05, 0.70),
+        (4, 'Value', 0.005, 0.65),
+        (4, 'Growth', -0.005, 0.70),
         (5, 'Market', -0.15, 0.85),
-        (5, 'Value', 0.08, 0.75),
-        (5, 'Growth', -0.20, 0.85),
-        (5, 'Quality', 0.05, 0.70),
+        (5, 'Value', 0.015, 0.75),
+        (5, 'Growth', -0.025, 0.85),
+        (5, 'Quality', 0.010, 0.70),
         (6, 'Market', -0.10, 0.80),
-        (6, 'Growth', -0.30, 0.95),
-        (6, 'Momentum', -0.15, 0.80),
-        (6, 'Volatility', 0.35, 0.85),
+        (6, 'Growth', -0.035, 0.95),
+        (6, 'Momentum', -0.020, 0.80),
+        (6, 'Volatility', -0.020, 0.85),
         (7, 'Market', -0.08, 0.75),
-        (7, 'Value', -0.05, 0.70),
+        (7, 'Value', -0.005, 0.70),
         (8, 'Market', -0.05, 0.70),
-        (8, 'Value', 0.10, 0.75),
+        (8, 'Value', 0.015, 0.75),
         (9, 'Market', -0.12, 0.85),
-        (9, 'Quality', 0.05, 0.70),
-        (9, 'Volatility', 0.50, 0.90),
+        (9, 'Quality', 0.010, 0.70),
+        (9, 'Volatility', -0.020, 0.90),
         (10, 'Market', -0.25, 0.95),
-        (10, 'Value', -0.20, 0.85),
-        (10, 'Quality', 0.08, 0.75),
-        (10, 'Volatility', 1.00, 0.98)
+        (10, 'Value', -0.020, 0.85),
+        (10, 'Quality', 0.020, 0.75),
+        (10, 'Size', 0.015, 0.80),
+        (10, 'Volatility', -0.040, 0.98)
         AS t(SCENARIO_ID, FACTOR_NAME, FACTOR_SHOCK, CONFIDENCE_LEVEL)
     )
     SELECT * FROM scenario_factor_shocks
@@ -8029,7 +8904,7 @@ def build_hidden_factor_exposures(session: Session):
             pw.PortfolioID AS PORTFOLIOID,
             zs.FACTOR_NAME,
             zs.DESCRIPTION,
-            SUM(pw.PortfolioWeight * zs.Z_SCORE) AS FACTOR_EXPOSURE,
+            SUM(pw.PortfolioWeight * zs.Z_SCORE) / NULLIF(SUM(pw.PortfolioWeight), 0) AS FACTOR_EXPOSURE,
             COUNT(DISTINCT zs.SecurityID) AS SECURITIES_WITH_SCORE,
             SUM(pw.PortfolioWeight) AS TOTAL_WEIGHT_SCORED,
             POWER(CORR(zs.Z_SCORE, pw.PortfolioWeight), 2) AS EXPLANATORY_POWER_RAW
@@ -8451,6 +9326,254 @@ def build_advanced_attribution_views(session: Session):
     log_detail("  Created: V_CROSS_PORTFOLIO_ANALYTICS")
 
 
+MULTI_LEVEL_BENCHMARK_ID = 1
+
+MULTI_LEVEL_ATTRIBUTION_DIMENSIONS = [
+    {
+        'name': 'COUNTRY',
+        'expr': "COALESCE(i.CountryOfIncorporation, 'Unclassified')",
+        'parent_expr': 'NULL',
+        'bench_fallback_expr': "'Unclassified'",
+        'bench_fallback_parent': 'NULL',
+    },
+    {
+        'name': 'INDUSTRY',
+        'expr': "COALESCE(i.Industry, i.GICS_SECTOR, 'Unclassified')",
+        'parent_expr': "CASE WHEN i.GICS_SECTOR = 'Healthcare' THEN 'Health Care' ELSE i.GICS_SECTOR END",
+        'bench_fallback_expr': 'm.SECTOR',
+        'bench_fallback_parent': 'm.SECTOR',
+    },
+    {
+        'name': 'ASSET_CLASS',
+        'expr': "COALESCE(s.AssetClass, 'Unclassified')",
+        'parent_expr': 'NULL',
+        'bench_fallback_expr': "'Equity'",
+        'bench_fallback_parent': 'NULL',
+    },
+]
+
+
+def multi_level_dimension_sql(database: str, curated: str, market_data: str, dim: Dict[str, str]) -> str:
+    """SELECT producing FACT_BRINSON_ATTRIBUTION_DETAIL rows for one non-sector dimension.
+
+    Uses the same position universe, beginning-of-period weights, benchmark sector
+    weights and sector ETF returns as FACT_BRINSON_BY_SECTOR. Each benchmark sector is
+    split into dimension cells by its benchmark constituent mix, with cell returns
+    shifted so they aggregate exactly to the sector ETF return. Dimension totals
+    therefore equal the sector total.
+    """
+    dim_name = dim['name']
+    group_expr = dim['expr']
+    parent_expr = dim['parent_expr']
+    fallback_expr = dim['bench_fallback_expr']
+    fallback_parent = dim['bench_fallback_parent']
+    benchmark_id = MULTI_LEVEL_BENCHMARK_ID
+    return f"""
+        WITH month_end_prices AS (
+            SELECT SECURITYID, PRICE_DATE, PRICE_CLOSE,
+                LAG(PRICE_CLOSE) OVER (PARTITION BY SECURITYID ORDER BY PRICE_DATE) AS PREV_MONTH_CLOSE
+            FROM (
+                SELECT SECURITYID, PRICE_DATE, PRICE_CLOSE,
+                    ROW_NUMBER() OVER (PARTITION BY SECURITYID, DATE_TRUNC('month', PRICE_DATE) ORDER BY PRICE_DATE DESC) AS RN
+                FROM {database}.{market_data}.FACT_STOCK_PRICES
+            )
+            WHERE RN = 1
+        ),
+        stock_monthly_returns AS (
+            SELECT SECURITYID, DATE_TRUNC('month', PRICE_DATE) AS RETURN_MONTH,
+                (PRICE_CLOSE - PREV_MONTH_CLOSE) / NULLIF(PREV_MONTH_CLOSE, 0) AS STOCK_RETURN
+            FROM month_end_prices
+            WHERE PREV_MONTH_CLOSE IS NOT NULL
+        ),
+        security_groups AS (
+            SELECT
+                s.SecurityID,
+                CASE WHEN i.GICS_SECTOR = 'Healthcare' THEN 'Health Care' ELSE i.GICS_SECTOR END AS SECTOR,
+                {group_expr} AS GROUPING_VALUE,
+                {parent_expr} AS PARENT_GROUPING_VALUE
+            FROM {database}.{curated}.DIM_SECURITY s
+            JOIN {database}.{curated}.DIM_ISSUER i ON s.IssuerID = i.IssuerID
+        ),
+        portfolio_positions AS (
+            SELECT
+                LAST_DAY(DATEADD('month', 1, p.HoldingDate)) AS DATE,
+                p.PortfolioID,
+                p.SecurityID,
+                p.PortfolioWeight AS WEIGHT
+            FROM {database}.{curated}.FACT_POSITION_DAILY_ABOR p
+            WHERE p.HoldingDate >= DATEADD('year', -2, CURRENT_DATE())
+              AND LAST_DAY(DATEADD('month', 1, p.HoldingDate)) <= (
+                  SELECT DATEADD('day', 5, MAX(PRICE_DATE)) FROM {database}.{market_data}.FACT_STOCK_PRICES
+              )
+        ),
+        benchmark_weights AS (
+            SELECT SECTOR, BENCHMARK_WEIGHT
+            FROM {database}.{market_data}.FACT_BENCHMARK_SECTOR_WEIGHTS
+            WHERE BENCHMARK_ID = {benchmark_id}
+        ),
+        position_dates AS (
+            SELECT DISTINCT DATE FROM portfolio_positions
+        ),
+        monthly_sector_etf_returns AS (
+            SELECT
+                pd.DATE AS POSITION_DATE,
+                bw.SECTOR,
+                EXP(SUM(LN(1 + sr.SECTOR_RETURN))) - 1 AS SECTOR_RETURN
+            FROM position_dates pd
+            CROSS JOIN benchmark_weights bw
+            JOIN {database}.{market_data}.FACT_SECTOR_RETURNS sr
+                ON bw.SECTOR = sr.SECTOR
+                AND sr.DATE > LAST_DAY(DATEADD('month', -1, pd.DATE))
+                AND sr.DATE <= pd.DATE
+                AND sr.SECTOR_RETURN > -1
+            GROUP BY pd.DATE, bw.SECTOR
+            HAVING MAX(sr.DATE) >= DATEADD('day', -5, pd.DATE)
+        ),
+        portfolio_in_scope AS (
+            SELECT pp.DATE, pp.PortfolioID, pp.WEIGHT, smr.STOCK_RETURN,
+                sg.GROUPING_VALUE, sg.PARENT_GROUPING_VALUE
+            FROM portfolio_positions pp
+            JOIN stock_monthly_returns smr
+                ON pp.SecurityID = smr.SECURITYID
+                AND DATE_TRUNC('month', pp.DATE) = smr.RETURN_MONTH
+            JOIN security_groups sg ON pp.SecurityID = sg.SecurityID
+            JOIN monthly_sector_etf_returns m
+                ON m.POSITION_DATE = pp.DATE AND m.SECTOR = sg.SECTOR
+        ),
+        portfolio_groups AS (
+            SELECT DATE, PortfolioID, GROUPING_VALUE,
+                MAX(PARENT_GROUPING_VALUE) AS PARENT_GROUPING_VALUE,
+                SUM(WEIGHT) AS PORTFOLIO_WEIGHT,
+                SUM(WEIGHT * STOCK_RETURN) / NULLIF(SUM(WEIGHT), 0) AS PORTFOLIO_GROUP_RETURN
+            FROM portfolio_in_scope
+            GROUP BY DATE, PortfolioID, GROUPING_VALUE
+        ),
+        bench_asof AS (
+            SELECT pd.DATE, MAX(bh.HOLDING_DATE) AS BENCH_DATE
+            FROM position_dates pd
+            JOIN {database}.{curated}.FACT_BENCHMARK_HOLDINGS bh
+                ON bh.BENCHMARKID = {benchmark_id} AND bh.HOLDING_DATE < DATE_TRUNC('month', pd.DATE)
+            GROUP BY pd.DATE
+        ),
+        bench_cells_raw AS (
+            SELECT ba.DATE, sg.SECTOR, sg.GROUPING_VALUE,
+                MAX(sg.PARENT_GROUPING_VALUE) AS PARENT_GROUPING_VALUE,
+                SUM(bh.BENCHMARK_WEIGHT) AS CELL_WEIGHT,
+                SUM(bh.BENCHMARK_WEIGHT * smr.STOCK_RETURN) / NULLIF(SUM(bh.BENCHMARK_WEIGHT), 0) AS CELL_RETURN
+            FROM bench_asof ba
+            JOIN {database}.{curated}.FACT_BENCHMARK_HOLDINGS bh
+                ON bh.BENCHMARKID = {benchmark_id} AND bh.HOLDING_DATE = ba.BENCH_DATE
+            JOIN security_groups sg ON bh.SECURITYID = sg.SecurityID
+            JOIN stock_monthly_returns smr
+                ON bh.SECURITYID = smr.SECURITYID
+                AND DATE_TRUNC('month', ba.DATE) = smr.RETURN_MONTH
+            WHERE bh.BENCHMARK_WEIGHT > 0
+            GROUP BY ba.DATE, sg.SECTOR, sg.GROUPING_VALUE
+        ),
+        bench_sector_raw AS (
+            SELECT DATE, SECTOR, SUM(CELL_WEIGHT) AS SECTOR_WEIGHT,
+                SUM(CELL_WEIGHT * CELL_RETURN) / NULLIF(SUM(CELL_WEIGHT), 0) AS SECTOR_RETURN
+            FROM bench_cells_raw
+            GROUP BY DATE, SECTOR
+        ),
+        bench_cells AS (
+            SELECT
+                m.POSITION_DATE AS DATE,
+                COALESCE(c.GROUPING_VALUE, {fallback_expr}) AS GROUPING_VALUE,
+                COALESCE(c.PARENT_GROUPING_VALUE, {fallback_parent}) AS PARENT_GROUPING_VALUE,
+                bw.BENCHMARK_WEIGHT * COALESCE(c.CELL_WEIGHT / NULLIF(bs.SECTOR_WEIGHT, 0), 1) AS CELL_WEIGHT,
+                COALESCE(c.CELL_RETURN - bs.SECTOR_RETURN + m.SECTOR_RETURN, m.SECTOR_RETURN) AS CELL_RETURN
+            FROM monthly_sector_etf_returns m
+            JOIN benchmark_weights bw ON bw.SECTOR = m.SECTOR
+            LEFT JOIN bench_sector_raw bs
+                ON bs.DATE = m.POSITION_DATE AND bs.SECTOR = m.SECTOR AND bs.SECTOR_WEIGHT > 0
+            LEFT JOIN bench_cells_raw c
+                ON c.DATE = bs.DATE AND c.SECTOR = bs.SECTOR
+        ),
+        benchmark_groups AS (
+            SELECT DATE, GROUPING_VALUE,
+                MAX(PARENT_GROUPING_VALUE) AS PARENT_GROUPING_VALUE,
+                SUM(CELL_WEIGHT) AS BENCHMARK_WEIGHT,
+                SUM(CELL_WEIGHT * CELL_RETURN) / NULLIF(SUM(CELL_WEIGHT), 0) AS BENCHMARK_GROUP_RETURN
+            FROM bench_cells
+            GROUP BY DATE, GROUPING_VALUE
+        ),
+        total_bm AS (
+            SELECT DATE, SUM(BENCHMARK_WEIGHT * BENCHMARK_GROUP_RETURN) AS TOTAL_BM_RETURN
+            FROM benchmark_groups
+            GROUP BY DATE
+        ),
+        spine AS (
+            SELECT DISTINCT DATE, PortfolioID FROM portfolio_groups
+        ),
+        benchmark_by_portfolio AS (
+            SELECT sp.DATE, sp.PortfolioID, bg.GROUPING_VALUE, bg.PARENT_GROUPING_VALUE,
+                bg.BENCHMARK_WEIGHT, bg.BENCHMARK_GROUP_RETURN
+            FROM spine sp
+            JOIN benchmark_groups bg ON bg.DATE = sp.DATE
+        ),
+        all_group_rows AS (
+            SELECT
+                COALESCE(pg.DATE, bg.DATE) AS DATE,
+                COALESCE(pg.PortfolioID, bg.PortfolioID) AS PortfolioID,
+                COALESCE(pg.GROUPING_VALUE, bg.GROUPING_VALUE) AS GROUPING_VALUE,
+                COALESCE(pg.PARENT_GROUPING_VALUE, bg.PARENT_GROUPING_VALUE) AS PARENT_GROUPING_VALUE,
+                COALESCE(pg.PORTFOLIO_WEIGHT, 0) AS PORTFOLIO_WEIGHT,
+                COALESCE(bg.BENCHMARK_WEIGHT, 0) AS BENCHMARK_WEIGHT,
+                COALESCE(pg.PORTFOLIO_GROUP_RETURN, bg.BENCHMARK_GROUP_RETURN, 0) AS PORTFOLIO_GROUP_RETURN,
+                COALESCE(bg.BENCHMARK_GROUP_RETURN, pg.PORTFOLIO_GROUP_RETURN, 0) AS BENCHMARK_GROUP_RETURN
+            FROM portfolio_groups pg
+            FULL OUTER JOIN benchmark_by_portfolio bg
+                ON pg.DATE = bg.DATE AND pg.PortfolioID = bg.PortfolioID AND pg.GROUPING_VALUE = bg.GROUPING_VALUE
+        )
+        SELECT
+            a.DATE,
+            a.PortfolioID,
+            '{dim_name}' AS GroupingDimension,
+            a.GROUPING_VALUE AS GroupingValue,
+            a.PARENT_GROUPING_VALUE AS ParentGroupingValue,
+            a.PORTFOLIO_WEIGHT AS PortfolioWeight,
+            a.BENCHMARK_WEIGHT AS BenchmarkWeight,
+            a.PORTFOLIO_GROUP_RETURN AS PortfolioGroupReturn,
+            a.BENCHMARK_GROUP_RETURN AS BenchmarkGroupReturn,
+            ROUND((a.PORTFOLIO_WEIGHT - a.BENCHMARK_WEIGHT) * (a.BENCHMARK_GROUP_RETURN - tb.TOTAL_BM_RETURN), 10) AS AllocationEffect,
+            ROUND(a.BENCHMARK_WEIGHT * (a.PORTFOLIO_GROUP_RETURN - a.BENCHMARK_GROUP_RETURN), 10) AS SelectionEffect,
+            ROUND((a.PORTFOLIO_WEIGHT - a.BENCHMARK_WEIGHT) * (a.PORTFOLIO_GROUP_RETURN - a.BENCHMARK_GROUP_RETURN), 10) AS InteractionEffect,
+            ROUND((a.PORTFOLIO_WEIGHT - a.BENCHMARK_WEIGHT) * (a.BENCHMARK_GROUP_RETURN - tb.TOTAL_BM_RETURN), 10)
+            + ROUND(a.BENCHMARK_WEIGHT * (a.PORTFOLIO_GROUP_RETURN - a.BENCHMARK_GROUP_RETURN), 10)
+            + ROUND((a.PORTFOLIO_WEIGHT - a.BENCHMARK_WEIGHT) * (a.PORTFOLIO_GROUP_RETURN - a.BENCHMARK_GROUP_RETURN), 10) AS TotalEffect
+        FROM all_group_rows a
+        JOIN total_bm tb ON a.DATE = tb.DATE
+    """
+
+
+def check_multi_level_reconciliation(session: Session, database: str, curated: str, tolerance_bps: float = 1.0) -> int:
+    """Warn when any dimension's monthly effect total differs from the active return by more than tolerance."""
+    rows = session.sql(f"""
+        WITH dim_totals AS (
+            SELECT DATE, PortfolioID, GroupingDimension, SUM(TotalEffect) AS DIM_TOTAL
+            FROM {database}.{curated}.FACT_BRINSON_ATTRIBUTION_DETAIL
+            GROUP BY DATE, PortfolioID, GroupingDimension
+        )
+        SELECT d.GroupingDimension,
+            COUNT(*) AS BREACHES,
+            MAX(ABS(d.DIM_TOTAL - b.ACTIVE_RETURN)) * 10000 AS MAX_RESIDUAL_BPS
+        FROM dim_totals d
+        JOIN {database}.{curated}.FACT_BRINSON_ATTRIBUTION b
+            ON b.DATE = d.DATE AND b.PORTFOLIOID = d.PortfolioID
+        WHERE ABS(d.DIM_TOTAL - b.ACTIVE_RETURN) * 10000 > {tolerance_bps}
+        GROUP BY d.GroupingDimension
+    """).collect()
+    for r in rows:
+        log_warning(
+            f"  Attribution reconciliation: {r['GROUPINGDIMENSION']} differs from active return by more than "
+            f"{tolerance_bps}bp in {r['BREACHES']} portfolio-months (max {r['MAX_RESIDUAL_BPS']:.2f}bp)"
+        )
+    if not rows:
+        log_substep(f"  Attribution reconciliation: all dimensions within {tolerance_bps}bp of active return")
+    return sum(r['BREACHES'] for r in rows)
+
+
 def build_multi_level_attribution(session: Session, test_mode: bool = False) -> None:
     database = config.DATABASE['name']
     curated = config.DATABASE['schemas']['curated']
@@ -8496,147 +9619,17 @@ def build_multi_level_attribution(session: Session, test_mode: bool = False) -> 
     """).collect()
     log_substep("Inserted SECTOR rows from existing FACT_BRINSON_BY_SECTOR")
 
-    grouping_dimensions = [
-        {
-            'name': 'COUNTRY',
-            'expr': "i.CountryOfIncorporation",
-            'parent_expr': 'NULL',
-        },
-        {
-            'name': 'INDUSTRY',
-            'expr': "i.SIC_DESCRIPTION",
-            'parent_expr': "CASE WHEN i.GICS_SECTOR = 'Healthcare' THEN 'Health Care' ELSE i.GICS_SECTOR END",
-        },
-        {
-            'name': 'ASSET_CLASS',
-            'expr': "s.AssetClass",
-            'parent_expr': 'NULL',
-        },
-    ]
-
-    for dim in grouping_dimensions:
+    for dim in MULTI_LEVEL_ATTRIBUTION_DIMENSIONS:
         dim_name = dim['name']
-        group_expr = dim['expr']
-        parent_expr = dim['parent_expr']
         log_substep(f"Computing attribution for {dim_name}...")
-
+        dimension_sql = multi_level_dimension_sql(database, curated, market_data, dim)
         session.sql(f"""
         INSERT INTO {database}.{curated}.FACT_BRINSON_ATTRIBUTION_DETAIL
-        WITH month_end_prices AS (
-            SELECT SECURITYID, PRICE_DATE, PRICE_CLOSE,
-                LAG(PRICE_CLOSE) OVER (PARTITION BY SECURITYID ORDER BY PRICE_DATE) AS PREV_MONTH_CLOSE
-            FROM (
-                SELECT SECURITYID, PRICE_DATE, PRICE_CLOSE,
-                    ROW_NUMBER() OVER (PARTITION BY SECURITYID, DATE_TRUNC('month', PRICE_DATE) ORDER BY PRICE_DATE DESC) AS RN
-                FROM {database}.MARKET_DATA.FACT_STOCK_PRICES
-            )
-            WHERE RN = 1
-        ),
-        stock_monthly_returns AS (
-            SELECT SECURITYID, PRICE_DATE,
-                (PRICE_CLOSE - PREV_MONTH_CLOSE) / NULLIF(PREV_MONTH_CLOSE, 0) AS STOCK_RETURN
-            FROM month_end_prices
-            WHERE PREV_MONTH_CLOSE IS NOT NULL
-        ),
-        position_with_group AS (
-            SELECT
-                p.HoldingDate AS DATE,
-                p.PortfolioID,
-                p.SecurityID,
-                p.PortfolioWeight,
-                {group_expr} AS GROUPING_VALUE,
-                {parent_expr} AS PARENT_GROUPING_VALUE
-            FROM {database}.{curated}.FACT_POSITION_DAILY_ABOR p
-            JOIN {database}.{curated}.DIM_SECURITY s ON p.SecurityID = s.SecurityID
-            JOIN {database}.{curated}.DIM_ISSUER i ON s.IssuerID = i.IssuerID
-            WHERE p.HoldingDate >= DATEADD('year', -2, CURRENT_DATE())
-        ),
-        portfolio_group_data AS (
-            SELECT
-                pwg.DATE,
-                pwg.PortfolioID,
-                pwg.GROUPING_VALUE,
-                MAX(pwg.PARENT_GROUPING_VALUE) AS PARENT_GROUPING_VALUE,
-                SUM(pwg.PortfolioWeight) AS PORTFOLIO_WEIGHT,
-                SUM(pwg.PortfolioWeight * smr.STOCK_RETURN) / NULLIF(SUM(pwg.PortfolioWeight), 0) AS PORTFOLIO_GROUP_RETURN
-            FROM position_with_group pwg
-            JOIN stock_monthly_returns smr
-                ON pwg.SecurityID = smr.SECURITYID
-                AND DATE_TRUNC('month', pwg.DATE) = DATE_TRUNC('month', smr.PRICE_DATE)
-            GROUP BY pwg.DATE, pwg.PortfolioID, pwg.GROUPING_VALUE
-        ),
-        universe_group_mapping AS (
-            SELECT DISTINCT
-                {group_expr} AS GROUPING_VALUE,
-                s.SecurityID
-            FROM {database}.{curated}.DIM_SECURITY s
-            JOIN {database}.{curated}.DIM_ISSUER i ON s.IssuerID = i.IssuerID
-        ),
-        universe_count AS (
-            SELECT COUNT(DISTINCT SecurityID) AS TOTAL FROM universe_group_mapping
-        ),
-        benchmark_weights AS (
-            SELECT
-                ugm.GROUPING_VALUE,
-                CAST(COUNT(DISTINCT ugm.SecurityID) AS FLOAT) / uc.TOTAL AS BENCHMARK_WEIGHT
-            FROM universe_group_mapping ugm
-            CROSS JOIN universe_count uc
-            GROUP BY ugm.GROUPING_VALUE, uc.TOTAL
-        ),
-        benchmark_group_returns AS (
-            SELECT
-                smr.PRICE_DATE AS DATE,
-                ugm.GROUPING_VALUE,
-                AVG(smr.STOCK_RETURN) AS BENCHMARK_GROUP_RETURN
-            FROM universe_group_mapping ugm
-            JOIN stock_monthly_returns smr ON ugm.SecurityID = smr.SECURITYID
-            GROUP BY smr.PRICE_DATE, ugm.GROUPING_VALUE
-        ),
-        date_portfolio_spine AS (
-            SELECT DISTINCT DATE, PortfolioID FROM portfolio_group_data
-        ),
-        all_group_rows AS (
-            SELECT
-                dp.DATE,
-                dp.PortfolioID,
-                bw.GROUPING_VALUE,
-                pgd.PARENT_GROUPING_VALUE,
-                COALESCE(pgd.PORTFOLIO_WEIGHT, 0) AS PORTFOLIO_WEIGHT,
-                bw.BENCHMARK_WEIGHT,
-                COALESCE(pgd.PORTFOLIO_GROUP_RETURN, 0) AS PORTFOLIO_GROUP_RETURN,
-                COALESCE(bgr.BENCHMARK_GROUP_RETURN, 0) AS BENCHMARK_GROUP_RETURN
-            FROM date_portfolio_spine dp
-            CROSS JOIN benchmark_weights bw
-            LEFT JOIN portfolio_group_data pgd
-                ON dp.DATE = pgd.DATE AND dp.PortfolioID = pgd.PortfolioID AND bw.GROUPING_VALUE = pgd.GROUPING_VALUE
-            LEFT JOIN benchmark_group_returns bgr
-                ON dp.DATE = bgr.DATE AND bw.GROUPING_VALUE = bgr.GROUPING_VALUE
-        ),
-        total_bm AS (
-            SELECT DATE, SUM(BENCHMARK_WEIGHT * BENCHMARK_GROUP_RETURN) AS TOTAL_BM_RETURN
-            FROM all_group_rows
-            GROUP BY DATE
-        )
-        SELECT
-            a.DATE,
-            a.PortfolioID,
-            '{dim_name}' AS GroupingDimension,
-            a.GROUPING_VALUE AS GroupingValue,
-            a.PARENT_GROUPING_VALUE AS ParentGroupingValue,
-            a.PORTFOLIO_WEIGHT AS PortfolioWeight,
-            a.BENCHMARK_WEIGHT AS BenchmarkWeight,
-            a.PORTFOLIO_GROUP_RETURN AS PortfolioGroupReturn,
-            a.BENCHMARK_GROUP_RETURN AS BenchmarkGroupReturn,
-            ROUND((a.PORTFOLIO_WEIGHT - a.BENCHMARK_WEIGHT) * (a.BENCHMARK_GROUP_RETURN - tb.TOTAL_BM_RETURN), 10) AS AllocationEffect,
-            ROUND(a.BENCHMARK_WEIGHT * (a.PORTFOLIO_GROUP_RETURN - a.BENCHMARK_GROUP_RETURN), 10) AS SelectionEffect,
-            ROUND((a.PORTFOLIO_WEIGHT - a.BENCHMARK_WEIGHT) * (a.PORTFOLIO_GROUP_RETURN - a.BENCHMARK_GROUP_RETURN), 10) AS InteractionEffect,
-            ROUND((a.PORTFOLIO_WEIGHT - a.BENCHMARK_WEIGHT) * (a.BENCHMARK_GROUP_RETURN - tb.TOTAL_BM_RETURN), 10)
-            + ROUND(a.BENCHMARK_WEIGHT * (a.PORTFOLIO_GROUP_RETURN - a.BENCHMARK_GROUP_RETURN), 10)
-            + ROUND((a.PORTFOLIO_WEIGHT - a.BENCHMARK_WEIGHT) * (a.PORTFOLIO_GROUP_RETURN - a.BENCHMARK_GROUP_RETURN), 10) AS TotalEffect
-        FROM all_group_rows a
-        JOIN total_bm tb ON a.DATE = tb.DATE
+        {dimension_sql}
         """).collect()
         log_substep(f"  Inserted {dim_name} attribution rows")
+
+    check_multi_level_reconciliation(session, database, curated)
 
     row_count = session.sql(f"SELECT COUNT(*) AS CNT FROM {database}.{curated}.FACT_BRINSON_ATTRIBUTION_DETAIL").collect()[0]['CNT']
     log_phase_complete(f"Multi-Level Attribution: {row_count} rows across 4 dimensions")
@@ -8702,7 +9695,7 @@ def build_currency_attribution(session: Session, test_mode: bool = False) -> Non
     ),
     position_with_currency AS (
         SELECT
-            p.HoldingDate AS DATE,
+            LAST_DAY(DATEADD('month', 1, p.HoldingDate)) AS DATE,
             p.PortfolioID,
             p.SecurityID,
             p.PortfolioWeight,
@@ -8713,6 +9706,9 @@ def build_currency_attribution(session: Session, test_mode: bool = False) -> Non
         JOIN {database}.{curated}.DIM_ISSUER i ON s.IssuerID = i.IssuerID
         LEFT JOIN country_currency_map ccm ON i.CountryOfIncorporation = ccm.COUNTRY
         WHERE p.HoldingDate >= DATEADD('year', -2, CURRENT_DATE())
+          AND LAST_DAY(DATEADD('month', 1, p.HoldingDate)) <= (
+              SELECT DATEADD('day', 5, MAX(PRICE_DATE)) FROM {database}.{market_data}.FACT_STOCK_PRICES
+          )
     )
     SELECT
         pwc.DATE,

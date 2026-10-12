@@ -27,7 +27,7 @@ Trigger when user asks: "anomalies", "risk flags", "attribution drift", "any ale
 
 ### Step 1: Scan All Portfolios
 
-Tool: `anomaly_detector`
+Tool: `attribution_analyzer`
 Query: Latest month, all portfolios, ordered by anomaly severity (HIGH first)
 
 ### Step 2: Present Findings
@@ -49,12 +49,14 @@ Which would be most useful?"
 
 ### Step 3a: Drill into Portfolio Attribution (if user chooses)
 
-Tool: `brinson_analyzer`
+Keep the period of the scan you are drilling from; for a multi-month period use `linked_attribution` with the same period_type and period_end rather than the latest single month.
+
+Tool: `attribution_analyzer`
 Query: Recent 3-6 months for the flagged portfolio to show the attribution trend and when things changed
 
 ### Step 3b: Drift Timeline (if user chooses)
 
-Tool: `brinson_analyzer` (rolling analytics via the view)
+Tool: `attribution_analyzer` (rolling analytics via the view)
 Query: Month-by-month exposure or weight history showing the drift building
 
 ### Step 3c: Stress Test (if user chooses)

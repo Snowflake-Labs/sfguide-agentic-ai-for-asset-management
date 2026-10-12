@@ -75,8 +75,8 @@ Your top 5 holdings in SAM Technology & Infrastructure:
 
 | Ticker | Company | Weight | Value |
 |--------|---------|--------|-------|
-| AAPL   | Apple   | 8.2%   | £41M  |
-| MSFT   | Microsoft | 7.4% | £37M  |
+| AAPL   | Apple   | 8.2%   | $41M  |
+| MSFT   | Microsoft | 7.4% | $37M  |
 ...
 
 ⚠️ CONCENTRATION: 2 positions exceed 6.5% threshold
@@ -165,16 +165,33 @@ Automated evaluation datasets are created as part of the build pipeline. These u
 
 ### Build Integration
 
-Eval datasets are created automatically after agents during `--scope agents` or `--scope ai`:
+Eval datasets are created automatically after agents during `--scope agents` or
+`--scope ai`. That build now runs in the Code Bundle, so push current code to the bundle
+stage first:
 
 ```bash
-python python/main.py --connection-name <conn> --scope agents --scenarios portfolio_copilot,research_copilot
+python python/weekly_refresh_main.py --mode deploy --connection-name <conn>
+```
+```sql
+EXECUTE CODE BUNDLE SAM_DEMO.AI.SAM_WEEKLY_BUNDLE
+    ENTRYPOINT = 'python/workspace_main.py'
+    ARGUMENTS  = ('--scope', 'agents', '--scenarios', 'portfolio_management,research');
 ```
 
-To rebuild eval datasets only (without recreating agents):
+To rebuild eval datasets only, without recreating agents, call the function directly.
+(The old `--include-eval` flag did not do this - it only printed a line; datasets were
+always created as part of the agent build.)
 
 ```bash
-python python/main.py --connection-name <conn> --scope eval --scenarios portfolio_copilot
+cd python && python -c "
+from snowflake.snowpark import Session
+from ai.evaluations import create_eval_datasets
+s = Session.builder.config('connection_name', '<conn>').create()
+s.sql('USE ROLE FSI_DEMO_BUILD_ROLE').collect()
+s.sql('USE WAREHOUSE SAM_DEMO_EXECUTION_WH').collect()
+created, failed = create_eval_datasets(s, ['portfolio_management'])
+print(f'created={created} failed={failed}')
+"
 ```
 
 ### Evaluation Metrics
@@ -220,7 +237,7 @@ Use Cortex Code's agent evaluation skill or call programmatically:
 
 ```python
 from ai.evaluations import run_evaluation
-run_name = run_evaluation(session, 'portfolio_copilot', connection_name='my_conn')
+run_name = run_evaluation(session, 'portfolio_management', connection_name='my_conn')
 ```
 
 ### Viewing Results
@@ -228,7 +245,7 @@ run_name = run_evaluation(session, 'portfolio_copilot', connection_name='my_conn
 ```sql
 SELECT *
 FROM TABLE(SNOWFLAKE.LOCAL.GET_AI_EVALUATION_DATA(
-    'SAM_DEMO', 'AI', 'AM_portfolio_manager_copilot', 'CORTEX AGENT', '<RUN_NAME>'
+    'SAM_DEMO', 'AI', 'AM_portfolio_management_copilot', 'CORTEX AGENT', '<RUN_NAME>'
 ))
 ORDER BY TIMESTAMP DESC;
 ```
@@ -236,5 +253,5 @@ ORDER BY TIMESTAMP DESC;
 ### Adding Evaluations for a New Agent
 
 1. Add entry to `AGENT_EVALUATIONS` in `config.py`
-2. Run `python main.py --scope eval --scenarios <scenario_name>`
+2. Run `create_eval_datasets(session, ['<scenario_name>'])` as shown in Build Integration above
 3. The framework handles table creation, question hydration, and dataset registration

@@ -126,7 +126,7 @@ Table rules:
 ## Cross-Skill References
 
 - "What SFDR requirements apply?" -> `regulatory-lookup` skill
-- "Adapt for board/prospect audience?" -> `audience-adaptive-narrative` skill
+- "Adapt for board/prospect audience?" -> `audience-format-adaptation` skill
 - "Generate PDF?" -> `pdf-report-generation` skill (only when explicitly requested)
 
 ## Stopping Points

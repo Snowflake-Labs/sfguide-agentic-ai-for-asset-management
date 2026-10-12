@@ -88,6 +88,9 @@ companies:
   tier: core
   demo_order: 1
   position_size: large
+  portfolio_targets:
+    SAM Technology & Infrastructure:
+      target_weight: 0.090
 - ticker: CMC
   company_name: COMMERCIAL METALS CO
   provider_company_id: 50b5c4a14b7d9817e50d66022153a149
@@ -111,6 +114,11 @@ companies:
   sector: Information Technology
   tier: core
   demo_order: 4
+  portfolio_targets:
+    SAM Technology & Infrastructure:
+      target_weight: 0.082
+    SAM Global Balanced 60/40:
+      target_weight: 0.113
 - ticker: NVDA
   company_name: NVIDIA CORP
   provider_company_id: 59cf1797ff7546139b04473f612cbe0c
@@ -118,6 +126,9 @@ companies:
   sector: Information Technology
   tier: core
   demo_order: 5
+  portfolio_targets:
+    SAM Technology & Infrastructure:
+      target_weight: 0.074
 - ticker: GOOGL
   company_name: ALPHABET INC.
   provider_company_id: bec137cd76d8c4d1440569461d7375bd
@@ -125,6 +136,11 @@ companies:
   sector: Communication Services
   tier: core
   demo_order: 6
+  portfolio_targets:
+    SAM Technology & Infrastructure:
+      target_weight: 0.060
+    SAM Global Flagship Multi-Asset:
+      target_weight: 0.064
 - ticker: AMZN
   company_name: AMAZON COM INC
   provider_company_id: 602fec4b30df7a598a17a09fa789cc48
@@ -132,6 +148,9 @@ companies:
   sector: Consumer Discretionary
   tier: core
   demo_order: 7
+  portfolio_targets:
+    SAM Technology & Infrastructure:
+      target_weight: 0.047
 - ticker: INTC
   company_name: INTEL CORP
   provider_company_id: 33c4c5960af4e6eb8dd18d4ec982c0c2
@@ -139,6 +158,9 @@ companies:
   sector: Information Technology
   tier: core
   demo_order: 8
+  portfolio_targets:
+    SAM ESG Leaders Global Equity:
+      target_weight: 0.006
 - ticker: AMD
   company_name: ADVANCED MICRO DEVICES INC
   provider_company_id: 12c617b47081d343dc595256aa5bbb1d
@@ -146,6 +168,9 @@ companies:
   sector: Information Technology
   tier: core
   demo_order: 9
+  portfolio_targets:
+    SAM Technology & Infrastructure:
+      target_weight: 0.055
 - ticker: AVGO
   company_name: BROADCOM INC.
   provider_company_id: 8f448325fadfc6891e19cbaddff9ca2f
@@ -153,6 +178,9 @@ companies:
   sector: Information Technology
   tier: core
   demo_order: 10
+  portfolio_targets:
+    SAM Technology & Infrastructure:
+      target_weight: 0.050
 - ticker: QCOM
   company_name: QUALCOMM INC/DE
   provider_company_id: a66fa1ce7129d8898f49d981f90e2f29
@@ -160,18 +188,29 @@ companies:
   sector: Information Technology
   tier: core
   demo_order: 11
+  portfolio_targets:
+    SAM Technology & Infrastructure:
+      target_weight: 0.038
 - ticker: SNOW
   company_name: SNOWFLAKE INC.
   provider_company_id: be66d09336f7d9b9b53c3e129f241a11
   cik: '0001640147'
   sector: Information Technology
   tier: core
+  portfolio_targets:
+    SAM Technology & Infrastructure:
+      target_weight: 0.041
 - ticker: TSM
   company_name: TAIWAN SEMICONDUCTOR MANUFACTURING CO LTD
   provider_company_id: 71ae635a2d258f8bdb7c7c8bf06b3811
   cik: 0001046179
   sector: Information Technology
   tier: core
+  portfolio_targets:
+    SAM Technology & Infrastructure:
+      target_weight: 0.044
+    SAM ESG Leaders Global Equity:
+      target_weight: 0.054
 - ticker: ABT
   company_name: ABBOTT LABORATORIES
   provider_company_id: 2dcb8bc8661e611361f7c0254cb02ee7
@@ -208,6 +247,21 @@ companies:
   cik: 0000909832
   sector: Consumer Staples
   tier: major
+  portfolio_targets:
+    SAM Global Flagship Multi-Asset:
+      target_weight: 0.111
+    SAM ESG Leaders Global Equity:
+      target_weight: 0.104
+    SAM Global Balanced 60/40:
+      target_weight: 0.091
+    SAM US Core Equity:
+      target_weight: 0.088
+    SAM US Value Equity:
+      target_weight: 0.093
+    SAM Renewable & Climate Solutions:
+      target_weight: 0.103
+    SAM Sustainable Global Equity:
+      target_weight: 0.096
 - ticker: CRM
   company_name: SALESFORCE, INC.
   provider_company_id: bd894082fd352970647a92c1df99881c
@@ -238,6 +292,17 @@ companies:
   cik: 0000886982
   sector: Financials
   tier: major
+  portfolio_targets:
+    SAM ESG Leaders Global Equity:
+      target_weight: 0.078
+    SAM Global Balanced 60/40:
+      target_weight: 0.072
+    SAM US Core Equity:
+      target_weight: 0.076
+    SAM US Value Equity:
+      target_weight: 0.072
+    SAM Renewable & Climate Solutions:
+      target_weight: 0.099
 - ticker: HD
   company_name: HOME DEPOT, INC.
   provider_company_id: 20d74b93038d934d279f5018dfeab566
@@ -256,6 +321,9 @@ companies:
   cik: '0000051143'
   sector: Information Technology
   tier: major
+  portfolio_targets:
+    SAM ESG Leaders Global Equity:
+      target_weight: 0.026
 - ticker: JNJ
   company_name: JOHNSON & JOHNSON
   provider_company_id: bd9c926b9a88a238a0ff54be08a9ec7d
@@ -292,6 +360,13 @@ companies:
   cik: 0001326801
   sector: Communication Services
   tier: major
+  portfolio_targets:
+    SAM Renewable & Climate Solutions:
+      target_weight: 0.058
+    SAM Sustainable Global Equity:
+      target_weight: 0.052
+    SAM ESG Leaders Global Equity:
+      exclude: true
 - ticker: MMM
   company_name: 3M CO
   provider_company_id: d4b5a9265d9060a018829797de5e5b55

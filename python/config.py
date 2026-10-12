@@ -86,17 +86,20 @@ TEST_MODE_MULTIPLIER = 0.1
 # =============================================================================
 
 # Model used for speaker identification in transcript processing (AI_COMPLETE)
-# Options: 'claude-haiku-4-5', 'claude-sonnet-4', 'llama3.1-8b', etc.
-AI_SPEAKER_IDENTIFICATION_MODEL = 'openai-gpt-5-nano'
+AI_SPEAKER_IDENTIFICATION_MODEL = 'openai-gpt-5-nano' # Only AWS alternative claude-haiku-4-5
 
-AI_SIGNAL_EXTRACTION_MODEL = 'openai-gpt-5-nano'
+AI_SIGNAL_EXTRACTION_MODEL = 'openai-gpt-5-nano' # Only AWS alternative claude-haiku-4-5
 
-# Model used for agent orchestration (Snowflake Intelligence agents)
-AGENT_ORCHESTRATION_MODEL = 'claude-opus-4-7'
+# Model used for agent orchestration (Snowflake Intelligence agents).
+# 'auto' is the Snowflake-recommended setting: Cortex selects the highest-quality
+# model available to the account, so agents improve as new models ship instead of
+# being frozen on a pinned version. Pin an explicit model name only when you need
+# run-to-run reproducibility, e.g. while running agent evaluations.
+AGENT_ORCHESTRATION_MODEL = 'auto'
 
 # Budget limits for agent orchestration (prevents runaway costs)
-AGENT_BUDGET_SECONDS = 300
-AGENT_BUDGET_TOKENS = 32000
+AGENT_BUDGET_SECONDS = 600
+AGENT_BUDGET_TOKENS = 120000
 
 # Model used for text embeddings (Cortex Search, token counting)
 AI_EMBEDDING_MODEL = 'snowflake-arctic-embed-m-v1.5'
@@ -116,6 +119,17 @@ DATABASE = {
     }
 }
 
+RBAC = {
+    'platform_build_role': 'FSI_DEMO_BUILD_ROLE',
+    'demo_runtime_role': 'SAM_DEMO_USER_ROLE',
+    'legacy_demo_role': 'SAM_DEMO_ROLE',
+    'shared_database': 'FSI_DEMO_CONFIG',
+    'shared_schemas': {
+        'app': 'APP',
+        'spcs': 'SPCS',
+    },
+}
+
 WAREHOUSES = {
     'execution': {
         'name': 'SAM_DEMO_EXECUTION_WH',
@@ -131,12 +145,80 @@ WAREHOUSES = {
 }
 
 # =============================================================================
+# WEEKLY REFRESH AUTOMATION (Code Bundle + Task)
+# =============================================================================
+# The weekly incremental refresh is packaged as a Code Bundle and driven by a
+# scheduled task, so the demo keeps itself current with no manual trigger.
+#
+# Source is a STAGE rather than a workspace live path. A workspace path
+# ('snow://workspace/"USER$"."PUBLIC"."<name>"/versions/live') needs the
+# workspace name, which cannot be discovered at build time - inside a Workspace
+# the cwd is only /workspace/<hash>/. Staging the files works identically from a
+# Workspace and from a local checkout, so one code path covers both.
+
+WEEKLY_REFRESH = {
+    'bundle_name': 'SAM_WEEKLY_BUNDLE',
+    'task_name': 'WEEKLY_REFRESH_TASK',
+    'stage_name': 'CODE_BUNDLE_STAGE',
+    'entrypoint': 'python/weekly_refresh_main.py',
+    'arguments': ['--mode', 'weekly'],
+    # Monday 06:00 UTC: after the weekend, before the working day in EMEA.
+    'schedule': 'USING CRON 0 6 * * 1 UTC',
+    'compute_pool': 'SAM_DEMO_BUNDLE_POOL',
+    # Optional notification integration for task failures, wired as the task's
+    # ERROR_INTEGRATION. Left None because there is nothing valid to point it at
+    # here: tasks require a QUEUE-type integration (AWS SNS, Azure Event Grid or
+    # GCP Pub/Sub). This account's EMAIL_INTEGRATION is TYPE = EMAIL and is
+    # rejected with "is not a valid notification integration for User Tasks", so
+    # do not set it to that. Without this, check health with
+    # `weekly_refresh_main.py --mode status`, which exits non-zero when unhealthy.
+    'error_integration': None,
+    # Paths relative to the repo root, copied to the stage preserving layout.
+    # config.py resolves data/ and content_library/ as siblings of python/, so
+    # the bundle root must mirror the repo layout or template loading breaks.
+    'bundle_paths': [
+        'python',
+        'content_library',
+        'data/reference_data',
+        'code_bundle.yml',
+        'requirements.txt',
+    ],
+    # Excluded from the upload: caches and generated artefacts.
+    'bundle_exclude_dirs': {'__pycache__', '.ipynb_checkpoints', 'generated_pdfs'},
+    'bundle_exclude_suffixes': ('.pyc', '.pyo'),
+}
+
+# =============================================================================
+# INITIAL BUILD CODE BUNDLE
+# =============================================================================
+# The full environment build also runs as a Code Bundle, so a Workspace user gets
+# declarative package installation and queryable run history instead of the old
+# "open the file, pip install in a terminal, click Run" sequence.
+#
+# Unlike WEEKLY_REFRESH this bundle is sourced from the workspace live path rather
+# than a stage, and is created by scripts/workspace_setup.sql rather than by
+# Python. That is not an inconsistency - it resolves a bootstrap problem. Staging
+# files needs a Python client, but this bundle *is* how the Python runs, so it
+# cannot stage its own source. The workspace already holds the files, so the
+# workspace path needs no upload at all. The weekly bundle keeps its stage source
+# because a scheduled task must not depend on a user's workspace continuing to
+# exist.
+
+BUILD_BUNDLE = {
+    'bundle_name': 'SAM_BUILD_BUNDLE',
+    'entrypoint': 'python/workspace_main.py',
+    'compute_pool': 'SAM_DEMO_BUNDLE_POOL',
+}
+
+# =============================================================================
 # STREAMLIT CONTAINER RUNTIME CONFIGURATION
 # =============================================================================
 
 STREAMLIT = {
     'compute_pool': 'FSI_DEMO_STREAMLIT_COMPUTE_POOL',
-    'compute_pool_instance_family': 'CPU_X64_S',
+    # Current-generation x86. GEN_X64_G2_4 is the direct equivalent of the older
+    # CPU_X64_S (identical 3 vCPU / 13 GiB) with better price-performance.
+    'compute_pool_instance_family': 'GEN_X64_G2_4',
     'compute_pool_min_nodes': 1,
     'compute_pool_max_nodes': 3,
     'external_access_integration': 'FSI_DEMO_PYPI_ACCESS',
@@ -150,7 +232,8 @@ STREAMLIT = {
 
 COCKPIT = {
     'compute_pool': 'FSI_DEMO_APP_COMPUTE_POOL',
-    'compute_pool_instance_family': 'CPU_X64_S',
+    # See STREAMLIT above: current-generation equivalent of CPU_X64_S.
+    'compute_pool_instance_family': 'GEN_X64_G2_4',
     'compute_pool_min_nodes': 1,
     'compute_pool_max_nodes': 2,
     'image_repo': 'FSI_DEMO_CONFIG.SPCS.FSI_DEMO_REPOSITORY',
@@ -178,11 +261,22 @@ ML_CONFIG = {
     'model_registry_database': 'SAM_DEMO',
     'model_registry_schema': 'ML',
     'refresh_freq': '1 day',
+    'production_alias': 'PRODUCTION',
+    'build_trained_for_scenarios': ['private_credit', 'credit_risk_ml', 'market_regime_ml', 'portfolio_management'],
+    'build_version_prefix': 'BUILD_',
+    'random_seed': 42,
     'regime_model': {
         'name': 'MARKET_REGIME_GMM',
         'version_prefix': 'v',
         'n_components': 3,
-        'features': ['VIX_LEVEL', 'YIELD_SPREAD', 'CREDIT_SPREAD', 'MOMENTUM_20D'],
+        'n_init': 5,
+        'features_view': 'V_REGIME_FEATURES',
+        'features': [
+            'VIX_LEVEL', 'VIX_20D_MA', 'REALISED_VOL_20D', 'REALISED_VOL_60D',
+            'MOMENTUM_20D', 'MOMENTUM_60D', 'SECTOR_DISPERSION', 'VOL_RISK_PREMIUM',
+        ],
+        'labels_by_vix': ['RISK_ON', 'TRANSITIONAL', 'RISK_OFF'],
+        'benchmark_code': 'SPX',
     },
     'factor_model': {
         'name': 'FACTOR_RETURN_XGBOOST',
@@ -191,6 +285,29 @@ ML_CONFIG = {
     'credit_risk_model': {
         'name': 'CREDIT_RISK_XGBOOST',
         'version_prefix': 'v',
+        'features_view': 'V_CREDIT_RISK_FEATURES',
+        'features': [
+            'TOTALLEVERAGE', 'NETLEVERAGE', 'INTERESTCOVERAGE', 'FIXEDCHARGECOVERAGE',
+            'EBITDA_MARGIN', 'FCF_MARGIN', 'CAPEX_INTENSITY', 'FREECASHFLOW_MM',
+            'CASHONHAND_MM', 'REVOLVERAVAILABILITY_MM', 'AVG_COVENANT_HEADROOM',
+            'MIN_COVENANT_HEADROOM', 'BREACH_COUNT', 'RATING_ORDINAL', 'REGIME_ORDINAL',
+        ],
+        'stress_headroom_pct': 5.0,
+        'rating_scale': ['BBB-', 'BB+', 'BB', 'BB-', 'B+', 'B', 'B-', 'CCC+', 'CCC', 'CCC-'],
+        'regime_scale': ['RISK_ON', 'TRANSITIONAL', 'RISK_OFF'],
+        'risk_bands': [(0.1, 'LOW_RISK'), (0.2, 'MODERATE'), (0.5, 'ELEVATED'), (1.01, 'HIGH_RISK')],
+        'shap_top_n': 5,
+        'covenant_metric_map': {
+            'Max Total Leverage': ('TOTALLEVERAGE', 'max'),
+            'Min Interest Coverage': ('INTERESTCOVERAGE', 'min'),
+            'Min Fixed Charge Coverage': ('FIXEDCHARGECOVERAGE', 'min'),
+        },
+        'xgb_params': {
+            'objective': 'binary:logistic', 'eval_metric': 'auc', 'max_depth': 3,
+            'learning_rate': 0.05, 'n_estimators': 200, 'subsample': 0.8,
+            'colsample_bytree': 0.8, 'min_child_weight': 2,
+        },
+        'cv_splits': 3,
     },
     'default_target_platforms': ['WAREHOUSE'],
     'monitor_refresh_interval': '1 day',
@@ -278,13 +395,44 @@ MARKET_DATA = {
     }
 }
 
-# Broker names for synthetic data
+# Broker names. Deliberately fictional: the demo generates research opinions,
+# ratings and price targets, and attributing invented views to real firms would
+# be inappropriate. This is the single broker universe - DIM_BROKER,
+# FACT_RECOMMENDATION, FACT_ESTIMATE_DATA and the generated documents all use it,
+# so a document joins to its own grounded recommendation row.
 BROKER_NAMES = [
-    'Goldman Sachs', 'Morgan Stanley', 'JPMorgan', 'Bank of America', 'Citigroup',
-    'Barclays', 'Deutsche Bank', 'UBS', 'Credit Suisse', 'Wells Fargo',
-    'RBC Capital', 'Jefferies', 'Piper Sandler', 'Baird', 'Stifel',
-    'Raymond James', 'Cowen', 'Needham', 'Wedbush', 'Loop Capital'
+    'Ashfield Partners', 'Northgate Analytics', 'Blackstone Ridge Research',
+    'Fairmont Capital Insights', 'Kingswell Securities Research',
+    'Brookline Advisory Group', 'Harrow Street Markets', 'Marlowe & Co. Research',
+    'Crescent Point Analytics', 'Sterling Wharf Intelligence', 'Granite Peak Advisory',
+    'Alder & Finch Investments', 'Bluehaven Capital Research', 'Regent Square Analytics',
+    'Whitestone Equity Research'
 ]
+
+# Persistent per-broker valuation tilt, applied to fair value when deriving
+# price targets. Gives the same stock a spread of targets across brokers so
+# consensus-versus-outlier analysis is meaningful. Positive is structurally
+# bullish. Any broker absent here defaults to 0.0.
+BROKER_BIAS_PCT = {
+    # Structurally bullish houses
+    'Ashfield Partners': 0.10,
+    'Northgate Analytics': 0.06,
+    'Blackstone Ridge Research': 0.04,
+    'Fairmont Capital Insights': 0.08,
+    'Kingswell Securities Research': 0.02,
+    # Broadly neutral
+    'Brookline Advisory Group': 0.00,
+    'Harrow Street Markets': 0.01,
+    'Marlowe & Co. Research': -0.01,
+    'Crescent Point Analytics': 0.03,
+    'Sterling Wharf Intelligence': -0.02,
+    # More cautious house views
+    'Granite Peak Advisory': -0.05,
+    'Alder & Finch Investments': -0.08,
+    'Bluehaven Capital Research': -0.03,
+    'Regent Square Analytics': -0.06,
+    'Whitestone Equity Research': 0.07,
+}
 
 # =============================================================================
 # HELPER FUNCTIONS FOR DATABASE PATHS (moved to db_helpers.py)
@@ -344,14 +492,6 @@ COMPLIANCE_RULES = {
 # =============================================================================
 # PORTFOLIO CONFIGURATION
 # =============================================================================
-
-# Demo portfolios that get special document coverage
-DEMO_PORTFOLIOS_WITH_DOCS = [
-    'SAM Technology & Infrastructure',
-    'SAM Global Thematic Growth',
-    'SAM Multi-Asset Income',
-    'SAM ESG Leaders Global Equity'
-]
 
 # Default demo portfolio for examples
 DEFAULT_DEMO_PORTFOLIO = 'SAM Technology & Infrastructure'
@@ -533,7 +673,7 @@ SCENARIOS = {
         'data_phases': [],
         'required_views': [
             'SAM_PORTFOLIO_VIEW', 'SAM_RESEARCH_VIEW', 'SAM_ATTRIBUTION_VIEW',
-            'SAM_IMPLEMENTATION_VIEW',
+            'SAM_EXECUTIVE_VIEW',
         ],
         'required_services': [],
         'required_tools': ['pdf_report', 'data_origin'],
@@ -566,7 +706,7 @@ SCENARIOS = {
         'data_phases': ['market_data'],
         'required_views': [
             'SAM_PORTFOLIO_VIEW', 'SAM_RESEARCH_VIEW', 'SAM_ATTRIBUTION_VIEW',
-            'SAM_EXECUTIVE_VIEW',
+            'SAM_EXECUTIVE_VIEW', 'SAM_IMPLEMENTATION_VIEW',
         ],
         'required_services': ['sec_filings'],
         'required_tools': ['pdf_report', 'data_origin', 'ma_simulation'],
@@ -597,9 +737,12 @@ SCENARIOS = {
             'display_name': 'Private Credit Copilot',
         },
         'required_data': [],
-        'required_tables': ['dimensions', 'credit_tables'],
+        'required_tables': ['dimensions', 'credit_tables', 'ml_tables'],
         'data_phases': [],
-        'required_views': ['SAM_CREDIT_PORTFOLIO_VIEW', 'SAM_RESEARCH_VIEW', 'SAM_MARKET_VIEW'],
+        'required_views': [
+            'SAM_CREDIT_PORTFOLIO_VIEW', 'SAM_CREDIT_RISK_VIEW', 'SAM_RESEARCH_VIEW',
+            'SAM_MARKET_VIEW',
+        ],
         'required_services': ['sec_filings', 'credit_search'],
         'required_tools': ['pdf_report', 'data_origin'],
     },
@@ -676,18 +819,6 @@ def get_agent_scenarios():
     return [s for s, cfg in SCENARIOS.items() if cfg.get('agent')]
 
 
-def get_ml_scenarios():
-    """Get list of ML scenarios (no agent, notebook-based)."""
-    return [s for s, cfg in SCENARIOS.items() if cfg['type'] == 'ml']
-
-
-def get_scenario_config(scenario):
-    """Get full configuration for a specific scenario."""
-    if scenario not in SCENARIOS:
-        raise ValueError(f"Invalid scenario '{scenario}'. Valid: {list(SCENARIOS.keys())}")
-    return SCENARIOS[scenario]
-
-
 def validate_scenarios(scenarios):
     """Validate and return list of scenarios. 'all' returns everything."""
     if not scenarios or scenarios == ['all']:
@@ -733,23 +864,6 @@ def get_data_phases(scenarios):
         phases.update(SCENARIOS.get(s, {}).get('data_phases', []))
     return phases
 
-
-def get_required_tables(scenarios):
-    """Get set of table group keys needed for scenarios."""
-    tables = set()
-    for s in scenarios:
-        tables.update(SCENARIOS.get(s, {}).get('required_tables', []))
-    return tables
-
-
-def get_scenario_agents(scenarios):
-    """Get dict of scenario→agent config for given scenarios (excludes ML)."""
-    return {
-        s: SCENARIOS[s]['agent']
-        for s in scenarios
-        if s in SCENARIOS and SCENARIOS[s].get('agent')
-    }
-
 # =============================================================================
 # DOCUMENT GENERATION CONFIGURATION
 # =============================================================================
@@ -764,7 +878,290 @@ except NameError:
         CONFIG_DIR = os.getcwd()
 PROJECT_ROOT = os.path.dirname(CONFIG_DIR)
 CONTENT_LIBRARY_PATH = os.path.join(PROJECT_ROOT, 'content_library')
-CONTENT_VERSION = '1.0'
+
+# =============================================================================
+# NUMERIC BOUNDS (content_library/_rules/numeric_bounds.yaml)
+# =============================================================================
+# Loaded lazily because CONTENT_LIBRARY_PATH is defined below REF_DATA.
+
+_NUMERIC_BOUNDS_CACHE = None
+
+
+def get_numeric_bounds() -> dict:
+    """Load and cache content_library/_rules/numeric_bounds.yaml."""
+    global _NUMERIC_BOUNDS_CACHE
+    if _NUMERIC_BOUNDS_CACHE is None:
+        bounds_path = os.path.join(CONTENT_LIBRARY_PATH, '_rules', 'numeric_bounds.yaml')
+        with open(bounds_path, 'r', encoding='utf-8') as f:
+            _NUMERIC_BOUNDS_CACHE = yaml.safe_load(f) or {}
+    return _NUMERIC_BOUNDS_CACHE
+
+
+# GICS sector names in numeric_bounds.yaml that differ from DIM_ISSUER.GICS_SECTOR.
+# DIM_ISSUER uses 'Healthcare'; the YAML uses 'Health Care'.
+SECTOR_NAME_ALIASES = {
+    'Health Care': 'Healthcare',
+}
+
+# =============================================================================
+# ANALYST RATING SCALE
+# =============================================================================
+# Canonical 5-point scale. Ratings are derived from implied upside rather than
+# drawn at random - see python/data/recommendations.py.
+
+RATING_SCALE = ['Strong Buy', 'Buy', 'Hold', 'Sell', 'Strong Sell']
+
+# FACT_ESTIMATE_DATA stores ratings as integer codes (DATA_ITEM_ID 5006).
+# Keep this the single source of truth for that encoding so the table agents
+# query agrees with the wording in the documents they cite.
+RATING_TO_CODE = {
+    'Strong Buy': 1,
+    'Buy': 2,
+    'Hold': 3,
+    'Sell': 4,
+    'Strong Sell': 5,
+}
+
+# Editorial stance implied by a rating. Drives both which template variant is
+# selected and the stance-dependent prose inside it.
+RATING_TO_STANCE = {
+    'Strong Buy': 'bull',
+    'Buy': 'bull',
+    'Hold': 'neutral',
+    'Sell': 'bear',
+    'Strong Sell': 'bear',
+}
+
+# Stance-conditional prose. Templates used to hard-code bullish language -
+# "Our positive view is supported by", "Strong unit economics underpin our
+# positive thesis" - which read absurdly on the ~23% of names now rated Sell or
+# Strong Sell. Rather than duplicating all 14 templates three times, the
+# stance-dependent sentences became placeholders resolved from this bank, so
+# every template is stance-correct. Full bull/neutral/bear variant files layer
+# on top of this for the highest-volume sectors.
+#
+# Each entry is a list so the same stance does not produce identical prose
+# across documents; selection is deterministic on the document identity.
+STANCE_PHRASES = {
+    'bull': {
+        'THESIS_STANCE': ['positive', 'constructive', 'favourable'],
+        'THESIS_VERB': ['supports', 'underpins', 'reinforces'],
+        'CONVICTION_PHRASE': [
+            'We see an attractive risk/reward skew',
+            'We believe the shares are materially undervalued',
+            'We view current levels as an attractive entry point',
+        ],
+        'FUNDAMENTAL_FRAMING': [
+            'demonstrates robust fundamentals',
+            'continues to compound at an attractive rate',
+            'is executing ahead of our expectations',
+        ],
+        'COMPETITIVE_FRAMING': [
+            "The company's competitive moat is widening",
+            'Competitive positioning continues to strengthen',
+            'We see durable competitive advantage',
+        ],
+        'UNIT_ECONOMICS_FRAMING': [
+            'Strong unit economics underpin our positive thesis',
+            'Unit economics remain best-in-class',
+            'Unit economics support continued reinvestment',
+        ],
+        'RISK_FRAMING': [
+            'Risks to our thesis are identifiable but contained',
+            'We see limited downside from current levels',
+            'Key risks appear well understood by the market',
+        ],
+        'RECOMMENDATION_LANGUAGE': [
+            'We recommend accumulating positions',
+            'We would be buyers on any weakness',
+            'We recommend adding to positions',
+        ],
+        'CATALYST_FRAMING': [
+            'Several near-term catalysts could drive re-rating',
+            'We see multiple paths to upside',
+        ],
+    },
+    'neutral': {
+        'THESIS_STANCE': ['balanced', 'neutral', 'even-handed'],
+        'THESIS_VERB': ['informs', 'shapes', 'frames'],
+        'CONVICTION_PHRASE': [
+            'We see risk/reward as broadly balanced at current levels',
+            'We believe the shares are approximately fairly valued',
+            'We await a clearer entry point before becoming more constructive',
+        ],
+        'FUNDAMENTAL_FRAMING': [
+            'shows a mixed fundamental picture',
+            'is delivering in line with our expectations',
+            'shows steady but unspectacular execution',
+        ],
+        'COMPETITIVE_FRAMING': [
+            'Competitive positioning is stable but not improving',
+            'The company holds its ground in a competitive market',
+            'We see competitive dynamics as broadly unchanged',
+        ],
+        'UNIT_ECONOMICS_FRAMING': [
+            'Unit economics are adequate but no longer improving',
+            'Unit economics sit in line with sector norms',
+            'Unit economics are sound, with limited room for further leverage',
+        ],
+        'RISK_FRAMING': [
+            'Upside and downside risks appear broadly symmetric',
+            'We see offsetting risks in both directions',
+            'The balance of risks keeps us on the sidelines',
+        ],
+        'RECOMMENDATION_LANGUAGE': [
+            'We recommend holding existing positions',
+            'We see no urgency to add or reduce',
+            'We would await a better entry point',
+        ],
+        'CATALYST_FRAMING': [
+            'We see no near-term catalyst to change the valuation',
+            'Catalysts appear balanced between upside and downside',
+        ],
+    },
+    'bear': {
+        'THESIS_STANCE': ['cautious', 'negative', 'guarded'],
+        'THESIS_VERB': ['drives', 'underlies', 'explains'],
+        'CONVICTION_PHRASE': [
+            'We see an unfavourable risk/reward skew',
+            'We believe consensus estimates remain too high',
+            'We see further downside to current levels',
+        ],
+        'FUNDAMENTAL_FRAMING': [
+            'faces mounting fundamental pressure',
+            'is tracking behind our expectations',
+            'shows deteriorating operating momentum',
+        ],
+        'COMPETITIVE_FRAMING': [
+            "The company's competitive position is eroding",
+            'Competitive intensity is compressing returns',
+            'We see competitive advantage narrowing',
+        ],
+        'UNIT_ECONOMICS_FRAMING': [
+            'Deteriorating unit economics underpin our cautious thesis',
+            'Unit economics are weakening relative to peers',
+            'Unit economics leave little margin for error',
+        ],
+        'RISK_FRAMING': [
+            'We see material downside risk to consensus estimates',
+            'The risks to our thesis are skewed to the downside',
+            'We see limited valuation support if execution slips',
+        ],
+        'RECOMMENDATION_LANGUAGE': [
+            'We recommend reducing exposure',
+            'We would use any strength to exit positions',
+            'We recommend underweighting the shares',
+        ],
+        'CATALYST_FRAMING': [
+            'We see few catalysts to arrest the de-rating',
+            'Near-term catalysts skew negative',
+        ],
+    },
+}
+
+# Lower bound of implied upside (as a fraction) for each rating, most bullish
+# first. A stock that rallies into its target therefore drops a band on the next
+# vintage, producing genuine rating actions.
+RATING_UPSIDE_BANDS = [
+    ('Strong Buy', 0.20),
+    ('Buy', 0.08),
+    ('Hold', -0.08),
+    ('Sell', -0.20),
+]
+
+# Scenario and sizing inputs for research memos. These used to be sampled from
+# generic numeric bounds, which let a memo print a bear case above its bull case
+# or a positive "downside". They now derive from the same fair value as the
+# rating, so a memo is internally consistent.
+MEMO_VALUATION = {
+    # Half-width of the bull/bear band around fair value.
+    'scenario_spread': 0.18,
+    # Notional book size used to turn a position weight into a dollar amount.
+    'reference_aum_usd': 2_400_000_000,
+    # Position weight by rating - conviction has to show up in the size, or a
+    # Strong Sell memo recommends the same weight as a Strong Buy.
+    'position_size_by_rating': {
+        'Strong Buy': 4.0,
+        'Buy': 2.5,
+        'Hold': 1.5,
+        'Sell': 0.5,
+        'Strong Sell': 0.0,
+    },
+}
+
+# Valuation inputs for fair value = forward_eps * base_pe * quality_adjustment
+VALUATION = {
+    'quality_adj_min': 0.8,
+    'quality_adj_max': 1.3,
+    'growth_weight': 0.8,
+    'margin_weight': 0.4,
+    'default_base_pe': 18.0,
+    # Forward EPS growth is derived from real REVENUE_GROWTH_PCT, clamped so a
+    # single distorted filing cannot produce an absurd target.
+    'eps_growth_min': 0.90,
+    'eps_growth_max': 1.30,
+    # The raw fundamental fair value spans roughly 0.03x to 15x spot across the
+    # universe, because market prices embed growth and non-GAAP adjustments that
+    # trailing EPS times a sector PE does not capture. So the fundamental view is
+    # used as a *signal* on top of spot rather than as an absolute price.
+    #
+    # The signal is compressed through TANH rather than hard-clamped: a clamp
+    # plateaus (69% of the universe pegged at the cap, so only broker bias
+    # differentiated them and ratings went bimodal), whereas TANH is smooth and
+    # strictly monotonic, so every name keeps a distinct target and the full
+    # fundamental ordering survives.
+    #
+    #     signal = scale * TANH(raw_signal / softness)
+    #
+    # scale bounds the fundamental contribution just below the Strong Buy
+    # threshold, so reaching Strong Buy or Strong Sell requires the fundamental
+    # view *and* a broker leaning the same way - which is what produces a
+    # realistic sell-side spread on the same stock.
+    'valuation_signal_scale': 0.22,
+    'valuation_signal_softness': 0.8,
+    # Plausibility clamps on the fundamental inputs. Revenue growth is derived
+    # from consecutive annual revenues rather than read from
+    # FACT_SEC_FINANCIALS.REVENUE_GROWTH_PCT, which is unreliable (median 82.8%,
+    # max 273,736%, ~48% of rows implausible). These caps stop a restatement or a
+    # tiny prior-year base from distorting a target or appearing in document text.
+    'revenue_growth_cap_pct': 60.0,
+    'operating_margin_cap_pct': 60.0,
+    # Coverage tiers. Preferred basis is reported diluted EPS; where that is
+    # missing or non-positive we fall back in order:
+    #   1. reported_eps    - EPS_DILUTED > 0
+    #   2. derived_eps     - NET_INCOME / SHARES_OUTSTANDING, when positive
+    #   3. sales_multiple  - loss-making but has revenue, valued on an implied
+    #                        price/sales derived from the sector PE and the
+    #                        sector's real median net margin
+    # Without tiers 2 and 3, 139 of 503 covered issuers get no rating at all -
+    # including 67 loss-making names that real analysts do cover on sales.
+    # Loss-making companies get a haircut: valuing them at the sector's median
+    # margin implicitly assumes they reach profitability.
+    'unprofitable_discount': 0.75,
+    # Floor for the implied price/sales, so a sector whose median net margin is
+    # ~0 (Real Estate, 2 issuers) cannot produce a zero fair value.
+    'min_price_to_sales': 0.5,
+    # Plausibility gate on fundamental fair value versus spot. Outside this
+    # band the filing and the price are not on the same basis - almost always a
+    # foreign private issuer reporting local currency against a USD listing - so
+    # the name is excluded rather than given a confident but meaningless rating.
+    # Calibrated on the real distribution: median fair value is 0.83x spot and
+    # the 1st/99th percentiles are 0.001x and 18.6x. A ratio beyond 20x or below
+    # 0.05x is not a valuation disagreement, it is a unit or currency error, and
+    # 44 of 432 securities were silently in that state before this gate existed.
+    'fv_ratio_min': 0.05,
+    'fv_ratio_max': 20.0,
+    # Per-broker jitter half-width applied on top of the persistent broker bias.
+    'broker_jitter_pct': 0.06,
+    # Tier 4, price_fallback: securities with a price but no usable fundamentals
+    # (no clean annual filing, mixed-currency series, or outside the fv_ratio
+    # gate). Signal = sector median calibrated signal + weight * trailing price
+    # momentum over the lookback, momentum clamped to the min/max band.
+    'price_fallback_lookback_days': 182,
+    'price_fallback_momentum_weight': 0.5,
+    'price_fallback_momentum_min': -0.6,
+    'price_fallback_momentum_max': 1.0,
+}
 
 # =============================================================================
 # SECTOR MAPPING CONFIGURATION (for template selection)
@@ -880,51 +1277,13 @@ BENCHMARKS = [
     }
 ]
 
-# Data distribution
-DATA_DISTRIBUTION = {
-    'regions': {'US': 0.55, 'Europe': 0.30, 'APAC_EM': 0.15},
-    'asset_classes': {'equities': 1.0},  # Equities only with new DEMO_COMPANIES approach
-}
-
 # Currency & Calendar
 BASE_CURRENCY = 'USD'
-SUPPORTED_CURRENCIES = ['USD', 'EUR', 'GBP']
-FX_HEDGING = 'FULLY_HEDGED'
 TRADING_CALENDAR = 'UTC_BUSINESS_DAYS'
-RETURNS_FREQUENCY = 'MONTHLY'
 
 # =============================================================================
 # CONTENT GENERATION CONFIGURATION
 # =============================================================================
-
-# ESG Controversy Keywords
-ESG_CONTROVERSY_KEYWORDS = {
-    'environmental': {
-        'high': ['toxic spill', 'environmental disaster', 'illegal dumping', 'major pollution'],
-        'medium': ['environmental violation', 'emissions breach', 'waste management'],
-        'low': ['environmental concern', 'sustainability question']
-    },
-    'social': {
-        'high': ['forced labor', 'child labor', 'human rights violation', 'workplace fatality'],
-        'medium': ['labor dispute', 'workplace injury', 'discrimination allegation'],
-        'low': ['employee concern', 'workplace issue']
-    },
-    'governance': {
-        'high': ['fraud investigation', 'criminal charges', 'regulatory sanction'],
-        'medium': ['accounting irregularity', 'governance breach', 'compliance violation'],
-        'low': ['governance concern', 'board dispute']
-    }
-}
-
-# Fictional provider names
-FICTIONAL_BROKER_NAMES = [
-    'Ashfield Partners', 'Northgate Analytics', 'Blackstone Ridge Research',
-    'Fairmont Capital Insights', 'Kingswell Securities Research',
-    'Brookline Advisory Group', 'Harrow Street Markets', 'Marlowe & Co. Research',
-    'Crescent Point Analytics', 'Sterling Wharf Intelligence', 'Granite Peak Advisory',
-    'Alder & Finch Investments', 'Bluehaven Capital Research', 'Regent Square Analytics',
-    'Whitestone Equity Research'
-]
 
 FICTIONAL_NGO_NAMES = {
     'environmental': [
@@ -980,18 +1339,6 @@ PDF_DOC_AUDIENCE = {
     # Regulatory documents (dedicated pipeline)
     'regulatory_docs': 'regulatory',
 }
-
-
-def get_internal_pdf_doc_types():
-    """Get list of document types that use the internal PDF pipeline."""
-    return [doc_type for doc_type, audience in PDF_DOC_AUDIENCE.items() 
-            if audience == 'internal']
-
-
-def get_external_pdf_doc_types():
-    """Get list of document types that use the external PDF pipeline."""
-    return [doc_type for doc_type, audience in PDF_DOC_AUDIENCE.items() 
-            if audience == 'external']
 
 
 # =============================================================================

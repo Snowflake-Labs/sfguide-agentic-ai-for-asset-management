@@ -7,10 +7,22 @@ Testing patterns and troubleshooting for semantic views.
 All semantic views are defined as YAML files in `python/ai/semantic_view_definitions/`.
 
 ### Validate All YAML Definitions (Dry Run)
+`--verify-only` no longer exists; call the function it used directly. This needs no bundle
+and creates nothing:
 ```bash
-python main.py --connection-name CONNECTION --scope semantic --verify-only
+cd python && python -c "
+from snowflake.snowpark import Session
+from ai.yaml_loader import verify_all_views
+s = Session.builder.config('connection_name', 'CONNECTION').create()
+s.sql('USE ROLE FSI_DEMO_BUILD_ROLE').collect()
+s.sql('USE WAREHOUSE SAM_DEMO_EXECUTION_WH').collect()
+r = verify_all_views(s)
+print(f\"passed={len(r['passed'])} failed={len(r['failed'])}\")
+"
 ```
-This calls `SYSTEM$CREATE_SEMANTIC_VIEW_FROM_YAML` with `verify_only=TRUE` for each YAML file.
+This calls `SYSTEM$CREATE_SEMANTIC_VIEW_FROM_YAML` with `verify_only=TRUE` for each YAML
+file. Because that is a `CREATE ... ` call in verify mode, it needs `FSI_DEMO_BUILD_ROLE`;
+with a default role such as `SYSADMIN` every view reports "Insufficient privileges".
 
 ### Validate a Single View
 ```sql
@@ -29,7 +41,9 @@ SELECT SYSTEM$READ_YAML_FROM_SEMANTIC_VIEW('SAM_DEMO.AI.SAM_PORTFOLIO_VIEW');
 
 ### Round-Trip Validation
 After deploying from YAML, export the view and compare:
-1. Deploy: `python main.py --scope semantic`
+1. Deploy: push current code to the bundle stage with
+   `python python/weekly_refresh_main.py --mode deploy --connection-name CONNECTION`, then
+   `EXECUTE CODE BUNDLE SAM_DEMO.AI.SAM_WEEKLY_BUNDLE ENTRYPOINT = 'python/workspace_main.py' ARGUMENTS = ('--scope','semantic');`
 2. Export: `SELECT SYSTEM$READ_YAML_FROM_SEMANTIC_VIEW('SAM_DEMO.AI.VIEW_NAME')`
 3. Compare: Exported YAML should match the source file (with `{{DATABASE}}` → `SAM_DEMO`)
 

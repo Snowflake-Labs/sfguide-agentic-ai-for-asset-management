@@ -82,7 +82,7 @@ Relative valuation suggests reasonable upside from current levels. Whilst {{COMP
 
 ## Investment Conclusion
 
-{{COMPANY_NAME}} offers compelling exposure to structural digital advertising growth, platform economics, and technology innovation themes. The company's competitive moats, financial strength, and multiple growth vectors support our **{{RATING}}** recommendation for investors seeking quality growth exposure in the {{SIC_DESCRIPTION}} sector.
+{{COMPANY_NAME}} offers exposure to structural digital advertising growth, platform economics, and technology innovation themes. The company's competitive moats, financial strength, and multiple growth vectors support our **{{RATING}}** recommendation for investors seeking quality growth exposure in the {{SIC_DESCRIPTION}} sector.
 
 ---
 

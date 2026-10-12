@@ -274,7 +274,10 @@ def _create_and_register_dataset(
     agent_name = eval_config['agent_name']
     version = eval_config['dataset_version']
     table_name = f"{database}.{ai_schema}.EVAL_DATASET_{agent_name.upper()}"
-    dataset_name = f"{agent_name}_eval_{version}"
+    # Registered dataset names carry a YYYYMMDD_HHMMSS suffix so each build is a
+    # distinct, identifiable version rather than silently replacing the previous one.
+    build_stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    dataset_name = f"{agent_name}_eval_{version}_{build_stamp}"
 
     session.sql(f"USE DATABASE {database}").collect()
     session.sql(f"USE SCHEMA {ai_schema}").collect()
@@ -284,6 +287,10 @@ def _create_and_register_dataset(
             QUESTION_ID INT AUTOINCREMENT,
             INPUT_QUERY VARCHAR NOT NULL,
             GROUND_TRUTH VARIANT NOT NULL,
+            -- 'ac' when ground_truth_invocations is absent (answer correctness only),
+            -- 'tea' when it is present (populated, or [] for a no-tool guardrail).
+            -- Redundant with the VARIANT shape by design, but explicit and queryable.
+            TRACK VARCHAR NOT NULL,
             CATEGORY VARCHAR,
             CREATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP()
         )
@@ -314,10 +321,13 @@ def _create_and_register_dataset(
         # Use $$ dollar-quoting to avoid escaping issues with \n and single quotes in JSON
         json_str = json.dumps(ground_truth_obj)
 
+        track = 'ac' if invocations is None else 'tea'
+
         insert_sql = f"""
-            INSERT INTO {table_name} (INPUT_QUERY, GROUND_TRUTH, CATEGORY)
+            INSERT INTO {table_name} (INPUT_QUERY, GROUND_TRUTH, TRACK, CATEGORY)
             SELECT '{escaped_query}',
                    PARSE_JSON($${json_str}$$),
+                   '{track}',
                    '{escaped_category}'
         """
         session.sql(insert_sql).collect()

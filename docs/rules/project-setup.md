@@ -6,21 +6,12 @@ Project structure, configuration management, and setup procedures for the SAM AI
 
 **Company**: Simulated Asset Management (SAM)  
 **Purpose**: Demonstrate Snowflake Intelligence capabilities for asset management customers  
-**Architecture**: Multi-asset investment management firm with 10 portfolios across growth, value, ESG, and thematic strategies
+**Architecture**: Multi-asset investment management firm with 11 portfolios across growth, value, ESG, and thematic strategies
 
 ## Project Structure
 
 ```
 /
-├── .cursor/rules/              # Cursor AI development rules
-│   ├── agent-config.mdc       # Agent configuration guide
-│   ├── cortex-search.mdc      # Cortex Search creation guide
-│   ├── data-generation.mdc    # Enhanced data generation patterns
-│   ├── pipelines.mdc          # Production-like pipelines and Streamlit deployment
-│   ├── project-setup.mdc      # Project setup and configuration
-│   ├── semantic-views.mdc     # Semantic view creation guide (LEGACY - see docs/rules/semantic/)
-│   ├── unstructured-data-generation.mdc # Document generation patterns
-│   └── [other rules...]       # Additional development rules
 ├── content_library/            # Pre-generated content templates (50+ templates)
 │   ├── _rules/                # Template configuration (placeholders, bounds, providers)
 │   ├── security/              # Security-level document templates
@@ -29,21 +20,19 @@ Project structure, configuration management, and setup procedures for the SAM AI
 │   ├── global/                # Global document templates
 │   └── regulatory/            # Regulatory document templates
 ├── docs/                      # Documentation
-│   ├── agents_setup.md       # Agent configuration instructions
 │   ├── data_model.md         # Data model documentation
 │   ├── data_lineage.md       # Data flow, dependencies, and impact analysis
-│   ├── real_data_integration_analysis.md # Real SEC data integration
-│   ├── demo_scenarios.md     # Demo conversation scripts
-│   └── runbooks.md           # Operational procedures
+│   └── rules/                # Development rules and patterns
 ├── python/                    # Python implementation
 │   ├── config.py             # Configuration constants (CAPS naming)
-│   ├── main.py               # CLI orchestrator
-│   ├── generate_structured.py # Enhanced structured data generation (SecurityID model)
-│   ├── generate_unstructured.py # Template-based document generation
-│   ├── hydration_engine.py   # Template hydration engine
-│   ├── build_ai.py           # AI orchestrator (builder.py)
-│   ├── create_unstructured_pipelines.py # Production-like pipeline creation
-│   └── portfolio_modelling.py # Portfolio modelling engines (backtest, simulation)
+│   ├── workspace_main.py     # Build entry point (run by the Code Bundle)
+│   ├── weekly_refresh_main.py # Weekly incremental refresh entry point
+│   ├── data/structured.py    # Structured data generation (SecurityID model)
+│   ├── data/unstructured.py  # Template-based document generation
+│   ├── core/hydration_engine.py # Template hydration engine
+│   ├── ai/builder.py         # AI orchestrator
+│   ├── data/pipelines.py     # Production-like pipeline creation
+│   └── ai/tools/             # Agent tools (backtest, simulation, attribution)
 ├── sql/                       # SQL artifacts for demo display
 │   └── pipelines/            # Pipeline SQL scripts (viewable in Snowsight)
 ├── streamlit_app/            # Streamlit application (Container runtime)
@@ -129,44 +118,35 @@ REAL_DATA_SOURCES = {
 
 ## CLI Interface
 
-### Main Command: `python/main.py`
+Two entry points. `scripts/workspace_setup.sql` runs first and owns all infrastructure;
+neither entry point creates roles, grants or warehouses.
 
-**Core Parameters**:
-- `--connection-name` (optional): Snowflake connection name
-- `--scenarios` (optional): Comma-separated list of scenarios to build
-- `--scope` (optional): `all|data|ai|semantic|search|agents|tools|streamlit` (default: `all`)
-- `--verify-only` (optional): Validate semantic view YAML definitions without creating views
-- `--extract-real-assets` (optional): Extract real asset data to CSV from SEC Filings dataset
-- `--test-mode` (optional): Use 10% data volumes for faster development testing
-- `--pipeline-setup` (default: True): Create production-like pipelines for unstructured data
-- `--no-pipeline-setup` (optional): Skip pipeline creation
+### Build: `python/workspace_main.py`
 
-**Examples**:
+Owns data and AI. Uses `get_active_session()`, so it runs inside Snowflake, not from a
+checkout. Invoked by the Code Bundle that `workspace_setup.sql` creates.
+
+**Parameters**:
+- `--scope`: `all|data|ai|semantic|search|agents|signals|morning-brief|earnings-insights|automation` (default: `all`)
+- `--scenarios`: comma-separated scenario list (default: `all`)
+- `--skip-automation`: do not install the weekly refresh bundle and task
+- `--test-mode`: 10% data volumes for faster builds
+
+With no arguments it performs a full build, so clicking Run in a Workspace works.
+
+**Rebuilding a scope** — push current code to the bundle stage first, since a bundle
+version is an immutable snapshot:
 ```bash
-# Build everything with defaults
-python main.py
-
-# Build all scenarios (same as above)
-python main.py --scenarios all
-
-# Build specific scenario (automatically includes all dependencies)
-python main.py --scenarios portfolio_management
-
-# Build multiple scenarios
-python main.py --scenarios portfolio_management,research,private_equity
-
-# Test mode: Build all scenarios with 10% data for faster development testing
-python main.py --test-mode
-
-# Build only semantic views
-python main.py --scope semantic
-
-# Validate YAML definitions without deploying
-python main.py --scope semantic --verify-only
-
-# Rebuild agents only
-python main.py --scope agents
+python python/weekly_refresh_main.py --mode deploy --connection-name CONNECTION
 ```
+```sql
+EXECUTE CODE BUNDLE SAM_DEMO.AI.SAM_WEEKLY_BUNDLE
+    ENTRYPOINT = 'python/workspace_main.py'
+    ARGUMENTS  = ('--scope', 'agents');
+```
+
+To validate semantic view YAML without deploying, see `docs/rules/semantic/syntax.md`;
+the old `--verify-only` flag is gone.
 
 ### Scenario Architecture
 
@@ -183,7 +163,7 @@ See `docs/rules/development-patterns.md` for the full guide on adding new scenar
 ### Test Mode for Development
 **Purpose**: Faster builds during development and testing
 **Usage**: `--test-mode` flag
-**Data Reduction**: 10% of full data volumes (1,400 vs 14,000 securities, 205 vs 3,463 documents)
+**Data Reduction**: 10% of full data volumes (TEST_MODE_MULTIPLIER = 0.1 in `python/config.py`)
 **Use Cases**: Code development, testing changes, validating functionality
 **Performance**: Significantly faster build times while maintaining all functionality
 
@@ -237,9 +217,9 @@ FACT_ESTIMATE_CONSENSUS      -- Analyst estimates derived from real SEC actuals
 
 ### Current Implementation Status (Updated 2025-01-15)
 
-#### ✅ **All 9 Agents: Automated SQL Creation Complete**
-**Status**: All agents automatically created via `python/create_agents.py` using SQL `CREATE AGENT` statements
-- ✅ **Automated Creation**: Agents created during `python main.py` build process
+#### ✅ **All 8 Agents: Automated SQL Creation Complete**
+**Status**: All agents automatically created from `python/ai/agents/` using SQL `CREATE AGENT` statements
+- ✅ **Automated Creation**: Agents created during the `workspace_main.py` build
 - ✅ **Agent Location**: Created in `{DATABASE['name']}.{DATABASE['schemas']['ai']}` schema (e.g., SAM_DEMO.AI)
 - ✅ **Auto-Registration**: Automatically registered with Snowflake Intelligence after creation
 - ✅ **Proper Formatting**: All instructions use YAML escaping (`\n`, `\"`, `''`)
@@ -247,7 +227,7 @@ FACT_ESTIMATE_CONSENSUS      -- Analyst estimates derived from real SEC actuals
 - ✅ **Comprehensive Instructions**: Risk & Compliance, Sales Advisor, Investment Strategy, Middle Office Copilot, Executive Copilot fully specified
 - ✅ **Immediate Availability**: Agents appear in Snowflake Intelligence UI after registration
 
-#### ✅ **Phase 1: Foundation Complete** (portfolio_copilot) - **DEMO_COMPANIES Driven**
+#### ✅ **Phase 1: Foundation Complete** (portfolio_management) - **DEMO_COMPANIES Driven**
 **Status**: Fully implemented and operational with 79 demo companies
 - ✅ **DEMO_COMPANIES**: 79 companies defined in config with tickers, CIKs, sectors, and tiers
 - ✅ **Ticker-Based Identification**: Securities derived from DIM_ISSUER using TICKER
@@ -262,19 +242,17 @@ FACT_ESTIMATE_CONSENSUS      -- Analyst estimates derived from real SEC actuals
 - ✅ Demo flow alignment (portfolio holdings match research coverage)
 
 #### ✅ **Phase 2: Research & Analytics** (COMPLETED - Agents Created)
-**Status**: `research_copilot`, `investment_strategy` - Automatically created via SQL
-- ✅ **research_copilot**: Full instructions from docs, uses broker research, earnings, fundamentals data
-- ✅ **investment_strategy**: Full instructions from docs, uses broker research, press releases
+**Status**: `research` - Automatically created via SQL
+- ✅ **research**: Full instructions from docs, uses broker research, earnings, fundamentals data
 
 #### ✅ **Phase 3: Risk & Compliance** (COMPLETED - Agents Created)
 **Status**: `risk_compliance` - Automatically created via SQL
 - ✅ **risk_compliance**: Comprehensive instructions, ESG-focused with severity flagging and mandate monitoring
 - 🔄 **Document Enhancement** (Optional): Can add `ngo_reports`, `engagement_notes`, `policy_docs` for richer content
 
-#### ✅ **Phase 4: Client & Quantitative** (COMPLETED - Agents Created)
-**Status**: `sales_advisor`, `investment_strategy` - Automatically created via SQL
-- ✅ **sales_advisor**: Comprehensive instructions, client-focused communication
-- ✅ **investment_strategy**: Comprehensive instructions, factor analysis and attribution
+#### ✅ **Phase 4: Client Advisory** (COMPLETED - Agents Created)
+**Status**: `client_advisory` - Automatically created via SQL
+- ✅ **client_advisory**: Comprehensive instructions, client-focused communication
 - 🔄 **Document Enhancement** (Optional): Can add `sales_templates`, `philosophy_docs` for richer content
 
 ### Available Scenarios by Implementation Status
@@ -282,7 +260,7 @@ FACT_ESTIMATE_CONSENSUS      -- Analyst estimates derived from real SEC actuals
 ```python
 SCENARIO_STATUS = {
     # All agents now automatically created via SQL
-    'pm_cockpit': {
+    'portfolio_management': {
         'status': 'IMPLEMENTED',
         'agent_created': 'SQL_AUTO',
         'components': ['semantic_views', 'search_services', 'real_assets', 'transactions', 'esg', 'factors'],
@@ -290,19 +268,11 @@ SCENARIO_STATUS = {
         'last_tested': '2025-01-15'
     },
     
-    'research_copilot': {
+    'research': {
         'status': 'IMPLEMENTED',
         'agent_created': 'SQL_AUTO',
         'components': ['broker_research', 'company_event_transcripts', 'financial_analyzer'],
         'agent_types': ['search_focused', 'research_analyst'],
-        'last_tested': '2025-01-15'
-    },
-    
-    'investment_strategy': {
-        'status': 'IMPLEMENTED',
-        'agent_created': 'SQL_AUTO', 
-        'components': ['broker_research', 'press_releases', 'quantitative_analyzer'],
-        'agent_types': ['multi_search', 'thematic_analyst'],
         'last_tested': '2025-01-15'
     },
     
@@ -315,15 +285,7 @@ SCENARIO_STATUS = {
         'last_tested': '2025-01-15'
     },
     
-    'risk_compliance_compliance': {
-        'status': 'IMPLEMENTED',
-        'agent_created': 'SQL_AUTO',
-        'components': ['quantitative_analyzer', 'policy_search'],
-        'agent_types': ['compliance_engine', 'rule_validator'],
-        'last_tested': '2025-01-15'
-    },
-    
-    'sales_advisor': {
+    'client_advisory': {
         'status': 'IMPLEMENTED',
         'agent_created': 'SQL_AUTO',
         'components': ['quantitative_analyzer', 'broker_research'],
@@ -331,14 +293,6 @@ SCENARIO_STATUS = {
         'enhancement_opportunities': ['sales_templates', 'philosophy_docs'],
         'last_tested': '2025-01-15'
     },
-    
-    'investment_strategy_quant': {
-        'status': 'IMPLEMENTED',
-        'agent_created': 'SQL_AUTO',
-        'components': ['quantitative_analyzer', 'factors', 'broker_research'],
-        'agent_types': ['quantitative_analyst', 'model_explainer'],
-        'last_tested': '2025-01-15'
-    }
 }
 ```
 
@@ -347,9 +301,9 @@ SCENARIO_STATUS = {
 #### ✅ **All Agents Complete** - Focus on Enhancements
 
 **Current State:**
-- ✅ All 9 agents automatically created via SQL
-- ✅ Full instructions for Portfolio Manager Co-Pilot, Research Copilot, Investment Strategy
-- ✅ Comprehensive instructions for Risk & Compliance, Sales Advisor, Investment Strategy, Middle Office Copilot, Executive Copilot
+- ✅ All 8 agents automatically created via SQL
+- ✅ Full instructions for Portfolio Management Copilot, Research Copilot, Risk & Compliance Copilot
+- ✅ Comprehensive instructions for Client Advisory, Operations, Executive Leadership, Private Equity, and Private Credit Copilots
 
 **Optional Enhancements (Future Phases):**
 
@@ -366,7 +320,7 @@ SCENARIO_STATUS = {
    - Expand `SAM_PORTFOLIO_VIEW` with additional risk metrics
 
 3. **Demo Scenario Development** (Testing and refinement)
-   - Test all 7 agents with realistic queries
+   - Test all 8 agents with realistic queries
    - Document successful query patterns
    - Create demo conversation scripts for each agent
    - Validate agent responses match expected behavior

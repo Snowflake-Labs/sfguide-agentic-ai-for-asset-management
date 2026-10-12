@@ -26,22 +26,62 @@ Label every paragraph as:
 - **[ANALYSIS]**: Derived from quantitative comparison or trend analysis
 - **[INFERENCE]**: Qualitative judgment or forward-looking assessment
 
+## Presentation Rules (every step)
+
+- **Show only the figures you discuss.** Name the company in the title rather than in a
+  column, and leave out any figure that is empty for this company.
+- **Visualise whenever the data can be visualised.** Use `data_to_chart` for trends over
+  time, mixes and comparisons. Each step lists the charts the analyst expects to see; add
+  others where they help.
+
+Rounding and period filters are handled by the semantic view's SQL instructions.
+
 ## Workflow
+
+This workflow has two mandatory stopping points. They are the point of the skill: the
+analyst controls scope and depth before committing to a full memo. Do NOT run the whole
+workflow in one response, and do NOT gather qualitative research "in parallel" with the
+financial foundation to save time.
 
 ### Step 1: Financial Foundation
 
-Tool: `segment_analyzer`
-Query: Revenue by segment and geography, 3-year trends
+Use `research_analyzer` to retrieve:
 
-Tool: `fundamentals_analyzer` + `sec_financials`
-Query: Key financial metrics, analyst estimates (high/mean/low), price targets, margins, EPS
+1. **Financial profile** — the last four fiscal years of annual figures (the view's
+   `annual_figures` filter): revenue, revenue growth, gross, operating and net margin,
+   diluted earnings per share, and free cash flow
+2. **Revenue by geography** — the latest fiscal year, following the view's
+   `GEOGRAPHIC_REVENUE_BREAKDOWN` verified query: each region's revenue and share of total
+   revenue, and how much of total revenue the regions cover
+3. **Street view** — following the view's `STREET_VIEW` verified query: the latest analyst
+   ratings, price targets (low, average, high) and upside to the current share price; plus
+   the consensus estimates of revenue, net income and EBITDA (the view's
+   `financial_estimates_usd` filter)
+
+Do not call `search_sec_filings`, `search_external_docs` or `search_company_events` in this
+step — they belong to Step 2, which the analyst has not yet authorised.
+
+Charts, via `data_to_chart`:
+- Revenue by fiscal year — bar chart
+- Revenue by geography — pie chart when the regions cover 98–102% of total revenue;
+  otherwise a bar chart, stating the coverage in one line. If the company reports no
+  geography, say so in one line
 
 Present:
 - Company identification: "[Company] ([Ticker]) — [Sector]"
 - Financial snapshot: Revenue, EPS, margins for latest period
 - Analyst consensus: [X] analysts, average target $[X]
+- Both charts
 
 ### STOPPING POINT 1 — Financial Data Gathered
+
+End your response here and wait for the analyst. Do not continue to Step 2 in the same
+response, even if the original request named every section of the memo: a request for a
+"comprehensive memo covering financials, management outlook, analyst views, competitive
+position and risks" is the trigger for this workflow, NOT permission to skip its stopping
+points.
+
+Reply with the financial snapshot followed verbatim by these options:
 
 "I've pulled the financial foundation. Here's a quick snapshot:
 - Revenue: $[X]B ([+/-X]% YoY)
@@ -58,6 +98,8 @@ How would you like to proceed?"
 
 ### Step 2: Qualitative Research
 
+Run this step only after the analyst has asked to continue.
+
 Tool: `search_sec_filings`
 Query: Risk factors, MD&A narrative, competitive advantages from 10-K
 
@@ -70,7 +112,14 @@ Query: Management guidance, strategic commentary from earnings calls
 Tool: `search_external_docs` (filter: press_releases)
 Query: Recent catalysts, corporate developments
 
+Name the direct competitors explicitly in the competitive material you gather — a
+"Competitive Landscape" section that never names a rival gives the analyst nothing to
+follow up on.
+
 ### STOPPING POINT 2 — All Research Gathered
+
+End your response here again. Present the findings summary and wait for the analyst to
+choose a format before compiling the memo.
 
 "Research complete. Key findings:
 - **Thesis direction**: [Bullish / Cautious / Mixed] based on data gathered
@@ -88,7 +137,16 @@ What format works best?"
 
 ### Step 3: Memo Compilation
 
+Run this step only after the analyst has chosen a format at Stopping Point 2.
+
 Synthesise all data into 7-section format with [FACT]/[ANALYSIS]/[INFERENCE] labelling throughout.
+
+Charts, via `data_to_chart`:
+- Financial Profile: gross, operating and net margin by fiscal year — line chart (retrieve
+  the Step 1 financial profile again if it is no longer available)
+
+Scenario probabilities and other figures you derive in the text are not query results, so
+`data_to_chart` cannot plot them — present those as tables.
 
 See [SECTION_TEMPLATES.md](SECTION_TEMPLATES.md) for detailed section templates.
 
@@ -130,6 +188,8 @@ See [SECTION_TEMPLATES.md](SECTION_TEMPLATES.md) for detailed section templates.
 **Disconfirming evidence to monitor**: [What would invalidate this thesis]
 
 ## 2. Financial Profile
+[Chart: gross / operating / net margin (%) by fiscal year]
+
 | Metric | FY[X-2] | FY[X-1] | FY[X] | Trend |
 |--------|---------|---------|-------|-------|
 | Revenue | [X] | [X] | [X] | [direction] |
@@ -144,10 +204,12 @@ See [SECTION_TEMPLATES.md](SECTION_TEMPLATES.md) for detailed section templates.
 - "Compare to competitors?" → `competitive-intelligence` skill
 - "Check insider/institutional signals?" → `insider-institutional-analysis` skill
 - "Generate PDF?" → `pdf-report-generation` skill
-- "Adapt for different audience?" → `audience-adaptive-narrative` skill
+- "Adapt for different audience?" → `audience-format-adaptation` skill
 
 ## Stopping Points
 
-- After Step 1 (financial data): Offer scope adjustment + cross-skill options
-- After Step 2 (all research gathered): Offer memo generation + format options
-- After Step 3 (memo compiled): Offer PDF generation + audience adaptation
+Both are mandatory. Each ends the response and waits for the analyst.
+
+- After Step 1 (financial data): revenue and geography charts, then scope adjustment + cross-skill options
+- After Step 2 (all research gathered): offer memo generation + format options
+- After Step 3 (memo compiled): offer PDF generation + audience adaptation

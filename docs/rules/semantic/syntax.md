@@ -4,7 +4,7 @@ Essential syntax patterns for creating Snowflake semantic views.
 
 ## YAML-Based Definitions (Primary Approach)
 
-All 28 semantic views are now defined as YAML files in `python/ai/semantic_view_definitions/`.
+All 17 semantic views are now defined as YAML files in `python/ai/semantic_view_definitions/`.
 
 ### File Structure
 ```
@@ -44,15 +44,36 @@ The YAML format includes all features — no supplementary SQL needed:
 - `description` (maps to COMMENT)
 
 ### Build Commands
+
+Validation runs locally. Deployment goes through the Code Bundle, because
+`workspace_main.py` owns the AI build and cannot run from a checkout.
+
 ```bash
-# Validate all YAML definitions (dry run)
-python main.py --connection-name CONNECTION --scope semantic --verify-only
+# Validate all YAML definitions (dry run) - replaces the old --verify-only.
+# Needs FSI_DEMO_BUILD_ROLE: verify mode still goes through CREATE SEMANTIC VIEW.
+cd python && python -c "
+from snowflake.snowpark import Session
+from ai.yaml_loader import verify_all_views
+s = Session.builder.config('connection_name', 'CONNECTION').create()
+s.sql('USE ROLE FSI_DEMO_BUILD_ROLE').collect()
+s.sql('USE WAREHOUSE SAM_DEMO_EXECUTION_WH').collect()
+r = verify_all_views(s)
+print(f\"passed={len(r['passed'])} failed={len(r['failed'])}\")
+"
 
-# Deploy all semantic views from YAML
-python main.py --connection-name CONNECTION --scope semantic
+# Push current code to the bundle stage before deploying (~30s)
+python python/weekly_refresh_main.py --mode deploy --connection-name CONNECTION
+```
+```sql
+-- Deploy all semantic views from YAML
+EXECUTE CODE BUNDLE SAM_DEMO.AI.SAM_WEEKLY_BUNDLE
+    ENTRYPOINT = 'python/workspace_main.py'
+    ARGUMENTS  = ('--scope', 'semantic');
 
-# Deploy semantic views + agents
-python main.py --connection-name CONNECTION --scope ai
+-- Deploy semantic views + search + agents
+EXECUTE CODE BUNDLE SAM_DEMO.AI.SAM_WEEKLY_BUNDLE
+    ENTRYPOINT = 'python/workspace_main.py'
+    ARGUMENTS  = ('--scope', 'ai');
 ```
 
 ### YAML Structure
@@ -121,14 +142,14 @@ verified_queries:
 
 1. Create `python/ai/semantic_view_definitions/SAM_NEW_VIEW.yaml`
 2. Use `{{DATABASE}}` for all database references
-3. Add the view to `SCENARIO_VIEW_MAP` in `python/ai/semantic_views.py`
-4. Validate: `python main.py --scope semantic --verify-only`
-5. Deploy: `python main.py --scope semantic`
+3. Add the view to the `required_views` list of the relevant scenarios in `SCENARIOS` in `python/config.py` (resolved via `config.get_required_views(scenarios)`)
+4. Validate: run `verify_all_views` as shown in Build Commands above
+5. Deploy: `--mode deploy`, then `EXECUTE CODE BUNDLE ... ARGUMENTS = ('--scope','semantic')`
 
 ### Editing Workflow
 1. Edit the YAML file in `semantic_view_definitions/`
-2. Validate: `--scope semantic --verify-only`
-3. Deploy: `--scope semantic`
+2. Validate: run `verify_all_views` locally (see Build Commands)
+3. Deploy: `--mode deploy`, then the bundle with `ARGUMENTS = ('--scope','semantic')`
 4. Re-export to verify round-trip: `SELECT SYSTEM$READ_YAML_FROM_SEMANTIC_VIEW('SAM_DEMO.AI.VIEW_NAME')`
 
 ---

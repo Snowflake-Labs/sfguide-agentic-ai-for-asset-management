@@ -31,9 +31,9 @@ Tool implementations are modularized in the tools/ package for maintainability.
 from snowflake.snowpark import Session
 from typing import List
 import config
-from .semantic_views import create_semantic_views, create_ml_semantic_views
+from .semantic_views import create_semantic_views
 from .yaml_loader import verify_all_views
-from .cortex_search import create_search_services
+from .cortex_search import create_search_services, create_issuer_name_search_service
 from utils.logging import log_error, log_warning, log_detail, log_info, log_step
 
 from .tools import (
@@ -52,8 +52,6 @@ from .tools import (
     create_suggestion_tables,
     create_tool_run_tables,
     create_data_origin_tool,
-    ensure_ml_schema,
-    resolve_ml_build_order,
 )
 
 
@@ -185,6 +183,15 @@ def build_all(session: Session, scenarios: List[str], build_semantic: bool = Tru
         create_tool_run_tables(session)
     except Exception as e:
         log_warning(f"  Tool run tables creation failed: {e}")
+
+    # Semantic views reference this service on their company-name dimensions,
+    # so it must exist before they are created.
+    if build_semantic or build_search:
+        try:
+            create_issuer_name_search_service(session)
+        except Exception as e:
+            log_error(f"CRITICAL: Issuer name search service creation failed: {e}")
+            raise
 
     if build_semantic:
         try:

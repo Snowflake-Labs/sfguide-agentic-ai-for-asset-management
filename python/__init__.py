@@ -24,7 +24,8 @@ including data generation, AI components, and utilities.
 Package Structure:
     python/
     ├── config.py          # Central configuration
-    ├── main.py            # Entry point (build_demo)
+    ├── workspace_main.py  # Build entry point (run by the Code Bundle)
+    ├── local_main.py      # Local-only deploys (cockpit, streamlit, tools, thesis)
     ├── utils/             # Consolidated utilities
     │   ├── logging        # Structured logging
     │   ├── sql            # SQL generation helpers
@@ -52,11 +53,11 @@ Package Structure:
         └── sql_scripts    # SQL script generation
 
 Usage:
-    # Run full demo build
-    python main.py --connection-name CONNECTION
-    
-    # Export scenario
-    python main.py --connection-name CONNECTION --export portfolio_copilot
+    # Full demo build: run scripts/workspace_setup.sql as ACCOUNTADMIN. It creates the
+    # infrastructure and runs workspace_main.py via a Code Bundle.
+
+    # Local-only deployments (need Docker or local file upload)
+    python local_main.py --connection-name CONNECTION --scope cockpit
 """
 
 __version__ = "1.0.0"

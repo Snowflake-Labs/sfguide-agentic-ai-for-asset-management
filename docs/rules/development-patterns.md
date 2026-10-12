@@ -247,7 +247,7 @@ for item in items:
 
 ### YAML-Based Approach (Current)
 
-All 28 semantic views are defined as YAML files in `python/ai/semantic_view_definitions/`. To add a new one:
+All 17 semantic views are defined as YAML files in `python/ai/semantic_view_definitions/`. To add a new one:
 
 **Step 1**: Create `python/ai/semantic_view_definitions/SAM_NEW_VIEW.yaml`:
 ```yaml
@@ -278,21 +278,25 @@ tables:
         access_modifier: public_access
 ```
 
-**Step 2**: Add the view to `SCENARIO_VIEW_MAP` in `python/ai/semantic_views.py`:
+**Step 2**: Add the view to the `required_views` list of the scenarios that need it, in `SCENARIOS` in `python/config.py`. Views are resolved from there via `config.get_required_views(scenarios)`:
 ```python
-SCENARIO_VIEW_MAP = {
-    'your_scenario': ['SAM_NEW_VIEW'],
-    ...
+SCENARIOS = {
+    'your_scenario': {
+        'required_views': ['SAM_NEW_VIEW'],
+        ...
+    },
 }
 ```
 
-**Step 3**: Validate and deploy:
+**Step 3**: Validate and deploy. Validation is local; deployment goes through the Code
+Bundle, since `workspace_main.py` owns the AI build. See
+`docs/rules/semantic/syntax.md` for the full commands.
 ```bash
-# Validate YAML (dry run)
-python main.py --connection-name CONNECTION --scope semantic --verify-only
+# Validate YAML (dry run) - replaces --verify-only, needs FSI_DEMO_BUILD_ROLE
+cd python && python -c "from ai.yaml_loader import verify_all_views; ..."
 
-# Deploy
-python main.py --connection-name CONNECTION --scope semantic
+# Deploy: stage current code, then run the semantic scope in the bundle
+python python/weekly_refresh_main.py --mode deploy --connection-name CONNECTION
 ```
 
 **Step 4**: Export from an existing view (if migrating):
@@ -382,13 +386,13 @@ def create_{document_type}_corpus(session: Session, documents: List[dict]):
 
 All scenario dependencies are declared in `python/config.py` in the `SCENARIOS` dict. **Never** hardcode scenario names, table lists, or agent names in other files. The subsystems (data builders, semantic views, search services, agents) all resolve what to build from config.
 
-### Build Order (Guaranteed by main.py)
+### Build Order (Guaranteed by workspace_main.py)
 
 ```
 1. Tables     → all required tables for all scenarios (via TABLE_BUILDERS registry)
 2. Views      → all required SQL views (security returns, attribution, etc.)
 3. AI Objects → semantic views, search services, custom tools, agents
-4. Apps       → Cockpit, Streamlit, notebooks
+4. Apps       → notebooks
 ```
 
 This order means: if a semantic view references a table, that table must be listed in `required_tables` for the scenario. The build pipeline guarantees tables exist before views are created.
@@ -440,9 +444,9 @@ AGENT_CREATORS = {
 
 **5. Create semantic view YAML in `ai/semantic_view_definitions/`**
 
-**6. Add demo scenario documentation in `docs/demo_scenarios_new_scenario.md`**
+**6. Add the scenario's opening prompt to the Demo Scenarios table in `README.md`**
 
-That's it. No changes needed to `main.py`, `builder.py`, `semantic_views.py`, or `cortex_search.py` — they all read from config.
+That's it. No changes needed to `workspace_main.py`, `builder.py`, `semantic_views.py`, or `cortex_search.py` — they all read from config.
 
 ### Naming Convention
 
@@ -450,7 +454,6 @@ That's it. No changes needed to `main.py`, `builder.py`, `semantic_views.py`, or
 |------|---------|---------|
 | Scenario key | `{domain}` (lowercase, underscores) | `portfolio_management` |
 | Agent name | `AM_{domain}_copilot` | `AM_portfolio_management_copilot` |
-| Doc file | `demo_scenarios_{scenario_key}.md` | `demo_scenarios_portfolio_management.md` |
 | ML scenario | `{domain}_ml` suffix | `market_regime_ml` |
 
 ### Rules
@@ -545,7 +548,7 @@ def test_{component}_functionality(session: Session):
 
 ### CLI Integration Pattern
 ```python
-# In main.py - add new CLI arguments
+# In workspace_main.py for build scopes, or local_main.py for local-only deploys
 parser.add_argument(
     '--{new-flag}',
     action='store_true',
@@ -566,8 +569,7 @@ if args.{new_flag}:
 This patterns guide provides complete templates for extending any aspect of the SAM demo without requiring chat history context.
 
 **Related Documentation**:
-- Agent Setup: `docs/agents_setup.md` - Complete agent configurations for all phases
-- Demo Scripts: `docs/demo_scenarios.md` - Step-by-step demo conversation flows
-- Troubleshooting: @troubleshooting.mdc - Issue resolution guide
-- Pipelines: @pipelines.mdc - Production-like pipeline patterns and Streamlit deployment
+- Agent Setup: `docs/rules/agents/sql-creation.md` - Agent creation patterns
+- Troubleshooting: `docs/rules/troubleshooting.md` - Issue resolution guide
+- Pipelines: `docs/rules/infrastructure/pipelines.md` - Production-like pipeline patterns
 - Production Pipelines Demo: `docs/production_pipelines_demo.md` - Pipeline demo runbook

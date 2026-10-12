@@ -28,7 +28,7 @@ Trigger when user asks: "stress test the portfolio", "what happens in a crash", 
 
 ### Historical Stress Backtest
 
-Tool: `backtest_historical_stress` or `stress_scenario_analyzer`
+Tool: `backtest_historical_stress` or `scenario_sensitivity`
 
 1. Select scenario (or let user specify custom)
 2. Apply historical shocks to current portfolio positions

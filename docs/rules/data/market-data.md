@@ -16,7 +16,9 @@ Patterns for building real market data tables from Snowflake Marketplace.
 | FACT_ECONOMIC_INDICATORS | BIS_TIMESERIES | Macroeconomic indicators |
 | FACT_TREASURY_YIELDS | US_TREASURY_TIMESERIES | Daily Treasury par yield curve (14 maturities) |
 | FACT_COUNTRY_EMISSIONS | CLIMATE_WATCH_TIMESERIES | Annual GHG emissions by country/sector |
-| FACT_INSIDER_TRANSACTIONS | SEC_INSIDER_TRADING_SECURITIES_INDEX | SEC Form 4 insider buy/sell |
+| FACT_INSIDER_TRANSACTIONS | SEC_INSIDER_TRADING_SECURITIES_INDEX + SEC_INSIDER_TRADING_REPORTING_OWNERS_INDEX | Forms 3/4/5 insider buy/sell, with the reporting person's name and role |
+| FACT_SOVEREIGN_FISCAL_OUTLOOK | INTERNATIONAL_MONETARY_FUND_TIMESERIES + ATTRIBUTES | IMF Fiscal Monitor; the only forward-looking macro series (projections to 2030, flagged by IS_FORECAST) |
+| FACT_EXECUTIVE_COMPENSATION | SEC_14A_ATTRIBUTES | DEF 14A executive compensation, one row per executive-year |
 | FACT_INSTITUTIONAL_HOLDINGS | SEC_HOLDING_FILING_INDEX + ATTRIBUTES | SEC 13F institutional ownership |
 | FACT_DIVIDENDS | SEC 8-K filings via AI_EXTRACT | Dividend history |
 | FACT_BENCHMARK_RETURNS | STOCK_PRICE_TIMESERIES (ETFs) | Daily benchmark ETF returns |
@@ -74,12 +76,19 @@ def build_all(session, test_mode=False):
     build_fact_economic_indicators(session, test_mode) # FACT_ECONOMIC_INDICATORS
     build_fact_treasury_yields(session, test_mode)      # FACT_TREASURY_YIELDS
     build_fact_country_emissions(session, test_mode)    # FACT_COUNTRY_EMISSIONS
+    build_fact_sovereign_fiscal_outlook(session, test_mode) # FACT_SOVEREIGN_FISCAL_OUTLOOK
     build_fact_insider_transactions(session, test_mode) # FACT_INSIDER_TRANSACTIONS
+    build_fact_executive_compensation(session, test_mode) # FACT_EXECUTIVE_COMPENSATION
     build_fact_institutional_holdings(session, test_mode) # FACT_INSTITUTIONAL_HOLDINGS
     build_fact_dividends(session, test_mode)           # FACT_DIVIDENDS (if not already built)
 ```
 
 `build_transcript_nlp_scores()` runs separately in Step 5 (after pipelines build the corpus table).
+
+`build_fact_sovereign_fiscal_outlook()` must run **after** stock prices exist. It derives
+`IS_FORECAST` from `get_max_price_date()` rather than `CURRENT_DATE()`, so the forecast
+boundary agrees with the demo's own sense of "now" and stays correct if the demo is presented
+as of a past date. There is no `config.DEMO_ANCHOR_DATE` — the max price date is the anchor.
 
 ## NLP Scoring Pattern (FACT_TRANSCRIPT_NLP_SCORES)
 

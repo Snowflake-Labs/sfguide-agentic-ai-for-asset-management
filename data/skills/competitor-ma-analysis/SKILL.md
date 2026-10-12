@@ -21,17 +21,17 @@ Extract: News context, timing, reported details
 
 ### Step 2: Get Geographic/Segment Revenue Data
 
-Tool: `sec_segments_analyzer` (CRITICAL: NOT financial_analyzer)
+Tool: `research_analyzer`
 
 Query: "[Competitor] revenue by geography" or "[Competitor] European revenue by year"
 
 Extract: Regional revenue, breakdown, trend over years
 
-NOTE: This is the primary tool for divisional/regional financial data. financial_analyzer only has consolidated totals.
+NOTE: Ask for the segment or geographic breakdown explicitly. The same tool also returns consolidated totals, so a vague query gives you the group figure rather than the divisional detail this analysis needs.
 
 ### Step 3: Get Total Company Context
 
-Tool: `financial_analyzer`
+Tool: `research_analyzer`
 
 Query: "[Competitor] total revenue net income"
 

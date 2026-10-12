@@ -34,17 +34,16 @@ tables:
           - status
           - phase
           - deal_status
-        description: "Current deal stage: Screening, Indicative Offer, Due Diligence, SPA, Signed, Closed"
+        description: "Current deal stage: Screening, Indicative Offer, Due Diligence, SPA or Signed"
         expr: DEALSTAGE
         data_type: VARCHAR(50)
         is_enum: true
         sample_values:
-          - "SCREENING"
-          - "DUE_DILIGENCE"
-          - "IC_REVIEW"
-          - "NEGOTIATION"
-          - "CLOSED"
-          - "PASSED"
+          - "Screening"
+          - "Indicative Offer"
+          - "Due Diligence"
+          - "SPA"
+          - "Signed"
       - name: deal_type
         synonyms:
           - transaction_type
@@ -108,9 +107,21 @@ tables:
           - company
           - acquisition_target
           - target_name
-        description: Name of the target company
+        description: "Name of the acquisition target in the PE deal pipeline, one of 10 exact names (see values). Filter with = on the exact name, never LIKE or ILIKE; map the user's wording to one of the values first. If the user names a target that is not listed, it is not in the pipeline - say so."
         expr: TARGETCOMPANYNAME
         data_type: VARCHAR(255)
+        is_enum: true
+        sample_values:
+          - BioPharm Services
+          - CleanWater Technologies
+          - CloudSecure Technologies
+          - DataCenter Nordic
+          - EcoPackaging Solutions
+          - FinTech Payments AG
+          - HealthData Analytics
+          - Industrial Automation GmbH
+          - Nordic Fiber Networks
+          - RetailTech Solutions
     facts:
       - name: competing_bidders
         description: "Number of competing bidders"
@@ -219,3 +230,16 @@ tables:
         description: Target company revenue in millions EUR
         expr: SUM(target_revenue_mm)
         access_modifier: public_access
+verified_queries:
+  - name: DEALS_IN_DUE_DILIGENCE
+    sql: "SELECT deal_pk_dealid, target_company, sector, subsector, geography FROM deals WHERE deal_stage IN ('Due Diligence', 'Indicative Offer')"
+    question: "Which deals are currently in due diligence or indicative offer stage, and what sectors and geographies do they cover?"
+    use_as_onboarding_question: true
+  - name: PIPELINE_BREAKDOWN_BY_STAGE
+    sql: "SELECT deal_stage, COUNT(deal_pk_dealid) AS deal_count, SUM(enterprise_value_mm) AS total_ev_mm, AVG(ev_ebitda_multiple) AS avg_ev_ebitda, AVG(competing_bidders) AS avg_bidders FROM deals GROUP BY deal_stage ORDER BY CASE WHEN deal_stage = 'Screening' THEN 1 WHEN deal_stage = 'Indicative Offer' THEN 2 WHEN deal_stage = 'Due Diligence' THEN 3 WHEN deal_stage = 'SPA' THEN 4 WHEN deal_stage = 'Signed' THEN 5 ELSE 6 END"
+    question: "How does our active deal pipeline break down by stage in terms of number of deals, total enterprise value, average EV/EBITDA multiple, and average number of competing bidders?"
+    use_as_onboarding_question: true
+  - name: DEALS_BY_SECTOR_WITH_RATIONALE
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_PE_DEAL_PIPELINE_VIEW DIMENSIONS deals.deal_pk_dealid, deals.target_company, deals.sector, deals.subsector, deals.geography, deals.deal_stage, deals.strategic_rationale, deals.key_risks FACTS deals.enterprise_value_mm, deals.ev_ebitda_multiple WHERE deals.sector = 'Healthcare') ORDER BY enterprise_value_mm DESC"
+    question: "Show me all Healthcare deals with their valuations, stages, and strategic rationale."
+    use_as_onboarding_question: true

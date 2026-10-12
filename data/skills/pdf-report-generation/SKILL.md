@@ -1,6 +1,6 @@
 ---
 name: pdf-report-generation
-description: Use this skill when the user explicitly requests a PDF document, file export, or downloadable report. Trigger on phrases like "generate PDF", "create PDF", "export as PDF", or "save as document". Do NOT trigger for general requests like "report", "summary", or "document" alone — those should produce markdown text output.
+description: Use this skill when the user explicitly requests a PDF document, file export, or downloadable report. Trigger on phrases like "generate PDF", "create PDF", "export as PDF", "save as document", or "generate an IC memo" / "create the investment committee memo". Do NOT trigger for general requests like "report", "summary", or "document" alone — those should produce markdown text output.
 ---
 
 # PDF Report Generation
@@ -9,8 +9,9 @@ description: Use this skill when the user explicitly requests a PDF document, fi
 
 Trigger ONLY when the user explicitly says one of:
 - "generate PDF", "create PDF", "PDF document", "PDF report", "export as PDF", "save as document"
+- "generate an IC memo", "create an IC memo", "produce the investment committee memo" (an IC memo is a formal committee document, so generating one means producing the PDF)
 
-Do NOT trigger for: "document", "report", "summary", "briefing", or "memo" alone. These should produce markdown text output.
+Do NOT trigger for: "document", "report", "summary", "briefing", or "memo" alone, or for "draft a memo" / "outline an IC memo" without a request to generate it. These should produce markdown text output.
 
 ## Workflow
 

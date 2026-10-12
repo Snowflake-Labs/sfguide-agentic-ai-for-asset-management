@@ -20,7 +20,8 @@ Cortex Search Builder for SAM Demo
 
 This module creates all Cortex Search services for document search across
 broker research, company event transcripts, press releases, NGO reports, engagement notes,
-policy documents, sales templates, philosophy docs, macro events, and report templates.
+policy documents, sales templates, philosophy docs, macro events, and report templates,
+plus the issuer-name literal search service referenced by semantic view dimensions.
 
 Note: company_event_transcripts replaces earnings_transcripts and uses real data from
 SNOWFLAKE_PUBLIC_DATA_FREE.
@@ -167,7 +168,7 @@ def create_search_services(session: Session, scenarios: List[str]):
                     CREATE OR REPLACE CORTEX SEARCH SERVICE {config.DATABASE['name']}.AI.{service_name}
                         TEXT INDEXES DOCUMENT_TITLE, REGULATORY_BODY, JURISDICTION, REFERENCE
                         VECTOR INDEXES DOCUMENT_TEXT (model='{config.AI_EMBEDDING_MODEL}')
-                        ATTRIBUTES DOCUMENT_TITLE, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE, REGULATION_ID, REGULATORY_BODY, JURISDICTION, REFERENCE, SOURCE_URL
+                        ATTRIBUTES DOCUMENT_TITLE, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE, REGULATION_ID, REGULATORY_BODY, JURISDICTION, REFERENCE, SOURCE_URL, SOURCE_FILE_PATH
                         WAREHOUSE = {search_warehouse}
                         TARGET_LAG = '{target_lag}'
                         AS 
@@ -182,7 +183,8 @@ def create_search_services(session: Session, scenarios: List[str]):
                             REGULATORY_BODY,
                             JURISDICTION,
                             REFERENCE,
-                            SOURCE_URL
+                            SOURCE_URL,
+                            SOURCE_FILE_PATH
                         FROM {corpus_table}
                 """).collect_nowait()
                 async_jobs.append((service_name, job))
@@ -195,7 +197,7 @@ def create_search_services(session: Session, scenarios: List[str]):
                     CREATE OR REPLACE CORTEX SEARCH SERVICE {config.DATABASE['name']}.AI.{service_name}
                         TEXT INDEXES DOCUMENT_TITLE, TICKER, COMPANY_NAME, GICS_SECTOR
                         VECTOR INDEXES DOCUMENT_TEXT (model='{config.AI_EMBEDDING_MODEL}')
-                        ATTRIBUTES DOCUMENT_TITLE, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE, TICKER, COMPANY_NAME, GICS_SECTOR
+                        ATTRIBUTES DOCUMENT_TITLE, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE, TICKER, COMPANY_NAME, GICS_SECTOR, SOURCE_FILE_PATH
                         WAREHOUSE = {search_warehouse}
                         TARGET_LAG = '{target_lag}'
                         AS 
@@ -208,7 +210,8 @@ def create_search_services(session: Session, scenarios: List[str]):
                             LANGUAGE,
                             TICKER,
                             COMPANY_NAME,
-                            GICS_SECTOR
+                            GICS_SECTOR,
+                            SOURCE_FILE_PATH
                         FROM {corpus_table}
                 """).collect_nowait()
                 async_jobs.append((service_name, job))
@@ -563,6 +566,40 @@ def _submit_credit_search_services(session: Session) -> list:
         log_warning(f"  Could not prepare SAM_IC_MEMOS: {e}")
 
     return async_jobs
+
+
+def create_issuer_name_search_service(session: Session):
+    """
+    Create the literal search service that resolves company names to DIM_ISSUER legal names.
+
+    Semantic view dimensions that hold legal names reference this service through
+    cortex_search_service, so an agent can turn "TSMC" into the stored value
+    TAIWAN SEMICONDUCTOR MANUFACTURING CO LTD and filter with = instead of ILIKE.
+    Must run before create_semantic_views(): a view that references a missing service
+    fails to create. CREATE OR REPLACE drops grants, so USAGE is granted again each time.
+    """
+    database_name = config.DATABASE['name']
+    curated_schema = config.DATABASE['schemas']['curated']
+    ai_schema = config.DATABASE['schemas']['ai']
+    search_warehouse = config.WAREHOUSES['cortex_search']['name']
+    service_fqn = f"{database_name}.{ai_schema}.SAM_ISSUER_NAME_SEARCH"
+
+    # DIM_ISSUER changes only in full builds, which recreate this service, so a daily lag is enough.
+    session.sql(f"""
+        CREATE OR REPLACE CORTEX SEARCH SERVICE {service_fqn}
+            ON LEGALNAME
+            WAREHOUSE = {search_warehouse}
+            TARGET_LAG = '1 day'
+            EMBEDDING_MODEL = '{config.AI_EMBEDDING_MODEL}'
+            AS
+            SELECT DISTINCT LEGALNAME
+            FROM {database_name}.{curated_schema}.DIM_ISSUER
+            WHERE LEGALNAME IS NOT NULL
+    """).collect()
+    session.sql(
+        f"GRANT USAGE ON CORTEX SEARCH SERVICE {service_fqn} TO ROLE {config.RBAC['demo_runtime_role']}"
+    ).collect()
+    log_detail("  Created search service: SAM_ISSUER_NAME_SEARCH")
 
 
 # =============================================================================

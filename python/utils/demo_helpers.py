@@ -40,9 +40,6 @@ def get_demo_company_ciks() -> list:
     return [v['cik'] for v in config.DEMO_COMPANIES.values() if v.get('cik')]
 
 
-def get_demo_company_by_ticker(ticker: str) -> dict:
-    """Get company info by ticker."""
-    return config.DEMO_COMPANIES.get(ticker, {})
 
 
 def get_demo_company_priority_sql() -> str:
@@ -85,14 +82,6 @@ def get_demo_portfolio_names() -> list:
     return [name for name, cfg in config.PORTFOLIOS.items() if cfg.get('is_demo_portfolio', False)]
 
 
-def get_demo_order_tickers() -> list:
-    """Get list of tickers with demo_order defined, sorted by demo_order."""
-    ordered = [
-        (ticker, data.get('demo_order'))
-        for ticker, data in config.DEMO_COMPANIES.items()
-        if data.get('demo_order') is not None
-    ]
-    return [ticker for ticker, _ in sorted(ordered, key=lambda x: x[1])]
 
 
 def get_large_position_tickers() -> list:
@@ -103,17 +92,85 @@ def get_large_position_tickers() -> list:
     ]
 
 
-def get_demo_client_names() -> list:
-    """Get list of demo client names for data generation."""
-    return [client['client_name'] for client in config.DEMO_CLIENTS.values()]
+def get_portfolio_target_weights(portfolio_name: str) -> dict:
+    """Get reference-data-driven target weights for a portfolio, keyed by ticker."""
+    target_weights = {}
+    for ticker, data in config.DEMO_COMPANIES.items():
+        portfolio_targets = data.get('portfolio_targets', {})
+        portfolio_target = portfolio_targets.get(portfolio_name)
+        if portfolio_target and portfolio_target.get('target_weight') is not None:
+            target_weights[ticker] = portfolio_target['target_weight']
+    return target_weights
 
 
-def get_demo_client_by_type(client_type: str) -> dict:
-    """Get a demo client by type."""
-    for client in config.DEMO_CLIENTS.values():
-        if client['client_type'] == client_type:
-            return client
-    return None
+def get_portfolio_target_weights_sql(portfolio_name: str, portfolio_col: str = "p.PortfolioName", ticker_col: str = "s.Ticker") -> str:
+    """Generate SQL CASE statement for portfolio target weights from reference data."""
+    target_weights = get_portfolio_target_weights(portfolio_name)
+    if not target_weights:
+        return "NULL"
+
+    case_lines = [
+        f"WHEN {portfolio_col} = '{portfolio_name}' AND {ticker_col} = '{ticker}' THEN {weight}"
+        for ticker, weight in target_weights.items()
+    ]
+    return "CASE " + " ".join(case_lines) + " ELSE NULL END"
+
+
+def get_pinned_portfolio_names() -> list:
+    """Portfolios with at least one reference-data target weight, in config order."""
+    return [name for name in config.PORTFOLIOS if get_portfolio_target_weights(name)]
+
+
+def _sql_literal(value: str) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def get_all_portfolio_target_weights_sql(portfolio_col: str = "p.PortfolioName", ticker_col: str = "s.Ticker") -> str:
+    """SQL CASE returning the target weight of every pinned (portfolio, ticker) pair."""
+    case_lines = [
+        f"WHEN {portfolio_col} = {_sql_literal(portfolio_name)} AND {ticker_col} = {_sql_literal(ticker)} THEN {float(weight)}"
+        for portfolio_name in get_pinned_portfolio_names()
+        for ticker, weight in get_portfolio_target_weights(portfolio_name).items()
+    ]
+    if not case_lines:
+        return "NULL"
+    return "CASE " + " ".join(case_lines) + " ELSE NULL END"
+
+
+def get_portfolio_exclusions() -> list:
+    """(portfolio, ticker) pairs that reference data says must never be held."""
+    return [
+        (portfolio_name, ticker)
+        for ticker, data in config.DEMO_COMPANIES.items()
+        for portfolio_name, target in (data.get('portfolio_targets') or {}).items()
+        if target and target.get('exclude')
+    ]
+
+
+def _pairs_condition_sql(pairs: list, portfolio_col: str, ticker_col: str) -> str:
+    if not pairs:
+        return "FALSE"
+    return "(" + " OR ".join(
+        f"({portfolio_col} = {_sql_literal(p)} AND {ticker_col} = {_sql_literal(t)})"
+        for p, t in pairs
+    ) + ")"
+
+
+def get_pinned_pairs_condition_sql(portfolio_col: str = "p.PortfolioName", ticker_col: str = "s.Ticker") -> str:
+    """Boolean SQL that is TRUE for every pinned (portfolio, ticker) pair."""
+    pairs = [
+        (portfolio_name, ticker)
+        for portfolio_name in get_pinned_portfolio_names()
+        for ticker in get_portfolio_target_weights(portfolio_name)
+    ]
+    return _pairs_condition_sql(pairs, portfolio_col, ticker_col)
+
+
+def get_excluded_pairs_condition_sql(portfolio_col: str = "p.PortfolioName", ticker_col: str = "s.Ticker") -> str:
+    """Boolean SQL that is TRUE for every excluded (portfolio, ticker) pair."""
+    return _pairs_condition_sql(get_portfolio_exclusions(), portfolio_col, ticker_col)
+
+
 
 
 def get_demo_clients_by_category(category: str) -> list:

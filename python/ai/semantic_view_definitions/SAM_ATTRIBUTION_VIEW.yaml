@@ -93,7 +93,7 @@ tables:
       - attribution
       - active_return
       - performance_attribution
-    description: Portfolio-level Brinson attribution decomposition
+    description: "Portfolio-level Brinson attribution decomposition, ONE ROW PER PORTFOLIO PER MONTH (single-month returns and effects). All values are decimal fractions (0.0296 = 2.96%). For any period longer than one month (quarter, QTD, YTD, multi-quarter comparison) use linked_attribution, not sums of these monthly rows."
     base_table:
       database: "{{DATABASE}}"
       schema: CURATED
@@ -109,32 +109,32 @@ tables:
         data_type: "NUMBER(38,0)"
     facts:
       - name: active_return
-        description: "Active return (portfolio minus benchmark)"
+        description: "Single-month active return (portfolio minus benchmark). Stored as a DECIMAL fraction: 0.0296 = +2.96% = +296 bps. Multiply by 100 for percent, by 10000 for bps."
         expr: ACTIVE_RETURN
         data_type: FLOAT
         access_modifier: public_access
       - name: allocation_effect
-        description: "Brinson allocation effect (over/underweight contribution)"
+        description: "Single-month brinson allocation effect (over/underweight contribution). Decimal fraction (0.0010 = 0.10% = 10 bps)."
         expr: ALLOCATION_EFFECT
         data_type: FLOAT
         access_modifier: public_access
       - name: interaction_effect
-        description: "Brinson interaction (cross) effect"
+        description: "Single-month brinson interaction (cross) effect. Decimal fraction (0.0010 = 0.10% = 10 bps)."
         expr: INTERACTION_EFFECT
         data_type: FLOAT
         access_modifier: public_access
       - name: selection_effect
-        description: "Brinson security selection effect within each group"
+        description: "Single-month brinson security selection effect within each group. Decimal fraction (0.0010 = 0.10% = 10 bps)."
         expr: SELECTION_EFFECT
         data_type: FLOAT
         access_modifier: public_access
       - name: total_benchmark_return
-        description: "Total benchmark return for the attribution period"
+        description: "Single-month total benchmark return. Decimal fraction (0.0296 = 2.96%)."
         expr: TOTAL_BENCHMARK_RETURN
         data_type: FLOAT
         access_modifier: public_access
       - name: total_portfolio_return
-        description: "Total portfolio return for the attribution period"
+        description: "Single-month total portfolio return. Decimal fraction (0.0296 = 2.96%)."
         expr: TOTAL_PORTFOLIO_RETURN
         data_type: FLOAT
         access_modifier: public_access
@@ -144,7 +144,7 @@ tables:
           - excess_return
           - alpha
           - outperformance
-        description: Portfolio return minus benchmark return (equals allocation + selection + interaction)
+        description: "Sum of monthly active returns (portfolio minus benchmark; equals allocation + selection + interaction). Stored as a DECIMAL fraction: 0.0296 = +2.96% = +296 bps. Multiply by 100 for percent, by 10000 for bps. Correct for a SINGLE month. Summing several months is an arithmetic approximation that ignores compounding - for quarters, QTD, YTD or comparing quarters use linked_attribution (total_linked_total_effect / linked_compounded_active_return) instead."
         expr: SUM(active_return)
         access_modifier: public_access
       - name: total_allocation_effect
@@ -168,14 +168,14 @@ tables:
         synonyms:
           - benchmark_return
           - index_return
-        description: Total benchmark return for period
+        description: "Sum of monthly benchmark returns (decimal fraction). Valid for a single month only; for multi-month periods use linked_compounded_benchmark_return."
         expr: SUM(total_benchmark_return)
         access_modifier: public_access
       - name: sum_portfolio_return
         synonyms:
           - portfolio_return
           - fund_return
-        description: Total portfolio return for period
+        description: "Sum of monthly portfolio returns (decimal fraction). Valid for a single month only; for multi-month periods use linked_compounded_portfolio_return."
         expr: SUM(total_portfolio_return)
         access_modifier: public_access
     time_dimensions:
@@ -210,9 +210,22 @@ tables:
         synonyms:
           - fund_name
           - strategy_name
-        description: "Portfolio name - all names start with \"SAM \" prefix, e.g. \"SAM Technology & Infrastructure\", \"SAM Global Flagship Multi-Asset\"."
+        description: "Portfolio name, one of 11 exact names that all start with \"SAM \" (see values). Filter with = on the exact name, never LIKE or ILIKE. Map short names to the full name first - Tech or Technology means SAM Technology & Infrastructure (not SAM Tech Disruptors Equity), Flagship means SAM Global Flagship Multi-Asset, ESG means SAM ESG Leaders Global Equity, 60/40 or Balanced means SAM Global Balanced 60/40."
         expr: PORTFOLIONAME
         data_type: VARCHAR(134217728)
+        is_enum: true
+        sample_values:
+          - SAM Technology & Infrastructure
+          - SAM ESG Leaders Global Equity
+          - SAM Global Flagship Multi-Asset
+          - SAM US Core Equity
+          - SAM Renewable & Climate Solutions
+          - SAM Sustainable Global Equity
+          - SAM AI & Digital Innovation
+          - SAM Global Balanced 60/40
+          - SAM Tech Disruptors Equity
+          - SAM US Value Equity
+          - SAM Multi-Asset Income
       - name: strategy
         synonyms:
           - investment_style
@@ -250,7 +263,7 @@ tables:
         expr: PORTFOLIOID
         data_type: "NUMBER(38,0)"
       - name: grouping_dimension
-        description: "Attribution decomposition level: SECTOR, COUNTRY, or INDUSTRY"
+        description: "Attribution decomposition level: SECTOR, COUNTRY, INDUSTRY or ASSET_CLASS"
         expr: GROUPINGDIMENSION
         data_type: VARCHAR(30)
         is_enum: true
@@ -258,6 +271,7 @@ tables:
           - "SECTOR"
           - "COUNTRY"
           - "INDUSTRY"
+          - "ASSET_CLASS"
       - name: grouping_value
         synonyms:
           - group_name
@@ -335,7 +349,7 @@ tables:
       - period_attribution
       - qtd_attribution
       - ytd_attribution
-    description: Multi-period linked attribution using Frongello base-period adjustment (QTD, YTD, trailing 12M)
+    description: "AUTHORITATIVE source for any multi-month attribution (quarter, QTD, YTD, trailing 12M, quarter-vs-quarter comparisons). Frongello-linked effects that compound correctly, one row per portfolio, period_end, period_type and grouping value. A full calendar quarter is the period_type = 'QTD' row at a quarter-end period_end (March, June, September, December). Effects are decimal fractions (0.0010 = 10 bps). Summing linked effects across the groups of ONE linked_grouping_dimension at ONE period_end and period_type gives the portfolio total; never sum across period_end values or across dimensions."
     base_table:
       database: "{{DATABASE}}"
       schema: CURATED
@@ -361,12 +375,11 @@ tables:
         data_type: VARCHAR(20)
         is_enum: true
         sample_values:
-          - "MONTHLY"
           - "QTD"
           - "YTD"
           - "TRAILING_12M"
       - name: linked_grouping_dimension
-        description: "Grouping dimension for linked attribution: SECTOR, COUNTRY, or INDUSTRY"
+        description: "Grouping dimension for linked attribution: SECTOR, COUNTRY, INDUSTRY or ASSET_CLASS. Always filter to exactly one value; each dimension decomposes the same portfolio total."
         expr: GROUPINGDIMENSION
         data_type: VARCHAR(30)
       - name: linked_grouping_value
@@ -375,41 +388,72 @@ tables:
         data_type: VARCHAR(200)
     facts:
       - name: linked_allocation
-        description: "Multi-period linked allocation effect"
+        description: "Multi-period linked allocation effect for the group over the period_type window ending at period_end. Decimal fraction (0.0010 = 10 bps)."
         expr: LINKEDALLOCATION
         data_type: FLOAT
         access_modifier: public_access
       - name: linked_selection
-        description: "Multi-period linked selection effect"
+        description: "Multi-period linked selection effect for the group over the period_type window ending at period_end. Decimal fraction (0.0010 = 10 bps)."
         expr: LINKEDSELECTION
         data_type: FLOAT
         access_modifier: public_access
       - name: linked_interaction
-        description: "Multi-period linked interaction effect"
+        description: "Multi-period linked interaction effect for the group over the period_type window ending at period_end. Decimal fraction (0.0010 = 10 bps)."
         expr: LINKEDINTERACTION
         data_type: FLOAT
         access_modifier: public_access
       - name: linked_total_effect
-        description: "Multi-period linked total attribution effect"
+        description: "Multi-period linked total attribution effect for the group over the period_type window ending at period_end. Decimal fraction (0.0010 = 10 bps)."
         expr: LINKEDTOTALEFFECT
         data_type: FLOAT
         access_modifier: public_access
       - name: compounded_active_return
-        description: "Compounded multi-period active return"
-        expr: COMPOUNDEDACTIVERETURN
+        description: "Compounded portfolio-level active return over the period_type window (repeated on every group row - do not sum). Stored as a DECIMAL fraction: 0.0296 = +2.96% = +296 bps. Multiply by 100 for percent, by 10000 for bps."
+        expr: TRY_TO_DOUBLE(COMPOUNDEDACTIVERETURN)
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: compounded_portfolio_return
+        description: "Compounded portfolio return over the period_type window (repeated on every group row - do not sum). Decimal fraction."
+        expr: TRY_TO_DOUBLE(COMPOUNDEDPORTFOLIORETURN)
+        data_type: FLOAT
+        access_modifier: public_access
+      - name: compounded_benchmark_return
+        description: "Compounded benchmark return over the period_type window (repeated on every group row - do not sum). Decimal fraction."
+        expr: TRY_TO_DOUBLE(COMPOUNDEDBENCHMARKRETURN)
         data_type: FLOAT
         access_modifier: public_access
     metrics:
+      - name: linked_compounded_active_return
+        synonyms:
+          - quarterly_active_return
+          - qtd_active_return
+          - ytd_active_return
+          - linked_active_return
+        description: "Compounded portfolio active return for the period (decimal: 0.0296 = +2.96% = +296 bps). Use with one portfolio, period_type and period_end. Preferred answer to 'what was the active return last quarter / YTD'."
+        expr: AVG(compounded_active_return)
+        access_modifier: public_access
+      - name: linked_compounded_portfolio_return
+        description: "Compounded portfolio return for the period (decimal fraction). Use with one portfolio, period_type and period_end."
+        expr: AVG(compounded_portfolio_return)
+        access_modifier: public_access
+      - name: linked_compounded_benchmark_return
+        description: "Compounded benchmark return for the period (decimal fraction). Use with one portfolio, period_type and period_end."
+        expr: AVG(compounded_benchmark_return)
+        access_modifier: public_access
+      - name: total_linked_interaction
+        description: "Sum of linked interaction effects (decimal fraction). Sum only within one period_end, period_type and linked_grouping_dimension."
+        expr: SUM(linked_interaction)
+        access_modifier: public_access
       - name: total_linked_allocation
-        description: Sum of linked allocation effects
+        description: "Sum of linked allocation effects (decimal fraction, 0.0010 = 10 bps). Sum only within one period_end, period_type and linked_grouping_dimension."
         expr: SUM(linked_allocation)
         access_modifier: public_access
       - name: total_linked_selection
-        description: Sum of linked selection effects
+        description: "Sum of linked selection effects (decimal fraction). Sum only within one period_end, period_type and linked_grouping_dimension."
         expr: SUM(linked_selection)
         access_modifier: public_access
       - name: total_linked_total_effect
-        description: Sum of linked total effects
+        description: "Sum of linked total effects (decimal fraction). Across all groups of one dimension at one period_end and period_type this approximates the compounded active return for the period."
         expr: SUM(linked_total_effect)
         access_modifier: public_access
     time_dimensions:
@@ -614,7 +658,7 @@ tables:
         synonyms:
           - risk_regime
           - market_state
-        description: "Monthly market regime (RISK_ON, RISK_OFF, TRANSITIONAL, NEUTRAL)"
+        description: "Monthly market regime from the ML regime model (RISK_ON, RISK_OFF, TRANSITIONAL)"
         expr: MARKET_REGIME
         data_type: VARCHAR(12)
         is_enum: true
@@ -1069,26 +1113,38 @@ relationships:
       - left_column: cur_securityid
         right_column: sec_securityid
 module_custom_instructions:
-  sql_generation: "CONSOLIDATED ATTRIBUTION DOMAIN VIEW — covers Brinson, factor, hidden factor, rolling analytics, anomaly detection, peer learning, and currency attribution.\n\nDATA GRANULARITY: All data is MONTHLY (month-end dates). Each fact table has different grain:\n- brinson_summary: portfolio-month\n- brinson_sector: portfolio-sector-month\n- multi_level_detail: portfolio-dimension-group-month\n- linked_attribution: portfolio-period-dimension-group (QTD/YTD/TRAILING_12M)\n- factor_attribution: portfolio-factor-month\n- hidden_factors: portfolio-factor-month\n- rolling: portfolio-factor-month (pre-joined with drift and regime)\n- anomalies: portfolio-month (pre-aggregated alerts)\n- peers: portfolio (trailing 12M snapshot)\n- currency_attribution: portfolio-security-month\n\nCRITICAL DATE HANDLING: For 'most recent quarter' or 'last quarter', use date > DATEADD('month', -3, (SELECT MAX(date) FROM table)). Use > not >= to get exactly 3 months.\n\nBRINSON IDENTITY: active_return = allocation_effect + selection_effect + interaction_effect (ALWAYS holds).\n\nMULTI-LEVEL: Filter multi_level_detail by grouping_dimension ('SECTOR', 'COUNTRY', 'INDUSTRY'). For drill-down, filter by parent_grouping_value.\n\nLINKED ATTRIBUTION: Filter by period_type and linked_grouping_dimension. Pre-computed with Frongello adjustment.\n\nFACTOR ATTRIBUTION: 7 factors — Market, Value, Growth, Momentum, Quality, Size, Volatility. factor_contribution = portfolio_factor_exposure * factor_return.\n\nHIDDEN FACTORS: 5 factors — AI_Exposure, Reshoring_Benefit, Rate_Convexity, Climate_Transition, Geopolitical_Risk.\n\nROLLING: Pre-joined view with exposure_drift (current minus 6M average), EXPOSURE_DRIFT_ZSCORE, cumulative paths, and regime labels.\n\nANOMALIES: 8 alert types with severity scoring. Filter by anomaly_severity for priority.\n\nPEERS: Trailing 12M snapshot — one row per portfolio. No date filter needed.\n\nCURRENCY: base_return = local_return + fx_return + avu_return.\n\nWhen filtering by portfolio: Always use portfolio_name dimension with ILIKE for flexible matching."
+  sql_generation: "CONSOLIDATED ATTRIBUTION DOMAIN VIEW — covers Brinson, factor, hidden factor, rolling analytics, anomaly detection, peer learning, and currency attribution.\n\nDATA GRANULARITY: All data is MONTHLY (month-end dates). Each fact table has different grain:\n- brinson_summary: portfolio-month\n- brinson_sector: portfolio-sector-month\n- multi_level_detail: portfolio-dimension-group-month\n- linked_attribution: portfolio-period-dimension-group (QTD/YTD/TRAILING_12M)\n- factor_attribution: portfolio-factor-month\n- hidden_factors: portfolio-factor-month\n- rolling: portfolio-factor-month (pre-joined with drift and regime)\n- anomalies: portfolio-month (pre-aggregated alerts)\n- peers: portfolio (trailing 12M snapshot)\n- currency_attribution: portfolio-security-month\n\nUNITS: Every return and effect in this view is a DECIMAL FRACTION, not a percentage and not bps. 0.0296 means +2.96% (= +296 bps); 0.00043 means +0.043% (= +4.3 bps). Convert explicitly (x100 for %, x10000 for bps) and state the unit. Never present a raw 0.0296 as 2.96 bps or 0.0296%.\n\nLAST QUARTER: 'last quarter', 'most recent quarter' or 'Qn' means the latest COMPLETE calendar quarter available in the data, not the trailing 3 months and not the current partial quarter. Its end date is the latest quarter-end month-end (March, June, September or December) with data: in linked_attribution use period_type = 'QTD' AND period_end = (SELECT MAX(period_end) FROM linked_attribution WHERE MONTH(period_end) IN (3, 6, 9, 12)). Always state the quarter label and its date range in the answer. If the user wants quarter-to-date for the current partial quarter, use period_type = 'QTD' at MAX(period_end) and label it QTD.\n\nMULTI-PERIOD RULE: Monthly tables (brinson_summary, brinson_sector, multi_level_detail) hold single-month effects. For anything longer than one month - a quarter, QTD, YTD, trailing 12M, or comparing two quarters - use linked_attribution, which is Frongello-linked and compounds correctly. Do NOT sum monthly active returns or effects across months. To compare quarters, select the QTD rows at each quarter-end period_end.\n\nBRINSON IDENTITY: active_return = allocation_effect + selection_effect + interaction_effect (ALWAYS holds).\n\nMULTI-LEVEL: Filter multi_level_detail by grouping_dimension ('SECTOR', 'COUNTRY', 'INDUSTRY'). For drill-down, filter by parent_grouping_value.\n\nLINKED ATTRIBUTION: Filter by period_type, exactly one linked_grouping_dimension, and period_end. For portfolio-level allocation, selection and interaction totals use linked_grouping_dimension = 'SECTOR' and return ONE row with all three effects plus active return from the same query (see LINKED_EFFECTS_QTD_BPS / LINKED_EFFECTS_YTD_BPS); never quote an effect from a different dimension, period or query, and report the reconciliation check (effects minus active). Pre-computed with Frongello adjustment. Portfolio-level compounded returns are in compounded_active_return / compounded_portfolio_return / compounded_benchmark_return (repeated on each group row: use AVG, never SUM).\n\nFACTOR ATTRIBUTION: 7 factors — Market, Value, Growth, Momentum, Quality, Size, Volatility. factor_contribution = portfolio_factor_exposure * factor_return.\n\nHIDDEN FACTORS: 5 factors — AI_Exposure, Reshoring_Benefit, Rate_Convexity, Climate_Transition, Geopolitical_Risk.\n\nROLLING: Pre-joined view with exposure_drift (current minus 6M average), EXPOSURE_DRIFT_ZSCORE, cumulative paths, and regime labels.\n\nANOMALIES: 8 alert types with severity scoring. Filter by anomaly_severity for priority.\n\nPEERS: Trailing 12M snapshot — one row per portfolio. No date filter needed.\n\nCURRENCY: base_return = local_return + fx_return + avu_return."
 verified_queries:
+  - name: LINKED_EFFECTS_QTD_BPS
+    sql: "SELECT __portfolios.portfolio_name, __linked_attribution.period_type, __linked_attribution.period_end, SUM(__linked_attribution.linked_allocation) * 10000 AS ALLOCATION_EFFECT_BPS, SUM(__linked_attribution.linked_selection) * 10000 AS SELECTION_EFFECT_BPS, SUM(__linked_attribution.linked_interaction) * 10000 AS INTERACTION_EFFECT_BPS, AVG(__linked_attribution.compounded_active_return) * 10000 AS ACTIVE_RETURN_BPS, (SUM(__linked_attribution.linked_allocation) + SUM(__linked_attribution.linked_selection) + SUM(__linked_attribution.linked_interaction) - AVG(__linked_attribution.compounded_active_return)) * 10000 AS RECONCILIATION_CHECK_BPS FROM __linked_attribution JOIN __portfolios ON __linked_attribution.lin_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name = 'SAM Global Flagship Multi-Asset' AND __linked_attribution.linked_grouping_dimension = 'SECTOR' AND __linked_attribution.period_type = 'QTD' AND __linked_attribution.period_end = (SELECT MAX(period_end) FROM __linked_attribution WHERE MONTH(period_end) IN (3, 6, 9, 12)) GROUP BY __portfolios.portfolio_name, __linked_attribution.period_type, __linked_attribution.period_end"
+    question: "What were the allocation, selection and interaction effects and active return in bps for SAM Global Flagship Multi-Asset last quarter?"
+    use_as_onboarding_question: false
+  - name: LINKED_EFFECTS_YTD_BPS
+    sql: "SELECT __portfolios.portfolio_name, __linked_attribution.period_type, __linked_attribution.period_end, SUM(__linked_attribution.linked_allocation) * 10000 AS ALLOCATION_EFFECT_BPS, SUM(__linked_attribution.linked_selection) * 10000 AS SELECTION_EFFECT_BPS, SUM(__linked_attribution.linked_interaction) * 10000 AS INTERACTION_EFFECT_BPS, AVG(__linked_attribution.compounded_active_return) * 10000 AS ACTIVE_RETURN_BPS, (SUM(__linked_attribution.linked_allocation) + SUM(__linked_attribution.linked_selection) + SUM(__linked_attribution.linked_interaction) - AVG(__linked_attribution.compounded_active_return)) * 10000 AS RECONCILIATION_CHECK_BPS FROM __linked_attribution JOIN __portfolios ON __linked_attribution.lin_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name = 'SAM Global Flagship Multi-Asset' AND __linked_attribution.linked_grouping_dimension = 'SECTOR' AND __linked_attribution.period_type = 'YTD' AND __linked_attribution.period_end = (SELECT MAX(period_end) FROM __linked_attribution WHERE period_type = 'YTD') GROUP BY __portfolios.portfolio_name, __linked_attribution.period_type, __linked_attribution.period_end"
+    question: "What are the year-to-date allocation, selection and interaction effects and active return in bps for SAM Global Flagship Multi-Asset?"
+    use_as_onboarding_question: false
   - name: QUARTERLY_BRINSON_SUMMARY
-    sql: "SELECT __portfolios.portfolio_name, MIN(__brinson_summary.attribution_date) AS PERIOD_START, MAX(__brinson_summary.attribution_date) AS PERIOD_END, COUNT(__brinson_summary.attribution_date) AS NUM_MONTHS, SUM(__brinson_summary.total_portfolio_return) AS sum_portfolio_return, SUM(__brinson_summary.total_benchmark_return) AS sum_benchmark_return, SUM(__brinson_summary.active_return) AS total_active_return, SUM(__brinson_summary.allocation_effect) AS ALLOCATION_EFFECT, SUM(__brinson_summary.selection_effect) AS SELECTION_EFFECT, SUM(__brinson_summary.interaction_effect) AS INTERACTION_EFFECT FROM __brinson_summary JOIN __portfolios ON __brinson_summary.bri_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __brinson_summary.attribution_date > DATEADD('month', -3, (SELECT MAX(attribution_date) FROM __brinson_summary)) GROUP BY __portfolios.portfolio_name"
-    question: Break down the performance attribution for SAM Global Flagship portfolio versus S&P 500 for the most recent quarter. What drove performance?
+    sql: "SELECT __portfolios.portfolio_name, __linked_attribution.period_end AS QUARTER_END, DATEADD('day', 1, DATEADD('month', -3, __linked_attribution.period_end)) AS QUARTER_START, AVG(__linked_attribution.compounded_portfolio_return) AS PORTFOLIO_RETURN, AVG(__linked_attribution.compounded_benchmark_return) AS BENCHMARK_RETURN, AVG(__linked_attribution.compounded_active_return) AS ACTIVE_RETURN, AVG(__linked_attribution.compounded_active_return) * 10000 AS ACTIVE_RETURN_BPS, SUM(__linked_attribution.linked_allocation) AS ALLOCATION_EFFECT, SUM(__linked_attribution.linked_selection) AS SELECTION_EFFECT, SUM(__linked_attribution.linked_interaction) AS INTERACTION_EFFECT FROM __linked_attribution JOIN __portfolios ON __linked_attribution.lin_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name = 'SAM Global Flagship Multi-Asset' AND __linked_attribution.period_type = 'QTD' AND __linked_attribution.linked_grouping_dimension = 'SECTOR' AND __linked_attribution.period_end = (SELECT MAX(period_end) FROM __linked_attribution WHERE MONTH(period_end) IN (3, 6, 9, 12)) GROUP BY __portfolios.portfolio_name, __linked_attribution.period_end"
+    question: Show the attribution for SAM Global Flagship versus the benchmark for the last quarter, including active return and allocation, selection, and interaction effects.
     use_as_onboarding_question: true
   - name: sector_ATTRIBUTION_BREAKDOWN
-    sql: "SELECT __brinson_sector.sector, AVG(__brinson_sector.sector_portfolio_weight) AS AVG_PORTFOLIO_WEIGHT, AVG(__brinson_sector.sector_benchmark_weight) AS AVG_BENCHMARK_WEIGHT, SUM(__brinson_sector.sector_allocation_effect) AS ALLOCATION_EFFECT, SUM(__brinson_sector.sector_selection_effect) AS SELECTION_EFFECT, SUM(__brinson_sector.sector_interaction_effect) AS INTERACTION_EFFECT, SUM(__brinson_sector.sector_allocation_effect) + SUM(__brinson_sector.sector_selection_effect) + SUM(__brinson_sector.sector_interaction_effect) AS TOTAL_EFFECT FROM __brinson_sector JOIN __portfolios ON __brinson_sector.bri_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __brinson_sector.sector_date > DATEADD('month', -3, (SELECT MAX(sector_date) FROM __brinson_sector)) GROUP BY __brinson_sector.sector ORDER BY ABS(TOTAL_EFFECT) DESC"
+    sql: "SELECT __linked_attribution.linked_grouping_value AS SECTOR, __linked_attribution.period_end AS QUARTER_END, SUM(__linked_attribution.linked_allocation) AS ALLOCATION_EFFECT, SUM(__linked_attribution.linked_selection) AS SELECTION_EFFECT, SUM(__linked_attribution.linked_interaction) AS INTERACTION_EFFECT, SUM(__linked_attribution.linked_total_effect) AS TOTAL_EFFECT, SUM(__linked_attribution.linked_total_effect) * 10000 AS TOTAL_EFFECT_BPS FROM __linked_attribution JOIN __portfolios ON __linked_attribution.lin_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name = 'SAM Global Flagship Multi-Asset' AND __linked_attribution.period_type = 'QTD' AND __linked_attribution.linked_grouping_dimension = 'SECTOR' AND __linked_attribution.period_end = (SELECT MAX(period_end) FROM __linked_attribution WHERE MONTH(period_end) IN (3, 6, 9, 12)) GROUP BY __linked_attribution.linked_grouping_value, __linked_attribution.period_end ORDER BY ABS(SUM(__linked_attribution.linked_total_effect)) DESC"
     question: Which sectors contributed most to performance last quarter? Show allocation and selection effects by sector.
     use_as_onboarding_question: true
   - name: country_ATTRIBUTION_BREAKDOWN
-    sql: "SELECT __multi_level_detail.grouping_value, SUM(__multi_level_detail.detail_allocation_effect) AS ALLOCATION_EFFECT, SUM(__multi_level_detail.detail_selection_effect) AS SELECTION_EFFECT, SUM(__multi_level_detail.detail_interaction_effect) AS INTERACTION_EFFECT, SUM(__multi_level_detail.detail_total_effect) AS TOTAL_EFFECT FROM __multi_level_detail JOIN __portfolios ON __multi_level_detail.mul_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __multi_level_detail.grouping_dimension = 'COUNTRY' AND __multi_level_detail.detail_date > DATEADD('month', -3, (SELECT MAX(detail_date) FROM __multi_level_detail)) GROUP BY __multi_level_detail.grouping_value ORDER BY ABS(SUM(__multi_level_detail.detail_total_effect)) DESC"
-    question: Show attribution by country for SAM Global Flagship. Which countries drove outperformance?
+    sql: "SELECT __linked_attribution.linked_grouping_value AS COUNTRY, __linked_attribution.period_end AS QUARTER_END, SUM(__linked_attribution.linked_allocation) AS ALLOCATION_EFFECT, SUM(__linked_attribution.linked_selection) AS SELECTION_EFFECT, SUM(__linked_attribution.linked_interaction) AS INTERACTION_EFFECT, SUM(__linked_attribution.linked_total_effect) AS TOTAL_EFFECT FROM __linked_attribution JOIN __portfolios ON __linked_attribution.lin_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name = 'SAM Global Flagship Multi-Asset' AND __linked_attribution.period_type = 'QTD' AND __linked_attribution.linked_grouping_dimension = 'COUNTRY' AND __linked_attribution.period_end = (SELECT MAX(period_end) FROM __linked_attribution WHERE MONTH(period_end) IN (3, 6, 9, 12)) GROUP BY __linked_attribution.linked_grouping_value, __linked_attribution.period_end ORDER BY ABS(SUM(__linked_attribution.linked_total_effect)) DESC"
+    question: Show attribution by country for SAM Global Flagship for the last quarter. Which countries drove outperformance?
     use_as_onboarding_question: true
+  - name: QUARTER_OVER_QUARTER_ATTRIBUTION
+    sql: "WITH quarter_ends AS (SELECT DISTINCT period_end FROM __linked_attribution WHERE MONTH(period_end) IN (3, 6, 9, 12) ORDER BY period_end DESC LIMIT 2) SELECT __linked_attribution.period_end AS QUARTER_END, AVG(__linked_attribution.compounded_active_return) AS ACTIVE_RETURN, AVG(__linked_attribution.compounded_active_return) * 10000 AS ACTIVE_RETURN_BPS, SUM(__linked_attribution.linked_allocation) AS ALLOCATION_EFFECT, SUM(__linked_attribution.linked_selection) AS SELECTION_EFFECT, SUM(__linked_attribution.linked_interaction) AS INTERACTION_EFFECT FROM __linked_attribution JOIN __portfolios ON __linked_attribution.lin_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name = 'SAM Global Flagship Multi-Asset' AND __linked_attribution.period_type = 'QTD' AND __linked_attribution.linked_grouping_dimension = 'SECTOR' AND __linked_attribution.period_end IN (SELECT period_end FROM quarter_ends) GROUP BY __linked_attribution.period_end ORDER BY __linked_attribution.period_end"
+    question: Compare the attribution for SAM Global Flagship in the last quarter with the quarter before. Did active return and selection improve?
+    use_as_onboarding_question: false
   - name: YTD_LINKED_ATTRIBUTION
-    sql: "SELECT __linked_attribution.linked_grouping_value, SUM(__linked_attribution.linked_allocation) AS LINKED_ALLOCATION, SUM(__linked_attribution.linked_selection) AS LINKED_SELECTION, SUM(__linked_attribution.linked_interaction) AS LINKED_INTERACTION, SUM(__linked_attribution.linked_total_effect) AS LINKED_TOTAL FROM __linked_attribution JOIN __portfolios ON __linked_attribution.lin_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __linked_attribution.period_type = 'YTD' AND __linked_attribution.linked_grouping_dimension = 'SECTOR' AND __linked_attribution.period_end = (SELECT MAX(period_end) FROM __linked_attribution) GROUP BY __linked_attribution.linked_grouping_value ORDER BY ABS(SUM(__linked_attribution.linked_total_effect)) DESC"
+    sql: "SELECT __linked_attribution.linked_grouping_value, SUM(__linked_attribution.linked_allocation) AS LINKED_ALLOCATION, SUM(__linked_attribution.linked_selection) AS LINKED_SELECTION, SUM(__linked_attribution.linked_interaction) AS LINKED_INTERACTION, SUM(__linked_attribution.linked_total_effect) AS LINKED_TOTAL FROM __linked_attribution JOIN __portfolios ON __linked_attribution.lin_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name = 'SAM Global Flagship Multi-Asset' AND __linked_attribution.period_type = 'YTD' AND __linked_attribution.linked_grouping_dimension = 'SECTOR' AND __linked_attribution.period_end = (SELECT MAX(period_end) FROM __linked_attribution) GROUP BY __linked_attribution.linked_grouping_value ORDER BY ABS(SUM(__linked_attribution.linked_total_effect)) DESC"
     question: Show the YTD linked attribution by sector for SAM Global Flagship.
     use_as_onboarding_question: true
   - name: FACTOR_EXPOSURE_SUMMARY
-    sql: "SELECT __factor_attribution.factor_name, AVG(__factor_attribution.portfolio_factor_exposure) AS AVG_EXPOSURE, AVG(__factor_attribution.factor_return) AS AVG_FACTOR_RETURN, SUM(__factor_attribution.factor_contribution) AS TOTAL_CONTRIBUTION FROM __factor_attribution JOIN __portfolios ON __factor_attribution.fac_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __factor_attribution.factor_date > DATEADD('month', -3, (SELECT MAX(factor_date) FROM __factor_attribution)) GROUP BY __factor_attribution.factor_name ORDER BY ABS(SUM(__factor_attribution.factor_contribution)) DESC"
+    sql: "SELECT __factor_attribution.factor_name, AVG(__factor_attribution.portfolio_factor_exposure) AS AVG_EXPOSURE, AVG(__factor_attribution.factor_return) AS AVG_FACTOR_RETURN, SUM(__factor_attribution.factor_contribution) AS TOTAL_CONTRIBUTION FROM __factor_attribution JOIN __portfolios ON __factor_attribution.fac_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name = 'SAM Global Flagship Multi-Asset' AND __factor_attribution.factor_date > DATEADD('month', -3, (SELECT MAX(factor_date) FROM __factor_attribution)) GROUP BY __factor_attribution.factor_name ORDER BY ABS(SUM(__factor_attribution.factor_contribution)) DESC"
     question: What factor exposures drove our returns? Show the contribution from all systematic factors.
     use_as_onboarding_question: true
   - name: ANOMALY_SCAN
@@ -1104,6 +1160,6 @@ verified_queries:
     question: Show the current exposure drift for all factors across all portfolios.
     use_as_onboarding_question: false
   - name: currency_IMPACT
-    sql: "SELECT __currency_attribution.local_currency, COUNT(*) AS POSITION_COUNT, AVG(__currency_attribution.local_return) AS AVG_LOCAL_RETURN, AVG(__currency_attribution.fx_return) AS AVG_FX_RETURN, AVG(__currency_attribution.avu_return) AS AVG_AVU_RETURN FROM __currency_attribution JOIN __portfolios ON __currency_attribution.cur_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name ILIKE '%Flagship%' AND __currency_attribution.currency_date > DATEADD('month', -3, (SELECT MAX(currency_date) FROM __currency_attribution)) GROUP BY __currency_attribution.local_currency ORDER BY POSITION_COUNT DESC"
+    sql: "SELECT __currency_attribution.local_currency, COUNT(*) AS POSITION_COUNT, AVG(__currency_attribution.local_return) AS AVG_LOCAL_RETURN, AVG(__currency_attribution.fx_return) AS AVG_FX_RETURN, AVG(__currency_attribution.avu_return) AS AVG_AVU_RETURN FROM __currency_attribution JOIN __portfolios ON __currency_attribution.cur_portfolioid = __portfolios.portfolio_id WHERE __portfolios.portfolio_name = 'SAM Global Flagship Multi-Asset' AND __currency_attribution.currency_date > DATEADD('month', -3, (SELECT MAX(currency_date) FROM __currency_attribution)) GROUP BY __currency_attribution.local_currency ORDER BY POSITION_COUNT DESC"
     question: How much of our return came from currency effects? Show the FX impact by currency.
     use_as_onboarding_question: false

@@ -40,11 +40,13 @@ def create_ma_simulation_tool(session: Session):
     Inputs: Target AUM, target revenue, cost synergy percentage
     Outputs: EPS accretion, synergy value, timeline, risk factors
     """
+    database_name = config.DATABASE['name']
     ma_simulation_sql = f"""
-CREATE OR REPLACE FUNCTION {config.DATABASE['name']}.AI.MA_SIMULATION_TOOL(
+CREATE OR REPLACE FUNCTION {database_name}.AI.MA_SIMULATION_ENGINE(
     target_aum FLOAT,
     target_revenue FLOAT,
-    cost_synergy_pct FLOAT DEFAULT 0.20
+    cost_synergy_pct FLOAT,
+    sam_current_aum FLOAT
 )
 RETURNS OBJECT
 LANGUAGE PYTHON
@@ -52,7 +54,7 @@ RUNTIME_VERSION = '3.11'
 HANDLER = 'simulate_acquisition'
 AS
 $$
-def simulate_acquisition(target_aum: float, target_revenue: float, cost_synergy_pct: float = 0.20) -> dict:
+def simulate_acquisition(target_aum: float, target_revenue: float, cost_synergy_pct: float = 0.20, sam_current_aum: float = None) -> dict:
     \"\"\"
     Simulate the financial impact of an acquisition on Simulated Asset Management.
     
@@ -76,7 +78,10 @@ def simulate_acquisition(target_aum: float, target_revenue: float, cost_synergy_
     # SAM baseline assumptions (illustrative for demo)
     sam_baseline_eps = 2.50  # Current EPS
     sam_shares_outstanding = 50_000_000  # 50M shares
-    sam_current_aum = 12_500_000_000  # $12.5B AUM
+    if cost_synergy_pct is None:
+        cost_synergy_pct = 0.20
+    if not sam_current_aum or sam_current_aum <= 0:
+        return {{"error": "SAM firm AUM unavailable: FACT_POSITION_DAILY_ABOR has no holdings at the latest date"}}
     sam_operating_margin = 0.35  # 35% operating margin
     
     # Integration assumptions
@@ -142,6 +147,8 @@ def simulate_acquisition(target_aum: float, target_revenue: float, cost_synergy_
             "net_contribution_millions": round(year2_contribution / 1_000_000, 1)
         }},
         "strategic_impact": {{
+            "sam_current_aum_billions": round(sam_current_aum / 1_000_000_000, 2),
+            "sam_aum_source": "FIRM_AUM: sum of MarketValue_Base in FACT_POSITION_DAILY_ABOR at the latest HoldingDate",
             "combined_aum_billions": round(combined_aum / 1_000_000_000, 1),
             "aum_growth_pct": round(aum_growth_pct, 1),
             "revenue_synergies_millions": round(revenue_synergies / 1_000_000, 1)
@@ -160,7 +167,30 @@ def simulate_acquisition(target_aum: float, target_revenue: float, cost_synergy_
     }}
 $$;
     """
+    ma_wrapper_sql = f"""
+CREATE OR REPLACE FUNCTION {database_name}.AI.MA_SIMULATION_TOOL(
+    target_aum FLOAT,
+    target_revenue FLOAT,
+    cost_synergy_pct FLOAT DEFAULT 0.20
+)
+RETURNS OBJECT
+LANGUAGE SQL
+AS
+$$
+    {database_name}.AI.MA_SIMULATION_ENGINE(
+        target_aum,
+        target_revenue,
+        cost_synergy_pct,
+        (
+            SELECT SUM(MarketValue_Base)::FLOAT
+            FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR
+            WHERE HoldingDate = (SELECT MAX(HoldingDate) FROM {database_name}.CURATED.FACT_POSITION_DAILY_ABOR)
+        )
+    )
+$$;
+    """
     try:
         session.sql(ma_simulation_sql).collect()
+        session.sql(ma_wrapper_sql).collect()
     except Exception as e:
         log_error(f" M&A simulation tool creation failed: {e}")

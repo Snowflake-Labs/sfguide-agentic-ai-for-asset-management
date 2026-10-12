@@ -24,7 +24,7 @@ Map user intent to scenario_type parameter:
 
 ### Step 1: Identify Parameters
 
-- Portfolio: Resolve name (default: 'Flagship')
+- Portfolio: Resolve the user's name or alias to the full SAM portfolio name with the portfolio name mapping (default: SAM Global Flagship Multi-Asset); the tool matches names exactly
 - Period: Parse start_date and end_date (default: last quarter — use most recent 3 months of attribution data)
 - Scenario: Map user language to one of 4 types above
 - For EXCLUDE_GROUP: identify the group to exclude from user's question
@@ -32,7 +32,7 @@ Map user intent to scenario_type parameter:
 ### Step 2: Run Counterfactual
 
 Tool: `run_counterfactual`
-Parameters: portfolio_name_or_id, start_date, end_date, scenario_type
+Parameters: portfolio_name_or_id (full SAM portfolio name, e.g. SAM Global Flagship Multi-Asset, or numeric ID), start_date, end_date, scenario_type
 
 ### Step 3: Present Comparison
 

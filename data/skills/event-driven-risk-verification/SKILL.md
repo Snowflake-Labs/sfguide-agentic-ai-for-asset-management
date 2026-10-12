@@ -19,13 +19,13 @@ Confirm event details: EventType, Region, Severity, AffectedSectors
 
 ### Step 2: Calculate Direct Exposure
 
-Tool: `quantitative_analyzer`
+Tool: `portfolio_analyzer`
 
 Filter by affected region and sectors from Step 1. Get position weights for directly affected securities.
 
 ### Step 3: Calculate Indirect Exposure (Supply Chain)
 
-Tool: `supply_chain_analyzer`
+Tool: `portfolio_analyzer`
 
 Apply multi-hop supply chain analysis:
 - **Decay**: 50% per hop (direct suppliers = 100%, tier-2 = 50%, tier-3 = 25%)

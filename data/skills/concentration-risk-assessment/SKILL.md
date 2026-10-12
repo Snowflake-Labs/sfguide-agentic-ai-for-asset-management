@@ -24,7 +24,7 @@ Extract from policy:
 
 ### Phase 2: Apply to Portfolio Data
 
-Tool: `quantitative_analyzer`
+Tool: `portfolio_analyzer`
 
 Query: "Current position weights for SAM [portfolio]"
 

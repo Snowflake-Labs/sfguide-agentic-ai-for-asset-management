@@ -205,6 +205,80 @@ tables:
         description: VIX closing level
         expr: AVG(vix_close)
         access_modifier: public_access
+  - name: sovereign_fiscal
+    synonyms:
+      - sovereign_debt
+      - government_debt
+      - fiscal_outlook
+      - imf_fiscal_monitor
+    description: IMF Fiscal Monitor sovereign fiscal data by country and year — gross and
+      net debt to GDP, fiscal balances, revenue and expenditure. The only forward-looking
+      macro series in the demo, carrying IMF projections five years out, flagged by
+      is_forecast. Use it as the fiscal backdrop to a market regime, since rising sovereign debt
+      and widening deficits are part of the macro context for a risk-off regime. Annual
+      data, so it sets the backdrop rather than explaining a daily regime change.
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: FACT_SOVEREIGN_FISCAL_OUTLOOK
+    primary_key:
+      columns:
+        - sovereign_fiscal_id
+    dimensions:
+      - name: sovereign_fiscal_id
+        description: Row identifier
+        expr: SOVEREIGN_FISCAL_ID
+        data_type: "NUMBER(38,0)"
+      - name: sovereign_country
+        synonyms:
+          - country_code
+          - sovereign_iso3
+        description: "ISO3 country code, for example USA, GBR, DEU, JPN"
+        expr: COUNTRY_ISO3
+        data_type: VARCHAR(16777216)
+      - name: fiscal_measure
+        synonyms:
+          - debt_measure
+          - fiscal_metric
+        description: "What is being measured, for example 'Gross debt (% of GDP)',
+          'Net lending/borrowing (also referred as overall balance) (% of GDP)'"
+        expr: MEASURE_NAME
+        data_type: VARCHAR(16777216)
+      - name: sovereign_fiscal_year
+        description: Year the figure relates to
+        expr: FISCAL_YEAR
+        data_type: "NUMBER(38,0)"
+      - name: is_forecast
+        synonyms:
+          - is_projection
+        description: TRUE when the row is an IMF projection rather than an observed
+          historical figure. ALWAYS say so when presenting a forecast value.
+        expr: IS_FORECAST
+        data_type: BOOLEAN
+        is_enum: true
+        sample_values:
+          - "TRUE"
+          - "FALSE"
+    time_dimensions:
+      - name: sovereign_period_date
+        description: Period end date for the observation or projection
+        expr: PERIOD_DATE
+        data_type: DATE
+    facts:
+      - name: value_pct_gdp
+        synonyms:
+          - debt_to_gdp
+          - pct_of_gdp
+        description: The measured value as a percent of GDP (120.8 = 120.8% of GDP). Already
+          a percentage — do not multiply by 100.
+        expr: VALUE_PCT_GDP
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: avg_value_pct_gdp
+        description: Average value across the selected countries and years
+        expr: AVG(value_pct_gdp)
+        access_modifier: public_access
 relationships:
   - name: benchmark_to_regime
     left_table: benchmark_returns
@@ -218,3 +292,12 @@ relationships:
     relationship_columns:
       - left_column: vix_pk_date
         right_column: prediction_date
+verified_queries:
+  - name: SOVEREIGN_DEBT_TRAJECTORY
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_REGIME_VIEW DIMENSIONS sovereign_fiscal.sovereign_country, sovereign_fiscal.sovereign_fiscal_year, sovereign_fiscal.is_forecast METRICS sovereign_fiscal.avg_value_pct_gdp WHERE sovereign_fiscal.fiscal_measure = 'Gross debt (% of GDP)' AND sovereign_fiscal.sovereign_country = 'USA' AND sovereign_fiscal.sovereign_fiscal_year >= 2024) ORDER BY sovereign_fiscal_year"
+    question: What is the trajectory of US gross debt to GDP through 2030, and which years are forecasts?
+    use_as_onboarding_question: true
+  - name: LATEST_VIX_LEVEL
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_REGIME_VIEW DIMENSIONS vix_daily.vix_pk_date METRICS vix_daily.average_vix_close) ORDER BY vix_pk_date DESC LIMIT 10"
+    question: How has the VIX moved over the last few trading days?
+    use_as_onboarding_question: true

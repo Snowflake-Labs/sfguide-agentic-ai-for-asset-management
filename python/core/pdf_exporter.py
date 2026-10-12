@@ -35,10 +35,19 @@ Usage:
 
 import os
 import re
+import tempfile
 from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime
 
 # ReportLab imports
+from reportlab import rl_config
+
+# Pin ReportLab's embedded CreationDate/ModDate and document id. Without this the
+# PDF bytes differ on every build even for identical content, which changes the
+# stage ETAG - and the PDF parse task MERGEs on (FILE_PATH, ETAG), so a re-upload
+# would be treated as a new document and insert a duplicate RAW row.
+rl_config.invariant = 1
+
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm, cm
@@ -163,7 +172,7 @@ class LogoFlowable(Flowable):
 # PAGE TEMPLATES
 # =============================================================================
 
-def make_internal_header_footer(canvas: canvas.Canvas, doc, title: str):
+def make_internal_header_footer(canvas: canvas.Canvas, doc, title: str, footer_date: str = ''):
     """Draw SAM-branded header and footer for internal documents."""
     canvas.saveState()
     
@@ -198,13 +207,13 @@ def make_internal_header_footer(canvas: canvas.Canvas, doc, title: str):
     canvas.setFillColor(SAM_TEXT)
     canvas.setFont('Helvetica', 7)
     canvas.drawString(15*mm, 10*mm, 'Confidential - Internal Use Only')
-    canvas.drawCentredString(width/2, 10*mm, f'Generated {datetime.now().strftime("%d %B %Y")}')
+    canvas.drawCentredString(width/2, 10*mm, f'Generated {footer_date or datetime.now().strftime("%d %B %Y")}')
     canvas.drawRightString(width - 15*mm, 10*mm, f'Page {doc.page}')
     
     canvas.restoreState()
 
 
-def make_external_header_footer(canvas: canvas.Canvas, doc, title: str, org_name: str):
+def make_external_header_footer(canvas: canvas.Canvas, doc, title: str, org_name: str, footer_date: str = ''):
     """Draw external-branded header and footer."""
     canvas.saveState()
     
@@ -233,7 +242,7 @@ def make_external_header_footer(canvas: canvas.Canvas, doc, title: str, org_name
     canvas.setFillColor(EXT_SECONDARY)
     canvas.setFont('Helvetica', 7)
     canvas.drawString(15*mm, 10*mm, org_name[:30])
-    canvas.drawCentredString(width/2, 10*mm, f'{datetime.now().strftime("%d %B %Y")}')
+    canvas.drawCentredString(width/2, 10*mm, footer_date or datetime.now().strftime("%d %B %Y"))
     canvas.drawRightString(width - 15*mm, 10*mm, f'Page {doc.page}')
     
     canvas.restoreState()
@@ -610,11 +619,17 @@ def export_document_to_pdf(
         flowables.insert(1, Spacer(1, 8*mm))
         
         # Build document with custom header/footer
+        # Use the document's own publish date so the footer is stable across
+        # rebuilds (and correct: a note is dated when published, not when built).
+        footer_date = str(context.get('PUBLISH_DATE')
+                          or context.get('REPORT_DATE')
+                          or context.get('TEMPLATE_DATE') or '')
+
         def on_page(canvas_obj, doc_obj):
             if is_internal:
-                make_internal_header_footer(canvas_obj, doc_obj, title)
+                make_internal_header_footer(canvas_obj, doc_obj, title, footer_date)
             else:
-                make_external_header_footer(canvas_obj, doc_obj, title, org_name)
+                make_external_header_footer(canvas_obj, doc_obj, title, org_name, footer_date)
         
         doc.build(flowables, onFirstPage=on_page, onLaterPages=on_page)
         
@@ -625,22 +640,65 @@ def export_document_to_pdf(
         return None
 
 
+_RESOLVED_OUTPUT_DIR: Optional[str] = None
+
+
 def get_output_directory() -> str:
+    """Resolve a writable PDF output directory, creating it if needed.
+
+    Tried in order:
+      1. $SAM_DEMO_PDF_OUTPUT_DIR, if set
+      2. <project_root>/generated_pdfs (the normal local / Workspace case)
+      3. a temp directory
+
+    Step 3 exists because a Code Bundle mounts its source **read-only**: under
+    EXECUTE CODE BUNDLE the project root is /filesystem/<hash>/ and os.makedirs
+    there fails with "[Errno 30] Read-only file system". Writing PDFs to temp is
+    harmless - they are uploaded to a stage immediately afterwards and the local
+    copy is only an intermediate.
+
+    The result is cached so the generator and pipelines.upload_pdfs_to_stages
+    cannot disagree about where the PDFs are.
     """
-    Get the configured PDF output directory.
-    Creates it if it doesn't exist.
-    
-    Returns:
-        Absolute path to output directory
-    """
+    global _RESOLVED_OUTPUT_DIR
+    if _RESOLVED_OUTPUT_DIR is not None:
+        return _RESOLVED_OUTPUT_DIR
+
+    candidates = []
+
+    override = os.environ.get('SAM_DEMO_PDF_OUTPUT_DIR')
+    if override:
+        candidates.append(override)
+
     output_dir = config.UNSTRUCTURED_PDF_OUTPUT_DIR
-    
-    # If relative path, make it relative to project root
     if not os.path.isabs(output_dir):
         # Project root is parent of python/ directory (core/ is inside python/)
         python_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         project_root = os.path.dirname(python_dir)
         output_dir = os.path.join(project_root, output_dir)
-    
-    os.makedirs(output_dir, exist_ok=True)
-    return output_dir
+    candidates.append(output_dir)
+
+    candidates.append(
+        os.path.join(tempfile.gettempdir(), 'sam_demo_generated_pdfs')
+    )
+
+    errors = []
+    for candidate in candidates:
+        try:
+            os.makedirs(candidate, exist_ok=True)
+            # exist_ok=True succeeds on an existing read-only dir, so prove we
+            # can actually write before committing to it.
+            probe = os.path.join(candidate, '.write_probe')
+            with open(probe, 'w') as handle:
+                handle.write('')
+            os.remove(probe)
+        except OSError as exc:
+            errors.append(f"{candidate}: {exc}")
+            continue
+        _RESOLVED_OUTPUT_DIR = candidate
+        return candidate
+
+    raise RuntimeError(
+        "No writable PDF output directory found. Tried:\n  "
+        + "\n  ".join(errors)
+    )

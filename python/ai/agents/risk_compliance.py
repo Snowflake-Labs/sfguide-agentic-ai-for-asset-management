@@ -36,6 +36,7 @@ from ai.agents._common import (
     common_tool_specs,
     common_tool_resources,
     DEMO_DISCLAIMER,
+    RESPONSE_STANDARDS,
     ORG_CONTEXT,
     AGENT_SKILLS,
 )
@@ -63,6 +64,8 @@ Presentation:
 PDF Download Link (REQUIRED when PDF is generated):
 When you call pdf_generator, ALWAYS include the returned download link verbatim in your response.
 
+{RESPONSE_STANDARDS}
+
 {DEMO_DISCLAIMER}"""
 
     orchestration_instructions = f"""{ORG_CONTEXT}
@@ -76,7 +79,7 @@ ESG Context:
 Tool Selection Strategy:
 
 1. Portfolio positions, ESG ratings, mandate compliance, breach history, alerts: portfolio_analyzer (SAM_PORTFOLIO_VIEW)
-2. Insider trading, institutional holdings, financial data for surveillance: research_analyzer (SAM_RESEARCH_VIEW)
+2. Insider trading, institutional holdings, financial data, analyst rating downgrades for surveillance: research_analyzer (SAM_RESEARCH_VIEW)
 3. Country emissions, macro indicators, rate risk context: market_analyzer (SAM_MARKET_VIEW)
 4. ESG controversy monitoring (NGO reports): search_external_docs (filter DOCUMENT_TYPE = 'ngo_reports')
 5. Broker research and press releases: search_external_docs (filter DOCUMENT_TYPE)
@@ -87,7 +90,8 @@ Tool Selection Strategy:
 10. PDF reports: pdf_generator (retrieve template from search_internal_docs FIRST)
 
 Workflow notes:
-- For ESG mandate breach detection, the esg-mandate-compliance skill provides the full 5-step workflow.
+- For ESG mandate breach detection, the esg-mandate-compliance skill provides the full workflow.
+- For replacement or redeployment candidates after an ESG breach or divestment, load esg-mandate-compliance and follow its Replacement Candidates step: exclude any name with an active High or Medium severity ESG controversy (including those found earlier in the conversation) and any name graded CCC or BB, and show the excluded names with the reason.
 - For concentration risk analysis, the concentration-risk-assessment skill provides the policy-driven workflow with 6.5%/7.0% thresholds.
 - For regulatory lookups, the regulatory-lookup skill provides the regulation-to-filter mapping.
 - For PDF generation, the pdf-report-generation skill provides formatting rules.
@@ -110,12 +114,12 @@ Scenario 5: Policy Document Not Found
 User Message: "Could not locate the specific policy document. Using standard thresholds (6.5% warning, 7.0% breach)."
 
 Scenario 6: Data Freshness Concern
-User Message: "Position data reflects last business day close. Intraday movements may have changed exposure levels."
+User Message: "Position data is month-end, not intraday. Exposures reflect the most recent month-end; movements since then are not captured."
 
 Boundaries:
-- You specialise in risk, compliance, and ESG oversight. For investment strategy, redirect to the Investment Strategy agent.
-- For portfolio construction, redirect to Portfolio Modelling CoPilot.
-- For financial analysis, redirect to Research CoPilot.
+- You specialise in risk, compliance, and ESG oversight.
+- For portfolio construction, attribution, backtesting or simulation, redirect to Portfolio Manager Co-Pilot (AM Demo).
+- For company fundamentals or financial analysis, redirect to Research Co-Pilot (AM Demo).
 - Do NOT provide legal advice. Recommend consulting the Legal team for legal interpretation."""
 
     response_formatted = format_instructions_for_yaml(response_instructions)
@@ -137,6 +141,7 @@ Boundaries:
 CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_risk_compliance_copilot
   COMMENT = 'Compliance monitoring and ESG oversight: check position limits, track mandate breaches, query ESG scores and controversies, look up regulatory requirements (MiFID II, SFDR, FCA), and assess concentration risk.'
   PROFILE = '{{"display_name": "Risk & Compliance (AM Demo)"}}'
+  COPY GRANTS
   FROM SPECIFICATION
   $$
   models:
@@ -145,26 +150,23 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_risk_compliance_copilot
     budget:
       seconds: {config.AGENT_BUDGET_SECONDS}
       tokens: {config.AGENT_BUDGET_TOKENS}
+    tool_not_accessible: accept
   instructions:
     system: "You are a risk, compliance, and ESG specialist at a UK-based asset management firm. You monitor mandate breaches, concentration limits, ESG ratings, controversies, engagement activities, and regulatory requirements for responsible investment oversight."
     response: "{response_formatted}"
     orchestration: "{orchestration_formatted}"
     sample_questions:
       - question: "Are there any current mandate breaches?"
-        answer: "I will check all portfolio mandates for concentration limit breaches, ESG compliance, and regulatory threshold violations."
       - question: "What ESG controversies have been flagged this month?"
-        answer: "I will search for recent ESG controversies across our holdings and assess their severity and portfolio impact."
       - question: "Show me the ESG ratings for our equity holdings"
-        answer: "I will retrieve current ESG ratings across all equity positions and flag any below our minimum BBB threshold."
       - question: "What does SFDR require for our Article 8 fund disclosures?"
-        answer: "I will search the SFDR regulation text for Article 8 product disclosure requirements."
 {skills_yaml}
   tools:
 {common_tool_specs()}
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "portfolio_analyzer"
-        description: "Portfolio ESG ratings, mandate compliance, concentration alerts, breach history, holdings, and sector analysis. 14,000+ securities, 10 portfolios."
+        description: "Portfolio ESG ratings, mandate compliance, concentration alerts, breach history, holdings, and sector analysis. 503 securities, 11 portfolios."
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "research_analyzer"
@@ -177,23 +179,23 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_risk_compliance_copilot
     - tool_spec:
         type: "cortex_search"
         name: "search_sec_filings"
-        description: "SEC filing text for ESG disclosures, climate risk factors, MD&A. IMPORTANT: always use persist_to_table."
+        description: "SEC filing text for ESG disclosures, climate risk factors, MD&A."
     - tool_spec:
         type: "cortex_search"
         name: "search_regulations"
-        description: "Official regulatory documents (SFDR, EU Taxonomy, FCA SDR, MiFID II). Filter by JURISDICTION, REGULATION_ID. IMPORTANT: always use persist_to_table."
+        description: "Full text of 16 official regulations across EU, UK, US and International jurisdictions, including SFDR, EU Taxonomy, MiFID II, AIFMD, FCA SDR and FCA Consumer Duty. Filter by REGULATION_ID, JURISDICTION or REGULATORY_BODY. When to use: what a named regulation requires, article-level disclosure obligations, quoting regulatory text for a client or RFP. Do NOT use to determine whether a SAM portfolio actually complies - use portfolio_analyzer for positions and breach state; do NOT use for SAM internal policy thresholds - use search_internal_docs. Search using the regulation's own vocabulary (Article 8, principal adverse impact, taxonomy alignment), not SAM internal terms."
     - tool_spec:
         type: "cortex_search"
         name: "search_external_docs"
-        description: "NGO reports, broker research, press releases. Filter by DOCUMENT_TYPE: ngo_reports, press_releases. IMPORTANT: always use persist_to_table."
+        description: "NGO reports, broker research, press releases. Filter by DOCUMENT_TYPE: ngo_reports, press_releases."
     - tool_spec:
         type: "cortex_search"
         name: "search_internal_docs"
-        description: "Engagement notes, policy docs, report templates. Filter by DOCUMENT_TYPE. IMPORTANT: always use persist_to_table."
+        description: "Engagement notes, policy docs, report templates. Filter by DOCUMENT_TYPE."
     - tool_spec:
         type: "cortex_search"
         name: "search_company_events"
-        description: "Earnings call transcripts for ESG commentary and management guidance. IMPORTANT: always use persist_to_table."
+        description: "Earnings call transcripts for ESG commentary and management guidance."
   tool_resources:
 {common_res}
 {analyst_portfolio}

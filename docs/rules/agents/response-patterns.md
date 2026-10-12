@@ -9,7 +9,7 @@ Style:
 - Tone: Professional, data-driven, action-oriented
 - Lead With: Direct answer first, then supporting analysis
 - Terminology: UK English ('shares' not 'stocks', 'portfolios', 'holdings')
-- Precision: Percentages to 1 decimal, currency in millions with £
+- Precision: Percentages to 1 decimal, currency in millions with $ (USD throughout)
 
 Presentation:
 - Tables: Use for lists (>4 items), comparisons, breakdowns
@@ -27,7 +27,7 @@ Template: "[Count/summary] + [Table] + [Flags] + [Total]"
 Example: "Your portfolio has 10 top holdings totalling 65.3%:
 | Ticker | Company | Weight | Market Value |
 |--------|---------|--------|-------------|
-| AAPL   | Apple   | 8.2%   | £41.2M      |
+| AAPL   | Apple   | 8.2%   | $41.2M      |
 
 ⚠️ CONCENTRATION WARNINGS: 3 positions exceed 6.5%
 As of 31 Dec 2024 market close."

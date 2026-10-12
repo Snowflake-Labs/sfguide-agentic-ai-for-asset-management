@@ -70,7 +70,7 @@ tools:
       type: "cortex_analyst_text_to_sql"
       name: "quantitative_analyzer"
       description: |
-        Analyzes portfolio holdings using 14,000+ real securities.
+        Analyzes portfolio holdings using 503 real securities.
         
         Data Coverage:
         - Historical: 12 months position history
@@ -157,15 +157,15 @@ After creation, register with Snowflake Intelligence:
 
 ```sql
 ALTER SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT 
-ADD AGENT SAM_DEMO.AI.AM_portfolio_manager_copilot;
+ADD AGENT SAM_DEMO.AI.AM_portfolio_management_copilot;
 ```
 
-This is automated in `create_agents.py`.
+This is automated in `python/ai/builder.py`, with per-agent definitions in `python/ai/agents/`.
 
 ## Multi-Tool Agent Example
 
 ```python
-def create_portfolio_copilot(session: Session):
+def create_portfolio_management_copilot(session: Session):
     database_name = config.DATABASE['name']
     ai_schema = config.DATABASE['schemas']['ai']
     warehouse = config.WAREHOUSES['execution']['name']
@@ -194,7 +194,7 @@ Workflows:
 """)
     
     sql = f"""
-    CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_manager_copilot
+    CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_management_copilot
       COMMENT = 'Portfolio analytics with research integration'
       PROFILE = '{{"display_name": "Portfolio Manager Co-Pilot"}}'
       FROM SPECIFICATION $$
@@ -237,7 +237,7 @@ Workflows:
 
 ## Adding New Agents
 
-1. Create function in `create_agents.py`:
+1. Create a module under `python/ai/agents/` (or a function in an existing one):
    ```python
    def create_new_agent(session: Session):
        # ... agent creation logic

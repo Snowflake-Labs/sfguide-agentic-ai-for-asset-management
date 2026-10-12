@@ -26,13 +26,14 @@ tables:
           - type
           - category
           - insight_category
-        description: "Type of insight: DAILY_BRIEFING, ANOMALY_ALERT, or POSITION_CHANGE"
+        description: "Type of insight: DAILY_BRIEFING, MORNING_BRIEFING, ANOMALY_ALERT or POSITION_CHANGE"
         expr: INSIGHTTYPE
         data_type: VARCHAR(50)
         is_enum: true
         sample_values:
-          - "ANOMALY_ALERT"
           - "DAILY_BRIEFING"
+          - "MORNING_BRIEFING"
+          - "ANOMALY_ALERT"
           - "POSITION_CHANGE"
       - name: portfolio_name
         synonyms:
@@ -54,15 +55,13 @@ tables:
           - risk_level
           - alert_level
           - priority
-        description: "Severity classification: LOW, MEDIUM, HIGH, CRITICAL (NULL for informational)"
+        description: "Severity of an anomaly-scan insight: LOW or HIGH. NULL for briefings and other informational insights."
         expr: SEVERITY
         data_type: VARCHAR(10)
         is_enum: true
         sample_values:
           - "LOW"
-          - "MEDIUM"
           - "HIGH"
-          - "CRITICAL"
       - name: is_read
         synonyms:
           - read_status
@@ -161,14 +160,12 @@ tables:
         synonyms:
           - type
           - alert_category
-        description: "Type of alert: ANOMALY_HIGH, CONCENTRATION_BREACH, STYLE_DRIFT"
+        description: "Type of alert. Alerts are promoted from HIGH-severity anomaly scans, so every alert is ANOMALY_HIGH."
         expr: ALERTTYPE
         data_type: VARCHAR(50)
         is_enum: true
         sample_values:
-          - "CONCENTRATION_BREACH"
-          - "CONCENTRATION_WARNING"
-          - "ESG_DOWNGRADE"
+          - "ANOMALY_HIGH"
       - name: portfolio_name
         synonyms:
           - portfolio

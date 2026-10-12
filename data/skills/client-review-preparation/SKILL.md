@@ -36,6 +36,12 @@ Structure as a concise meeting prep brief:
 - **Key Talking Points**: 3-5 bullet points
 - **Potential Questions & Answers**: Anticipate likely client questions based on recent performance
 
+## Return Figures (mandatory)
+
+- Quote portfolio, benchmark and active (excess) returns exactly as the query returns them; never recompute them yourself (no subtraction, summing or compounding by hand, no bash or code_execution arithmetic). If a figure is missing, query for it.
+- For quarters and other multi-month periods use the linked (compounded) figures from attribution data rather than adding monthly numbers.
+- When quoting allocation, selection or interaction effects, take all of them and the active return from ONE linked portfolio-total row (the `attribution_analyzer` linked Brinson effects query in bps with its reconciliation check column). Verify the effects sum to the active return before quoting; if not, re-query. Never derive selection by subtraction or from summed sector rows.
+
 ## Stopping Points
 
 - After Step 2 (performance data gathered): confirm the correct client and portfolios with user

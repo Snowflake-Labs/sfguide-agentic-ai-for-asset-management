@@ -122,13 +122,28 @@ def enrich_signals_with_exposure(session: Session):
 
 
 def _insert_signals(session: Session, sql: str, label: str) -> int:
+    """Run one extractor's INSERT, replacing whatever it wrote last time.
+
+    Every extractor appends with a plain INSERT, and SIGNAL_ID is an autoincrement
+    surrogate, so there is no natural key to merge on. Deleting this extractor's own
+    SOURCE_TYPE first makes each extractor individually safe to re-run: without it, the
+    only thing standing between a second call and duplicate signals is remembering to
+    call truncate_signals() beforehand, and a duplicated signal shows up as the same
+    card twice in the cockpit and the morning brief.
+
+    Scoped to one SOURCE_TYPE on purpose, so re-running a single extractor leaves the
+    other fourteen untouched. truncate_signals() is still the right call for a full
+    rebuild.
+    """
     database_name = config.DATABASE['name']
     curated = config.DATABASE['schemas']['curated']
     table = f"{database_name}.{curated}.FACT_SIGNALS"
+    session.sql(f"DELETE FROM {table} WHERE SOURCE_TYPE = '{label}'").collect()
     session.sql(sql).collect()
+    # Count every row for this type, not just the last five minutes: the window was
+    # wrong for any extractor that took longer than that to run.
     count = session.sql(f"""
-        SELECT COUNT(*) AS CNT FROM {table}
-        WHERE SOURCE_TYPE = '{label}' AND CREATED_AT > DATEADD('minute', -5, CURRENT_TIMESTAMP())
+        SELECT COUNT(*) AS CNT FROM {table} WHERE SOURCE_TYPE = '{label}'
     """).collect()[0]['CNT']
     return count
 
@@ -319,26 +334,54 @@ def extract_esg_downgrades(session: Session) -> int:
 
 
 def extract_insider_clusters(session: Session) -> int:
+    """Flag tickers where several *different* insiders sold within 30 days.
+
+    Counts distinct reporting persons, not transactions. Counting transactions
+    conflated one officer's routine scheduled selling with genuine cluster selling:
+    DELL reported 838 "insiders" over a 30-day window when 6 people were involved,
+    and a claim like that is self-evidently wrong to anyone watching the demo.
+
+    Distinct insiders needs PRIMARY_INSIDER_NAME, which comes from the SEC insider
+    reporting-owners index - see build_fact_insider_transactions.
+    """
     db = config.DATABASE['name']
     c = config.DATABASE['schemas']['curated']
     return _insert_signals(session, f"""
     INSERT INTO {db}.{c}.FACT_SIGNALS
         (SOURCE_TYPE, SOURCE_TABLE, ENTITY_TYPE, ENTITY_ID, ENTITY_NAME,
          SIGNAL_TYPE, HEADLINE, DETAIL, URGENCY, CONFIDENCE, EXTRACTION_TIER)
-    WITH sell_clusters AS (
-        SELECT TICKER, SecurityID, TRANSACTION_DATE,
-            COUNT(*) OVER (PARTITION BY TICKER ORDER BY TRANSACTION_DATE
-                RANGE BETWEEN INTERVAL '30 DAY' PRECEDING AND CURRENT ROW) AS CLUSTER_COUNT
+    WITH latest AS (
+        -- Anchor each ticker on its most recent disposal, then look back 30 days.
+        -- A windowed COUNT(DISTINCT) is not available in Snowflake, so this is an
+        -- explicit self-join rather than a RANGE frame.
+        SELECT TICKER, MAX(TRANSACTION_DATE) AS ANCHOR_DATE
         FROM {db}.{c}.FACT_INSIDER_TRANSACTIONS
         WHERE TRANSACTION_ACTION = 'Disposed'
-        QUALIFY CLUSTER_COUNT >= 3
-            AND ROW_NUMBER() OVER (PARTITION BY TICKER ORDER BY TRANSACTION_DATE DESC) = 1
+        GROUP BY TICKER
+    ),
+    sell_clusters AS (
+        SELECT
+            l.TICKER,
+            l.ANCHOR_DATE AS TRANSACTION_DATE,
+            ANY_VALUE(f.SecurityID) AS SecurityID,
+            COUNT(DISTINCT f.PRIMARY_INSIDER_NAME) AS INSIDER_COUNT,
+            COUNT(*) AS TX_COUNT
+        FROM latest l
+        JOIN {db}.{c}.FACT_INSIDER_TRANSACTIONS f
+            ON f.TICKER = l.TICKER
+           AND f.TRANSACTION_ACTION = 'Disposed'
+           AND f.TRANSACTION_DATE BETWEEN DATEADD(day, -30, l.ANCHOR_DATE) AND l.ANCHOR_DATE
+        GROUP BY l.TICKER, l.ANCHOR_DATE
+        HAVING COUNT(DISTINCT f.PRIMARY_INSIDER_NAME) >= 3
     )
     SELECT 'insider_cluster', 'FACT_INSIDER_TRANSACTIONS', 'SECURITY', sc.SecurityID, sc.TICKER,
         'risk_alert',
-        sc.TICKER || ': ' || sc.CLUSTER_COUNT || ' insider sells in 30 days',
-        sc.CLUSTER_COUNT || ' insiders sold ' || sc.TICKER || ' shares within a 30-day window ending ' || TO_VARCHAR(sc.TRANSACTION_DATE, 'DD Mon YYYY') || '. Cluster selling may signal management concern.',
-        CASE WHEN sc.CLUSTER_COUNT >= 5 THEN 'today' ELSE 'this_week' END,
+        sc.TICKER || ': ' || sc.INSIDER_COUNT || ' insiders sold in 30 days',
+        sc.INSIDER_COUNT || ' different insiders sold ' || sc.TICKER || ' shares within a 30-day window ending '
+            || TO_VARCHAR(sc.TRANSACTION_DATE, 'DD Mon YYYY') || ' (' || sc.TX_COUNT
+            || ' transactions). Several insiders selling in concert may signal management concern; '
+            || 'a high transaction count from few insiders is more likely scheduled 10b5-1 selling.',
+        CASE WHEN sc.INSIDER_COUNT >= 5 THEN 'today' ELSE 'this_week' END,
         0.75, 'sql'
     FROM sell_clusters sc
     """, 'insider_cluster')
@@ -713,7 +756,7 @@ def create_signal_agent_tasks(session: Session):
         agent_results AS (
             SELECT p.PortfolioID, p.PortfolioName,
                 SNOWFLAKE.CORTEX.DATA_AGENT_RUN(
-                    '{db}.{ai}.AM_portfolio_manager_copilot',
+                    '{db}.{ai}.AM_portfolio_management_copilot',
                     'Analyse supply chain exposure for ' || p.PortfolioName || '. For each Critical/High-tier supplier relationship, check recent developments. Report only material risks with estimated portfolio impact.',
                     '{{}}'
                 ) AS resp
@@ -753,7 +796,7 @@ def create_signal_agent_tasks(session: Session):
         agent_results AS (
             SELECT p.PortfolioID, p.PortfolioName,
                 SNOWFLAKE.CORTEX.DATA_AGENT_RUN(
-                    '{db}.{ai}.AM_portfolio_manager_copilot',
+                    '{db}.{ai}.AM_portfolio_management_copilot',
                     'For the top 5 holdings in ' || p.PortfolioName || ', evaluate whether recent earnings, research, or market developments challenge or support the investment thesis. Flag any thesis at risk.',
                     '{{}}'
                 ) AS resp

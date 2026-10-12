@@ -22,9 +22,26 @@ tables:
         synonyms:
           - company name
           - name
-        description: Name of the borrower
+        description: "Name of the private credit borrower, one of 15 exact names (see values). Filter with = on the exact name, never LIKE or ILIKE; map the user's wording to one of the values first. If the user names a borrower that is not listed, it is not in the private credit book - say so."
         expr: BorrowerName
         data_type: VARCHAR(255)
+        is_enum: true
+        sample_values:
+          - Atlas Building Products
+          - Cascade Environmental
+          - Clearview Diagnostics
+          - HealthBridge Clinical Services
+          - Meridian Healthcare Group
+          - Nexus Data Centres
+          - NovaCare Pharmaceuticals
+          - Orion Retail Group
+          - Pacific Food Holdings
+          - Pinnacle Software Solutions
+          - Redwood Hospitality Group
+          - Sentinel Security Services
+          - Sterling Manufacturing Corp
+          - Velocity Logistics Holdings
+          - Vertex Telecom Infrastructure
       - name: credit_rating
         synonyms:
           - rating
@@ -49,7 +66,7 @@ tables:
       - credit risk
       - pd scores
       - default probability
-    description: ML-based probability of default scores from XGBoost model. Each borrower scored quarterly with PD and risk rating.
+    description: ML probability-of-default scores from the PRODUCTION CREDIT_RISK_XGBOOST model. PD is the probability of a covenant breach or covenant headroom below 5% in the NEXT quarter. Each borrower-quarter with covenant tests is scored; take the latest QUARTER_DATE for current PD.
     base_table:
       database: {{DATABASE}}
       schema: ML

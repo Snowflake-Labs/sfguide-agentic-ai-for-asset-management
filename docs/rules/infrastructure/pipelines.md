@@ -120,7 +120,7 @@ SELECT * FROM short_docs UNION ALL SELECT * FROM long_docs;
 ### Python (recommended)
 
 ```python
-from create_unstructured_pipelines import run_task_graph_once
+from data.pipelines import run_task_graph_once
 
 # Enable → Execute → Wait → Suspend
 run_task_graph_once(session, 'SAM_DEMO.RAW.PDF_INTERNAL_PIPELINE_ROOT')
