@@ -110,65 +110,6 @@ CREATE SCHEMA IF NOT EXISTS SAM_DEMO.ML
     COMMENT = 'Machine learning models, predictions, and feature store';
 
 -- ============================================================================
--- SECTION 3.5: Shared FSI Demo Infrastructure
--- ============================================================================
--- These objects are shared across FSI demos rather than owned by SAM_DEMO, and
--- they are created here because later sections GRANT on them: Section 4 grants
--- USAGE on FSI_DEMO_STREAMLIT_COMPUTE_POOL and Section 6 grants USAGE on
--- FSI_DEMO_PYPI_ACCESS. Previously both were assumed to already exist, so on a
--- fresh account this script aborted with "does not exist or not authorized".
---
--- All are IF NOT EXISTS, so accounts that already have them are unaffected and
--- the existing definitions are left exactly as they are.
-
--- FSI_DEMO_CONFIG is also created in Section 4 for the APP schema. Creating it
--- here as well is harmless and idempotent, and is required because the PyPI
--- network rule lives in it.
-CREATE DATABASE IF NOT EXISTS FSI_DEMO_CONFIG;
-CREATE SCHEMA IF NOT EXISTS FSI_DEMO_CONFIG.NETWORK_RULES
-    COMMENT = 'Network rules for FSI demo external access';
-
--- Egress to PyPI, used by the Streamlit container-runtime deployment, which
--- passes this integration in CREATE STREAMLIT (see
--- python/ai/tools/streamlit_deploy.py).
---
--- NOTE: the Code Bundles deliberately do NOT use this. They install packages
--- from Snowflake's shared PyPI artifact repository instead, declared as
--- artifact_repositories in code_bundle.yml, which needs no network rule and no
--- ACCOUNTADMIN-created integration. Verified empirically: a bundle with neither
--- fails with "Failed to install packages from the requirements file", and one
--- with only the artifact repository succeeds.
-CREATE NETWORK RULE IF NOT EXISTS FSI_DEMO_CONFIG.NETWORK_RULES.PYPI_NETWORK_RULE
-    TYPE = HOST_PORT
-    MODE = EGRESS
-    VALUE_LIST = ('pypi.org:443', 'files.pythonhosted.org:443')
-    COMMENT = 'Network rule for PyPI package access';
-
-CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS FSI_DEMO_PYPI_ACCESS
-    ALLOWED_NETWORK_RULES = (FSI_DEMO_CONFIG.NETWORK_RULES.PYPI_NETWORK_RULE)
-    ENABLED = TRUE
-    COMMENT = 'External access integration for PyPI packages';
-
--- Serves the Streamlit apps. GEN_X64_G2_4 is the current-generation equivalent
--- of CPU_X64_S: identical 3 vCPU / 13 GiB, better price-performance.
---
--- NOTE: on an account where this pool already exists, IF NOT EXISTS is a no-op
--- and the pool keeps its original instance family. Changing it is deliberate
--- manual work, because INSTANCE_FAMILY can only be altered while the pool is
--- fully suspended, which stops any service running on it:
---   ALTER COMPUTE POOL FSI_DEMO_STREAMLIT_COMPUTE_POOL SUSPEND;
---   ALTER COMPUTE POOL FSI_DEMO_STREAMLIT_COMPUTE_POOL SET INSTANCE_FAMILY = GEN_X64_G2_4;
---   ALTER COMPUTE POOL FSI_DEMO_STREAMLIT_COMPUTE_POOL RESUME;
-CREATE COMPUTE POOL IF NOT EXISTS FSI_DEMO_STREAMLIT_COMPUTE_POOL
-    MIN_NODES = 1
-    MAX_NODES = 4
-    INSTANCE_FAMILY = GEN_X64_G2_4
-    AUTO_SUSPEND_SECS = 300
-    AUTO_RESUME = TRUE
-    INITIALLY_SUSPENDED = TRUE
-    COMMENT = 'CPU based compute pool for streamlit applications in FSI Demos';
-
--- ============================================================================
 -- SECTION 4: Role and Privileges
 -- ============================================================================
 
@@ -242,9 +183,6 @@ GRANT USAGE ON WAREHOUSE SAM_DEMO_CORTEX_WH TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT OPERATE ON WAREHOUSE SAM_DEMO_CORTEX_WH TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT MODIFY ON WAREHOUSE SAM_DEMO_CORTEX_WH TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT USAGE ON WAREHOUSE SAM_DEMO_CORTEX_WH TO ROLE SAM_DEMO_USER_ROLE;
--- FSI_DEMO_STREAMLIT_COMPUTE_POOL is a COMPUTE POOL, not a warehouse. Granting it
--- as a warehouse fails ("does not exist or not authorized") and aborts the script.
-GRANT USAGE ON COMPUTE POOL FSI_DEMO_STREAMLIT_COMPUTE_POOL TO ROLE FSI_DEMO_BUILD_ROLE;
 
 -- Marketplace data access
 GRANT IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE_PUBLIC_DATA_FREE TO ROLE FSI_DEMO_BUILD_ROLE;
@@ -289,9 +227,6 @@ ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';
 GRANT EXECUTE TASK ON ACCOUNT TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT EXECUTE MANAGED TASK ON ACCOUNT TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT CREATE WAREHOUSE ON ACCOUNT TO ROLE FSI_DEMO_BUILD_ROLE;
--- For the Streamlit container-runtime deployment. The Code Bundles use the
--- shared PyPI artifact repository instead - see the note in Section 3.5.
-GRANT USAGE ON INTEGRATION FSI_DEMO_PYPI_ACCESS TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT CREATE TASK ON SCHEMA SAM_DEMO.RAW TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT CREATE TASK ON SCHEMA SAM_DEMO.CURATED TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT CREATE TASK ON SCHEMA SAM_DEMO.AI TO ROLE FSI_DEMO_BUILD_ROLE;
@@ -310,13 +245,12 @@ GRANT CREATE TASK ON SCHEMA SAM_DEMO.ML TO ROLE FSI_DEMO_BUILD_ROLE;
 -- only - a demo user triggering a refresh mid-demo would mutate the very data
 -- they are presenting.
 
--- A dedicated pool rather than sharing SAM_DEMO_COMPUTE_POOL: that pool serves
--- the Streamlit apps, and a weekly batch job should neither contend with them
--- nor keep them warm. MAX_NODES = 1 because exactly one job runs per week.
+-- MAX_NODES = 1 because exactly one job runs per week.
 --
 -- GEN_X64_G2_4 is the current-generation equivalent of CPU_X64_S: identical
--- 3 vCPU / 13 GiB, better price-performance. See the note in Section 3.5 for how
--- to migrate a pool that already exists, since IF NOT EXISTS will not change it.
+-- 3 vCPU / 13 GiB, better price-performance. IF NOT EXISTS will not change a pool
+-- that already exists; to migrate it, suspend the pool, run ALTER COMPUTE POOL ... SET INSTANCE_FAMILY
+-- and resume it.
 CREATE COMPUTE POOL IF NOT EXISTS SAM_DEMO_BUNDLE_POOL
     MIN_NODES = 1
     MAX_NODES = 1
@@ -422,8 +356,8 @@ EXECUTE IMMEDIATE $create_bundle_stmt;
 -- compute pool rather than warehouse work, so INSTANCE_FAMILY on that pool is
 -- the lever if you need it faster. Section 7 declares GEN_X64_G2_4 for new
 -- accounts; an account where the pool already exists keeps its old family,
--- because IF NOT EXISTS is a no-op (see the note in Section 3.5 for how to
--- change it).
+-- because IF NOT EXISTS is a no-op - to change it, suspend the pool, run ALTER COMPUTE POOL ... SET INSTANCE_FAMILY
+-- and resume it.
 -- ----------------------------------------------------------------------------
 EXECUTE CODE BUNDLE SAM_DEMO.AI.SAM_BUILD_BUNDLE
     ENTRYPOINT = 'python/workspace_main.py'
@@ -431,7 +365,8 @@ EXECUTE CODE BUNDLE SAM_DEMO.AI.SAM_BUILD_BUNDLE
 
 -- This builds WITHOUT the weekly refresh automation, so the demo data stays
 -- frozen at the build date. To also install the weekly refresh task, which
--- advances prices, documents and briefings every Monday, run afterwards:
+-- advances prices, documents and briefings every Monday, you can either 
+-- remove the  ARGUMENTS  = ('--skip-automation') or run afterwards:
 --
 --   EXECUTE CODE BUNDLE SAM_DEMO.AI.SAM_BUILD_BUNDLE
 --       ENTRYPOINT = 'python/workspace_main.py'

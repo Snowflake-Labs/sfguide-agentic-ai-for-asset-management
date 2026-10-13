@@ -1313,6 +1313,7 @@ _DEFAULT_NUMERIC_BOUNDS = {
             'EUROPE_REVENUE_PCT': {'min': 15, 'max': 35},
             'R_AND_D_INTENSITY_PCT': {'min': 6, 'max': 25},
             'CLOUD_GROWTH': {'min': 15, 'max': 45},
+            'CLOUD_GROWTH_PCT': {'min': 15, 'max': 45},
             'GROWTH_RATE': {'min': 4, 'max': 22},
             'REVENUE_CAGR': {'min': 3, 'max': 18},
             'CURRENT_MARGIN': {'min': 12, 'max': 32},
@@ -1339,6 +1340,7 @@ _DEFAULT_NUMERIC_BOUNDS = {
             'EV_SALES': {'min': 2.0, 'max': 12.0},
             'NET_CASH': {'min': 2, 'max': 60},
             'OCF': {'min': 3, 'max': 70},
+            'OPERATING_CASH_FLOW': {'min': 0.5, 'max': 15},
             'CET1_RATIO_PCT': {'min': 11, 'max': 16},
             'NET_RETENTION': {'min': 100, 'max': 135},
             'CUSTOMER_COUNT': {'min': 2000, 'max': 90000},
@@ -1434,6 +1436,18 @@ def get_numeric_bounds_for_doc_type(doc_type: str, sector: str) -> Dict[str, Dic
                 break
         if resolved:
             break
+
+    # Templates are cross-applied across sectors, so a placeholder the YAML only
+    # defines for one sector (TAM_BILLIONS, NRR_PCT, CLOUD_GROWTH_PCT under
+    # Information Technology) would otherwise render literally for every other
+    # sector. Borrow the bound from another sector of the same doc type.
+    for candidate in candidates:
+        for sector_bounds in _normalise(flat.get(candidate) or {}).values():
+            if not isinstance(sector_bounds, dict):
+                continue
+            for key, value in sector_bounds.items():
+                if isinstance(value, dict) and 'min' in value:
+                    resolved.setdefault(key, value)
 
     if not resolved and doc_type not in flat and not parent:
         # Unknown doc type: defaults only, matching the previous behaviour of
@@ -2310,6 +2324,10 @@ def inject_sec_financial_metrics(
     free_cash_flow = period_data.get('FREE_CASH_FLOW')
     if free_cash_flow is not None:
         metrics['FREE_CASH_FLOW'] = round(free_cash_flow / 1e9, 2)
+
+    operating_cash_flow = period_data.get('OPERATING_CASH_FLOW')
+    if operating_cash_flow is not None:
+        metrics['OPERATING_CASH_FLOW'] = round(operating_cash_flow / 1e9, 2)
     
     return metrics
 

@@ -157,9 +157,8 @@ DROP COMPUTE POOL IF EXISTS SAM_DEMO_ML_POOL;
 DROP ROLE IF EXISTS SAM_DEMO_USER_ROLE;
 ```
 
-`FSI_DEMO_BUILD_ROLE`, the `FSI_DEMO_CONFIG` database, the `FSI_DEMO_PYPI_ACCESS`
-integration and `FSI_DEMO_STREAMLIT_COMPUTE_POOL` are shared with other FSI demos. Drop
-them as well only if no other FSI demo uses this account.
+`FSI_DEMO_BUILD_ROLE` and the `FSI_DEMO_CONFIG` database are shared with other FSI
+demos. Drop them as well only if no other FSI demo uses this account.
 
 ## Requirements
 

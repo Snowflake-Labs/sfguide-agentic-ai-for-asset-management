@@ -17,7 +17,6 @@ Object names are as Snowflake stores them (uppercase). Row counts are not listed
 | `SAM_DEMO.MARKET_DATA` | Market and reference data sourced from the Snowflake Marketplace, plus derived NLP scores | `python/data/market_data.py`, `python/data/structured.py` |
 | `SAM_DEMO.ML` | Feature views, Feature Store entities and feature views, training datasets, registered models, model output tables | `python/ai/tools/ml_models.py` |
 | `SAM_DEMO.AI` | Semantic views, Cortex Search services, custom tools, agents, tool result tables, stages, tasks and Code Bundles | `python/ai/builder.py`, `python/data/automation.py` |
-| `FSI_DEMO_CONFIG.NETWORK_RULES` | `PYPI_NETWORK_RULE` for the PyPI external access integration | `scripts/setup.sql` |
 | `FSI_DEMO_CONFIG.APP` | `REFRESH_STATE` (weekly refresh watermark) | `python/data/cadence.py` |
 | `SNOWFLAKE_PUBLIC_DATA_FREE` | Snowflake Public Data (Free) Marketplace listing, the source for all real market data | `scripts/setup.sql` |
 
@@ -33,7 +32,6 @@ The marketplace database and schema are configured in `REAL_DATA_SOURCES` in `py
 | `SAM_DEMO_ML_POOL` | Compute pool | 1 node, `MEM_X64_G2_8`. ML notebooks |
 | `FSI_DEMO_BUILD_ROLE` | Role | Owns and builds all objects |
 | `SAM_DEMO_USER_ROLE` | Role | Runtime role for agents and notebooks |
-| `FSI_DEMO_PYPI_ACCESS` | External access integration | PyPI access for Code Bundles and notebooks |
 | `SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT` | Snowflake CoWork object | Agents are registered here |
 | `CORTEX_ENABLED_CROSS_REGION` | Account parameter | Set to `ANY_REGION` |
 
