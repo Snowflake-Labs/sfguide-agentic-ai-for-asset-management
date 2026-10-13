@@ -40,7 +40,7 @@ infrastructure:
 - `FSI_DEMO_BUILD_ROLE` (build) and `SAM_DEMO_USER_ROLE` (demo consumption) with required privileges
 - Compute pools, including `SAM_DEMO_ML_POOL` for the ML notebooks
 - Marketplace data share (Snowflake Public Data - Free)
-- Cortex AI enablement and Snowflake CoWork
+- Cortex AI enablement and agent access for `SAM_DEMO_USER_ROLE` in Snowflake CoWork
 
 Section 9 then creates a Code Bundle from your workspace and runs the build, which
 builds everything sequentially:
@@ -120,7 +120,8 @@ notebooks/
 └── credit_risk_model.ipynb
 
 scripts/
-└── setup.sql               <- Infrastructure DDL (run first)
+├── setup.sql               <- Infrastructure DDL and build (run first)
+└── teardown.sql            <- Removes everything setup.sql created
 ```
 
 ## Demo Scenarios
@@ -147,18 +148,13 @@ Agents answer from that live data, so figures move as the data does.
 
 ## Cleanup
 
-To remove all demo objects (run as `ACCOUNTADMIN`):
-```sql
-DROP DATABASE IF EXISTS SAM_DEMO;
-DROP WAREHOUSE IF EXISTS SAM_DEMO_EXECUTION_WH;
-DROP WAREHOUSE IF EXISTS SAM_DEMO_CORTEX_WH;
-DROP COMPUTE POOL IF EXISTS SAM_DEMO_BUNDLE_POOL;
-DROP COMPUTE POOL IF EXISTS SAM_DEMO_ML_POOL;
-DROP ROLE IF EXISTS SAM_DEMO_USER_ROLE;
-```
+Open [`scripts/teardown.sql`](scripts/teardown.sql) in the workspace and run the whole
+script as `ACCOUNTADMIN`. It suspends the weekly refresh and drops the `SAM_DEMO`, `FSI_DEMO_CONFIG` and
+`SNOWFLAKE_PUBLIC_DATA_FREE` databases, both compute pools, both warehouses and both
+roles.
 
-`FSI_DEMO_BUILD_ROLE` and the `FSI_DEMO_CONFIG` database are shared with other FSI
-demos. Drop them as well only if no other FSI demo uses this account.
+Your Git workspace is kept. `FSI_DEMO_BUILD_ROLE` and `FSI_DEMO_CONFIG` are shared with other FSI
+demos: if another one uses this account, remove those two statements before running it.
 
 ## Requirements
 

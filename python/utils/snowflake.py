@@ -90,7 +90,7 @@ def verify_prerequisites(session) -> None:
 
     The build no longer creates roles, grants or warehouses - that SQL script is
     the single source of truth, because the account-level work it does
-    (ALTER ACCOUNT, CREATE COMPUTE POOL, CREATE INTEGRATION, marketplace listing
+    (CREATE COMPUTE POOL, CREATE INTEGRATION, marketplace listing
     requests) needs ACCOUNTADMIN, which a build run cannot assume.
 
     This fails fast with one actionable message instead of letting the build die
@@ -135,6 +135,23 @@ def verify_prerequisites(session) -> None:
             + "\n  - ".join(problems)
             + "\n\nRun scripts/workspace_setup.sql as ACCOUNTADMIN first. It creates the "
               "roles, grants, warehouses and compute pools this build depends on."
+        )
+
+    warn_if_cross_region_not_any(session)
+
+
+def warn_if_cross_region_not_any(session) -> None:
+    """Warn, without changing it, when CORTEX_ENABLED_CROSS_REGION is not ANY_REGION."""
+    try:
+        rows = session.sql("SHOW PARAMETERS LIKE 'CORTEX_ENABLED_CROSS_REGION' IN ACCOUNT").collect()
+    except Exception as e:
+        log_warning(f"  Could not read CORTEX_ENABLED_CROSS_REGION: {e}")
+        return
+    current_value = rows[0]['value'] if rows else ''
+    if str(current_value).upper() != 'ANY_REGION':
+        log_warning(
+            f"  CORTEX_ENABLED_CROSS_REGION is '{current_value}'. For the best experience set it to "
+            "'ANY_REGION' (as ACCOUNTADMIN: ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';)"
         )
 
 

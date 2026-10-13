@@ -213,8 +213,22 @@ GRANT BIND SERVICE ENDPOINT ON ACCOUNT TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT DATABASE ROLE SNOWFLAKE.CORTEX_USER TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT DATABASE ROLE SNOWFLAKE.CORTEX_USER TO ROLE SAM_DEMO_USER_ROLE;
 
--- Enable cross-region Cortex (required for accounts not in Cortex-enabled regions)
-ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';
+-- Cross-region Cortex: checked, not changed, because it is an account-wide
+-- setting this script should not alter. The agents and AI functions work best
+-- with ANY_REGION; with a narrower setting some models may be unavailable in
+-- this region. Check the result of this statement.
+EXECUTE IMMEDIATE $$
+DECLARE
+    current_value VARCHAR;
+BEGIN
+    SHOW PARAMETERS LIKE 'CORTEX_ENABLED_CROSS_REGION' IN ACCOUNT;
+    SELECT "value" INTO :current_value FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()));
+    IF (UPPER(current_value) = 'ANY_REGION') THEN
+        RETURN 'OK: CORTEX_ENABLED_CROSS_REGION is ANY_REGION';
+    END IF;
+    RETURN 'WARNING: CORTEX_ENABLED_CROSS_REGION is ''' || COALESCE(current_value, '') || '''. For the best experience set it to ''ANY_REGION'': ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = ''ANY_REGION'';';
+END;
+$$;
 
 -- ============================================================================
 -- SECTION 6: Task Privileges (Scheduling)
@@ -301,14 +315,21 @@ GRANT MONITOR ON ALL TASKS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
 GRANT MONITOR ON FUTURE TASKS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
 
 -- ============================================================================
--- SECTION 8: Snowflake CoWork
+-- SECTION 8: Agent Access (Snowflake CoWork)
 -- ============================================================================
+-- No Snowflake CoWork object is created. Without one, CoWork shows every agent
+-- the user's role can use, so visibility is controlled by these grants alone.
+-- Agents run with the caller's default role, which therefore also needs USAGE
+-- on the Cortex Search services the agents call. FUTURE grants cover the
+-- objects the build creates; ALL covers a re-run against an existing build.
+--
+-- If the account already has a CoWork object (SHOW SNOWFLAKE INTELLIGENCES),
+-- CoWork shows only the agents added to it, and the build logs a warning.
 
-CREATE SNOWFLAKE INTELLIGENCE IF NOT EXISTS SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;
-GRANT CREATE SNOWFLAKE INTELLIGENCE ON ACCOUNT TO ROLE FSI_DEMO_BUILD_ROLE;
-GRANT USAGE ON SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT TO ROLE FSI_DEMO_BUILD_ROLE;
-GRANT MODIFY ON SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT TO ROLE FSI_DEMO_BUILD_ROLE;
-GRANT USAGE ON SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON ALL AGENTS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON FUTURE AGENTS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON ALL CORTEX SEARCH SERVICES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON FUTURE CORTEX SEARCH SERVICES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
 
 -- ============================================================================
 -- SECTION 9: Build the Demo (Code Bundle)

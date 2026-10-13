@@ -571,67 +571,30 @@ def build_skills_yaml(skill_names, database_name):
     return "\n".join(lines)
 
 
-def verify_snowflake_intelligence(session: Session) -> bool:
+def warn_if_cowork_object_exists(session: Session) -> None:
     """
-    Verify that Snowflake CoWork exists.
-    
-    Returns:
-        True if Snowflake CoWork exists, False otherwise
-    """
-    try:
-        result = session.sql("SHOW SNOWFLAKE INTELLIGENCES").collect()
-        if len(result) == 0:
-            log_error("No Snowflake CoWork found")
-            log_warning("Before creating agents, you must first create a Snowflake CoWork object.")
-            log_warning("Run: CREATE SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;")
-            log_warning("See: https://docs.snowflake.com/en/user-guide/snowflake-intelligence")
-            return False
-        return True
-    except Exception as e:
-        log_error(f" Failed to check for Snowflake CoWork: {e}")
-        return False
+    Warn when the account has a Snowflake CoWork object.
 
-
-def register_agent_with_intelligence(session: Session, database_name: str, ai_schema: str, agent_name: str) -> bool:
+    Without one, CoWork lists every agent the user's role can use, which is how the
+    demo controls visibility. Once an object exists, CoWork lists only the agents added
+    to it, so the demo agents stay hidden until someone adds them.
     """
-    Register an agent with Snowflake CoWork.
-    First attempts to drop the agent (if it exists from previous run), then adds it.
-    
-    Args:
-        session: Snowpark session
-        database_name: Database name where agent was created
-        ai_schema: AI schema name where agent was created
-        agent_name: Name of the agent (e.g., 'AM_portfolio_copilot')
-    
-    Returns:
-        True if registration succeeded, False otherwise
-    """
-    full_agent_path = f"{database_name}.{ai_schema}.{agent_name}"
-    
-    # Step 1: Try to drop the agent from Intelligence (suppress error if not found)
     try:
-        session.sql(f"""
-            ALTER SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT 
-            DROP AGENT {full_agent_path}
-        """).collect()
-        # Agent was previously registered, successfully dropped
+        rows = session.sql("SHOW SNOWFLAKE INTELLIGENCES").collect()
     except Exception as e:
-        # Agent not found in Intelligence - this is OK, means first time registration
-        error_msg = str(e).lower()
-        if "was not found" not in error_msg and "does not exist" not in error_msg:
-            # Some other error occurred - log it but continue
-            log_warning(f"  Note: Could not drop agent {agent_name} from Intelligence: {e}")
-    
-    # Step 2: Add the agent to Intelligence
-    try:
-        session.sql(f"""
-            ALTER SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT 
-            ADD AGENT {full_agent_path}
-        """).collect()
-        return True
-    except Exception as e:
-        log_warning(f"  Warning: Failed to register agent {agent_name} with Snowflake CoWork: {e}")
-        return False
+        log_warning(f"  Could not check for a Snowflake CoWork object: {e}")
+        return
+    if not rows:
+        return
+    database_name = config.DATABASE['name']
+    ai_schema = config.DATABASE['schemas']['ai']
+    for row in rows:
+        name = row['name']
+        log_warning(
+            f"  This account has a Snowflake CoWork object ({name}). CoWork only shows the "
+            f"agents added to it, so the demo agents are not visible until you add them:"
+        )
+        log_warning(f"    ALTER SNOWFLAKE INTELLIGENCE {name} ADD AGENT {database_name}.{ai_schema}.<agent_name>;")
 
 
 def escape_sql_string(text: str) -> str:

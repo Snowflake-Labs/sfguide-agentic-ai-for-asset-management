@@ -26,8 +26,7 @@ from typing import List, Dict
 import config
 from utils.logging import log_detail, log_warning, log_error, log_phase_complete
 from ai.agents._common import (
-    verify_snowflake_intelligence,
-    register_agent_with_intelligence,
+    warn_if_cowork_object_exists,
     escape_sql_string,
     format_instructions_for_yaml,
 )
@@ -67,9 +66,6 @@ def create_all_agents(session: Session, scenarios: List[str] = None):
     """
     log_detail("Creating Snowflake CoWork agents...")
     
-    if not verify_snowflake_intelligence(session):
-        raise Exception("Snowflake CoWork not found. Cannot create agents.")
-    
     database_name = config.DATABASE['name']
     ai_schema = config.DATABASE['schemas']['ai']
     
@@ -88,15 +84,9 @@ def create_all_agents(session: Session, scenarios: List[str] = None):
     for scenario_key in agent_scenarios:
         try:
             AGENT_CREATORS[scenario_key](session)
-            
             full_agent_name = config.SCENARIOS[scenario_key]['agent']['name']
-            
-            if register_agent_with_intelligence(session, database_name, ai_schema, full_agent_name):
-                created.append(scenario_key)
-                log_detail(f"Created and registered agent: {full_agent_name}")
-            else:
-                created.append(scenario_key)
-                log_warning(f"  Agent created but registration failed: {full_agent_name}")
+            created.append(scenario_key)
+            log_detail(f"Created agent: {full_agent_name}")
                 
         except Exception as e:
             failed.append((scenario_key, str(e)))
@@ -106,40 +96,9 @@ def create_all_agents(session: Session, scenarios: List[str] = None):
     if failed:
         for agent_name, error in failed:
             log_error(f"{agent_name}: {error[:100]}...")
+
+    if created:
+        warn_if_cowork_object_exists(session)
     
     return len(created), len(failed)
-
-
-def cleanup_all_agents(session: Session):
-    """
-    Remove all SAM agents from Snowflake CoWork before database drop.
-    
-    This function should be called before DROP DATABASE or CREATE OR REPLACE DATABASE
-    to cleanly unregister agents from SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT.
-    
-    Errors are suppressed since agents may not exist (first-time setup or already removed).
-    """
-    database_name = config.DATABASE['name']
-    ai_schema = config.DATABASE['schemas']['ai']
-    
-    log_detail("Cleaning up agents from Snowflake CoWork...")
-    
-    removed_count = 0
-    for scenario_key, agent_info in config.SCENARIO_AGENTS.items():
-        agent_name = agent_info['agent_name']
-        full_agent_path = f"{database_name}.{ai_schema}.{agent_name}"
-        
-        try:
-            session.sql(f"""
-                ALTER SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT 
-                DROP AGENT {full_agent_path}
-            """).collect()
-            log_detail(f"  Removed agent: {agent_name}")
-            removed_count += 1
-        except Exception:
-            # Agent doesn't exist or already removed - continue silently
-            pass
-    
-    if removed_count > 0:
-        log_detail(f"  Cleaned up {removed_count} agents")
 

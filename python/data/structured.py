@@ -92,15 +92,6 @@ def create_database_structure(session: Session, recreate_database: bool = True):
     """
     try:
         if recreate_database:
-            # Clean up agents from Snowflake CoWork before dropping database
-            # Agents are registered with SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT which is
-            # outside our database, so we need to explicitly unregister them
-            try:
-                from ai import agents as create_agents
-                create_agents.cleanup_all_agents(session)
-            except Exception:
-                pass  # Suppress any cleanup errors - agents may not exist
-            
             # Full recreation - drops everything and starts fresh
             session.sql(f"CREATE OR REPLACE DATABASE {config.DATABASE['name']}").collect()
             session.sql(f"CREATE OR REPLACE SCHEMA {config.DATABASE['name']}.RAW").collect()

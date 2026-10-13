@@ -32,8 +32,6 @@ The marketplace database and schema are configured in `REAL_DATA_SOURCES` in `py
 | `SAM_DEMO_ML_POOL` | Compute pool | 1 node, `MEM_X64_G2_8`. ML notebooks |
 | `FSI_DEMO_BUILD_ROLE` | Role | Owns and builds all objects |
 | `SAM_DEMO_USER_ROLE` | Role | Runtime role for agents and notebooks |
-| `SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT` | Snowflake CoWork object | Agents are registered here |
-| `CORTEX_ENABLED_CROSS_REGION` | Account parameter | Set to `ANY_REGION` |
 
 ### 1.3 Build steps
 
