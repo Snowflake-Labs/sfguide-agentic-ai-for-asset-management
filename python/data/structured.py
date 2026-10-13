@@ -100,12 +100,9 @@ def create_database_structure(session: Session, recreate_database: bool = True):
             session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.MARKET_DATA").collect()
             session.sql(f"CREATE OR REPLACE SCHEMA {config.DATABASE['name']}.ML").collect()
         else:
-            # Incremental mode - verify database exists (created by workspace_setup.sql)
-            # Skip CREATE DATABASE to avoid needing account-level privilege
-            try:
-                session.sql(f"USE DATABASE {config.DATABASE['name']}").collect()
-            except Exception:
-                session.sql(f"CREATE DATABASE IF NOT EXISTS {config.DATABASE['name']}").collect()
+            # Incremental mode - the database is created by workspace_setup.sql, and
+            # the build role deliberately has no CREATE DATABASE privilege.
+            session.sql(f"USE DATABASE {config.DATABASE['name']}").collect()
             for schema in ['RAW', 'CURATED', 'AI', 'MARKET_DATA', 'ML']:
                 session.sql(f"CREATE SCHEMA IF NOT EXISTS {config.DATABASE['name']}.{schema}").collect()
     except Exception as e:

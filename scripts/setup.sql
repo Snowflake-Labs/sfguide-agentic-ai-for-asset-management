@@ -109,6 +109,16 @@ CREATE SCHEMA IF NOT EXISTS SAM_DEMO.MARKET_DATA
 CREATE SCHEMA IF NOT EXISTS SAM_DEMO.ML
     COMMENT = 'Machine learning models, predictions, and feature store';
 
+-- FSI_DEMO_CONFIG is shared with the other FSI demos, so unlike SAM_DEMO it may
+-- already exist and hold other demos' objects. IF NOT EXISTS leaves it, and
+-- everything in it, exactly as it is. This demo only uses the APP schema, for
+-- the weekly refresh watermark (REFRESH_STATE).
+CREATE DATABASE IF NOT EXISTS FSI_DEMO_CONFIG
+    COMMENT = 'Shared configuration for FSI demos';
+
+CREATE SCHEMA IF NOT EXISTS FSI_DEMO_CONFIG.APP
+    COMMENT = 'Shared application state for FSI demos';
+
 -- ============================================================================
 -- SECTION 4: Role and Privileges
 -- ============================================================================
@@ -119,8 +129,8 @@ CREATE ROLE IF NOT EXISTS FSI_DEMO_BUILD_ROLE
 CREATE ROLE IF NOT EXISTS SAM_DEMO_USER_ROLE
     COMMENT = 'Runtime role for consuming the SAM demo';
 
--- Database-level
-GRANT CREATE DATABASE ON ACCOUNT TO ROLE FSI_DEMO_BUILD_ROLE;
+-- Database-level. Both databases are created above by this script, so the build
+-- role needs no CREATE DATABASE privilege on the account.
 GRANT USAGE ON DATABASE SAM_DEMO TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT USAGE ON DATABASE SAM_DEMO TO ROLE SAM_DEMO_USER_ROLE;
 GRANT CREATE SCHEMA ON DATABASE SAM_DEMO TO ROLE FSI_DEMO_BUILD_ROLE;
@@ -188,13 +198,10 @@ GRANT USAGE ON WAREHOUSE SAM_DEMO_CORTEX_WH TO ROLE SAM_DEMO_USER_ROLE;
 GRANT IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE_PUBLIC_DATA_FREE TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE_PUBLIC_DATA_FREE TO ROLE SAM_DEMO_USER_ROLE;
 
-CREATE DATABASE IF NOT EXISTS FSI_DEMO_CONFIG;
-GRANT CREATE SCHEMA ON DATABASE FSI_DEMO_CONFIG TO ROLE FSI_DEMO_BUILD_ROLE;
-CREATE SCHEMA IF NOT EXISTS FSI_DEMO_CONFIG.APP;
 GRANT USAGE ON DATABASE FSI_DEMO_CONFIG TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT USAGE ON DATABASE FSI_DEMO_CONFIG TO ROLE SAM_DEMO_USER_ROLE;
-GRANT USAGE ON SCHEMA FSI_DEMO_CONFIG.APP TO ROLE FSI_DEMO_BUILD_ROLE;
-GRANT CREATE TABLE ON SCHEMA FSI_DEMO_CONFIG.APP TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT CREATE SCHEMA ON DATABASE FSI_DEMO_CONFIG TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT ALL PRIVILEGES ON SCHEMA FSI_DEMO_CONFIG.APP TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT USAGE ON SCHEMA FSI_DEMO_CONFIG.APP TO ROLE SAM_DEMO_USER_ROLE;
 GRANT SELECT ON ALL TABLES IN SCHEMA FSI_DEMO_CONFIG.APP TO ROLE SAM_DEMO_USER_ROLE;
 GRANT SELECT ON FUTURE TABLES IN SCHEMA FSI_DEMO_CONFIG.APP TO ROLE SAM_DEMO_USER_ROLE;
@@ -209,7 +216,6 @@ GRANT CREATE CORTEX SEARCH SERVICE ON SCHEMA SAM_DEMO.AI TO ROLE FSI_DEMO_BUILD_
 GRANT CREATE SEMANTIC VIEW ON SCHEMA SAM_DEMO.AI TO ROLE FSI_DEMO_BUILD_ROLE;
 
 -- Account-level Cortex privileges (required for LLM functions)
-GRANT BIND SERVICE ENDPOINT ON ACCOUNT TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT DATABASE ROLE SNOWFLAKE.CORTEX_USER TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT DATABASE ROLE SNOWFLAKE.CORTEX_USER TO ROLE SAM_DEMO_USER_ROLE;
 
@@ -233,13 +239,16 @@ $$;
 -- ============================================================================
 -- SECTION 6: Task Privileges (Scheduling)
 -- ============================================================================
--- Required for:
---   - Deploying notebooks as scheduled tasks
---   - Stream-triggered incremental data pipelines
---   - Periodic agent operations (morning briefings, signal extraction)
+-- EXECUTE TASK is required on the OWNER role for any task run, scheduled or via
+-- EXECUTE TASK, because tasks always run with the owner's privileges. The build
+-- role owns every task it creates:
+--   - the document pipeline task graphs (run once by the build, then by the refresh)
+--   - WEEKLY_REFRESH_TASK
+--   - the proactive briefing and alert tasks
+-- EXECUTE MANAGED TASK is not granted: every task specifies a WAREHOUSE, so none
+-- are serverless.
 
 GRANT EXECUTE TASK ON ACCOUNT TO ROLE FSI_DEMO_BUILD_ROLE;
-GRANT EXECUTE MANAGED TASK ON ACCOUNT TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT CREATE WAREHOUSE ON ACCOUNT TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT CREATE TASK ON SCHEMA SAM_DEMO.RAW TO ROLE FSI_DEMO_BUILD_ROLE;
 GRANT CREATE TASK ON SCHEMA SAM_DEMO.CURATED TO ROLE FSI_DEMO_BUILD_ROLE;
