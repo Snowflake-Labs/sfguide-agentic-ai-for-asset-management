@@ -363,7 +363,7 @@ def main():
         # Create infrastructure tables
         create_proactive_insights_tables(session)
         create_fact_signals(session)
-        setup_thesis_tracker(session)
+        setup_thesis_tracker(session, reset=args.scope == 'all')
 
         # Builds semantic views, search services, custom tools, agents, agent
         # skills and the agent evaluation datasets.

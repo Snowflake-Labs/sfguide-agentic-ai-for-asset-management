@@ -3013,11 +3013,15 @@ def portfolio_monthly_returns_sql(session: Session) -> str:
     curated = config.DATABASE['schemas']['curated']
     market_data = config.DATABASE['schemas']['market_data']
     position_returns = f"""
-        WITH month_end_prices AS (
-            SELECT SECURITYID, DATE_TRUNC('month', PRICE_DATE) AS RETURN_MONTH, PRICE_CLOSE,
-                LAG(PRICE_CLOSE) OVER (PARTITION BY SECURITYID ORDER BY PRICE_DATE) AS PREV_MONTH_CLOSE
+        WITH month_end_only AS (
+            SELECT SECURITYID, DATE_TRUNC('month', PRICE_DATE) AS RETURN_MONTH, PRICE_DATE, PRICE_CLOSE
             FROM {database}.{market_data}.FACT_STOCK_PRICES
             QUALIFY ROW_NUMBER() OVER (PARTITION BY SECURITYID, DATE_TRUNC('month', PRICE_DATE) ORDER BY PRICE_DATE DESC) = 1
+        ),
+        month_end_prices AS (
+            SELECT SECURITYID, RETURN_MONTH, PRICE_CLOSE,
+                LAG(PRICE_CLOSE) OVER (PARTITION BY SECURITYID ORDER BY PRICE_DATE) AS PREV_MONTH_CLOSE
+            FROM month_end_only
         )
         SELECT LAST_DAY(DATEADD('month', 1, p.HoldingDate)) AS DATE,
             p.PortfolioID,
@@ -8330,10 +8334,10 @@ def build_attribution_tables(session: Session, test_mode: bool = False):
         JOIN monthly_sector_etf_returns mser ON dp.DATE = mser.POSITION_DATE AND bw.SECTOR = mser.SECTOR
     ),
     benchmark_total AS (
-        SELECT DATE, SUM(BENCHMARK_WEIGHT * BENCHMARK_SECTOR_RETURN) AS TOTAL_BM_RETURN
-        FROM all_sector_rows
-        WHERE PORTFOLIO_WEIGHT >= 0
-        GROUP BY DATE
+        SELECT mser.POSITION_DATE AS DATE, SUM(bw.BENCHMARK_WEIGHT * mser.SECTOR_RETURN) AS TOTAL_BM_RETURN
+        FROM monthly_sector_etf_returns mser
+        JOIN benchmark_weights bw ON mser.SECTOR = bw.SECTOR
+        GROUP BY mser.POSITION_DATE
     )
     SELECT
         a.DATE,
@@ -8374,12 +8378,16 @@ def build_attribution_tables(session: Session, test_mode: bool = False):
     WITH last_px AS (
         SELECT MAX(PRICE_DATE) AS D FROM {database}.{market_data}.FACT_STOCK_PRICES
     ),
-    month_end_prices AS (
-        SELECT SECURITYID, DATE_TRUNC('month', PRICE_DATE) AS RETURN_MONTH, PRICE_CLOSE,
-            LAG(PRICE_CLOSE) OVER (PARTITION BY SECURITYID ORDER BY PRICE_DATE) AS PREV_MONTH_CLOSE
+    month_end_only AS (
+        SELECT SECURITYID, DATE_TRUNC('month', PRICE_DATE) AS RETURN_MONTH, PRICE_DATE, PRICE_CLOSE
         FROM {database}.{market_data}.FACT_STOCK_PRICES
         WHERE PRICE_CLOSE > 0
         QUALIFY ROW_NUMBER() OVER (PARTITION BY SECURITYID, DATE_TRUNC('month', PRICE_DATE) ORDER BY PRICE_DATE DESC) = 1
+    ),
+    month_end_prices AS (
+        SELECT SECURITYID, RETURN_MONTH, PRICE_CLOSE,
+            LAG(PRICE_CLOSE) OVER (PARTITION BY SECURITYID ORDER BY PRICE_DATE) AS PREV_MONTH_CLOSE
+        FROM month_end_only
     ),
     raw_monthly_returns AS (
         SELECT mep.SECURITYID, mep.RETURN_MONTH, mep.PREV_MONTH_CLOSE,

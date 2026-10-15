@@ -126,6 +126,7 @@ def upload_bundle_source(session: Session) -> Tuple[int, int]:
 
     uploaded = 0
     failed = 0
+    session.sql(f"REMOVE {stage_ref}").collect()
     for local_path, rel_dir in files:
         target = stage_ref if rel_dir in ('', '.') else f"{stage_ref}/{rel_dir}"
         try:

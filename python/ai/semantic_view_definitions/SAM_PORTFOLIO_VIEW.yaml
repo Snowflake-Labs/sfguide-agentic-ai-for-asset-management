@@ -1198,7 +1198,7 @@ module_custom_instructions:
   question_categorization: "Unless the user explicitly asks for historical trends, assume they want current holdings (latest date only). For performance questions, use qtd_return_pct, ytd_return_pct, mtd_return_pct metrics. For benchmark performance, use benchmark_qtd_return_pct from benchmark_performance table. For portfolio vs benchmark comparison, use portfolio_benchmark table metrics. COMPLIANCE: For breach/alert queries, use compliance_alerts table. Filter by alert_type. Active alerts have resolved_date IS NULL."
 verified_queries:
   - name: PORTFOLIO_HOLDINGS
-    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_PORTFOLIO_VIEW METRICS total_market_value_base, portfolio_weight_pct, holding_count)"
+    sql: "SELECT __portfolios.portfolio_name, __securities.ticker, __securities.security_description, SUM(__holdings.market_value_base) AS total_market_value_base, SUM(__holdings.portfolio_weight) * 100 AS portfolio_weight_pct, __holdings.holding_date FROM __holdings JOIN __portfolios ON (__holdings.h_portfolio_id = __portfolios.p_portfolio_id) JOIN __securities ON (__holdings.h_security_id = __securities.s_security_id) WHERE __holdings.holding_date = (SELECT MAX(holding_date) FROM __holdings) GROUP BY __portfolios.portfolio_name, __securities.ticker, __securities.security_description, __holdings.holding_date ORDER BY __portfolios.portfolio_name, total_market_value_base DESC"
     question: What are the portfolio holdings?
     use_as_onboarding_question: true
   - name: ESG_SCORES
@@ -1218,11 +1218,11 @@ verified_queries:
     question: What is the benchmark performance?
     use_as_onboarding_question: true
   - name: PORTFOLIO_VS_BENCHMARK
-    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_PORTFOLIO_VIEW METRICS average_portfolio_qtd_return, average_portfolio_ytd_return, average_benchmark_qtd_return, average_benchmark_ytd_return, average_active_qtd_return, average_active_ytd_return DIMENSIONS comparison_portfolio, comparison_benchmark)"
+    sql: "SELECT __portfolio_benchmark.comparison_portfolio, __portfolio_benchmark.comparison_benchmark, __portfolio_benchmark.comparison_date, __portfolio_benchmark.portfolio_qtd_return, __portfolio_benchmark.portfolio_ytd_return, __portfolio_benchmark.benchmark_qtd_return, __portfolio_benchmark.benchmark_ytd_return, __portfolio_benchmark.active_qtd_return, __portfolio_benchmark.active_ytd_return FROM __portfolio_benchmark WHERE __portfolio_benchmark.comparison_date = (SELECT MAX(comparison_date) FROM __portfolio_benchmark) ORDER BY __portfolio_benchmark.active_ytd_return DESC"
     question: How does portfolio performance compare to benchmark?
     use_as_onboarding_question: true
   - name: LAST_CALENDAR_YEAR_PERFORMANCE
-    sql: "SELECT __portfolios.portfolio_name, __holdings.holding_date, AVG(__holdings.ytd_return_pct) AS average_ytd_return_pct FROM __holdings JOIN __portfolios ON (__holdings.h_portfolio_id = __portfolios.p_portfolio_id) WHERE __holdings.holding_date = (SELECT MAX(holding_date) FROM __holdings WHERE EXTRACT(MONTH FROM holding_date) = 12 AND EXTRACT(DAY FROM holding_date) = 31) GROUP BY __portfolios.portfolio_name, __holdings.holding_date ORDER BY average_ytd_return_pct DESC"
+    sql: "SELECT __portfolio_benchmark.comparison_portfolio, __portfolio_benchmark.comparison_date, __portfolio_benchmark.portfolio_ytd_return AS full_year_return_pct, __portfolio_benchmark.benchmark_ytd_return AS benchmark_full_year_return_pct, __portfolio_benchmark.active_ytd_return AS active_full_year_return_pct FROM __portfolio_benchmark WHERE __portfolio_benchmark.comparison_date = (SELECT MAX(comparison_date) FROM __portfolio_benchmark WHERE EXTRACT(MONTH FROM comparison_date) = 12) ORDER BY full_year_return_pct DESC"
     question: What was the full year performance for the last calendar year?
     use_as_onboarding_question: false
   - name: YEAR_END_TOP_HOLDINGS
@@ -1234,7 +1234,7 @@ verified_queries:
     question: What was the sector allocation at year end for the last calendar year?
     use_as_onboarding_question: false
   - name: PORTFOLIO_ANNUAL_REVIEW
-    sql: "SELECT __portfolios.portfolio_name, AVG(__holdings.ytd_return_pct) AS Full_Year_Return, SUM(__holdings.market_value_base) AS Total_AUM, COUNT(__holdings.h_security_id) AS holding_count FROM __holdings JOIN __portfolios ON (__holdings.h_portfolio_id = __portfolios.p_portfolio_id) WHERE __holdings.holding_date = (SELECT MAX(holding_date) FROM __holdings WHERE EXTRACT(MONTH FROM holding_date) = 12 AND EXTRACT(DAY FROM holding_date) = 31) GROUP BY __portfolios.portfolio_name ORDER BY Total_AUM DESC"
+    sql: "SELECT __portfolio_benchmark.comparison_portfolio, __portfolio_benchmark.comparison_date, __portfolio_benchmark.portfolio_ytd_return AS full_year_return_pct, __portfolio_benchmark.benchmark_ytd_return AS benchmark_full_year_return_pct, __portfolio_benchmark.active_ytd_return AS active_full_year_return_pct, __portfolio_benchmark.portfolio_aum AS total_aum FROM __portfolio_benchmark WHERE __portfolio_benchmark.comparison_date = (SELECT MAX(comparison_date) FROM __portfolio_benchmark WHERE EXTRACT(MONTH FROM comparison_date) = 12) ORDER BY total_aum DESC"
     question: "Provide a comprehensive annual review for the last calendar year including performance, top holdings, and sector allocation"
     use_as_onboarding_question: false
   - name: COMPLIANCE_ALERT_SUMMARY

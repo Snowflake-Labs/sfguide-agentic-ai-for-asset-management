@@ -369,7 +369,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_portfolio_management_copi
               description: "End date YYYY-MM-DD. Omit to end at the latest available price date; never guess a date"
               type: "string"
             rebalance_freq:
-              description: "daily, monthly, quarterly, annually"
+              description: "Ignored: the backtest always holds constant weights, rebalanced daily. If the user asks for monthly or quarterly rebalancing, say the result uses daily rebalancing"
               type: "string"
           required:
             - portfolios

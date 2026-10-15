@@ -290,6 +290,8 @@ def run(
         failed_pipelines = [
             k for k, v in pipeline_outcomes.items() if v == 'FAILED'
         ]
+        if pipeline_outcomes.get('upload_failed'):
+            failed_pipelines.append('upload')
         status_text = 'PARTIAL' if (failed_pipelines or doc_failures or backfill_failures) else 'SUCCESS'
         if doc_failures:
             # Documents were due and did not get written. Reporting SUCCESS here
@@ -368,22 +370,18 @@ def run_catch_up(
     from data import cadence
 
     cadence.ensure_tables(session)
-    latest = get_max_price_date(session)
-    if latest is None:
+    anchor = get_max_price_date(session)
+    if anchor is None:
         raise RuntimeError("FACT_STOCK_PRICES is empty - run the full build first")
+    latest = incremental.get_source_max_price_date(session) or anchor
 
     results: List[Dict[str, Any]] = []
     for iteration in range(max_weeks):
-        watermark = cadence.get_watermark(session, REFRESH_KEY)
-        if watermark is None:
-            # No history: process the most recent week and let subsequent runs
-            # move forward normally.
-            target = latest
-        elif watermark >= latest:
-            log_info(f"Caught up: watermark {watermark} is current with {latest}")
+        watermark = cadence.get_watermark(session, REFRESH_KEY) or anchor
+        if watermark >= latest:
+            log_info(f"Caught up: watermark {watermark} is current with the source ({latest})")
             break
-        else:
-            target = min(watermark + timedelta(days=7), latest)
+        target = min(watermark + timedelta(days=7), latest)
 
         log_info(f"Catch-up {iteration + 1}/{max_weeks}: targeting {target}")
         result = run(session, as_of=target, skip_pipelines=skip_pipelines)
@@ -1048,6 +1046,7 @@ def _drive_pipeline_graph(
 
     # Give the chunk task a chance to finish now that parse has consumed the
     # stream; the corpus, not the stream, is what the agent reads.
+    chunk_state = None
     for _ in range(40):
         rows = session.sql(f"""
             SELECT STATE FROM TABLE({config.DATABASE['name']}.INFORMATION_SCHEMA.TASK_HISTORY(
@@ -1055,10 +1054,17 @@ def _drive_pipeline_graph(
                 SCHEDULED_TIME_RANGE_START => DATEADD('minute', -45, CURRENT_TIMESTAMP())))
             ORDER BY SCHEDULED_TIME DESC LIMIT 1
         """).collect()
-        if rows and rows[0]['STATE'] in ('SUCCEEDED', 'FAILED', 'SKIPPED'):
+        chunk_state = rows[0]['STATE'] if rows else None
+        if chunk_state in ('SUCCEEDED', 'FAILED', 'SKIPPED'):
             break
         time.sleep(15)
 
+    if chunk_state != 'SUCCEEDED':
+        log_warning(
+            f"  Pipeline {key}: chunk task ended {chunk_state or 'without a run'} - "
+            "documents are parsed but not yet searchable"
+        )
+        return 'FAILED'
     return 'SUCCESS'
 
 

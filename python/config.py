@@ -180,6 +180,8 @@ WEEKLY_REFRESH = {
         'python',
         'content_library',
         'data/reference_data',
+        'data/skills',
+        'data/source_pdfs',
         'code_bundle.yml',
         'requirements.txt',
     ],

@@ -27,8 +27,10 @@ ALTER TASK IF EXISTS SAM_DEMO.AI.WEEKLY_REFRESH_TASK SUSPEND;
 -- models, stages, tasks and both Code Bundles.
 DROP DATABASE IF EXISTS SAM_DEMO;
 DROP DATABASE IF EXISTS FSI_DEMO_CONFIG;
+
 -- Mounted from the Snowflake Public Data (Free) listing by setup.sql.
-DROP DATABASE IF EXISTS SNOWFLAKE_PUBLIC_DATA_FREE;
+-- Drop only if you are sure no one else is using it
+-- DROP DATABASE IF EXISTS SNOWFLAKE_PUBLIC_DATA_FREE;
 
 -- ----------------------------------------------------------------------------
 -- 3. Compute pools
