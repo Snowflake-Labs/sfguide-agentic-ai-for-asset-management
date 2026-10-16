@@ -24,19 +24,19 @@ The Board of Directors of Simulated Asset Management convened for the Q4 2024 qu
 
 ## Business Performance Review
 
-**Assets Under Management**: Total AUM reached £12.5 billion at quarter-end, representing 15% year-over-year growth. Net inflows of £2.1 billion for the year exceeded the £1.5 billion target, driven by strong demand for sustainable investment strategies and positive investment performance.
+**Assets Under Management**: Total AUM reached $7.4 billion at quarter-end, representing 15% year-over-year growth. Net inflows of $1.2 billion for the year exceeded the $0.9 billion target, driven by strong demand for sustainable investment strategies and positive investment performance.
 
 **Investment Performance**: 75% of firm AUM is in strategies outperforming their benchmarks over three years. Notable performers include the ESG Leaders Global Equity strategy (+14.5% vs benchmark +13.1%) and the Technology & Infrastructure strategy (+18.2% vs benchmark +15.8%). The Multi-Asset Income strategy underperformed modestly due to fixed income positioning.
 
-**Financial Results**: Revenue increased 12% to £78 million, with operating margin improving to 35% from 33% in the prior year. Cost discipline and scale benefits contributed to margin expansion. Performance fees of £4.2 million reflected strong absolute returns in growth strategies.
+**Financial Results**: Revenue increased 12% to $46 million, with operating margin improving to 35% from 33% in the prior year. Cost discipline and scale benefits contributed to margin expansion. Performance fees of $2.5 million reflected strong absolute returns in growth strategies.
 
-**Client Activity**: Client retention remained strong at 96%. New mandate wins totalled £1.8 billion, including a significant £400 million ESG mandate from a European pension fund. The sales pipeline remains healthy with £2.5 billion in advanced discussions.
+**Client Activity**: Client retention remained strong at 96%. New mandate wins totalled $1.1 billion, including a significant $240 million ESG mandate from a European pension fund. The sales pipeline remains healthy with $1.5 billion in advanced discussions.
 
 ---
 
 ## Strategic Initiative Updates
 
-**Sustainable Investment Expansion**: The Board reviewed progress on sustainable investment initiatives. ESG-focused AUM grew 25% to £3.2 billion, now representing 26% of total firm assets. Two new sustainable strategies launched successfully, with combined AUM of £450 million. The Board approved continued investment in ESG research capabilities.
+**Sustainable Investment Expansion**: The Board reviewed progress on sustainable investment initiatives. ESG-focused AUM grew 25% to $1.7 billion, now representing 23% of total firm assets. Two new sustainable strategies launched successfully, with combined AUM of $270 million. The Board approved continued investment in ESG research capabilities.
 
 **Technology Modernisation**: The technology transformation programme remains on track and within budget. Cloud migration for core investment systems achieved 60% completion. The new client portal launched in Q3 with positive client feedback. Full programme completion expected by Q2 2025.
 
@@ -78,9 +78,9 @@ The Board held an executive session to discuss potential acquisition opportuniti
 
 ## Capital and Dividend Matters
 
-**Capital Position**: The firm maintains strong capital position with regulatory capital surplus of £15 million above minimum requirements. Balance sheet remains conservatively managed with no debt financing.
+**Capital Position**: The firm maintains strong capital position with regulatory capital surplus of $9 million above minimum requirements. Balance sheet remains conservatively managed with no debt financing.
 
-**Dividend Recommendation**: Based on strong financial performance and capital position, management recommended interim dividend of £0.45 per share, representing 50% payout ratio. The Board approved the dividend recommendation for payment in January 2025.
+**Dividend Recommendation**: Based on strong financial performance and capital position, management recommended interim dividend of $0.57 per share, representing 50% payout ratio. The Board approved the dividend recommendation for payment in January 2025.
 
 **Share Buyback**: The Board discussed potential share buyback programme to return excess capital. Decision deferred pending clarity on M&A capital requirements and 2025 strategic investment needs.
 
@@ -103,7 +103,7 @@ The Board passed the following resolutions:
 
 1. Approved Q4 2024 financial statements for publication
 2. Authorised management to proceed with Target A due diligence
-3. Approved interim dividend of £0.45 per share
+3. Approved interim dividend of $0.57 per share
 4. Approved updated risk appetite statement
 5. Authorised European distribution team expansion
 

@@ -13,7 +13,7 @@ Trigger when user asks: "insider trading", "insider buying/selling", "Form 4", "
 
 ### Step 1: Insider Trading Scan
 
-Tool: `insider_trading_analyzer`
+Tool: `research_analyzer`
 Query: Recent insider transactions for the specified company — buys, sells, option exercises, net insider sentiment
 
 Present:
@@ -31,7 +31,7 @@ Present:
 
 ### Step 2: Institutional Ownership
 
-Tool: `institutional_holdings_analyzer`
+Tool: `research_analyzer`
 Query: Current institutional ownership — top holders, quarterly changes, concentration metrics
 
 Present:
@@ -52,16 +52,18 @@ Present the ownership picture, then offer:
 "Here's the complete insider and institutional ownership picture. I can:
 - **Cross-reference with price action** (correlate insider trades with stock price movements)
 - **Compare to sector peers** (ownership concentration vs industry norms)
-- **Generate ownership summary for IC** (structured Investment Committee format)
+- **Generate an IC ownership summary** (structured Investment Committee format)
 
 Which would be most useful?"
 
+MANDATORY: every answer produced under this skill (the ownership picture and every Step 3 branch except 3c itself) must close with a next-step list that includes the option "Generate an IC ownership summary", worded exactly like that. This applies even when the general response standard limits the close to one or two next steps: in that case the IC ownership summary is one of the two.
+
 ### Step 3a: Price Action Cross-Reference (if user chooses)
 
-Tool: `insider_trading_analyzer`
+Tool: `research_analyzer`
 Query: Insider trade dates and directions
 
-Tool: `fundamentals_analyzer`
+Tool: `research_analyzer`
 Query: Stock price around insider trade dates
 
 Present:
@@ -70,7 +72,7 @@ Present:
 
 ### Step 3b: Peer Comparison (if user chooses)
 
-Tool: `institutional_holdings_analyzer`
+Tool: `research_analyzer`
 Query: Ownership metrics for 3-5 peer companies
 
 Present:
@@ -123,9 +125,14 @@ Synthesise all data into IC format:
 
 ### Key Insight
 [ANALYSIS] [Synthesis of insider + institutional signals]
+
+**Next steps:**
+- Generate an IC ownership summary
 ```
+
+The output always ends with the line "Generate an IC ownership summary" verbatim as the closing option (omit it only when the IC summary itself has just been produced).
 
 ## Stopping Points
 
 - After Step 2 (full ownership picture): Offer 3 branching options
-- After any Step 3 branch: "Would you like to explore another angle, or shall I generate the IC ownership summary?"
+- After any Step 3 branch: "Would you like to explore another angle, or shall I generate an IC ownership summary?"

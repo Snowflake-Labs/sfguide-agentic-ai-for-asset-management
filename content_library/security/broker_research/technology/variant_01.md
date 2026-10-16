@@ -58,7 +58,7 @@ disclosure:
 
 ## Executive Summary
 
-We initiate coverage on {{COMPANY_NAME}} with a **{{RATING}}** rating and 12-month price target of ${{PRICE_TARGET_USD}}. As a leading player in the {{SIC_DESCRIPTION}} sector, the company demonstrates robust fundamentals with revenue growth of {{YOY_REVENUE_GROWTH_PCT}}% year-over-year and strong EBIT margins of {{EBIT_MARGIN_PCT}}%. Our positive view is supported by the company's competitive positioning, technology innovation pipeline, and sustained market share gains in key growth segments.
+We initiate coverage on {{COMPANY_NAME}} with a **{{RATING}}** rating and 12-month price target of ${{PRICE_TARGET_USD}}. Within the {{SIC_DESCRIPTION}} sector, the company {{FUNDAMENTAL_FRAMING}}, with revenue growth of {{YOY_REVENUE_GROWTH_PCT}}% year-over-year and EBIT margins of {{EBIT_MARGIN_PCT}}%. Our {{THESIS_STANCE}} view reflects the company's competitive positioning, technology innovation pipeline, and sustained market share gains in key growth segments.
 
 ## Market Opportunity
 
@@ -66,12 +66,12 @@ The {{SIC_DESCRIPTION}} market represents a total addressable market (TAM) of ap
 
 ## Competitive Position
 
-{{COMPANY_NAME}} competes with {{COMPETITOR_1}}, {{COMPETITOR_2}}, and {{COMPETITOR_3}} in the {{SIC_DESCRIPTION}} market. The company's competitive moat is supported by technology differentiation, high switching costs, and platform network effects.
+{{COMPANY_NAME}} competes with {{COMPETITOR_1}}, {{COMPETITOR_2}}, and {{COMPETITOR_3}} in the {{SIC_DESCRIPTION}} market. {{COMPETITIVE_FRAMING}}, supported by technology differentiation, high switching costs, and platform network effects.
 
 ## Unit Economics
 
-Strong unit economics underpin our positive thesis:
-- **Net Revenue Retention**: {{NRR_PCT}}% demonstrates excellent customer expansion
+{{UNIT_ECONOMICS_FRAMING}}:
+- **Net Revenue Retention**: {{NRR_PCT}}%
 - **CAC Payback Period**: {{CAC_PAYBACK_MONTHS}} months within healthy range for enterprise software
 - **LTV/CAC Ratio**: {{LTV_CAC_RATIO}}x indicates efficient customer acquisition
 - **Customer Mix**: Enterprise {{ENTERPRISE_PCT}}%, Mid-Market {{MIDMARKET_PCT}}%, SMB {{SMB_PCT}}%
@@ -100,7 +100,7 @@ On a relative valuation basis, {{COMPANY_NAME}} trades at {{PE_RATIO}}x forward 
 
 ## Recommendation
 
-We rate {{COMPANY_NAME}} as **{{RATING}}** based on the company's strong competitive position, solid execution track record, and favourable industry tailwinds. The combination of consistent revenue growth, margin expansion potential, and disciplined capital allocation supports our constructive investment view. We recommend accumulating positions on any near-term weakness and view the current entry point as attractive for long-term investors seeking quality exposure to the {{SIC_DESCRIPTION}} sector.
+We rate {{COMPANY_NAME}} as **{{RATING}}**. {{COMPETITIVE_FRAMING}}, and the combination of revenue growth, margin trajectory and capital allocation {{THESIS_VERB}} our {{THESIS_STANCE}} investment view. {{RECOMMENDATION_LANGUAGE}}. {{CONVICTION_PHRASE}} for investors seeking exposure to the {{SIC_DESCRIPTION}} sector.
 
 ---
 

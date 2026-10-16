@@ -51,7 +51,7 @@ disclosure:
 
 ## EXECUTIVE SUMMARY
 
-I recommend the Investment Committee approve a {{POSITION_SIZE_PCT}}% position in {{COMPANY_NAME}} for the {{PORTFOLIO_NAME}}. This investment provides high-quality exposure to cloud computing and artificial intelligence themes that align with our technology sector strategy whilst offering attractive risk-adjusted return potential.
+I recommend the Investment Committee approve a {{POSITION_SIZE_PCT}}% position in {{COMPANY_NAME}} for the {{PORTFOLIO_NAME}}. This position provides exposure to cloud computing and artificial intelligence themes that align with our technology sector strategy. {{CONVICTION_PHRASE}}.
 
 **Investment Thesis in Brief**: {{COMPANY_NAME}} is a {{SIC_DESCRIPTION}} leader experiencing accelerating growth from cloud platform adoption and AI product innovation. The company's competitive moats are strengthening through network effects and customer lock-in, whilst margin expansion potential remains underappreciated by the market. Our ${{TARGET_PRICE_USD}} price target implies {{UPSIDE_PCT}}% upside from current levels.
 

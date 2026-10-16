@@ -1,471 +1,404 @@
-# SAM Demo - Data Model Documentation
+# SAM Demo - Data Model
 
-Data architecture documentation for Simulated Asset Management (SAM) demo using 79 real companies from `DEMO_COMPANIES` configuration with industry-standard asset management data practices. All companies have CIK identifiers enabling full SEC data integration.
+This document lists every database object the build creates for Simulated Asset Management (SAM). It is derived from the build code in `python/` and `scripts/setup.sql`; each table names the function that creates the object. Data flows, dependencies and the weekly refresh are described in [`docs/data_lineage.md`](data_lineage.md).
 
-**Pipeline-Only Architecture**: All unstructured data flows exclusively through Snowflake pipelines (no direct SQL corpus creation). PDF documents are parsed via `AI_PARSE_DOCUMENT`, real data triggers stream-based task DAGs, and all corpus tables are populated by pipeline tasks.
-
-**Real Data Sourcing**: Market data, SEC filings, and macroeconomic indicators are sourced from Cybersyn (Snowflake Marketplace). Dividend data is extracted from SEC 8-K filings using `AI_EXTRACT`. Historical data range is controlled by `config.YEARS_OF_HISTORY` (default: 5 years).
-
-## Database Architecture
-
-**Database**: `SAM_DEMO`
-
-**Schemas**:
-| Schema | Objects | Description |
-|--------|---------|-------------|
-| **RAW** | 17 tables, stages, streams, tasks | Provider simulation, raw unstructured documents, pipeline objects |
-| **CURATED** | 55 tables, 8 views | Industry-standard dimension/fact model ready for analysis |
-| **MARKET_DATA** | 17+ tables | Real market data from Snowflake Marketplace + AI-extracted dividends + NLP scores |
-| **AI** | 28 semantic views (YAML-based), search services, agents | AI components |
-
-**Warehouses**:
-| Warehouse | Size | Purpose |
-|-----------|------|---------|
-| `SAM_DEMO_EXECUTION_WH` | MEDIUM | Data generation and execution |
-| `SAM_DEMO_CORTEX_WH` | MEDIUM | Cortex Search services (5-minute target lag) |
+Object names are as Snowflake stores them (uppercase). Row counts are not listed because the weekly refresh extends most fact tables.
 
 ---
 
-## CURATED Schema
+## 1. Overview
 
-### Dimension Tables
+### 1.1 Databases and schemas
 
-| Table | Description | Key Columns | Source |
-|-------|-------------|-------------|--------|
-| `DIM_ISSUER` | 79 real issuers - single source of truth for company data | IssuerID, CIK, LegalName, PrimaryTicker, GICS_SECTOR | config.DEMO_COMPANIES + Cybersyn |
-| `DIM_SECURITY` | Securities derived from DIM_ISSUER (1:1 with issuers) | SecurityID, IssuerID, Ticker, AssetClass, CUSIP | Derived from DIM_ISSUER |
-| `DIM_PORTFOLIO` | 11 portfolios with strategy, currency, and inception date | PortfolioID, PortfolioName, Strategy, BenchmarkID | config.PORTFOLIOS |
-| `DIM_BENCHMARK` | 3 benchmarks: S&P 500, MSCI ACWI, Nasdaq 100 | BenchmarkID, BenchmarkName | Synthetic |
-| `DIM_SUPPLY_CHAIN_RELATIONSHIPS` | Supply chain network between issuers | CompanyID, CounterpartyID, RelationshipType, CostShare | config.SUPPLY_CHAIN_* |
-| `DIM_CLIENT` | Institutional clients with flow patterns | ClientID, ClientName, ClientType, Region, AUM | config.DEMO_CLIENTS + synthetic |
-| `DIM_CLIENT_MANDATES` | Client mandate constraints and requirements | MandateID, ClientID, MaxConcentration, MinESGGrade | Synthetic |
-| `DIM_COUNTERPARTY` | Trading counterparty reference data | CounterpartyID, CounterpartyName, CounterpartyType | Synthetic |
-| `DIM_CUSTODIAN` | Custodian reference data | CustodianID, CustodianName | Synthetic |
-| `DIM_MODEL_PORTFOLIO` | User-defined model portfolios for backtesting | ModelID, ModelName, Strategy | Synthetic |
-| `DIM_DEAL_PIPELINE` | Active PE deal pipeline for sourcing analysis | DealID, TargetName, Stage, ExpectedClose | Synthetic |
-| `DIM_PORTFOLIO_COMPANY` | PE portfolio companies for value creation monitoring | CompanyID, CompanyName, Sector, InvestmentDate | Synthetic |
-| `DIM_STRESS_SCENARIOS` | Stress scenario definitions (10 scenarios) | ScenarioID, ScenarioName, Severity | Synthetic |
-| `DIM_PORTFOLIO_IPS` | Investment Policy Statements with risk profile constraints | IPSID, PortfolioID, RiskProfile, MaxSingleIssuerPct | config.DOCUMENT_TYPES['ips'] |
+| Database / schema | Contents | Created by |
+|---|---|---|
+| `SAM_DEMO.RAW` | Document stages, raw document tables, streams and pipeline tasks, document vintage log | `scripts/setup.sql`, `python/data/pipelines.py` |
+| `SAM_DEMO.CURATED` | Dimension and fact model, analytics views, document corpora, signals and insights | `python/data/structured.py`, `python/data/market_data.py`, `python/ai/*` |
+| `SAM_DEMO.MARKET_DATA` | Market and reference data sourced from the Snowflake Marketplace, plus derived NLP scores | `python/data/market_data.py`, `python/data/structured.py` |
+| `SAM_DEMO.ML` | Feature views, Feature Store entities and feature views, training datasets, registered models, model output tables | `python/ai/tools/ml_models.py` |
+| `SAM_DEMO.AI` | Semantic views, Cortex Search services, custom tools, agents, tool result tables, stages, tasks and Code Bundles | `python/ai/builder.py`, `python/data/automation.py` |
+| `FSI_DEMO_CONFIG.APP` | `REFRESH_STATE` (weekly refresh watermark) | `python/data/cadence.py` |
+| `SNOWFLAKE_PUBLIC_DATA_FREE` | Snowflake Public Data (Free) Marketplace listing, the source for all real market data | `scripts/setup.sql` |
 
-### Core Fact Tables
+The marketplace database and schema are configured in `REAL_DATA_SOURCES` in `python/config.py`; source table names are listed in `data/reference_data/data_sources.yaml`.
 
-| Table | Description | Key Columns |
-|-------|-------------|-------------|
-| `FACT_TRANSACTION` | Canonical transaction log (YEARS_OF_HISTORY) | TransactionID, SecurityID, PortfolioID, TransactionType, Quantity |
-| `FACT_POSITION_DAILY_ABOR` | Daily ABOR positions derived from transactions | PositionID, SecurityID, PortfolioID, HoldingDate, Quantity, MarketValue |
-| `FACT_ESG_SCORES` | Monthly ESG ratings with sector differentiation | SecurityID, E_Score, S_Score, G_Score, OverallGrade |
-| `FACT_FACTOR_EXPOSURES` | Monthly factor scores (Value, Growth, Quality, etc.) | SecurityID, FactorName, Exposure, RSquared |
-| `FACT_BENCHMARK_HOLDINGS` | Benchmark constituent positions | BenchmarkID, SecurityID, Weight |
-| `FACT_BENCHMARK_PERFORMANCE` | Benchmark-level returns (MTD, QTD, YTD) | BenchmarkID, Date, DailyReturn |
-| `FACT_INSIDER_TRANSACTIONS` | SEC Form 4 insider trading for demo companies | InsiderTxID, CIK, Ticker, TransactionType, TransactionShares |
-| `FACT_INSTITUTIONAL_HOLDINGS` | SEC 13F institutional ownership | HoldingID, Ticker, InstitutionName, MarketValueUSD, SharesHeld |
+### 1.2 Account-level objects
 
-### Implementation Planning Tables
+| Object | Type | Details |
+|---|---|---|
+| `SAM_DEMO_EXECUTION_WH` | Warehouse | LARGE. Build, agent tools and tasks |
+| `SAM_DEMO_CORTEX_WH` | Warehouse | MEDIUM. Cortex Search services |
+| `SAM_DEMO_BUNDLE_POOL` | Compute pool | 1 node, `GEN_X64_G2_4`. Runs both Code Bundles |
+| `SAM_DEMO_ML_POOL` | Compute pool | 1 node, `MEM_X64_G2_8`. ML notebooks |
+| `FSI_DEMO_BUILD_ROLE` | Role | Owns and builds all objects |
+| `SAM_DEMO_USER_ROLE` | Role | Runtime role for agents and notebooks |
 
-| Table | Description | Key Columns |
-|-------|-------------|-------------|
-| `FACT_TRANSACTION_COSTS` | Trading costs, bid-ask spreads, market impact | SecurityID, BidAskSpread, MarketImpact, AvgDailyVolume |
-| `FACT_PORTFOLIO_LIQUIDITY` | Cash positions, cash flows, liquidity scores | PortfolioID, CashPosition, LiquidityScore |
-| `FACT_RISK_LIMITS` | Risk budgets, tracking error limits | PortfolioID, TrackingErrorLimit, ConcentrationLimit |
-| `FACT_TRADING_CALENDAR` | Earnings dates, blackout periods, market events | Date, IsBlackout, ExpectedVolatility |
-| `FACT_TAX_IMPLICATIONS` | Cost basis, unrealized gains, tax lot data | PositionID, CostBasis, UnrealizedGain, HoldingPeriod |
+### 1.3 Build steps
 
-### Executive and Client Analytics Tables
+`python/workspace_main.py` builds the objects in this order. `--scope` selects a subset (`all`, `data`, `ml`, `ai`, `semantic`, `search`, `agents`, `signals`, `morning-brief`, `earnings-insights`, `automation`).
 
-| Table | Description | Key Columns |
-|-------|-------------|-------------|
-| `FACT_CLIENT_FLOWS` | Client subscription/redemption flows | FlowID, ClientID, PortfolioID, FlowType, Amount |
-| `FACT_FUND_FLOWS` | Aggregate fund-level flow data | FundID, Date, NetFlow, AUM |
-| `FACT_STRATEGY_PERFORMANCE` | Strategy-level performance metrics | StrategyID, Date, Return, Alpha, Beta |
-| `FACT_COMPLIANCE_ALERTS` | Compliance alert history with IPS references | AlertID, PortfolioID, AlertType, Severity, IPSSection, IPSLimitValue |
-| `FACT_PRE_SCREENED_REPLACEMENTS` | Pre-approved security replacements | SecurityID, ReplacementSecurityID, Rationale |
-
-### Middle Office Operations Tables
-
-| Table | Description | Key Columns |
-|-------|-------------|-------------|
-| `FACT_TRADE_SETTLEMENT` | Trade settlement status and history | SettlementID, TradeDate, SettlementDate, Status |
-| `FACT_RECONCILIATION` | Position and cash reconciliation data | ReconciliationID, BreakType, BreakAmount, Status |
-| `FACT_NAV_CALCULATION` | NAV calculation results | PortfolioID, Date, GrossNAV, NetNAV |
-| `FACT_NAV_COMPONENTS` | NAV component breakdown | ComponentID, PortfolioID, ComponentType, Value |
-| `FACT_CORPORATE_ACTIONS` | Corporate action events (uses real dividends from MARKET_DATA.FACT_DIVIDENDS) | ActionID, SecurityID, ActionType, ExDate, RecordDate, PaymentDate |
-| `FACT_CORPORATE_ACTION_IMPACT` | Corporate action portfolio impact | ImpactID, ActionID, PositionID, Adjustment |
-| `FACT_CASH_MOVEMENTS` | Cash movement transactions | MovementID, PortfolioID, MovementType, Amount |
-| `FACT_CASH_POSITIONS` | Daily cash position snapshots | PortfolioID, Currency, Balance, AvailableBalance |
-
-### Portfolio Modelling Tables
-
-| Table | Description | Key Columns |
-|-------|-------------|-------------|
-| `FACT_MODEL_PORTFOLIO_WEIGHTS` | Target weights for model portfolios | ModelID, SecurityID, TargetWeight |
-| `FACT_RISK_FACTORS` | Risk factor definitions and loadings | FactorID, FactorName, FactorReturn |
-| `FACT_EXPECTED_RETURNS` | Forward-looking return expectations | SecurityID, ExpectedReturn, Confidence |
-| `FACT_COVARIANCE_MATRIX` | Security return covariance for risk | SecurityID1, SecurityID2, Covariance |
-| `FACT_BACKTEST_RESULTS` | Historical backtest results | BacktestID, PortfolioID, StartDate, EndDate, Return |
-| `FACT_SIMULATION_RESULTS` | Monte Carlo simulation results | SimulationID, PathID, Date, PortfolioValue |
-
-### Portfolio Manager Co-Pilot Tables
-
-| Table | Description | Key Columns |
-|-------|-------------|-------------|
-| `FACT_BRINSON_ATTRIBUTION` | Portfolio-level Brinson decomposition | PortfolioID, Date, ActiveReturn, AllocationEffect, SelectionEffect |
-| `FACT_BRINSON_BY_SECTOR` | Sector-level Brinson attribution | PortfolioID, Sector, AllocationEffect, SelectionEffect |
-| `FACT_FACTOR_ATTRIBUTION` | Factor-based performance attribution | PortfolioID, FactorName, Exposure, Contribution |
-| `FACT_HIDDEN_FACTOR_EXPOSURES` | AI-detected hidden factors (AI_Exposure, Reshoring_Benefit, etc.) | PortfolioID, HiddenFactor, Exposure, ExplanatoryPower |
-| `FACT_SCENARIO_SHOCKS` | Factor shocks per stress scenario | ScenarioID, FactorName, Shock, Confidence |
-| `FACT_HISTORICAL_STRESS_PERIODS` | Historical crises | PeriodID, StartDate, EndDate, MarketReturn, PeakVIX |
-
-### Private Equity Tables
-
-| Table | Description | Key Columns |
-|-------|-------------|-------------|
-| `FACT_VALUE_CREATION_PLAN` | Value creation initiatives | PlanID, CompanyID, Initiative, TargetValue |
-| `FACT_BOARD_PACK_METRICS` | Monthly board pack KPIs | MetricID, CompanyID, MetricName, Value |
-| `FACT_PORTFOLIO_COMPANY_KPI` | Operational KPIs | KPIID, CompanyID, KPIName, Value, Target |
-
-### Views
-
-| View | Description | Base Tables |
-|------|-------------|-------------|
-| `V_SECURITY_RETURNS` | Daily security returns | FACT_STOCK_PRICES |
-| `V_SECURITY_RETURNS_LATEST` | Latest returns | FACT_STOCK_PRICES |
-| `V_SECURITY_LOG_RETURNS` | Log returns | FACT_STOCK_PRICES |
-| `V_PORTFOLIO_RISK_METRICS` | Portfolio risk summary | Multiple |
-| `V_ESG_LATEST` | Latest ESG scores | FACT_ESG_SCORES |
-| `V_HOLDINGS_WITH_ESG` | Holdings + ESG | FACT_POSITION_DAILY_ABOR, FACT_ESG_SCORES |
-| `V_PORTFOLIO_BENCHMARK_COMPARISON` | Portfolio vs benchmark | Multiple |
-| `V_MACRO_REGIME` | Market regime classification (RISK_ON, RISK_OFF, etc.) | FACT_VIX_DAILY, FACT_BENCHMARK_RETURNS |
-
-### Document Corpus Tables (for Cortex Search)
-
-PDF-based document types are consolidated into 2 shared corpus tables. Agent-side filtering via `filter: {"@eq": {"DOCUMENT_TYPE": "<doc_type>"}}` scopes each search tool to its document type.
-
-| Corpus Table | Search Service | Doc Types / Linkage |
-|--------------|----------------|--------------------|
-| `PDF_INTERNAL_CORPUS` | `SAM_INTERNAL_DOCS` | 13 types: policy_docs, sales_templates, philosophy_docs, report_templates, macro_events, custodian_reports, reconciliation_notes, ssi_documents, ops_procedures, strategy_documents, methodology_docs, engagement_notes, ips. Filtered by DOCUMENT_TYPE. |
-| `PDF_EXTERNAL_CORPUS` | `SAM_EXTERNAL_DOCS` | 3 types: broker_research, press_releases, ngo_reports. Filtered by DOCUMENT_TYPE. |
-| `COMPANY_EVENT_TRANSCRIPTS_CORPUS` | `SAM_COMPANY_EVENTS` | Security (real data) |
-| `FACT_SEC_FILING_TEXT` | `SAM_REAL_SEC_FILINGS` | Security (real data) |
-| `PE_BOARD_PACKS_CORPUS` | `SAM_PE_BOARD_PACKS` | Portfolio Company |
-| `PE_DUE_DILIGENCE_CORPUS` | `SAM_PE_DUE_DILIGENCE` | Deal |
-| `PE_EXPERT_NETWORK_CORPUS` | `SAM_PE_EXPERT_NETWORK` | Deal |
-| `CREDIT_AGREEMENTS_CORPUS` | `SAM_CREDIT_AGREEMENTS` | Facility |
-| `COMPLIANCE_CERTS_CORPUS` | `SAM_COMPLIANCE_CERTS` | Borrower |
-| `IC_MEMOS_CORPUS` | `SAM_IC_MEMOS` | Deal |
+| Step | Scope | What is created |
+|---|---|---|
+| 1 Foundation | data | Database, schemas, core dimensions |
+| 2 Market data | data | `MARKET_DATA` tables, `FACT_RECOMMENDATION`, insider and institutional holdings |
+| 3 Curated | data | Positions, transactions, ESG, risk, operations, private markets, attribution, modelling views |
+| 4 Pipelines | data | Coverage universe, document pipelines and corpora, ESG controversies |
+| 5 NLP | data | Transcript NLP scores, hidden factor exposures |
+| 5b ML | data, ml | Feature views, Feature Store, trained models, model output tables, `PREDICT_BORROWER_PD` |
+| 6 AI | ai, semantic, search, agents | Insight, signal and thesis tables, semantic views, search services, tools, agents, skills, evaluation datasets, proactive tasks |
+| 7 Signals and briefings | signals, morning-brief | Seeded `FACT_SIGNALS` and `FACT_PROACTIVE_INSIGHTS` |
+| 8 Earnings | earnings-insights | `FACT_EARNINGS_INSIGHTS` |
+| 9 Automation | data, automation | `CODE_BUNDLE_STAGE`, `SAM_WEEKLY_BUNDLE`, `WEEKLY_REFRESH_TASK` |
 
 ---
 
-## MARKET_DATA Schema
+## 2. CURATED schema
 
-All real data is sourced from Snowflake Marketplace. Historical range controlled by `config.YEARS_OF_HISTORY` (default: 5 years).
+Unless stated otherwise, builders are in `python/data/structured.py`.
 
-### Reference Tables
+### 2.1 Dimensions
 
-| Table | Description | Source |
-|-------|-------------|--------|
-| `DIM_ANALYST` | Broker analyst dimension | Synthetic |
-| `DIM_BENCHMARKS` | Benchmark reference (SPY, IVV, QQQ, IWM, EFA) | Synthetic |
+| Object | Type | Purpose | Key columns | Builder |
+|---|---|---|---|---|
+| `DIM_ISSUER` | Table | Issuer master, drives the whole build | PK `ISSUERID`; `ULTIMATEPARENTISSUERID`, `CIK`, `PRIMARYTICKER`, `LEGALNAME`, `GICS_SECTOR`, `TIER` | `build_dim_issuer` |
+| `DIM_SECURITY` | Table | One security per issuer | PK `SECURITYID`; FK `ISSUERID`; `TICKER`, `FIGI`, `ASSETCLASS`, `ISACTIVE` | `build_dim_security` |
+| `DIM_PORTFOLIO` | Table | SAM portfolios | PK `PORTFOLIOID`; FK `BENCHMARKID`; `PORTFOLIONAME`, `STRATEGY`, `BASECURRENCY` | `build_dim_portfolio` |
+| `DIM_PORTFOLIO_MANAGER` | Table | Portfolio manager roster | PK `PM_ID`; `PM_NAME`, `TEAM`, `AUM_CAPACITY` | `build_dim_portfolio_manager` |
+| `FACT_PORTFOLIO_PM_ASSIGNMENT` | Table | Portfolio to manager assignment | FKs `PORTFOLIOID`, `PM_ID` | `build_dim_portfolio_manager` |
+| `DIM_BENCHMARK` | Table | Benchmarks | PK `BENCHMARKID`; `BENCHMARKNAME`, `PROVIDER` | `build_dim_benchmark` |
+| `DIM_PORTFOLIO_IPS` | Table | Investment policy limits per portfolio | PK `IPSID`; FK `PORTFOLIOID`; `EQUITYTARGETPCT`, `MAXSINGLEISSUERPCT`, `MAXSECTORPCT`, `MAXDRAWDOWNPCT` | `build_dim_portfolio_ips` |
+| `DIM_SUPPLY_CHAIN_RELATIONSHIPS` | Table | Supplier and customer links between issuers | PK `RELATIONSHIPID`; FKs `COMPANY_ISSUERID`, `COUNTERPARTY_ISSUERID`; `COSTSHARE`, `REVENUESHARE`, `CRITICALITYTIER` | `build_dim_supply_chain_relationships` |
+| `DIM_COUNTERPARTY` | Table | Trade counterparties | PK `COUNTERPARTYID`; `HISTORICALFAILRATE`, `AVERAGESETTLEMENTTIME`, `RISKRATING` | `build_dim_counterparty` |
+| `DIM_CUSTODIAN` | Table | Custodians | PK `CUSTODIANID`; `CUSTODIANTYPE`, `SERVICELEVEL` | `build_dim_custodian` |
+| `DIM_CLIENT` | Table | Institutional clients | PK `CLIENTID`; `CLIENTTYPE`, `REGION`, `AUM_WITH_SAM`, `ACCOUNTSTATUS` | `build_dim_client` |
+| `DIM_CLIENT_MANDATES` | Table | Mandate constraints per portfolio | FK `PORTFOLIOID`; `POSITION_CHANGE_APPROVAL_THRESHOLD_PCT`, `MIN_ESG_RATING`, `MAX_REBALANCING_FREQUENCY_DAYS` | `build_client_mandate_data` |
+| `DIM_MODEL_PORTFOLIO` | Table | Model portfolios | PK `MODELPORTFOLIOID`; FK `BENCHMARKID`; `STRATEGY`, `REBALANCEFREQUENCY` | `build_dim_model_portfolio` |
+| `DIM_STRESS_SCENARIOS` | Table | Stress scenario catalogue | PK `SCENARIO_ID`; `SCENARIO_TYPE`, `SEVERITY`, `HISTORICAL_REFERENCE` | `build_attribution_tables` |
+| `DIM_COVERAGE_UNIVERSE` | Table | Research coverage universe that drives document generation | FK `ISSUERID`; `TICKER`, `GICS_SECTOR`, `ADDED_AT` | `python/data/coverage_universe.py:build_coverage_universe` |
+| `DIM_SECTOR_VALUATION` | Table | Sector P/E multiples for fair value | PK `GICS_SECTOR`; `BASEPE`, `DEFAULTPE` | `python/data/recommendations.py:build_dim_sector_valuation` |
+| `DIM_BROKER_BIAS` | Table | Persistent valuation tilt per broker | PK `BROKERNAME`; `BIASPCT`, `JITTERHALFWIDTHPCT` | `python/data/recommendations.py:build_dim_broker_bias` |
 
-### Real SEC Data (Primary Source)
+### 2.2 Positions, transactions, ESG, factors and benchmarks
 
-| Table | Cybersyn Source | Description |
-|-------|-----------------|-------------|
-| `FACT_STOCK_PRICES` | `STOCK_PRICE_TIMESERIES` | Daily OHLCV prices from Nasdaq |
-| `FACT_SEC_FILING_TEXT` | `SEC_REPORT_TEXT_ATTRIBUTES` | SEC filing text (MD&A, Risk Factors, 10-K, 10-Q, 8-K) |
-| `FACT_SEC_FINANCIALS` | `SEC_CORPORATE_REPORT_ATTRIBUTES` | Complete XBRL financial statements with calculated ratios and Investment Memo metrics (TAM, NRR, Customer Count) |
-| `FACT_SEC_SEGMENTS` | `SEC_METRICS_TIMESERIES` | Revenue segments by geography, business unit, customer, legal entity |
-| `COMP_EVENT_SPEAKER_MAPPING` | AI-processed | Speaker identification from transcripts |
+| Object | Type | Purpose | Key columns | Builder |
+|---|---|---|---|---|
+| `FACT_TRANSACTION` | Table | Trade ledger, the source of truth for positions | PK `TRANSACTIONID`; FKs `PORTFOLIOID`, `SECURITYID`; `TRADEDATE`, `QUANTITY`, `PRICE`, `GROSSAMOUNT_LOCAL` | `build_fact_transaction` |
+| `FACT_POSITION_DAILY_ABOR` | Table | Month-end ABOR holdings | PK (`HOLDINGDATE`, `PORTFOLIOID`, `SECURITYID`); `QUANTITY`, `MARKETVALUE_BASE`, `COSTBASIS_BASE`, `PORTFOLIOWEIGHT` | `build_fact_position_daily_abor` |
+| `FACT_ESG_SCORES` | Table | ESG scores per security | FK `SECURITYID`; `SCORE_DATE`, `SCORE_TYPE`, `SCORE_VALUE`, `SCORE_GRADE` | `build_esg_scores` |
+| `FACT_ESG_CONTROVERSY` | Table | Controversies extracted from NGO reports | FKs `SECURITYID`, `ISSUERID`; `SEVERITY`, `CATEGORY`, `REPORTDATE`, `ISACTIVE` | `build_fact_esg_controversy` |
+| `V_ESG_LATEST` | View | Latest ESG score per security | `SECURITYID`; `ESG_SCORE`, `ESG_GRADE`, `ESG_SCORE_DATE` | `build_v_esg_latest` |
+| `V_HOLDINGS_WITH_ESG` | View | Holdings with ESG and returns | `PORTFOLIOID`, `SECURITYID`, `HOLDINGDATE`; `MARKETVALUE_BASE`, `ESG_SCORE`, `YTD_RETURN_PCT` | `build_v_holdings_with_esg` |
+| `V_SECURITY_RETURNS` | View | Daily, MTD, QTD and YTD returns | `SECURITYID`, `PRICE_DATE`; `PRICE_CLOSE`, `DAILY_RETURN_PCT`, `YTD_RETURN_PCT` | `build_security_returns_view` |
+| `V_SECURITY_RETURNS_LATEST` | View | Latest return snapshot | `SECURITYID`; `RETURNS_DATE`, `LATEST_PRICE`, `MTD_RETURN_PCT` | `build_security_returns_view` |
+| `V_SECURITY_LOG_RETURNS` | View | Log returns over several horizons | `SECURITYID`, `PRICE_DATE`; `LOG_RETURN_DAILY`, `LOG_RETURN_21D`, `LOG_RETURN_252D` | `build_portfolio_modelling_views` |
+| `FACT_FACTOR_EXPOSURES` | Table | Factor betas per security | `SECURITYID`, `EXPOSURE_DATE`, `FACTOR_NAME`; `EXPOSURE_VALUE`, `R_SQUARED` | `build_factor_exposures` |
+| `FACT_BENCHMARK_HOLDINGS` | Table | Benchmark constituents (from SEC N-PORT) | FKs `BENCHMARKID`, `SECURITYID`; `HOLDING_DATE`, `BENCHMARK_WEIGHT`, `MARKET_VALUE_USD` | `build_benchmark_holdings` |
+| `FACT_BENCHMARK_PERFORMANCE` | Table | Benchmark MTD, QTD and YTD returns | PK `BENCHMARKPERFID`; FK `BENCHMARKID`; `PERFORMANCEDATE`, `YTD_RETURN_PCT` | `build_fact_benchmark_performance` |
+| `FACT_STRATEGY_PERFORMANCE` | Table | Portfolio AUM and returns by month | PK `STRATEGYPERFID`; FK `PORTFOLIOID`; `STRATEGY_AUM`, `STRATEGY_MTD_RETURN`, `STRATEGY_YTD_RETURN` | `build_fact_strategy_performance` |
+| `V_PORTFOLIO_BENCHMARK_COMPARISON` | View | Portfolio vs benchmark active returns | `PORTFOLIOID`, `BENCHMARKID`, `PERFORMANCEDATE`; `ACTIVE_MTD_RETURN`, `ACTIVE_YTD_RETURN`, `PORTFOLIO_AUM` | `build_portfolio_benchmark_comparison_view` |
 
-### Dividend Data (AI-Extracted from SEC 8-K)
+### 2.3 Risk, compliance, implementation and portfolio modelling
 
-| Table | Source | Description |
-|-------|--------|-------------|
-| `FACT_DIVIDENDS` | `SEC_REPORT_TEXT_ATTRIBUTES` (8-K filings) + **AI_EXTRACT** | Dividend declarations with AI-extracted dates |
+| Object | Type | Purpose | Key columns | Builder |
+|---|---|---|---|---|
+| `V_PORTFOLIO_RISK_METRICS` | View | Volatility, drawdown and Sharpe per portfolio | `PORTFOLIOID`, `HOLDINGDATE`; `VOLATILITY_21D_ANN`, `CURRENTDRAWDOWN`, `SHARPE_21D_APPROX` | `build_portfolio_modelling_views` |
+| `FACT_TRANSACTION_COSTS` | Table | Spread, volume and market impact | `SECURITYID`, `COST_DATE`; `BID_ASK_SPREAD_BPS`, `AVG_DAILY_VOLUME_M`, `MARKET_IMPACT_BPS_PER_1M` | `build_transaction_cost_data` |
+| `FACT_PORTFOLIO_LIQUIDITY` | Table | Cash and liquidity score | `PORTFOLIOID`, `LIQUIDITY_DATE`; `CASH_POSITION_USD`, `PORTFOLIO_LIQUIDITY_SCORE` | `build_liquidity_data` |
+| `FACT_RISK_LIMITS` | Table | Tracking error, VaR and concentration limits | `PORTFOLIOID`, `LIMITS_DATE`; `TRACKING_ERROR_LIMIT_PCT`, `CURRENT_TRACKING_ERROR_PCT`, `VAR_LIMIT_1DAY_PCT` | `build_risk_budget_data` |
+| `FACT_TRADING_CALENDAR` | Table | Earnings, blackout and options-expiry events | `SECURITYID`, `EVENT_DATE`, `EVENT_TYPE`; `IS_BLACKOUT_PERIOD`, `EXPECTED_VIX_LEVEL` | `build_trading_calendar_data` |
+| `FACT_TAX_IMPLICATIONS` | Table | Unrealised gains and tax-loss harvesting flags | `PORTFOLIOID`, `SECURITYID`, `TAX_DATE`; `UNREALIZED_GAIN_LOSS_USD`, `TAX_LOSS_HARVEST_OPPORTUNITY` | `build_tax_implications_data` |
+| `FACT_COMPLIANCE_ALERTS` | Table | IPS and concentration breaches | PK `ALERTID`; FKs `PORTFOLIOID`, `SECURITYID`; `ALERTTYPE`, `ALERTSEVERITY`, `IPSLIMITVALUE`, `IPSCURRENTVALUE` | `build_fact_compliance_alerts` |
+| `FACT_PRE_SCREENED_REPLACEMENTS` | Table | Eligible replacement securities | `PORTFOLIOID`, `SECURITYID`, `SCREENDATE`; `REPLACEMENTRANK`, `ESG_GRADE`, `AI_GROWTH_SCORE` | `build_fact_pre_screened_replacements` |
+| `FACT_MODEL_PORTFOLIO_WEIGHTS` | Table | Target weights for model portfolios | PK `WEIGHTID`; FKs `MODELPORTFOLIOID`, `SECURITYID`; `TARGETWEIGHT`, `MINWEIGHT`, `MAXWEIGHT` | `build_fact_model_portfolio_weights` |
+| `FACT_RISK_FACTORS` | Table | Fama-French style factor returns | PK `FACTORID`; `FACTORDATE`, `MKT_RF`, `SMB`, `HML`, `MOM` | `build_fact_risk_factors` |
+| `FACT_EXPECTED_RETURNS` | Table | Capital market assumptions per security | PK `ESTIMATEID`; FK `SECURITYID`; `HORIZONMONTHS`, `EXPECTEDRETURN_ANNUALIZED`, `EXPECTEDRETURN_LOW`, `EXPECTEDRETURN_HIGH` | `build_fact_expected_returns` |
+| `FACT_COVARIANCE_MATRIX` | Table | Pairwise covariance and correlation | PK `COVARIANCEID`; `SECURITYID_ROW`, `SECURITYID_COL`; `COVARIANCE_ANNUALIZED`, `CORRELATION` | `build_fact_covariance_matrix` |
+| `FACT_BACKTEST_RESULTS` | Table | Backtest output scaffold (created empty) | PK `BACKTESTID`; FKs `MODELPORTFOLIOID`, `PORTFOLIOID`; `CUMULATIVERETURN`, `SHARPERATIO`, `MAXDRAWDOWN` | `build_fact_backtest_results` |
+| `FACT_SIMULATION_RESULTS` | Table | Monte Carlo output scaffold (created empty) | PK `SIMULATIONID`; FK `MODELPORTFOLIOID`; `PORTFOLIOVALUE`, `PERCENTILE_5`, `MEDIAN`, `PROBLOSS` | `build_fact_simulation_results` |
+| `FACT_SCENARIO_SHOCKS` | Table | Factor shocks per stress scenario | FK `SCENARIO_ID`; `FACTOR_NAME`, `FACTOR_SHOCK`, `CONFIDENCE_LEVEL` | `build_attribution_tables` |
+| `FACT_HISTORICAL_STRESS_PERIODS` | Table | Historical stress episodes | PK `PERIOD_ID`; FK `LINKED_SCENARIO_ID`; `MARKET_RETURN`, `PEAK_VIX` | `build_attribution_tables` |
+| `FACT_HIDDEN_FACTOR_EXPOSURES` | Table | AI and geopolitical exposures from transcript NLP | `PORTFOLIOID`, `DATE`, `FACTOR_NAME`; `FACTOR_EXPOSURE`, `EXPLANATORY_POWER` | `build_hidden_factor_exposures` |
+| `V_MACRO_REGIME` | View | Volatility and market regime per day | `DATE`; `VIX_CLOSE`, `SPX_RETURN`, `VOLATILITY_REGIME`, `MARKET_REGIME` | `build_attribution_tables` |
+| `V_REGIME_TRANSITIONS` | View | Dates when the regime changed | `TRANSITION_DATE`; `FROM_VOL_REGIME`, `TO_VOL_REGIME`, `DAYS_IN_PRIOR_REGIME` | `build_advanced_attribution_views` |
 
-**AI_EXTRACT Pipeline**:
-```
-SEC 8-K Filing Text → AI_EXTRACT → Structured Dividend Data
-                      
-Extracts:
-- DECLARATION_DATE: Date board declared the dividend
-- DIVIDEND_PER_SHARE: Dollar amount per share
-- RECORD_DATE: Shareholder eligibility date  
-- PAYMENT_DATE: Date dividend will be paid
+### 2.4 Clients and flows
 
-Calculates:
-- EX_DATE: 1 business day before RECORD_DATE (SEC T+1 rule)
-  - If Monday: Ex-Date = Friday (skip weekend)
-  - If Sunday: Ex-Date = Thursday (skip weekend)
-```
+| Object | Type | Purpose | Key columns | Builder |
+|---|---|---|---|---|
+| `FACT_CLIENT_FLOWS` | Table | Client subscriptions and redemptions | PK `FLOWID`; FKs `CLIENTID`, `PORTFOLIOID`; `FLOWDATE`, `FLOWTYPE`, `FLOWAMOUNT` | `build_fact_client_flows` |
+| `FACT_FUND_FLOWS` | Table | Gross and net flows per portfolio | PK `FUNDFLOWID`; FK `PORTFOLIOID`; `GROSSINFLOWS`, `GROSSOUTFLOWS`, `NETFLOWS` | `build_fact_fund_flows` |
 
-### Macroeconomic Data (Real from Cybersyn)
+### 2.5 Attribution
 
-| Table | Cybersyn Source | Description |
-|-------|-----------------|-------------|
-| `FACT_POLICY_RATES` | `BANK_FOR_INTERNATIONAL_SETTLEMENTS_TIMESERIES` | Central bank policy rates (Fed, ECB, BOE, BOJ, etc.) |
-| `FACT_FX_RATES` | `FX_RATES_TIMESERIES` | Foreign exchange rates (EURUSD, GBPUSD, USDJPY, etc.) |
-| `FACT_ECONOMIC_INDICATORS` | `CYBERSYN_FINANCIAL_ECONOMIC_INDICATORS_TIMESERIES` | US economic indicators from FRED (GDP, CPI, unemployment) |
-| `FACT_TREASURY_YIELDS` | `US_TREASURY_PAR_YIELD_CURVE_RATES` | US Treasury yield curve rates (14 maturities, 1M-30Y) |
-| `FACT_COUNTRY_EMISSIONS` | `CLIMATE_WATCH_GHG_EMISSIONS_TIMESERIES` | Country-level greenhouse gas emissions by sector (190+ countries) |
+| Object | Type | Purpose | Key columns | Builder |
+|---|---|---|---|---|
+| `FACT_BRINSON_BY_SECTOR` | Table | Sector Brinson effects | `DATE`, `PORTFOLIOID`, `SECTOR`; `ALLOCATION_EFFECT`, `SELECTION_EFFECT`, `INTERACTION_EFFECT` | `build_attribution_tables` |
+| `FACT_BRINSON_ATTRIBUTION` | Table | Portfolio Brinson totals | `DATE`, `PORTFOLIOID`; `ACTIVE_RETURN`, `ALLOCATION_EFFECT`, `SELECTION_EFFECT` | `build_attribution_tables` |
+| `FACT_FACTOR_ATTRIBUTION` | Table | Factor contribution to return | `DATE`, `PORTFOLIOID`, `FACTOR_NAME`; `PORTFOLIO_FACTOR_EXPOSURE`, `FACTOR_RETURN`, `FACTOR_CONTRIBUTION` | `build_attribution_tables` |
+| `FACT_BRINSON_ATTRIBUTION_DETAIL` | Table | Multi-level Brinson by grouping dimension | `DATE`, `PORTFOLIOID`, `GROUPINGDIMENSION`, `GROUPINGVALUE`; `ALLOCATIONEFFECT`, `SELECTIONEFFECT`, `TOTALEFFECT` | `build_multi_level_attribution` |
+| `FACT_CURRENCY_ATTRIBUTION` | Table | Local, FX and base return decomposition | `DATE`, `PORTFOLIOID`, `SECURITYID`; `LOCALRETURN`, `FXRETURN`, `BASERETURN` | `build_currency_attribution` |
+| `FACT_BRINSON_LINKED` | Table | Multi-period linked attribution | `PERIODEND`, `PERIODTYPE`, `PORTFOLIOID`, `GROUPINGVALUE`; `LINKEDTOTALEFFECT`, `COMPOUNDEDACTIVERETURN`, `RECONCILIATIONGAP` | `build_attribution_linked` |
+| `V_FACTOR_ROLLING_ANALYTICS` | View | Rolling factor contribution and drift | `DATE`, `PORTFOLIOID`, `FACTOR_NAME`; `ROLLING_3M_CONTRIBUTION`, `EXPOSURE_DRIFT_ZSCORE`, `MARKET_REGIME` | `build_advanced_attribution_views` |
+| `V_ATTRIBUTION_ANOMALIES` | View | Drift, concentration and reversal flags | `PORTFOLIOID`, `DATE`; `FACTOR_DRIFT_ALERT`, `CONCENTRATION_ALERT`, `ANOMALY_SEVERITY` | `build_advanced_attribution_views` |
+| `V_CROSS_PORTFOLIO_ANALYTICS` | View | Alpha persistence across portfolios | `PORTFOLIOID`; `AVG_ACTIVE_RETURN`, `ALPHA_PERSISTENCE`, `BEST_FACTOR_SOURCE` | `build_advanced_attribution_views` |
 
-### Portfolio Manager Co-Pilot Market Data
+### 2.6 Operations (middle office)
 
-| Table | Description | Source |
-|-------|-------------|--------|
-| `FACT_BENCHMARK_RETURNS` | Daily benchmark returns | Synthetic |
-| `FACT_BENCHMARK_SECTOR_WEIGHTS` | Benchmark sector allocations | Synthetic |
-| `FACT_VIX_DAILY` | VIX data for macro regime classification | Synthetic |
-| `FACT_SECTOR_RETURNS` | Sector ETF returns (XLK, XLV, XLF, etc.) | Marketplace |
+| Object | Type | Purpose | Key columns | Builder |
+|---|---|---|---|---|
+| `FACT_TRADE_SETTLEMENT` | Table | Settlement status and fails | PK `SETTLEMENTID`; FKs `TRADEID`, `PORTFOLIOID`, `SECURITYID`, `COUNTERPARTYID`, `CUSTODIANID`; `SETTLEMENTVALUE`, `STATUS` | `build_fact_trade_settlement` |
+| `FACT_RECONCILIATION` | Table | Internal vs custodian breaks | PK `RECONCILIATIONID`; FKs `PORTFOLIOID`, `SECURITYID`; `BREAKTYPE`, `INTERNALVALUE`, `CUSTODIANVALUE`, `DIFFERENCE` | `build_fact_reconciliation` |
+| `FACT_NAV_CALCULATION` | Table | Daily NAV and approval status | PK `NAVID`; FK `PORTFOLIOID`; `NAVPERSHARE`, `NETASSETS`, `ANOMALIESDETECTED` | `build_fact_nav_calculation` |
+| `FACT_NAV_COMPONENTS` | Table | NAV breakdown | PK `COMPONENTID`; FKs `NAVID`, `SECURITYID`; `COMPONENTVALUE`, `QUANTITY`, `PRICE` | `build_fact_nav_components` |
+| `FACT_CORPORATE_ACTIONS` | Table | Dividends, splits and other actions | PK `ACTIONID`; FKs `SECURITYID`, `ISSUERID`; `ACTIONTYPE`, `EXDATE`, `IMPACTVALUE` | `build_fact_corporate_actions` |
+| `FACT_CORPORATE_ACTION_IMPACT` | Table | Impact of each action on each portfolio | PK `IMPACTID`; FKs `ACTIONID`, `PORTFOLIOID`, `SECURITYID`; `POSITIONBEFORE`, `POSITIONAFTER`, `CASHIMPACT` | `build_fact_corporate_action_impact` |
+| `FACT_CASH_MOVEMENTS` | Table | Cash ledger | PK `CASHMOVEMENTID`; FKs `PORTFOLIOID`, `COUNTERPARTYID`; `MOVEMENTTYPE`, `AMOUNT` | `build_fact_cash_movements` |
+| `FACT_CASH_POSITIONS` | Table | Cash balances by custodian | PK `CASHPOSITIONID`; FKs `PORTFOLIOID`, `CUSTODIANID`; `OPENINGBALANCE`, `INFLOWS`, `OUTFLOWS`, `CLOSINGBALANCE` | `build_fact_cash_positions` |
 
-### Hidden Factor Scoring (NLP + Deterministic)
+### 2.7 Private equity
 
-| Table | Description | Source |
-|-------|-------------|--------|
-| `DIM_GEO_RISK_CLASSIFICATION` | Lookup table: 189 geographies → risk tier (HIGH/MEDIUM/LOW) + weight (1.0/0.5/0.1) | Derived from FACT_SEC_SEGMENTS distinct geographies |
-| `FACT_TRANSCRIPT_NLP_SCORES` | Per-company per-quarter AI exposure + geo risk scores | Marketplace transcripts (AI_AGG) + FACT_SEC_SEGMENTS (SQL) |
+| Object | Type | Purpose | Key columns | Builder |
+|---|---|---|---|---|
+| `DIM_PE_FUND` | Table | PE funds | PK `FUNDID`; `STRATEGY`, `VINTAGE`, `AUM_MM` | `build_dim_pe_fund` |
+| `DIM_PORTFOLIO_COMPANY` | Table | PE portfolio companies | PK `PORTFOLIOCOMPANYID`; FK `FUNDID`; `ACQUISITIONPRICE_MM`, `ENTRYEV_EBITDA`, `MOIC`, `IRR_PCT` | `build_dim_portfolio_company` |
+| `DIM_DEAL_PIPELINE` | Table | PE deal pipeline | PK `DEALID`; FK `ISSUERID`; `DEALSTAGE`, `ENTERPRISEVALUE_MM`, `EV_EBITDA_MULTIPLE` | `build_dim_deal_pipeline` |
+| `FACT_VALUE_CREATION_PLAN` | Table | Value creation initiatives | PK `PLANID`; FK `PORTFOLIOCOMPANYID`; `BASELINEVALUE`, `TARGETVALUE`, `CURRENTVALUE`, `IMPACTEBITDA_MM` | `build_fact_value_creation_plan` |
+| `FACT_BOARD_PACK_METRICS` | Table | Monthly board pack financials | PK `METRICID`; FK `PORTFOLIOCOMPANYID`; `REVENUE_MM`, `EBITDA_MM`, `LEVERAGERATIO`, `NRR_PCT` | `build_fact_board_pack_metrics` |
+| `FACT_PORTFOLIO_COMPANY_KPI` | Table | KPIs vs budget and prior year | PK `KPIID`; FK `PORTFOLIOCOMPANYID`; `KPINAME`, `ACTUALVALUE`, `BUDGETVALUE` | `build_fact_portfolio_company_kpi` |
+| `PE_BOARD_PACKS_CORPUS` | Table | Board pack documents | PK `DOCUMENT_ID`; FK `PORTFOLIOCOMPANYID`; `DOCUMENT_TEXT`, `REPORTPERIOD` | `build_pe_board_packs_corpus` |
+| `PE_DUE_DILIGENCE_CORPUS` | Table | Due diligence documents | PK `DOCUMENT_ID`; FK `DEALID`; `DOCUMENT_TEXT` | `build_pe_due_diligence_corpus` |
+| `PE_EXPERT_NETWORK_CORPUS` | Table | Expert call transcripts | PK `DOCUMENT_ID`; FKs `DEALID`, `PORTFOLIOCOMPANYID`; `EXPERTROLE`, `DOCUMENT_TEXT`, `CALLDATE` | `build_pe_expert_network_corpus` |
 
-**Scoring approaches — use AI only where data is unstructured**:
+### 2.8 Private credit
 
-| Score | Method | Why |
-|-------|--------|-----|
-| `AI_EXPOSURE_SCORE` (0-100) | `AI_AGG` on earnings call transcript paragraphs | Unstructured text needs NLP |
-| `GEO_RISK_SCORE` (0-100) | Weighted revenue share from `DIM_GEO_RISK_CLASSIFICATION` | Structured numeric data — deterministic SQL |
+| Object | Type | Purpose | Key columns | Builder |
+|---|---|---|---|---|
+| `DIM_CREDIT_FUND` | Table | Credit funds | PK `FUNDID`; `STRATEGY`, `VINTAGE`, `AUM_MM` | `build_dim_credit_fund` |
+| `DIM_CREDIT_BORROWER` | Table | Borrowers | PK `BORROWERID`; FK `FUNDID`; `BORROWERNAME`, `SECTOR`, `SPONSOR`, `EBITDA_MM`, `CREDITRATING` | `build_dim_credit_borrower` |
+| `DIM_CREDIT_FACILITY` | Table | Loan facilities | PK `FACILITYID`; FK `BORROWERID`; `COMMITMENT_MM`, `DRAWN_MM`, `SPREAD_BPS`, `MATURITYDATE` | `build_dim_credit_facility` |
+| `FACT_CREDIT_COVENANT_TRACKING` | Table | Quarterly covenant tests | FKs `FACILITYID`, `BORROWERID`; `COVENANTTYPE`, `COVENANTTHRESHOLD`, `ACTUALVALUE`, `HEADROOM_PCT`, `BREACHFLAG` | `build_fact_credit_covenant_tracking` |
+| `FACT_CREDIT_BORROWER_FINANCIALS` | Table | Quarterly borrower financials | FK `BORROWERID`; `REPORTDATE`, `EBITDA_MM`, `TOTALLEVERAGE`, `INTERESTCOVERAGE`, `FREECASHFLOW_MM` | `build_fact_credit_borrower_financials` |
+| `FACT_CREDIT_DEAL_PIPELINE` | Table | Credit origination pipeline | PK `DEALID`; `DEALSIZE_MM`, `SPREAD_BPS`, `EXPECTEDLEVERAGE`, `DEALSTAGE` | `build_fact_credit_deal_pipeline` |
+| `CREDIT_AGREEMENTS_CORPUS` | Table | Credit agreements | PK `DOCUMENT_ID`; FK `FACILITYID`; `DOCUMENT_TEXT` | `build_credit_agreements_corpus` |
+| `COMPLIANCE_CERTS_CORPUS` | Table | Quarterly compliance certificates | PK `DOCUMENT_ID`; FK `BORROWERID`; `REPORTPERIOD`, `DOCUMENT_TEXT` | `build_compliance_certs_corpus` |
+| `IC_MEMOS_CORPUS` | Table | Investment committee memos | PK `DOCUMENT_ID`; FK `DEALID`; `DOCUMENT_TEXT` | `build_ic_memos_corpus` |
 
-**Geo risk formula**: `(SUM(revenue × risk_weight) / total_revenue) × 100 + concentration_bonus`
-- Concentration: +15 if single high-risk country >30%, +25 if >50%
-- Default 10 for companies without geographic segment data
+`build_credit_tables` also creates `MARKET_DATA.FACT_CREDIT_SECTOR_BENCHMARKS` (section 3).
 
-### Analyst Estimates
+### 2.9 Research, document corpora, signals and insights
 
-| Table | Description | Source |
-|-------|-------------|--------|
-| `FACT_ESTIMATE_CONSENSUS` | Analyst consensus **derived from real SEC actuals** | FACT_SEC_FINANCIALS |
-| `FACT_ESTIMATE_DATA` | Individual analyst estimates | Synthetic |
-| `FACT_ANALYST_COVERAGE` | Analyst coverage mapping | Synthetic |
-
-### Investment Memo Metrics (Calculated from Real SEC Data)
-
-Available in `FACT_SEC_FINANCIALS`:
-
-| Metric | Calculation | Rationale |
-|--------|-------------|-----------|
-| `TAM` | Revenue × Industry Multiplier (15-35x) | Standard market sizing approach |
-| `ESTIMATED_CUSTOMER_COUNT` | Revenue / ARPC (varies by industry) | Implied customer base |
-| `ESTIMATED_NRR_PCT` | 100 + Revenue Growth %, capped 90-140% | SaaS-style NRR correlation |
-
----
-
-## AI Schema
-
-### Semantic Views (20 views)
-
-| Semantic View | Description | Key Tables |
-|---------------|-------------|------------|
-| `SAM_PORTFOLIO_VIEW` | Portfolio analytics with holdings, ESG, factors, benchmark comparison | V_HOLDINGS_WITH_ESG, DIM_PORTFOLIO, DIM_SECURITY, FACT_FACTOR_EXPOSURES, FACT_BENCHMARK_HOLDINGS |
-| `SAM_IMPLEMENTATION_VIEW` | Trading implementation planning | FACT_TRANSACTION_COSTS, FACT_PORTFOLIO_LIQUIDITY, FACT_RISK_LIMITS, FACT_TRADING_CALENDAR, FACT_TAX_IMPLICATIONS |
-| `SAM_PORTFOLIO_VIEW` | Supply chain risk analysis | DIM_SUPPLY_CHAIN_RELATIONSHIPS, DIM_ISSUER |
-| `SAM_MIDDLE_OFFICE_VIEW` | Operations monitoring | FACT_TRADE_SETTLEMENT, FACT_RECONCILIATION, FACT_NAV_CALCULATION, FACT_CORPORATE_ACTIONS, FACT_CASH_POSITIONS |
-| `SAM_PORTFOLIO_VIEW` | Compliance breach tracking | FACT_COMPLIANCE_ALERTS, FACT_RISK_LIMITS |
-| `SAM_EXECUTIVE_VIEW` | Firm-wide KPIs | DIM_CLIENT, FACT_CLIENT_FLOWS, FACT_FUND_FLOWS, FACT_STRATEGY_PERFORMANCE |
-| `SAM_RESEARCH_VIEW` | Financial analysis (real SEC data) | FACT_SEC_FINANCIALS, FACT_ESTIMATE_CONSENSUS, DIM_ISSUER |
-| `SAM_MARKET_VIEW` | Real stock prices | FACT_STOCK_PRICES, DIM_SECURITY, DIM_ISSUER |
-| `SAM_RESEARCH_VIEW` | Comprehensive SEC financials | FACT_SEC_FINANCIALS, DIM_ISSUER |
-| `SAM_RESEARCH_VIEW` | SEC revenue segments | FACT_SEC_SEGMENTS, DIM_ISSUER |
-| `SAM_PORTFOLIO_MODELLING_VIEW` | Portfolio modelling analytics | FACT_COVARIANCE_MATRIX, FACT_EXPECTED_RETURNS, FACT_BACKTEST_RESULTS, FACT_SIMULATION_RESULTS |
-| `SAM_ATTRIBUTION_VIEW` | Brinson attribution analysis | FACT_BRINSON_ATTRIBUTION, FACT_BRINSON_BY_SECTOR, DIM_BENCHMARKS |
-| `SAM_ATTRIBUTION_VIEW` | Factor contribution analysis | FACT_FACTOR_ATTRIBUTION, FACT_FACTOR_EXPOSURES |
-| `SAM_ATTRIBUTION_VIEW` | Hidden/alternative factor detection | FACT_HIDDEN_FACTOR_EXPOSURES |
-| `SAM_MARKET_VIEW` | Market regime classification | V_MACRO_REGIME, FACT_VIX_DAILY |
-| `SAM_MARKET_VIEW` | Stress test scenarios | DIM_STRESS_SCENARIOS, FACT_SCENARIO_SHOCKS |
-| `SAM_MARKET_VIEW` | Historical crisis periods | FACT_HISTORICAL_STRESS_PERIODS |
-| `SAM_MARKET_VIEW` | Global macroeconomic indicators and emissions | FACT_POLICY_RATES, FACT_FX_RATES, FACT_ECONOMIC_INDICATORS, FACT_COUNTRY_EMISSIONS |
-| `SAM_MARKET_VIEW` | US Treasury yield curve rates | FACT_TREASURY_YIELDS |
-| `SAM_RESEARCH_VIEW` | SEC Form 4 insider transactions | FACT_INSIDER_TRANSACTIONS |
-| `SAM_RESEARCH_VIEW` | SEC 13F institutional ownership | FACT_INSTITUTIONAL_HOLDINGS |
-| `SAM_PE_DEAL_PIPELINE_VIEW` | PE deal sourcing and screening | DIM_DEAL_PIPELINE |
-| `SAM_PE_VALUE_CREATION_VIEW` | PE portfolio company monitoring | DIM_PORTFOLIO_COMPANY, FACT_BOARD_PACK_METRICS, FACT_VALUE_CREATION_PLAN |
-
-### Cortex Search Services (10 services)
-
-All services use **multi-index search** (GA March 12, 2026): TEXT INDEXES for keyword/lexical matching on names, tickers, categories + VECTOR INDEXES for semantic search on document body. PDF-based document types are consolidated into 2 services with agent-side filtering via `filter: {"@eq": {"DOCUMENT_TYPE": "<doc_type>"}}` at query time.
-
-| Search Service | Corpus Table | TEXT INDEXES | VECTOR INDEXES | Filterable Attributes | Doc Types |
-|----------------|--------------|-------------|----------------|----------------------|----------|
-| **`SAM_INTERNAL_DOCS`** | PDF_INTERNAL_CORPUS | DOCUMENT_TITLE, TICKER, COMPANY_NAME, GICS_SECTOR | DOCUMENT_TEXT | DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE, TICKER, COMPANY_NAME, GICS_SECTOR | 13 types: policy_docs, sales_templates, philosophy_docs, report_templates, macro_events, custodian_reports, reconciliation_notes, ssi_documents, ops_procedures, strategy_documents, methodology_docs, engagement_notes, ips |
-| **`SAM_EXTERNAL_DOCS`** | PDF_EXTERNAL_CORPUS | DOCUMENT_TITLE, TICKER, COMPANY_NAME, GICS_SECTOR | DOCUMENT_TEXT | DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE, TICKER, COMPANY_NAME, GICS_SECTOR | 3 types: broker_research, press_releases, ngo_reports |
-| `SAM_COMPANY_EVENTS` | COMPANY_EVENT_TRANSCRIPTS_CORPUS | DOCUMENT_TITLE, TICKER, COMPANY_NAME, GICS_SECTOR, EVENT_TYPE, SPEAKER_NAME | DOCUMENT_TEXT | SecurityID, IssuerID, DOCUMENT_TYPE, PUBLISH_DATE, LANGUAGE, EVENT_TYPE, TICKER, COMPANY_NAME, GICS_SECTOR, SPEAKER_NAME, SPEAKER_ROLE | - |
-| `SAM_REAL_SEC_FILINGS` | FACT_SEC_FILING_TEXT | DOCUMENT_TITLE, TICKER, COMPANY_NAME, GICS_SECTOR, FILING_TYPE | FILING_TEXT | COMPANY_NAME, TICKER, GICS_SECTOR, FILING_TYPE, FISCAL_YEAR, FISCAL_QUARTER, VARIABLE_NAME, CIK | - |
-| `SAM_PE_BOARD_PACKS` | PE_BOARD_PACKS_CORPUS | DOCUMENT_TITLE, CompanyName | DOCUMENT_TEXT | CompanyName, PortfolioCompanyID, DOCUMENT_TYPE, ReportPeriod | - |
-| `SAM_PE_DUE_DILIGENCE` | PE_DUE_DILIGENCE_CORPUS | DOCUMENT_TITLE, TargetCompanyName | DOCUMENT_TEXT | TargetCompanyName, DealID, DOCUMENT_TYPE | - |
-| `SAM_PE_EXPERT_NETWORK` | PE_EXPERT_NETWORK_CORPUS | DOCUMENT_TITLE, TargetCompanyName, ExpertRole | DOCUMENT_TEXT | TargetCompanyName, ExpertRole, DealID, PortfolioCompanyID, CallDate | - |
-| `SAM_CREDIT_AGREEMENTS` | CREDIT_AGREEMENTS_CORPUS | DOCUMENT_TITLE, BORROWERNAME | DOCUMENT_TEXT | BORROWERNAME, FACILITYID, DOCUMENT_TYPE | - |
-| `SAM_COMPLIANCE_CERTS` | COMPLIANCE_CERTS_CORPUS | DOCUMENT_TITLE, BORROWERNAME | DOCUMENT_TEXT | BORROWERNAME, BORROWERID, DOCUMENT_TYPE, REPORTPERIOD | - |
-| `SAM_IC_MEMOS` | IC_MEMOS_CORPUS | DOCUMENT_TITLE, TARGETNAME | DOCUMENT_TEXT | TARGETNAME, DEALID, DOCUMENT_TYPE | - |
-
-### Agents (13 agents)
-
-| Agent | Display Name | Key Tools |
-|-------|--------------|-----------|
-| `AM_portfolio_manager_copilot` | Portfolio Manager Co-Pilot | quantitative_analyzer (SAM_PORTFOLIO_VIEW), stock_prices, sec_financials, supply_chain_analyzer, implementation_analyzer, search_broker_research, search_press_releases, search_macro_events, search_policies, search_report_templates, search_ips_documents, search_company_events, search_sec_filings, pdf_generator |
-| `AM_research_copilot` | Research Analyst | fundamentals_analyzer (SAM_RESEARCH_VIEW), sec_financials, search_broker_research, search_press_releases, search_company_events, search_sec_filings |
-| `AM_investment_strategy` | Investment Strategy | quantitative_analyzer, search_broker_research, search_press_releases, search_macro_events, search_sec_filings |
-| `AM_risk_compliance` | Risk & Compliance | quantitative_analyzer, search_ngo_reports, search_engagement_notes, search_policies, search_press_releases, search_report_templates, search_sec_filings |
-| `AM_risk_compliance` | Risk & Compliance | compliance_analyzer (SAM_PORTFOLIO_VIEW), search_policies, search_engagement_notes, search_report_templates, search_ips_documents, pdf_generator |
-| `AM_sales_advisor` | Sales Advisor | quantitative_analyzer, search_sales_templates, search_philosophy_docs, search_policies, pdf_generator |
-| `AM_investment_strategy` | Investment Strategy | quantitative_analyzer, stock_prices, search_broker_research |
-| `AM_middle_office_copilot` | Middle Office Co-Pilot | middle_office_analyzer (SAM_MIDDLE_OFFICE_VIEW), search_custodian_reports, search_reconciliation_notes, search_ssi_documents, search_ops_procedures |
-| `AM_executive_copilot` | Executive Co-Pilot | executive_analyzer (SAM_EXECUTIVE_VIEW), search_strategy_docs, search_press_releases, search_broker_research |
-| `AM_portfolio_modelling_copilot` | Portfolio Modelling Copilot | portfolio_modelling_analyzer, search_methodology_docs, run_backtest, run_simulation |
-| `AM_portfolio_manager_copilot` | Portfolio Manager Co-Pilot | brinson_analyzer, factor_analyzer, hidden_factor_analyzer, macro_regime_analyzer, stress_scenario_analyzer, historical_stress_analyzer, global_macro_analyzer, backtest_historical_stress |
-| `AM_pe_deal_sourcing_copilot` | PE Deal Sourcing Copilot | deal_pipeline_analyzer, search_due_diligence, search_expert_network |
-| `AM_pe_portfolio_monitor` | PE Portfolio Monitor | value_creation_analyzer, search_board_packs |
+| Object | Type | Purpose | Key columns | Builder |
+|---|---|---|---|---|
+| `FACT_RECOMMENDATION` | Table | Broker ratings and price targets by vintage | PK `RECOMMENDATIONID`; FKs `ISSUERID`, `SECURITYID`; `VINTAGEDATE`, `BROKERNAME`, `FAIRVALUE`, `PRICETARGET`, `UPSIDEPCT`, `RATING` | `python/data/recommendations.py:build_fact_recommendation` (first called from `market_data.build_estimate_data`) |
+| `FACT_RESEARCH_THESES` | Table | Analyst investment theses | PK `THESIS_ID`; FK `ISSUERID`; `RECOMMENDATION`, `CONVICTION`, `HEALTH_STATUS`, `ENTRY_PRICE`, `TARGET_PRICE` | `python/ai/thesis_tracker.py:setup_thesis_tracker` |
+| `FACT_INSIDER_TRANSACTIONS` | Table | SEC Form 3, 4 and 5 insider trades | PK `INSIDER_TX_ID`; FK `SECURITYID`; `CIK`, `TRANSACTION_SHARES`, `TRANSACTION_PRICE_PER_SHARE`, `PRIMARY_INSIDER_ROLE` | `python/data/market_data.py:build_fact_insider_transactions` |
+| `FACT_INSTITUTIONAL_HOLDINGS` | Table | SEC 13F institutional holdings | PK `HOLDING_ID`; FK `SECURITYID`; `INSTITUTION_NAME`, `MARKET_VALUE_USD`, `SHARES_HELD` | `python/data/market_data.py:build_fact_institutional_holdings` |
+| `PDF_INTERNAL_CORPUS` | Table | Chunked internal PDFs (research, memos, policies, IPS) | PK (`DOCUMENT_ID`, `CHUNK_INDEX`); `DOCUMENT_TYPE`, `TICKER`, `DOCUMENT_TEXT`, `PUBLISH_DATE` | `python/data/pipelines.py:create_pdf_pipeline` |
+| `PDF_EXTERNAL_CORPUS` | Table | Chunked external PDFs (broker research, press releases, NGO reports) | as `PDF_INTERNAL_CORPUS` | `python/data/pipelines.py:create_pdf_pipeline` |
+| `PDF_REGULATORY_CORPUS` | Table | Chunked regulatory PDFs | (`DOCUMENT_ID`, `CHUNK_INDEX`); `REGULATION_ID`, `REGULATORY_BODY`, `JURISDICTION` | `python/data/pipelines.py:create_regulatory_pdf_pipeline` |
+| `COMPANY_EVENT_TRANSCRIPTS_CORPUS` | Table | Speaker-attributed earnings call chunks | `DOCUMENT_ID`, `SEGMENT_INDEX`, `CHUNK_INDEX`; FKs `SECURITYID`, `ISSUERID`; `SPEAKER_NAME`, `SPEAKER_ROLE`, `DOCUMENT_TEXT` | `python/data/pipelines.py:create_transcripts_pipeline` |
+| `FACT_SIGNALS` | Table | Extracted investment signals | PK `SIGNAL_ID`; `ENTITY_ID`, `SIGNAL_TYPE`, `URGENCY`, `CONFIDENCE`, `EXPOSED_AUM_USD`, `IMPACT_ESTIMATE_BPS` | `python/ai/signal_store.py:create_fact_signals` |
+| `FACT_PROACTIVE_INSIGHTS` | Table | Agent-generated briefings | PK `INSIGHTID`; FK `PORTFOLIOID`; `INSIGHTTYPE`, `AGENTNAME`, `AGENTRESPONSETEXT`, `SEVERITY`, `EXPIRESAT` | `python/ai/proactive_insights.py:create_proactive_insights_tables` |
+| `FACT_PROACTIVE_ALERTS` | Table | Alerts promoted from insights | PK `ALERTID`; FK `PORTFOLIOID`; `ALERTTYPE`, `SEVERITY`, `ISACKNOWLEDGED` | `python/ai/proactive_insights.py:create_proactive_insights_tables` |
+| `FACT_EARNINGS_INSIGHTS` | Table | AI-generated earnings call insights | PK `INSIGHT_ID`; FK `ISSUERID`; `TRANSCRIPT_DATE`, `FISCAL_PERIOD`, `INSIGHT_TEXT` | `python/ai/earnings_insights.py:seed_earnings_insights` |
 
 ---
 
-## RAW Schema - Pipeline Objects
+## 3. MARKET_DATA schema
 
-### Stages (PDF Ingestion)
+Builders are in `python/data/market_data.py` unless marked `structured.py`. The marketplace source names the table in `data/reference_data/data_sources.yaml`; "synthetic" means generated from config.
 
-| Stage | Description |
-|-------|-------------|
-| `PDF_INTERNAL_STAGE` | Internal SAM-branded PDF documents (policies, procedures, memos) |
-| `PDF_EXTERNAL_STAGE` | External PDF documents (broker research, NGO reports, press releases) |
+| Object | Purpose | Key columns | Source | Builder |
+|---|---|---|---|---|
+| `FACT_STOCK_PRICES` | Daily OHLCV prices; the date anchor for the build | PK `PRICE_ID`; FKs `SECURITYID`, `ISSUERID`; `PRICE_DATE`, `PRICE_CLOSE`, `VOLUME` | `STOCK_PRICE_TIMESERIES` | `build_price_anchor` |
+| `FACT_SEC_FINANCIALS` | Quarterly and annual fundamentals | PK `FINANCIAL_ID`; FK `ISSUERID`; `PERIOD_END_DATE`, `REVENUE`, `NET_INCOME`, `EPS_DILUTED`, `FREE_CASH_FLOW` | `SEC_CORPORATE_REPORT_ATTRIBUTES` | `build_real_sec_financials` |
+| `FACT_SEC_SEGMENTS` | Revenue by segment and geography | PK `SEGMENT_ID`; FK `ISSUERID`; `GEOGRAPHY`, `BUSINESS_SEGMENT`, `SEGMENT_REVENUE`, `AI_REVENUE_FLAG` | `SEC_METRICS_TIMESERIES` | `build_sec_segments` |
+| `DIM_GEO_RISK_CLASSIFICATION` | Risk tier per geography | `GEOGRAPHY`; `RISK_TIER`, `RISK_WEIGHT` | `FACT_SEC_SEGMENTS` | `build_geo_risk_classification` |
+| `FACT_SEC_FILING_TEXT` | Chunked SEC filing text | PK `FILING_TEXT_ID`; FK `ISSUERID`; `FILING_TYPE`, `FISCAL_YEAR`, `FILING_TEXT`, `CHUNK_INDEX` | `SEC_REPORT_TEXT_ATTRIBUTES` via `RAW.SEC_FILING_TEXT_RAW` | `pipelines.py:create_sec_filings_pipeline` |
+| `FACT_DIVIDENDS` | Dividend declarations | PK `DIVIDEND_ID`; FKs `ISSUERID`, `SECURITYID`; `EX_DATE`, `DIVIDEND_PER_SHARE` | `SEC_REPORT_TEXT_ATTRIBUTES` (`AI_EXTRACT`), synthetic fallback | `build_fact_dividends` |
+| `FACT_POLICY_RATES` | Central bank policy rates | PK `RATE_ID`; `DATE`, `COUNTRY`, `POLICY_RATE` | BIS timeseries | `build_fact_policy_rates` |
+| `FACT_FX_RATES` | Daily FX rates | PK `FX_RATE_ID`; `DATE`, `BASE_CURRENCY_ID`, `QUOTE_CURRENCY_ID`, `FX_RATE` | `FX_RATES_TIMESERIES` | `build_fact_fx_rates` |
+| `FACT_ECONOMIC_INDICATORS` | Macroeconomic indicators | PK `INDICATOR_ID`; `DATE`, `COUNTRY`, `INDICATOR_NAME`, `VALUE` | Financial economic indicators timeseries | `build_fact_economic_indicators` |
+| `FACT_TREASURY_YIELDS` | US Treasury yield curve | PK `YIELD_ID`; `DATE`, `MATURITY_CODE`, `MATURITY_YEARS`, `YIELD_PCT` | `US_TREASURY_TIMESERIES` | `build_fact_treasury_yields` |
+| `FACT_COUNTRY_EMISSIONS` | Greenhouse gas emissions by country | PK `EMISSION_ID`; `COUNTRY_ISO3`, `EMISSION_YEAR`, `SECTOR`, `EMISSIONS_MT_CO2E` | `CLIMATE_WATCH_TIMESERIES` | `build_fact_country_emissions` |
+| `FACT_SOVEREIGN_FISCAL_OUTLOOK` | IMF fiscal metrics including forecasts | PK `SOVEREIGN_FISCAL_ID`; `COUNTRY_ISO3`, `FISCAL_YEAR`, `MEASURE_NAME`, `VALUE_PCT_GDP`, `IS_FORECAST` | IMF timeseries | `build_fact_sovereign_fiscal_outlook` |
+| `FACT_EXECUTIVE_COMPENSATION` | Executive pay from proxy statements | PK `EXEC_COMP_ID`; FK `ISSUERID`; `EXECUTIVE_NAME`, `SALARY`, `STOCK_AWARDS`, `TOTAL_COMPENSATION` | `SEC_14A_ATTRIBUTES` | `build_fact_executive_compensation` |
+| `DIM_BROKER` | Brokers | PK `BROKER_ID`; `BROKER_NAME`, `BROKER_TYPE` | synthetic | `build_reference_tables` |
+| `DIM_ANALYST` | Sell-side analysts | PK `ANALYST_ID`; FK `BROKER_ID`; `SECTOR_COVERAGE` | synthetic | `build_broker_analyst_data` |
+| `FACT_ANALYST_COVERAGE` | Analyst to issuer coverage | PK `COVERAGE_ID`; FKs `ISSUERID`, `ANALYST_ID`, `BROKER_ID`; `COVERAGE_START_DATE`, `IS_ACTIVE` | synthetic | `build_broker_analyst_data` |
+| `FACT_ESTIMATE_CONSENSUS` | Consensus estimates | PK `CONSENSUS_ID`; FK `ISSUERID`; `ESTIMATE_YEAR`, `DATA_ITEM_ID`, `CONSENSUS_MEAN`, `NUM_ESTIMATES` | `FACT_SEC_FINANCIALS` | `build_estimate_data` |
+| `FACT_ESTIMATE_DATA` | Individual analyst estimates and targets | PK `ESTIMATE_ID`; FKs `ISSUERID`, `ANALYST_ID`, `BROKER_ID`; `DATA_ITEM_ID`, `DATA_VALUE` | `CURATED.FACT_RECOMMENDATION` | `build_estimate_data` |
+| `FACT_TRANSCRIPT_NLP_SCORES` | AI exposure and geo-risk scores from transcripts | FKs `ISSUERID`, `SECURITYID`; `FISCAL_YEAR`, `FISCAL_QUARTER`, `AI_EXPOSURE_SCORE`, `GEO_RISK_SCORE` | `CURATED.COMPANY_EVENT_TRANSCRIPTS_CORPUS` | `build_transcript_nlp_scores` |
+| `FACT_CREDIT_SECTOR_BENCHMARKS` | Sector credit spreads, leverage and default rates | PK `BENCHMARKID`; `SECTOR`, `REPORTDATE`, `AVGSPREAD_BPS`, `MEDIANLEVERAGE`, `DEFAULTRATE_PCT` | synthetic | `build_fact_credit_sector_benchmarks` |
+| `DIM_BENCHMARKS` | ETF-proxied benchmark reference | PK `BENCHMARK_ID`; `BENCHMARK_NAME`, `BENCHMARK_CODE` | config | `structured.py:build_attribution_market_data` |
+| `FACT_BENCHMARK_RETURNS` | Daily benchmark returns from ETF prices | `DATE`, `BENCHMARK_ID`; `BENCHMARK_CODE`, `DAILY_RETURN` | `STOCK_PRICE_TIMESERIES` | `structured.py:build_attribution_market_data` |
+| `FACT_BENCHMARK_SECTOR_WEIGHTS` | Benchmark weight by sector | `DATE`, `BENCHMARK_ID`, `SECTOR`; `BENCHMARK_WEIGHT` | config | `structured.py:build_attribution_market_data` |
+| `FACT_VIX_DAILY` | VIX proxy | `DATE`; `VIX_CLOSE`, `VIX_HIGH`, `VIX_LOW` | `STOCK_PRICE_TIMESERIES` | `structured.py:build_attribution_market_data` |
+| `FACT_SECTOR_RETURNS` | Daily sector returns from sector ETFs | `DATE`, `SECTOR`; `SECTOR_RETURN` | `STOCK_PRICE_TIMESERIES` | `structured.py:build_attribution_market_data` |
 
-### Streams (Pipeline Triggers)
-
-| Stream | On Object | Description |
-|--------|-----------|-------------|
-| `PDF_INTERNAL_STREAM` | `PDF_INTERNAL_STAGE` | Tracks new internal PDF uploads |
-| `PDF_EXTERNAL_STREAM` | `PDF_EXTERNAL_STAGE` | Tracks new external PDF uploads |
-| `TRANSCRIPTS_SPEAKER_STREAM` | `COMPANY_EVENT_TRANSCRIPTS_RAW` | Tracks new transcripts for speaker mapping task |
-| `TRANSCRIPTS_CORPUS_STREAM` | `COMPANY_EVENT_TRANSCRIPTS_RAW` | Tracks new transcripts for corpus build task |
-| `SEC_FILINGS_RAW_STREAM` | `SEC_FILING_TEXT_RAW` | Tracks new SEC filing inserts |
-
-### Tasks (Pipeline DAGs)
-
-| Task | Schedule/Trigger | Description |
-|------|------------------|-------------|
-| `PDF_INTERNAL_PIPELINE_ROOT` | Stream trigger | Root task for internal PDF pipeline |
-| `PDF_INTERNAL_PARSE` | After root | Parse PDFs with AI_PARSE_DOCUMENT |
-| `PDF_INTERNAL_CHUNK` | After parse | Conditional chunking (>512 tokens) |
-| `PDF_EXTERNAL_PIPELINE_ROOT` | Stream trigger | Root task for external PDF pipeline |
-| `PDF_EXTERNAL_PARSE` | After root | Parse PDFs with AI_PARSE_DOCUMENT |
-| `PDF_EXTERNAL_CHUNK` | After parse | Conditional chunking (>512 tokens) |
-| `TRANSCRIPTS_PIPELINE_ROOT` | Stream trigger | Real transcripts pipeline root |
-| `TRANSCRIPTS_SPEAKER_MAPPING` | After root | AI-based speaker identification |
-| `TRANSCRIPTS_CORPUS_BUILD` | After mapping | Chunked corpus with speaker context |
-| `SEC_FILINGS_PIPELINE_ROOT` | Stream trigger | SEC filings pipeline root |
-| `SEC_FILINGS_CHUNK` | After root | Conditional chunking (>512 tokens) |
-
-### Pipeline RAW Tables
-
-| Table | Description |
-|-------|-------------|
-| `PDF_INTERNAL_RAW` | Parsed internal PDF content |
-| `PDF_EXTERNAL_RAW` | Parsed external PDF content |
-| `COMPANY_EVENT_TRANSCRIPTS_RAW` | Real transcripts from Cybersyn |
-| `SEC_FILING_TEXT_RAW` | SEC filing text from Cybersyn |
-
-### Pipeline CURATED Tables
-
-| Table | Description |
-|-------|-------------|
-| `PDF_INTERNAL_CORPUS` | Chunked internal PDF corpus for Cortex Search |
-| `PDF_EXTERNAL_CORPUS` | Chunked external PDF corpus for Cortex Search |
+All objects in `MARKET_DATA` are tables.
 
 ---
 
-## External Data Sources
+## 4. RAW schema
 
-### Cybersyn Data (Snowflake Marketplace)
+Builders are in `python/data/pipelines.py` unless stated otherwise. Pipeline flows are described in [`docs/data_lineage.md`](data_lineage.md#4-document-pipelines).
 
-The project uses Cybersyn financial data available through Snowflake Marketplace:
+| Object | Type | Purpose |
+|---|---|---|
+| `PDF_INTERNAL_STAGE`, `PDF_EXTERNAL_STAGE`, `PDF_REGULATORY_STAGE` | Stage | Generated and regulatory PDFs, directory enabled |
+| `PDF_INTERNAL_STREAM`, `PDF_EXTERNAL_STREAM`, `PDF_REGULATORY_STREAM` | Stream | New files on each PDF stage |
+| `PDF_INTERNAL_RAW`, `PDF_EXTERNAL_RAW`, `PDF_REGULATORY_RAW` | Table | Parsed PDFs: `FILE_PATH`, `DOC_TYPE`, `PARSED_JSON`, `EXTRACTED_TEXT`, `TOKEN_COUNT`, `PARSE_STATUS` |
+| `REGULATION_LOOKUP` | Table | Regulation metadata joined to regulatory chunks |
+| `PDF_INTERNAL_PARSE`, `PDF_EXTERNAL_PARSE`, `PDF_REGULATORY_PARSE` | Task | `AI_PARSE_DOCUMENT` into the raw table |
+| `PDF_INTERNAL_CHUNK`, `PDF_EXTERNAL_CHUNK`, `PDF_REGULATORY_CHUNK` | Task | Chunk, link issuers and merge into the corpus |
+| `COMPANY_EVENT_TRANSCRIPTS_RAW` | Table | Earnings call transcripts loaded from the marketplace (`python/data/transcripts.py:load_raw_table`) |
+| `COMP_EVENT_SPEAKER_MAPPING` | Table | Speaker names and roles identified with `AI_COMPLETE` |
+| `TRANSCRIPTS_SPEAKER_STREAM`, `TRANSCRIPTS_CORPUS_STREAM` | Stream | Changes on `COMPANY_EVENT_TRANSCRIPTS_RAW` |
+| `TRANSCRIPTS_PIPELINE_ROOT`, `TRANSCRIPTS_SPEAKER_MAPPING`, `TRANSCRIPTS_CORPUS_BUILD` | Task | Transcript task graph |
+| `SEC_FILING_TEXT_RAW` | Table | SEC filing text loaded from the marketplace (`load_sec_filings_raw`) |
+| `SEC_FILINGS_RAW_STREAM` | Stream | Changes on `SEC_FILING_TEXT_RAW` |
+| `SEC_FILINGS_PIPELINE_ROOT`, `SEC_FILINGS_CHUNK` | Task | SEC filing task graph |
+| `DOCUMENT_VINTAGE_LOG` | Table | One row per generated document vintage: PK (`DOC_TYPE`, `ENTITY_ID`, `VINTAGE_DATE`) (`python/data/cadence.py`) |
 
-| Configuration | Value |
-|---------------|-------|
-| Database | `FINANCIALS_ECONOMICS_ENTERPRISE` (or `SNOWFLAKE_PUBLIC_DATA_FREE`) |
-| Schema | `CYBERSYN` (or `PUBLIC_DATA_FREE`) |
+The build runs each graph once and leaves every pipeline task suspended. The weekly refresh keeps the root (parse) tasks suspended but resumes their child tasks so that `EXECUTE TASK` on the root runs the whole graph; with the root suspended, nothing runs on a schedule.
 
-Configure in `config.py`:
-```python
-REAL_DATA_SOURCES = {
-    'database': 'FINANCIALS_ECONOMICS_ENTERPRISE',
-    'schema': 'CYBERSYN',
-}
+---
+
+## 5. ML schema
+
+`SAM_DEMO.ML` is both the Feature Store and the Model Registry. Builders are in `python/ai/tools/ml_models.py` unless stated otherwise; settings are in `ML_CONFIG` in `python/config.py`.
+
+### 5.1 Feature and label views
+
+| Object | Type | Purpose | Key columns |
+|---|---|---|---|
+| `V_REGIME_FEATURES` | View | Daily market features (20 and 60 trading-day windows) | `DATE`; `VIX_LEVEL`, `VIX_20D_MA`, `REALISED_VOL_20D`, `REALISED_VOL_60D`, `MOMENTUM_20D`, `MOMENTUM_60D`, `SECTOR_DISPERSION`, `VOL_RISK_PREMIUM` |
+| `V_CREDIT_RISK_FEATURES` | View | Quarterly borrower features with the regime at quarter end | `BORROWERID`, `QUARTER_DATE`; `TOTALLEVERAGE`, `NETLEVERAGE`, `INTERESTCOVERAGE`, `FIXEDCHARGECOVERAGE`, `EBITDA_MARGIN`, `FCF_MARGIN`, `AVG_COVENANT_HEADROOM`, `MIN_COVENANT_HEADROOM`, `BREACH_COUNT`, `RATING_ORDINAL`, `REGIME_ORDINAL` |
+| `V_CREDIT_RISK_LABELS` | View | Training spine and label | `BORROWERID`, `QUARTER_DATE`; `NEXT_QUARTER_STRESS` (a breach or minimum headroom below 5% in the next quarter) |
+
+### 5.2 Feature Store
+
+| Object | Type | Details |
+|---|---|---|
+| `MARKET` | Entity | Join key `MARKET_ID` (constant `GLOBAL`) |
+| `BORROWER` | Entity | Join key `BORROWERID` |
+| `REGIME_FEATURES` / `BUILD` | External feature view | Over `V_REGIME_FEATURES`, timestamp `DATE`; physical view `"REGIME_FEATURES$BUILD"` |
+| `CREDIT_RISK_FEATURES` / `BUILD` | External feature view | Over `V_CREDIT_RISK_FEATURES`, timestamp `QUARTER_DATE`; physical view `"CREDIT_RISK_FEATURES$BUILD"` |
+| `REGIME_TRAINING_DS` / `BUILD_<timestamp>` | Dataset | Point-in-time training set for the regime model |
+| `CREDIT_RISK_TRAINING_DS` / `BUILD_<timestamp>` | Dataset | Point-in-time training set from the label spine |
+
+### 5.3 Models
+
+| Model | Algorithm | Version and alias | Inference used by the build |
+|---|---|---|---|
+| `MARKET_REGIME_GMM` | Custom model: `StandardScaler` and `GaussianMixture` (3 components), with the cluster to label mapping | `BUILD_<timestamp>`; alias `PRODUCTION`, default version | `PREDICT` |
+| `CREDIT_RISK_XGBOOST` | `XGBClassifier`, time-series cross-validation, explainability enabled | `BUILD_<timestamp>`; alias `PRODUCTION`, default version | `PREDICT_PROBA`, `EXPLAIN` |
+
+### 5.4 Model output tables
+
+| Object | Purpose | Key columns | Builder |
+|---|---|---|---|
+| `FACT_REGIME_PREDICTIONS` | Daily regime classification | `DATE`; `REGIME_LABEL` (`RISK_ON`, `TRANSITIONAL`, `RISK_OFF`), `REGIME_PROBABILITY`, `CLUSTER_0_PROB`, `CLUSTER_1_PROB`, `CLUSTER_2_PROB`, `MODEL_VERSION`, `SCORED_AT` | `score_regime` |
+| `FACT_CREDIT_RISK_SCORES` | Probability of next-quarter stress per borrower and quarter | `BORROWER_ID`, `QUARTER_DATE`; `PD_SCORE`, `RISK_RATING` (`LOW_RISK` below 0.1, `MODERATE` below 0.2, `ELEVATED` below 0.5, otherwise `HIGH_RISK`), `SHAP_TOP_FEATURES`, `MODEL_VERSION` | `score_credit_risk` |
+| `FACT_CREDIT_SHAP_EXPLANATIONS` | SHAP value per feature | `BORROWER_ID`, `QUARTER_DATE`, `FEATURE_NAME`; `SHAP_VALUE`, `FEATURE_VALUE` | `score_credit_risk` |
+| `FACT_FACTOR_SCORES` | Monthly factor scores per ticker | `TICKER`, `MONTH_DATE`; `MOMENTUM_SCORE`, `VALUE_SCORE`, `QUALITY_SCORE`, `GROWTH_SCORE`, ... | Created empty by `python/ai/tools/factor_engine.py`; filled by the `factor_discovery` notebook |
+| `FACT_ML_FACTOR_PREDICTIONS` | Predicted monthly returns | `TICKER`, `MONTH_DATE`; `PREDICTED_RETURN`, `SHAP_TOP_FEATURE`, `MODEL_VERSION` | Created empty; filled by the `factor_discovery` notebook |
+| `FACT_FACTOR_RETURNS` | Cross-sectional factor returns and t-statistics | `MONTH_DATE`; `<FACTOR>_RETURN`, `<FACTOR>_TSTAT`, `R_SQUARED` | `factor_engine.populate_factor_returns` (only when `FACT_FACTOR_SCORES` has rows) |
+| `FACT_OPTIMAL_PORTFOLIO` | Optimised weights from predicted returns | `TICKER`, `MONTH_DATE`; `WEIGHT`, `EXPECTED_RETURN`, `RISK_CONTRIBUTION` | `factor_engine.populate_optimal_portfolio` (only when `FACT_ML_FACTOR_PREDICTIONS` has rows) |
+
+`SAM_FACTOR_MODEL_VIEW` therefore returns rows only after the factor notebook has been run. `ML.TMP_CREDIT_SHAP_STAGING` is a temporary table used during scoring.
+
+Other objects that can appear in `ML`:
+
+- `_FEATURE_STORE_METADATA` and `SNOWML_SNAPSHOT_STATUS` are maintained by the Snowflake Feature Store and Model Registry.
+- `STG_FACTOR_MONTHLY_PRICES`, `STG_FACTOR_MARKET_FEATURES_RAW`, `STG_FACTOR_FUNDAMENTAL_FEATURES_RAW`, `STG_FACTOR_FORWARD_RETURNS` and `STG_FACTOR_PREDICTION_BASE` are staging tables created only by an optional SQL alternative to the notebook for filling the factor tables; the build does not create them.
+
+---
+
+## 6. AI schema
+
+The semantic views, search services, tools and agents and how they connect are described in [`docs/data_lineage.md`](data_lineage.md#5-ai-layer). The physical objects are:
+
+| Object | Type | Created by |
+|---|---|---|
+| 17 `SAM_*_VIEW` objects | Semantic view | `python/ai/semantic_views.py` from `python/ai/semantic_view_definitions/*.yaml` |
+| 12 `SAM_*` services | Cortex Search service | `python/ai/cortex_search.py` |
+| 8 `AM_*` agents | Agent | `python/ai/agents/` |
+| `EXPLAIN_DATA_ORIGIN`, `GENERATE_PDF_REPORT`, `RUN_MONTE_CARLO_TOOL`, `RUN_BACKTEST_TOOL`, `RUN_ATTRIBUTION_TOOL`, `RUN_STRESS_BACKTEST_TOOL`, `RUN_SCENARIO_SENSITIVITY_TOOL`, `RUN_COUNTERFACTUAL_ANALYSIS`, `SP_UPSERT_RESEARCH_THESIS`, `PREDICT_BORROWER_PD` | Procedure | `python/ai/tools/`, `python/ai/thesis_tracker.py` |
+| `MA_SIMULATION_TOOL`, `MA_SIMULATION_ENGINE`, `NORM_PPF`, `SIMULATE_PATH`, `SIMULATE_PATH_BATCH` | Function | `python/ai/tools/ma_simulation.py`, `python/ai/tools/monte_carlo.py` |
+| `TOOL_RUN_PORTFOLIOS`, `TOOL_BACKTEST_RUNS`, `TOOL_BACKTEST_TIMESERIES`, `TOOL_SIMULATION_RUNS`, `TOOL_SIMULATION_PATHS`, `TOOL_SIMULATION_TERMINAL_VALUES` | Table | `python/ai/tools/tool_run_tables.py` |
+| `PORTFOLIO_SUGGESTIONS`, `PORTFOLIO_SUGGESTION_HOLDINGS`, `PORTFOLIO_SUGGESTION_BACKTEST`, `PORTFOLIO_SUGGESTION_BACKTEST_TIMESERIES`, `PORTFOLIO_SUGGESTION_SIMULATION`, `PORTFOLIO_SUGGESTION_SIMULATION_PATHS` | Table | `python/ai/tools/suggestion_tables.py` |
+| `EVAL_DATASET_AM_PORTFOLIO_MANAGEMENT_COPILOT`, `EVAL_DATASET_AM_RESEARCH_COPILOT` | Table | `python/ai/evaluations.py`, one per agent with questions in `data/reference_data/evaluations.yaml` |
+| `SKILL_STAGE`, `PDF_REPORTS`, `CODE_BUNDLE_STAGE` | Stage | `pipelines.py:upload_skills_to_stage`, `tools/pdf_report.py`, `automation.py` |
+| `DAILY_ATTRIBUTION_BRIEFING`, `ANOMALY_ALERT_CHECK`, `ANOMALY_ALERT_PROMOTE`, `POSITION_CHANGE_INSIGHT`, `MORNING_BRIEFING_TASK` | Task (suspended) | `python/ai/proactive_insights.py` |
+| `POSITION_CHANGE_STREAM` | Stream on `CURATED.FACT_POSITION_DAILY_ABOR` | `python/ai/proactive_insights.py` |
+| `WEEKLY_REFRESH_TASK` | Task (resumed) | `python/data/automation.py` |
+| `SAM_BUILD_BUNDLE`, `SAM_WEEKLY_BUNDLE` | Code Bundle | `scripts/setup.sql`, `python/data/automation.py` |
+
+---
+
+## 7. Key relationships
+
+```mermaid
+erDiagram
+    DIM_ISSUER ||--o{ DIM_SECURITY : ISSUERID
+    DIM_ISSUER ||--o{ DIM_SUPPLY_CHAIN_RELATIONSHIPS : COMPANY_ISSUERID
+    DIM_BENCHMARK ||--o{ DIM_PORTFOLIO : BENCHMARKID
+    DIM_PORTFOLIO ||--o{ FACT_TRANSACTION : PORTFOLIOID
+    DIM_SECURITY ||--o{ FACT_TRANSACTION : SECURITYID
+    DIM_PORTFOLIO ||--o{ FACT_POSITION_DAILY_ABOR : PORTFOLIOID
+    DIM_SECURITY ||--o{ FACT_POSITION_DAILY_ABOR : SECURITYID
+    DIM_SECURITY ||--o{ FACT_STOCK_PRICES : SECURITYID
+    DIM_BENCHMARK ||--o{ FACT_BENCHMARK_HOLDINGS : BENCHMARKID
+    DIM_PORTFOLIO ||--|| DIM_PORTFOLIO_IPS : PORTFOLIOID
+    DIM_CLIENT ||--o{ FACT_CLIENT_FLOWS : CLIENTID
+    DIM_PORTFOLIO ||--o{ FACT_CLIENT_FLOWS : PORTFOLIOID
+    DIM_ISSUER ||--o{ FACT_SEC_FINANCIALS : ISSUERID
+    DIM_ISSUER ||--o{ FACT_RECOMMENDATION : ISSUERID
+    DIM_PE_FUND ||--o{ DIM_PORTFOLIO_COMPANY : FUNDID
+    DIM_PORTFOLIO_COMPANY ||--o{ FACT_PORTFOLIO_COMPANY_KPI : PORTFOLIOCOMPANYID
+    DIM_CREDIT_FUND ||--o{ DIM_CREDIT_BORROWER : FUNDID
+    DIM_CREDIT_BORROWER ||--o{ DIM_CREDIT_FACILITY : BORROWERID
+    DIM_CREDIT_FACILITY ||--o{ FACT_CREDIT_COVENANT_TRACKING : FACILITYID
+    DIM_CREDIT_BORROWER ||--o{ FACT_CREDIT_BORROWER_FINANCIALS : BORROWERID
+    DIM_CREDIT_BORROWER ||--o{ FACT_CREDIT_RISK_SCORES : BORROWER_ID
 ```
 
-### Source Table Mapping
-
-| Cybersyn Source Table | SAM_DEMO Target | Description |
-|-----------------------|-----------------|-------------|
-| `STOCK_PRICE_TIMESERIES` | `MARKET_DATA.FACT_STOCK_PRICES` | Daily OHLCV prices from Nasdaq |
-| `SEC_CORPORATE_REPORT_ATTRIBUTES` | `MARKET_DATA.FACT_SEC_FINANCIALS` | XBRL financial statements |
-| `SEC_METRICS_TIMESERIES` | `MARKET_DATA.FACT_SEC_SEGMENTS` | Revenue segments by geography/business |
-| `SEC_REPORT_TEXT_ATTRIBUTES` | `MARKET_DATA.FACT_SEC_FILING_TEXT` | Full text of SEC filings |
-| `SEC_REPORT_TEXT_ATTRIBUTES` (8-K) | `MARKET_DATA.FACT_DIVIDENDS` | Dividend data via AI_EXTRACT |
-| `BANK_FOR_INTERNATIONAL_SETTLEMENTS_TIMESERIES` | `MARKET_DATA.FACT_POLICY_RATES` | Central bank policy rates |
-| `FX_RATES_TIMESERIES` | `MARKET_DATA.FACT_FX_RATES` | Foreign exchange rates |
-| `CYBERSYN_FINANCIAL_ECONOMIC_INDICATORS_TIMESERIES` | `MARKET_DATA.FACT_ECONOMIC_INDICATORS` | US economic indicators (FRED) |
-| `COMPANY_EVENT_TRANSCRIPT_ATTRIBUTES_V2` | `CURATED.COMPANY_EVENT_TRANSCRIPTS_CORPUS` | Earnings calls, AGMs, etc. |
-| `COMPANY_INDEX` | `CURATED.DIM_ISSUER` (enrichment) | Company master with CIK, EIN, LEI |
-| `US_TREASURY_PAR_YIELD_CURVE_RATES` | `MARKET_DATA.FACT_TREASURY_YIELDS` | Treasury yield curve (14 maturities) |
-| `CLIMATE_WATCH_GHG_EMISSIONS_TIMESERIES` | `MARKET_DATA.FACT_COUNTRY_EMISSIONS` | Country GHG emissions by sector |
-| `SEC_CIK_INDEX` + `SEC_INSIDER_TRANSACTIONS` | `CURATED.FACT_INSIDER_TRANSACTIONS` | Form 4 insider trading |
-| `SEC_CIK_INDEX` + `SEC_INSTITUTIONAL_HOLDINGS` | `CURATED.FACT_INSTITUTIONAL_HOLDINGS` | 13F institutional holdings |
-| `NPORT_FUND_CHARACTERISTICS` + `NPORT_PORTFOLIO_HOLDINGS` | `CURATED.FACT_BENCHMARK_HOLDINGS` | N-PORT real benchmark weights |
+- Every security belongs to exactly one issuer; issuer-level data (SEC financials, recommendations, transcripts) reaches holdings via `DIM_SECURITY.ISSUERID`.
+- Positions are derived from `FACT_TRANSACTION`; they are never generated independently.
+- Document corpora carry `TICKER`, `ISSUERID` or `SECURITYID` where the document is about a company, and the private markets corpora carry their deal, company, facility or borrower key.
+- ML output tables use `BORROWER_ID` (with underscore) for the borrower key.
 
 ---
 
-## Data Quality Standards
+## 8. Demo universe
 
-### Validation Rules
+These counts are defined in configuration, not derived from live data.
 
-- **Portfolio Weights**: Sum to 100% (±0.1% tolerance)
-- **Transaction Integrity**: Transaction log balances to ABOR positions
-- **Security Identifiers**: Ticker columns properly populated
-- **Price Data**: No negative prices, realistic ranges by asset class
-- **Date Consistency**: Business days only, proper date ranges
-- **Foreign Key Relationships**: All relationships valid
-- **Historical Range**: All data limited to `config.YEARS_OF_HISTORY` (5 years default)
+| Entity | Count | Defined in |
+|---|---|---|
+| Issuers and securities | 503: core 13, major 34, additional 30, supply chain 2, expanded 424 | `DEMO_COMPANIES` in `python/config.py` (from `data/reference_data/companies.yaml`) |
+| Portfolios | 11 | `PORTFOLIOS` in `python/config.py` |
+| Benchmarks | 3: S&P 500, MSCI ACWI, Nasdaq 100 | `BENCHMARKS` in `python/config.py` |
+| Clients | 75, of which 13 are named demo clients | `data/reference_data/distributions.yaml`, `DEMO_CLIENTS` in `python/config.py` |
+| PE funds, portfolio companies, pipeline deals | 4, 6, 10 | `PE_FUNDS`, `PE_PORTFOLIO_COMPANIES`, `PE_DEAL_PIPELINE` in `python/data/structured.py` |
+| Credit funds, borrowers, facilities, pipeline deals | 3, 15, 20, 10 | `CREDIT_FUNDS`, `CREDIT_BORROWERS`, `CREDIT_FACILITIES`, `CREDIT_DEAL_PIPELINE` in `python/data/structured.py` |
+| History | 5 years | `YEARS_OF_HISTORY` in `python/config.py` |
 
----
-
-## Sample Data Characteristics
-
-### Portfolios (11 total)
-- SAM Global Flagship Multi-Asset
-- SAM ESG Leaders Global Equity
-- SAM Global Thematic Growth
-- SAM Technology & Infrastructure
-- SAM US Core Equity
-- SAM Renewable & Climate Solutions
-- SAM Sustainable Global Equity
-- SAM AI & Digital Innovation
-- SAM Global Balanced 60/40
-- SAM Tech Disruptors Equity
-- SAM US Value Equity
-
-### Companies (79 total, all with CIK)
-- **Core Demo Companies** (8): AAPL, MSFT, NVDA, GOOGL, TSM, SNOW, CMC, RBBN
-- **Major US Stocks** (~40): AMZN, META, TSLA, AMD, INTC, etc.
-- **Additional Companies** (~31): Sector diversity
-
-### Demo Clients (15 named clients)
-- **Standard** (8): Meridian Capital Partners, Yale University Endowment, Gates Foundation Trust, etc.
-- **At-Risk** (3): Pacific Coast Pension Fund, Alpine University Endowment, Metropolitan Insurance Group
-- **New** (2): Midwest Community Foundation, Nordic Heritage Family Office
-
-### Geographic Coverage
-- US: ~55%
-- Europe: ~30%
-- APAC/EM: ~15%
+Portfolios: SAM Technology & Infrastructure, SAM Global Flagship Multi-Asset, SAM ESG Leaders Global Equity, SAM US Core Equity, SAM Renewable & Climate Solutions, SAM Sustainable Global Equity, SAM AI & Digital Innovation, SAM Global Balanced 60/40, SAM Tech Disruptors Equity, SAM US Value Equity, SAM Multi-Asset Income.
 
 ---
 
-## Related Documentation
+## 9. Data quality checks
 
-- [`docs/data_lineage.md`](data_lineage.md) - Data flow, dependencies, and impact analysis
-- [`docs/production_pipelines_demo.md`](production_pipelines_demo.md) - Pipeline demo runbook
-- [`docs/DATA_SOURCING_STRATEGY.md`](DATA_SOURCING_STRATEGY.md) - Real vs synthetic data strategy
-- [`.cursor/rules/data-index.mdc`](../.cursor/rules/data-index.mdc) - Data generation patterns
-- [`.cursor/rules/pipelines.mdc`](../.cursor/rules/pipelines.mdc) - Pipeline development patterns
+`validate_data_quality` in `python/data/structured.py` runs after the curated tables are built and logs a warning when:
+
+- portfolio weights at the latest holding date do not sum to 100%;
+- a security in `DIM_SECURITY` has no `TICKER`.
+
+---
+
+## Related documentation
+
+- [`docs/data_lineage.md`](data_lineage.md) - Data flow, dependencies and the weekly refresh

@@ -15,7 +15,7 @@ Do NOT trigger for general portfolio recommendations — those use concentration
 
 ### Step 1: Current Holdings
 
-Tool: `quantitative_analyzer`
+Tool: `portfolio_analyzer`
 
 Get current positions (market value, weight) for target securities.
 
@@ -59,7 +59,7 @@ Apply these formulas:
 - TWAP: For less liquid names to spread market impact
 - Block: For large positions where a single cross is available
 
-**Settlement Timeline**: All trades settle on T+2 standard settlement cycle.
+**Settlement Timeline**: US equities settle T+1 (since 28 May 2024); UK and EU equities settle T+2 until the move to T+1 on 11 Oct 2027.
 
 ## Stopping Points
 

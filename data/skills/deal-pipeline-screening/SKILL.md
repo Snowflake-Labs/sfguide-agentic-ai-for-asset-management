@@ -58,7 +58,7 @@ Present:
 Tool: `credit_portfolio_analyzer`
 Query: Existing portfolio holdings in same sector, similar leverage profile
 
-Tool: `macro_data_analyzer`
+Tool: `market_analyzer`
 Query: Recent market transaction data for comparable leverage/sector
 
 Present:

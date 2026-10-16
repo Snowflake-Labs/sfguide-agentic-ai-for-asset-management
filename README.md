@@ -1,19 +1,21 @@
 # Agentic AI for Asset Management
 
-Build a complete multi-agent AI system for investment management using Snowflake CoWOrk, Cortex Agents, Cortex Analyst, and Cortex Search.
+Build a complete multi-agent AI system for investment management using Snowflake CoWork, Cortex Agents, Cortex Analyst, and Cortex Search.
+
+> This README describes the layout of the published sfguide repository, not this source repository. `scripts/sync_to_sfguide.sh` copies `scripts/workspace_setup.sql` to `scripts/setup.sql` and this file to `README.md` in that repository, so the paths below are correct for the destination.
 
 ## What You Get
 
 | Component | Count | Description |
 |-----------|-------|-------------|
-| **Cortex Agents** | 8 | Portfolio, Research, Sales, Executive, Risk, Operations, Credit, Private Equity |
-| **Semantic Views** | 10 | Cortex Analyst models for structured data queries |
-| **Search Services** | 16 | Document retrieval across broker research, earnings, filings, press |
+| **Cortex Agents** | 8 | Portfolio Management, Research, Client Advisory, Executive Leadership, Risk & Compliance, Operations, Private Credit, Private Equity |
+| **Semantic Views** | 17 | Cortex Analyst models for structured data queries |
+| **Search Services** | 11 | Document retrieval across broker research, earnings, filings, press |
 | **Agent Skills** | 36 | Specialized workflows (backtesting, Monte Carlo, memo generation, etc.) |
-| **Data Tables** | 60+ | Real securities from 14,000+ SEC filings + generated portfolios |
+| **Data Tables** | 60+ | 503 real securities with SEC filings + generated portfolios |
 | **ML Notebooks** | 3 | Factor discovery, market regime detection, credit risk modelling |
 
-## Quick Start (15-20 minutes)
+## Quick Start (about an hour)
 
 ### Step 1: Create Git Workspace
 
@@ -23,34 +25,51 @@ Build a complete multi-agent AI system for investment management using Snowflake
 4. Authentication: Public repository (no auth needed)
 5. Name the workspace (e.g., "SAM Demo")
 
-### Step 2: Run Infrastructure Setup (2 minutes)
+### Step 2: Run Setup (45-60 minutes)
 
-Open [`scripts/setup.sql`](scripts/setup.sql) in the workspace and execute it. This creates:
+Open [`scripts/setup.sql`](scripts/setup.sql) in the workspace.
+
+**Set `$ws_name` in Section 0, at the top of the script, to the name of the workspace you
+created in Step 1.** Run `SHOW WORKSPACES IN ACCOUNT` if you need to check the name.
+That is the only value you need to edit.
+
+Then execute the whole script, as `ACCOUNTADMIN`. Sections 1-8 create the
+infrastructure:
 - `SAM_DEMO` database with all schemas
-- `SAM_DEMO_ROLE` with required privileges (including task execution)
+- `SAM_DEMO_EXECUTION_WH` and `SAM_DEMO_CORTEX_WH` warehouses
+- `FSI_DEMO_BUILD_ROLE` (build) and `SAM_DEMO_USER_ROLE` (demo consumption) with required privileges
+- Compute pools, including `SAM_DEMO_ML_POOL` for the ML notebooks
 - Marketplace data share (Snowflake Public Data - Free)
-- Cortex AI enablement and Snowflake Intelligence
+- Cortex AI enablement and agent access for `SAM_DEMO_USER_ROLE` in Snowflake CoWork
 
-### Step 3: Run Setup (15-20 minutes)
-
-1. Open `python/workspace_main.py` in the workspace
-2. Connect a **notebook service** when prompted:
-   - Python version: 3.11+
-   - Compute pool: any available pool
-   - Artifact repositories (optional): SNOWFLAKE.SNOWPARK.PYPI_SHARED_REPOSITORY
-3. Open the Terminal and run the following command:  
-   `pip install -r "$PWD/requirements.txt"`. 
-4. Restart the kernel
-5. Click **Run**
-
-The script builds everything sequentially:
+Section 9 then creates a Code Bundle from your workspace and runs the build, which
+builds everything sequentially:
 - Dimension and fact tables from real securities data
 - Market data from Snowflake Marketplace (SEC filings, prices, segments)
 - Document corpus from 70+ templates
 - Semantic views, search services, and tools
 - All 8 Cortex Agents with skills
 
-### Step 4: Use the Agents
+There is no `pip install`, no kernel restart and no "click Run" step — packages are
+installed declaratively from `code_bundle.yml`.
+
+The build runs with `--skip-automation`, so the demo data stays frozen at the build
+date and no scheduled task is left running. To keep the demo current, install the
+weekly refresh task afterwards, which advances prices, documents and briefings every
+Monday:
+
+```sql
+EXECUTE CODE BUNDLE SAM_DEMO.AI.SAM_BUILD_BUNDLE
+    ENTRYPOINT = 'python/workspace_main.py'
+    ARGUMENTS  = ('--scope', 'automation');
+```
+
+> If the `CREATE OR REPLACE CODE BUNDLE` result says *"source directory ... does not
+> exist or contains no files"*, `$ws_name` does not match your workspace. Fix it and
+> re-run that statement before continuing — it is only a warning, not an error, so
+> the build would otherwise fail later with a missing entrypoint.
+
+### Step 3: Use the Agents
 
 1. Navigate to **AI & ML > Snowflake CoWork**
 2. Select any agent
@@ -60,11 +79,11 @@ The script builds everything sequentially:
 
 | Agent | Role | Key Capabilities |
 |-------|------|-----------------|
-| **Portfolio Copilot** | Portfolio Manager | Holdings, attribution, risk, backtest, Monte Carlo, performance narratives |
+| **Portfolio Management Copilot** | Portfolio Manager | Holdings, attribution, risk, backtest, Monte Carlo, performance narratives |
 | **Research Copilot** | Research Analyst | Equity research reports, earnings intelligence, competitive analysis, investment memos |
-| **Sales Advisor** | Client Relations | Meeting briefs, client letters, RFP responses, flow analytics |
-| **Executive Command Center** | C-Suite | Firm KPIs, strategy ranking, competitor intelligence, M&A simulation |
-| **Risk & Compliance** | Risk Officer | Position limits, mandate breaches, ESG monitoring, regulatory lookup |
+| **Client Advisory Copilot** | Client Relations | Meeting briefs, client letters, RFP responses, flow analytics |
+| **Executive Leadership Copilot** | C-Suite | Firm KPIs, strategy ranking, competitor intelligence, M&A simulation |
+| **Risk & Compliance Copilot** | Risk Officer | Position limits, mandate breaches, ESG monitoring, regulatory lookup |
 | **Operations Copilot** | Middle Office | Settlement tracking, reconciliation, NAV, corporate actions |
 | **Private Credit Copilot** | Credit PM | Covenant monitoring, deal pipeline, borrower financials |
 | **Private Equity Copilot** | PE PM | Deal sourcing, due diligence, value creation tracking |
@@ -73,8 +92,7 @@ The script builds everything sequentially:
 
 ```
 python/
-├── workspace_main.py       <- Workspace entry point (click Run)
-├── main.py                 <- CLI entry point (local development)
+├── workspace_main.py       <- Build entry point (run by the Code Bundle in setup.sql)
 ├── config.py               <- Central configuration
 ├── ai/
 │   ├── agents/             <- 8 agent definitions
@@ -102,35 +120,48 @@ notebooks/
 └── credit_risk_model.ipynb
 
 scripts/
-└── setup.sql               <- Infrastructure DDL (run first)
+├── setup.sql               <- Infrastructure DDL and build (run first)
+└── teardown.sql            <- Removes everything setup.sql created
 ```
 
 ## Demo Scenarios
 
-Each agent has documented demo scenarios with step-by-step conversations:
+Select the agent in Snowflake CoWork and start with the opening prompt, then follow the
+agent's suggested next steps. Each scenario has a full presenter script (PDF) with the
+follow-up prompts, expected responses and talking points:
 
-- [Portfolio Manager Scenarios](docs/demo_scenarios_portfolio_manager.md)
-- [Research Analyst Scenarios](docs/demo_scenarios_research_analyst.md)
-- [Sales Advisor Scenarios](docs/demo_scenarios_sales.md)
-- [Executive Scenarios](docs/demo_scenarios_executive.md)
-- [Risk & Compliance Scenarios](docs/demo_scenarios_risk_compliance.md)
-- [Middle Office Scenarios](docs/demo_scenarios_middle_office.md)
+| Agent | Scenario | Opening prompt | Script |
+|-------|----------|----------------|--------|
+| Portfolio Management | Portfolio insights and benchmarking | *What are my top 10 holdings by market value in the SAM Technology & Infrastructure portfolio?* | [PDF](docs/demo_scripts/01_portfolio_insights_and_benchmarking.pdf) |
+| Portfolio Management | Performance decomposition | *Break down the performance attribution for SAM Global Flagship portfolio versus S&P 500 for the most recent quarter. What drove our performance?* | [PDF](docs/demo_scripts/02_performance_decomposition.pdf) |
+| Research | Investment memo (NVDA) | *What is the latest research saying about AI and cloud computing opportunities in technology companies?* | [PDF](docs/demo_scripts/03_investment_memo_nvda.pdf) |
+| Risk & Compliance | Concentration breach, remediation and verification | *Run a concentration check across all portfolios using the latest month-end holdings. Show me any positions above the 6.5% warning threshold, sorted by weight.* | [PDF](docs/demo_scripts/04_concentration_breach_remediation.pdf) |
+| Client Advisory | RFP response | *I need to prepare an RFP response for a pension fund that wants an ESG equity mandate.* | [PDF](docs/demo_scripts/05_rfp_response.pdf) |
+| Operations | NAV and settlement monitoring | *Show me all failed settlements from the past 3 business days and help me understand what's causing them.* | [PDF](docs/demo_scripts/06_nav_and_settlement_monitoring.pdf) |
+| Executive Leadership | Complete executive briefing | *Prepare a complete executive briefing for the board covering firm-wide AUM and performance across all strategies, client flow analysis with any concentration concerns, our top and bottom performing strategies with context, and relevant investment philosophy positioning that explains our current strategic direction. Generate a professional PDF for board distribution.* | [PDF](docs/demo_scripts/07_complete_executive_briefing.pdf) |
+| Private Equity | Portfolio company performance and value creation | *Give me an overview of our portfolio company performance. Which companies are on track and which need attention?* | [PDF](docs/demo_scripts/08_portfolio_company_performance.pdf) |
+| Private Credit | Covenant breach investigation | *Check for covenant breaches across the portfolio. Show me any borrowers with breaches or headroom below 10%.* | [PDF](docs/demo_scripts/09_covenant_breach_investigation.pdf) |
+
+The demo date is the latest price date available in the Snowflake Public Data share at
+build time, and positions are month-end, so "current" means the latest month-end.
+Agents answer from that live data, so figures move as the data does.
 
 ## Cleanup
 
-To remove all demo objects:
-```sql
-DROP DATABASE IF EXISTS SAM_DEMO;
-DROP WAREHOUSE IF EXISTS SAM_DEMO_WH;
-DROP ROLE IF EXISTS SAM_DEMO_ROLE;
-```
+Open [`scripts/teardown.sql`](scripts/teardown.sql) in the workspace and run the whole
+script as `ACCOUNTADMIN`. It suspends the weekly refresh and drops the `SAM_DEMO`, `FSI_DEMO_CONFIG` and
+`SNOWFLAKE_PUBLIC_DATA_FREE` databases, both compute pools, both warehouses and both
+roles.
+
+Your Git workspace is kept. `FSI_DEMO_BUILD_ROLE` and `FSI_DEMO_CONFIG` are shared with other FSI
+demos: if another one uses this account, remove those two statements before running it.
 
 ## Requirements
 
 - Snowflake account with Cortex features enabled
 - ACCOUNTADMIN role (for initial setup)
-- Snowflake Intelligence available
-- A compute pool for the workspace notebook service
+- Snowflake CoWork available
+- A Snowflake Workspace created from this Git repository (Step 1)
 
 ## License
 

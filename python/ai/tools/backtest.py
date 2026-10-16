@@ -56,8 +56,15 @@ DECLARE
     portfolios_array VARIANT := PARSE_JSON(portfolios);
     run_id VARCHAR;
     result VARIANT;
+    latest_price_date DATE;
+    window_start DATE;
+    window_end DATE;
 BEGIN
     run_id := UUID_STRING();
+
+    SELECT MAX(PRICE_DATE) INTO :latest_price_date FROM {database_name}.CURATED.V_SECURITY_RETURNS;
+    window_end := LEAST(COALESCE(TRY_TO_DATE(NULLIF(TRIM(end_date), '')), latest_price_date), latest_price_date);
+    window_start := COALESCE(TRY_TO_DATE(NULLIF(TRIM(start_date), '')), DATEADD('year', -3, window_end));
 
     INSERT INTO {database_name}.{ai_schema}.TOOL_RUN_PORTFOLIOS (RUN_ID, PORTFOLIO_IDX, TICKER, WEIGHT)
     WITH 
@@ -107,7 +114,7 @@ BEGIN
         FROM {database_name}.CURATED.V_SECURITY_RETURNS sr
         JOIN {database_name}.CURATED.DIM_SECURITY s ON sr.SECURITYID = s.SecurityID
         WHERE s.Ticker IN (SELECT ticker FROM all_tickers)
-          AND sr.PRICE_DATE BETWEEN :start_date AND :end_date
+          AND sr.PRICE_DATE BETWEEN :window_start AND :window_end
     ),
     portfolio_daily_returns AS (
         SELECT 
@@ -196,7 +203,7 @@ BEGIN
         FROM {database_name}.CURATED.V_SECURITY_RETURNS sr
         JOIN {database_name}.CURATED.DIM_SECURITY s ON sr.SECURITYID = s.SecurityID
         WHERE s.Ticker IN (SELECT ticker FROM all_tickers)
-          AND sr.PRICE_DATE BETWEEN :start_date AND :end_date
+          AND sr.PRICE_DATE BETWEEN :window_start AND :window_end
     ),
     portfolio_daily_returns AS (
         SELECT 
@@ -243,8 +250,8 @@ BEGIN
             portfolio_id,
             COUNT(*) as trading_days,
             COUNT(*) / 252.0 as num_years,
-            MAX(cumulative_value) as final_cumulative,
-            MAX(cumulative_value) - 1 as total_return,
+            MAX_BY(cumulative_value, PRICE_DATE) as final_cumulative,
+            MAX_BY(cumulative_value, PRICE_DATE) - 1 as total_return,
             AVG(daily_return) as mean_return,
             STDDEV(daily_return) as daily_std,
             STDDEV(daily_return) * SQRT(252) as annualized_vol,
@@ -267,9 +274,9 @@ BEGIN
     SELECT 
         :run_id,
         ps.portfolio_id,
-        :start_date::DATE,
-        :end_date::DATE,
-        :rebalance_freq,
+        :window_start,
+        :window_end,
+        'daily',
         ps.trading_days,
         ROUND((ps.total_return) * 100, 2),
         ROUND((POWER(1 + ps.total_return, 1.0 / NULLIF(ps.num_years, 0)) - 1) * 100, 2),
@@ -292,7 +299,12 @@ BEGIN
                 'start_date', TO_VARCHAR(START_DATE, 'YYYY-MM-DD'),
                 'end_date', TO_VARCHAR(END_DATE, 'YYYY-MM-DD'),
                 'rebalance_freq', REBALANCE_FREQ,
-                'trading_days', TRADING_DAYS
+                'trading_days', TRADING_DAYS,
+                'latest_price_date', TO_VARCHAR(:latest_price_date, 'YYYY-MM-DD'),
+                'window_note', IFF(END_DATE < DATEADD('day', -31, :latest_price_date),
+                    'Window ends before the latest price date ' || TO_VARCHAR(:latest_price_date, 'YYYY-MM-DD')
+                        || '; omit end_date to run to the latest available data.',
+                    NULL)
             ),
             'performance', OBJECT_CONSTRUCT(
                 'total_return_pct', TOTAL_RETURN_PCT,

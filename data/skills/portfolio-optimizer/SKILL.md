@@ -13,7 +13,7 @@ Trigger when user asks: "optimize my portfolio", "maximum Sharpe portfolio", "ef
 
 ### Step 1: Get Input Data
 
-Tool: `quantitative_analyzer` or `portfolio_modelling_analyzer`
+Tool: `portfolio_analyzer` or `portfolio_modelling_analyzer`
 
 Retrieve:
 - Expected returns (from factor model or historical)

@@ -1,6 +1,6 @@
 # Portfolio Managers — PM dimension seed data
 #
-# Maps PMs to portfolios for the executive leadership cockpit.
+# Maps PMs to portfolios for the executive leadership agent.
 # Each PM manages 1-3 portfolios. The assignment table links them.
 #
 # Teams: Growth Equities, Sustainable Strategies, Multi-Asset Solutions, 

@@ -51,25 +51,25 @@ portfolio_context:
     description: "Portfolio name from DIM_PORTFOLIO.PortfolioName"
     source: "DIM_PORTFOLIO.PortfolioName"
     type: "string"
-    required_for: ["ips", "portfolio_review"]
+    required_for: ["ips"]
   
   PORTFOLIO_ID:
     description: "PortfolioID from DIM_PORTFOLIO.PortfolioID"
     source: "DIM_PORTFOLIO.PortfolioID"
     type: "integer"
-    required_for: ["ips", "portfolio_review"]
+    required_for: ["ips"]
   
   STRATEGY:
     description: "Portfolio strategy from DIM_PORTFOLIO.Strategy"
     source: "DIM_PORTFOLIO.Strategy"
     type: "string"
-    required_for: ["ips", "portfolio_review"]
+    required_for: ["ips"]
   
   BASE_CURRENCY:
     description: "Base currency from DIM_PORTFOLIO.BaseCurrency"
     source: "DIM_PORTFOLIO.BaseCurrency"
     type: "string"
-    required_for: ["ips", "portfolio_review"]
+    required_for: ["ips"]
   
   INCEPTION_DATE:
     description: "Portfolio inception date from DIM_PORTFOLIO.InceptionDate"
@@ -85,17 +85,12 @@ date_context:
     type: "date"
     required_for: ["broker_research", "earnings_transcripts", "press_releases", "ngo_reports", "engagement_notes"]
   
-  REPORT_DATE:
-    description: "Report date for portfolio reviews"
-    source: "Generated based on reporting cycles"
-    type: "date"
-    required_for: ["portfolio_review", "market_data"]
   
   FISCAL_QUARTER:
     description: "Fiscal quarter (e.g., Q3 2024)"
     source: "Generated for earnings"
     type: "string"
-    required_for: ["earnings_transcripts", "portfolio_review"]
+    required_for: ["earnings_transcripts"]
   
   FISCAL_YEAR:
     description: "Calendar year"
@@ -133,7 +128,7 @@ provider_context:
   
   MEETING_TYPE:
     description: "Engagement meeting type"
-    source: "Selected from [Management Meeting, Shareholder Call, Site Visit]"
+    source: "Selected from [Management Meeting, Shareholder Call, Compliance Discussion]; Supply Chain Review is pinned via documents.yaml focus_engagements"
     type: "string"
     required_for: ["engagement_notes"]
   

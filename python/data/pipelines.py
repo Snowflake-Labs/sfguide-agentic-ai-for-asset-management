@@ -98,7 +98,18 @@ CHUNK_OVERLAP_CHARS = 200
 # PDF PIPELINE CREATION (Simple 2-Task Architecture)
 # =============================================================================
 
-def create_pdf_pipeline(session: Session, pipeline_key: str) -> bool:
+def _table_ddl(full_rebuild: bool) -> str:
+    """DDL verb for tables that accumulate across refreshes.
+
+    These tables were created with CREATE OR REPLACE unconditionally, so every
+    build wiped the RAW and CORPUS rows the tasks had appended - the single
+    biggest reason the pipeline could not run weekly. Default to
+    IF NOT EXISTS; only an explicit rebuild replaces them.
+    """
+    return "CREATE OR REPLACE TABLE" if full_rebuild else "CREATE TABLE IF NOT EXISTS"
+
+
+def create_pdf_pipeline(session: Session, pipeline_key: str, full_rebuild: bool = False) -> bool:
     """
     Create a PDF ingestion pipeline with simple 2-task architecture.
     
@@ -148,7 +159,7 @@ def create_pdf_pipeline(session: Session, pipeline_key: str) -> bool:
         log_detail(f"  Created stream: {pipeline['stream_name']}")
         
         session.sql(f"""
-            CREATE OR REPLACE TABLE {raw_table_fqn} (
+            {_table_ddl(full_rebuild)} {raw_table_fqn} (
                 FILE_PATH VARCHAR(1000) NOT NULL,
                 FILE_NAME VARCHAR(500),
                 FILE_SIZE NUMBER,
@@ -168,7 +179,7 @@ def create_pdf_pipeline(session: Session, pipeline_key: str) -> bool:
         log_detail(f"  Created RAW table: {pipeline['raw_table']}")
         
         session.sql(f"""
-            CREATE OR REPLACE TABLE {corpus_table_fqn} (
+            {_table_ddl(full_rebuild)} {corpus_table_fqn} (
                 DOCUMENT_ID VARCHAR(100) NOT NULL,
                 SOURCE_FILE_PATH VARCHAR(1000),
                 CHUNK_INDEX NUMBER DEFAULT 0,
@@ -288,7 +299,7 @@ def create_pdf_pipeline(session: Session, pipeline_key: str) -> bool:
                         EXTRACTED_TEXT as DOCUMENT_TEXT,
                         TOKEN_COUNT,
                         'en' as LANGUAGE,
-                        COALESCE(TRY_TO_DATE(REGEXP_SUBSTR(FILE_NAME, '\\d{{8}}'), 'YYYYMMDD'), DATE(PARSED_AT)) as PUBLISH_DATE,
+                        COALESCE(TRY_TO_DATE(REGEXP_SUBSTR(FILE_NAME, '([0-9]{{8}})[.]pdf$', 1, 1, 'e', 1), 'YYYYMMDD'), DATE(PARSED_AT)) as PUBLISH_DATE,
                         TICKER,
                         COMPANY_NAME,
                         GICS_SECTOR
@@ -305,7 +316,7 @@ def create_pdf_pipeline(session: Session, pipeline_key: str) -> bool:
                         c.value::VARCHAR as DOCUMENT_TEXT,
                         AI_COUNT_TOKENS('ai_embed', '{config.AI_EMBEDDING_MODEL}', c.value::VARCHAR) as TOKEN_COUNT,
                         'en' as LANGUAGE,
-                        COALESCE(TRY_TO_DATE(REGEXP_SUBSTR(e.FILE_NAME, '\\d{{8}}'), 'YYYYMMDD'), DATE(e.PARSED_AT)) as PUBLISH_DATE,
+                        COALESCE(TRY_TO_DATE(REGEXP_SUBSTR(e.FILE_NAME, '([0-9]{{8}})[.]pdf$', 1, 1, 'e', 1), 'YYYYMMDD'), DATE(e.PARSED_AT)) as PUBLISH_DATE,
                         e.TICKER,
                         e.COMPANY_NAME,
                         e.GICS_SECTOR
@@ -408,7 +419,7 @@ def populate_regulation_lookup(session: Session) -> int:
     return inserted
 
 
-def create_regulatory_pdf_pipeline(session: Session) -> bool:
+def create_regulatory_pdf_pipeline(session: Session, full_rebuild: bool = False) -> bool:
     pipeline = PDF_PIPELINES['regulatory']
     database = config.DATABASE['name']
     raw_schema = config.DATABASE['schemas']['raw']
@@ -440,7 +451,7 @@ def create_regulatory_pdf_pipeline(session: Session) -> bool:
         log_detail(f"  Created stream: {pipeline['stream_name']}")
 
         session.sql(f"""
-            CREATE OR REPLACE TABLE {raw_table_fqn} (
+            {_table_ddl(full_rebuild)} {raw_table_fqn} (
                 FILE_PATH VARCHAR(1000) NOT NULL,
                 FILE_NAME VARCHAR(500),
                 FILE_SIZE NUMBER,
@@ -460,7 +471,7 @@ def create_regulatory_pdf_pipeline(session: Session) -> bool:
         log_detail(f"  Created RAW table: {pipeline['raw_table']}")
 
         session.sql(f"""
-            CREATE OR REPLACE TABLE {corpus_table_fqn} (
+            {_table_ddl(full_rebuild)} {corpus_table_fqn} (
                 DOCUMENT_ID        VARCHAR(100) NOT NULL,
                 SOURCE_FILE_PATH   VARCHAR(1000),
                 CHUNK_INDEX        NUMBER DEFAULT 0,
@@ -650,7 +661,7 @@ def create_regulatory_pdf_pipeline(session: Session) -> bool:
         return False
 
 
-def create_all_pdf_pipelines(session: Session) -> Tuple[int, int]:
+def create_all_pdf_pipelines(session: Session, full_rebuild: bool = False) -> Tuple[int, int]:
     """Create all PDF pipelines (internal, external, and regulatory)."""
     success_count = 0
     fail_count = 0
@@ -658,12 +669,12 @@ def create_all_pdf_pipelines(session: Session) -> Tuple[int, int]:
     for pipeline_key in PDF_PIPELINES:
         if PDF_PIPELINES[pipeline_key].get('custom_pipeline'):
             if pipeline_key == 'regulatory':
-                if create_regulatory_pdf_pipeline(session):
+                if create_regulatory_pdf_pipeline(session, full_rebuild=full_rebuild):
                     success_count += 1
                 else:
                     fail_count += 1
         else:
-            if create_pdf_pipeline(session, pipeline_key):
+            if create_pdf_pipeline(session, pipeline_key, full_rebuild=full_rebuild):
                 success_count += 1
             else:
                 fail_count += 1
@@ -684,7 +695,7 @@ def get_corpus_pipeline_doc_types() -> List[str]:
     ]
 
 
-def create_corpus_pipeline_task(session: Session, doc_type: str) -> bool:
+def create_corpus_pipeline_task(session: Session, doc_type: str, full_rebuild: bool = False) -> bool:
     """
     Create a task to build a chunked corpus table from RAW markdown.
     
@@ -757,17 +768,12 @@ def create_corpus_pipeline_task(session: Session, doc_type: str) -> bool:
         extra_select += ", MEETING_TYPE"
         extra_insert_cols += ", MEETING_TYPE"
     
-    try:
-        # Create corpus task with conditional chunking
-        # Schedule required for standalone tasks (we'll execute manually and suspend)
-        session.sql(f"""
-            CREATE OR REPLACE TASK {task_fqn}
-            WAREHOUSE = {warehouse}
-            SCHEDULE = '1440 MINUTE'
-            AS
-            CREATE OR REPLACE TABLE {corpus_table_fqn} AS
+    # The corpus query is built once and used twice: to create the table if it
+    # does not exist yet, and as the MERGE source inside the task. Sharing the
+    # text guarantees the table's schema always matches what the task produces.
+    corpus_query = f"""
             WITH raw_with_tokens AS (
-                SELECT 
+                SELECT
                     {base_select}{extra_select},
                     AI_COUNT_TOKENS('ai_embed', '{config.AI_EMBEDDING_MODEL}', RAW_MARKDOWN) as TOKEN_COUNT
                 FROM {raw_table_fqn}
@@ -807,8 +813,8 @@ def create_corpus_pipeline_task(session: Session, doc_type: str) -> bool:
                 FROM raw_with_tokens r,
                 LATERAL FLATTEN(
                     input => SNOWFLAKE.CORTEX.SPLIT_TEXT_RECURSIVE_CHARACTER(
-                        r.RAW_MARKDOWN, 
-                        'markdown', 
+                        r.RAW_MARKDOWN,
+                        'markdown',
                         {CHUNK_SIZE_CHARS},
                         {CHUNK_OVERLAP_CHARS}
                     )
@@ -817,7 +823,41 @@ def create_corpus_pipeline_task(session: Session, doc_type: str) -> bool:
             )
             SELECT * FROM short_docs
             UNION ALL
-            SELECT * FROM long_docs
+            SELECT * FROM long_docs"""
+
+    all_insert_cols = base_insert_cols + extra_insert_cols
+    merge_columns = [c.strip() for c in all_insert_cols.split(',') if c.strip()]
+    # DOCUMENT_ID is the merge key, so it is not in the SET list.
+    update_assignments = ", ".join(
+        f"tgt.{c} = src.{c}" for c in merge_columns if c.upper() != 'DOCUMENT_ID'
+    )
+    insert_columns = ", ".join(merge_columns)
+    insert_values = ", ".join(f"src.{c}" for c in merge_columns)
+
+    try:
+        # Create the corpus table if absent, deriving its schema from the same
+        # query the task runs. LIMIT 0 so this costs nothing.
+        session.sql(f"""
+            {_table_ddl(full_rebuild)} {corpus_table_fqn} AS
+            SELECT * FROM ({corpus_query}) LIMIT 0
+        """).collect()
+
+        # MERGE rather than CREATE OR REPLACE TABLE AS. The old form rebuilt the
+        # corpus from whatever RAW happened to hold, so a corpus row whose source
+        # document had aged out vanished, and the search index lost history the
+        # demo is meant to show. Merging on DOCUMENT_ID makes the task additive
+        # and safely repeatable.
+        session.sql(f"""
+            CREATE OR REPLACE TASK {task_fqn}
+            WAREHOUSE = {warehouse}
+            SCHEDULE = '1440 MINUTE'
+            AS
+            MERGE INTO {corpus_table_fqn} tgt
+            USING ({corpus_query}) src
+            ON tgt.DOCUMENT_ID = src.DOCUMENT_ID
+            WHEN MATCHED THEN UPDATE SET {update_assignments}
+            WHEN NOT MATCHED THEN INSERT ({insert_columns})
+            VALUES ({insert_values})
         """).collect()
         
         log_detail(f"  Created corpus task: {task_name} (SUSPENDED)")
@@ -828,13 +868,23 @@ def create_corpus_pipeline_task(session: Session, doc_type: str) -> bool:
         return False
 
 
-def ensure_raw_tables_exist(session: Session) -> int:
+def ensure_raw_tables_exist(session: Session, full_rebuild: bool = False) -> int:
     """
     Create empty RAW tables for all non-PDF document types.
     This ensures tables exist before corpus pipeline tasks reference them.
-    
+
+    Despite the name this used CREATE OR REPLACE, so simply creating the corpus
+    pipelines truncated every hydrated document - the exact rows
+    write_to_raw_table now merges into. It is called by
+    create_all_corpus_pipelines, so on a weekly run it would have discarded the
+    corpus before the task could rebuild it.
+
+    Args:
+        session: Snowpark session
+        full_rebuild: Replace existing RAW tables. Defaults to False.
+
     Returns:
-        Number of tables created
+        Number of tables created or already present
     """
     database = config.DATABASE['name']
     raw_schema = config.DATABASE['schemas']['raw']
@@ -900,7 +950,7 @@ def ensure_raw_tables_exist(session: Session) -> int:
         
         try:
             session.sql(f"""
-                CREATE OR REPLACE TABLE {table_fqn} (
+                {_table_ddl(full_rebuild)} {table_fqn} (
                     {base_cols}{extra_cols}
                 )
             """).collect()
@@ -911,12 +961,12 @@ def ensure_raw_tables_exist(session: Session) -> int:
     return tables_created
 
 
-def create_all_corpus_pipelines(session: Session) -> Tuple[int, int]:
+def create_all_corpus_pipelines(session: Session, full_rebuild: bool = False) -> Tuple[int, int]:
     """Create corpus pipeline tasks for all non-real, non-PDF document types."""
     
     # First ensure all RAW tables exist (so tasks can reference them)
     log_substep("Ensuring RAW tables exist")
-    tables_created = ensure_raw_tables_exist(session)
+    tables_created = ensure_raw_tables_exist(session, full_rebuild=full_rebuild)
     log_detail(f"  Ensured {tables_created} RAW tables exist")
     
     doc_types = get_corpus_pipeline_doc_types()
@@ -926,7 +976,7 @@ def create_all_corpus_pipelines(session: Session) -> Tuple[int, int]:
     log_substep("Creating corpus pipeline tasks")
     
     for doc_type in doc_types:
-        if create_corpus_pipeline_task(session, doc_type):
+        if create_corpus_pipeline_task(session, doc_type, full_rebuild=full_rebuild):
             success_count += 1
         else:
             fail_count += 1
@@ -960,7 +1010,6 @@ def create_transcripts_pipeline(session: Session) -> bool:
     corpus_stream_name = f"{database}.{raw_schema}.TRANSCRIPTS_CORPUS_STREAM"
     speaker_mapping_table = f"{database}.{raw_schema}.COMP_EVENT_SPEAKER_MAPPING"
     corpus_table = f"{database}.{curated_schema}.COMPANY_EVENT_TRANSCRIPTS_CORPUS"
-    dim_security_table = f"{database}.{curated_schema}.DIM_SECURITY"
     
     root_task = f"{database}.{raw_schema}.TRANSCRIPTS_PIPELINE_ROOT"
     speaker_task = f"{database}.{raw_schema}.TRANSCRIPTS_SPEAKER_MAPPING"
@@ -1017,13 +1066,19 @@ def create_transcripts_pipeline(session: Session) -> bool:
         
         # Speaker mapping task: Extract speakers using AI_COMPLETE
         # Note: CORTEX.COMPLETE returns VARCHAR, need TRY_PARSE_JSON to convert to OBJECT
+        #
+        # MERGE, not INSERT. This task calls AI_COMPLETE once per speaker's first
+        # appearance, so re-processing a transcript both duplicates rows and re-pays for
+        # identification that was already done. There is no WHEN MATCHED branch on purpose:
+        # an already-resolved speaker does not need a second, possibly different, answer.
         speaker_sql = f"""
             CREATE OR REPLACE TASK {speaker_task}
             WAREHOUSE = {warehouse}
             USER_TASK_TIMEOUT_MS = 7200000
             AFTER {root_task}
             AS
-            INSERT INTO {speaker_mapping_table}
+            MERGE INTO {speaker_mapping_table} AS tgt
+            USING (
             WITH all_paragraphs AS (
                 SELECT 
                     t.TRANSCRIPT_ID,
@@ -1103,17 +1158,48 @@ def create_transcripts_pipeline(session: Session) -> bool:
                 LEFT(a.parsed_response:speaker_company::STRING, 200) AS SPEAKER_COMPANY
             FROM ai_responses a
             WHERE a.parsed_response IS NOT NULL
+            -- A duplicate key in the source aborts the whole MERGE. first_appearances
+            -- dedupes on (TRANSCRIPT_ID, speaker_id), which does not cover this key: two
+            -- transcripts for one event would collide on it. Guard the key itself.
+            QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY a.COMPANY_ID, a.CIK, a.EVENT_TYPE, a.EVENT_TIMESTAMP,
+                             CONCAT('SPEAKER_', a.speaker_id)
+                ORDER BY IFF(a.TRANSCRIPT_TYPE = 'SPEAKERS_ANNOTATED', 0, 1),
+                         a.TRANSCRIPT_ID
+            ) = 1
+            ) AS src
+            ON  tgt.COMPANY_ID = src.COMPANY_ID
+            AND tgt.CIK = src.CIK
+            AND tgt.EVENT_TYPE = src.EVENT_TYPE
+            AND tgt.EVENT_TIMESTAMP = src.EVENT_TIMESTAMP
+            AND tgt.SPEAKER_ID = src.SPEAKER_ID
+            WHEN NOT MATCHED THEN INSERT (
+                COMPANY_ID, CIK, COMPANY_NAME, PRIMARY_TICKER, EVENT_TYPE, EVENT_TIMESTAMP,
+                FISCAL_PERIOD, FISCAL_YEAR, TRANSCRIPT_TYPE, SPEAKER_ID,
+                SPEAKER_NAME, SPEAKER_ROLE, SPEAKER_COMPANY
+            ) VALUES (
+                src.COMPANY_ID, src.CIK, src.COMPANY_NAME, src.PRIMARY_TICKER,
+                src.EVENT_TYPE, src.EVENT_TIMESTAMP, src.FISCAL_PERIOD, src.FISCAL_YEAR,
+                src.TRANSCRIPT_TYPE, src.SPEAKER_ID,
+                src.SPEAKER_NAME, src.SPEAKER_ROLE, src.SPEAKER_COMPANY
+            )
         """
         session.sql(speaker_sql).collect()
         log_detail(f"  Created speaker task: TRANSCRIPTS_SPEAKER_MAPPING (SUSPENDED)")
         
         # Corpus build task: Extract segments, chunk, and build corpus
+        #
+        # MERGE, not INSERT. The stream is recreated on every pipeline build, so a rebuild
+        # re-presents every raw transcript and a plain INSERT appends a second copy of
+        # every chunk. Keyed on DOCUMENT_ID, which already encodes the transcript, speaker
+        # group and chunk index, so it is the natural identity of a corpus row.
         corpus_sql = f"""
             CREATE OR REPLACE TASK {corpus_task}
             WAREHOUSE = {warehouse}
             AFTER {speaker_task}
             AS
-            INSERT INTO {corpus_table}
+            MERGE INTO {corpus_table} AS tgt
+            USING (
             WITH 
             base AS (
                 SELECT 
@@ -1237,6 +1323,26 @@ def create_transcripts_pipeline(session: Session) -> bool:
                 FISCAL_YEAR,
                 FISCAL_PERIOD
             FROM enriched_chunks
+            -- A duplicate key in the source aborts the whole MERGE. The speaker mapping is
+            -- joined in with a LEFT JOIN above, so any duplicate speaker row fans out into
+            -- duplicate chunks. Guard the key rather than relying on that table being clean.
+            QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY DOCUMENT_ID ORDER BY SPEAKER_NAME, SPEAKER_ROLE
+            ) = 1
+            ) AS src
+            ON tgt.DOCUMENT_ID = src.DOCUMENT_ID
+            WHEN NOT MATCHED THEN INSERT (
+                DOCUMENT_ID, DOCUMENT_TITLE, DOCUMENT_TYPE, SecurityID, IssuerID,
+                PUBLISH_DATE, LANGUAGE, EVENT_TYPE, SEGMENT_INDEX, CHUNK_INDEX,
+                DOCUMENT_TEXT, TICKER, COMPANY_NAME, GICS_SECTOR,
+                SPEAKER_NAME, SPEAKER_ROLE, FISCAL_YEAR, FISCAL_PERIOD
+            ) VALUES (
+                src.DOCUMENT_ID, src.DOCUMENT_TITLE, src.DOCUMENT_TYPE, src.SecurityID,
+                src.IssuerID, src.PUBLISH_DATE, src.LANGUAGE, src.EVENT_TYPE,
+                src.SEGMENT_INDEX, src.CHUNK_INDEX, src.DOCUMENT_TEXT, src.TICKER,
+                src.COMPANY_NAME, src.GICS_SECTOR, src.SPEAKER_NAME, src.SPEAKER_ROLE,
+                src.FISCAL_YEAR, src.FISCAL_PERIOD
+            )
         """
         session.sql(corpus_sql).collect()
         log_detail(f"  Created corpus task: TRANSCRIPTS_CORPUS_BUILD (SUSPENDED)")
@@ -1310,10 +1416,6 @@ def create_sec_filings_pipeline(session: Session) -> bool:
     curated_schema = config.DATABASE['schemas']['curated']
     warehouse = config.WAREHOUSES['execution']['name']
     
-    source_db = config.REAL_DATA_SOURCES['database']
-    source_schema = config.REAL_DATA_SOURCES['schema']
-    source_table = config.REAL_DATA_SOURCES['tables']['sec_filing_text']['table']
-    
     raw_table = f"{database}.{raw_schema}.SEC_FILING_TEXT_RAW"
     stream_name = f"{database}.{raw_schema}.SEC_FILINGS_RAW_STREAM"
     target_table = f"{database}.{market_data_schema}.FACT_SEC_FILING_TEXT"
@@ -1364,12 +1466,8 @@ def create_sec_filings_pipeline(session: Session) -> bool:
             WAREHOUSE = {warehouse}
             AFTER {root_task}
             AS
-            INSERT INTO {target_table} (
-                IssuerID, FILING_TYPE, FISCAL_YEAR, FISCAL_QUARTER, DOCUMENT_TITLE,
-                SEC_DOCUMENT_ID, ADSH, CIK, VARIABLE, VARIABLE_NAME,
-                PERIOD_END_DATE, FILING_TEXT, TEXT_LENGTH, CHUNK_INDEX, TOTAL_CHUNKS,
-                DATA_SOURCE, LOADED_AT
-            )
+            MERGE INTO {target_table} AS tgt
+            USING (
             WITH new_filings AS (
                 SELECT 
                     r.SEC_DOCUMENT_ID, r.CIK, r.ADSH, r.VARIABLE, r.VARIABLE_NAME,
@@ -1440,9 +1538,28 @@ def create_sec_filings_pipeline(session: Session) -> bool:
                 WHERE nf.token_count > {CHUNK_TOKEN_THRESHOLD}
             )
             
-            SELECT * FROM short_texts
-            UNION ALL
-            SELECT * FROM long_texts_chunked
+            SELECT * FROM (
+                SELECT * FROM short_texts
+                UNION ALL
+                SELECT * FROM long_texts_chunked
+            )
+            -- A duplicate key in the source aborts the whole MERGE, so guard the key.
+            QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY SEC_DOCUMENT_ID ORDER BY CHUNK_INDEX
+            ) = 1
+            ) AS src
+            ON tgt.SEC_DOCUMENT_ID = src.SEC_DOCUMENT_ID
+            WHEN NOT MATCHED THEN INSERT (
+                IssuerID, FILING_TYPE, FISCAL_YEAR, FISCAL_QUARTER, DOCUMENT_TITLE,
+                SEC_DOCUMENT_ID, ADSH, CIK, VARIABLE, VARIABLE_NAME,
+                PERIOD_END_DATE, FILING_TEXT, TEXT_LENGTH, CHUNK_INDEX, TOTAL_CHUNKS,
+                DATA_SOURCE, LOADED_AT
+            ) VALUES (
+                src.IssuerID, src.FILING_TYPE, src.FISCAL_YEAR, src.FISCAL_QUARTER,
+                src.DOCUMENT_TITLE, src.SEC_DOCUMENT_ID, src.ADSH, src.CIK, src.VARIABLE,
+                src.VARIABLE_NAME, src.PERIOD_END_DATE, src.FILING_TEXT, src.TEXT_LENGTH,
+                src.CHUNK_INDEX, src.TOTAL_CHUNKS, src.DATA_SOURCE, src.LOADED_AT
+            )
         """
         session.sql(chunk_sql).collect()
         log_detail(f"  Created chunk task: SEC_FILINGS_CHUNK (SUSPENDED)")
@@ -1477,17 +1594,31 @@ def create_sec_filings_pipeline(session: Session) -> bool:
         return False
 
 
-def load_sec_filings_raw(session: Session, test_mode: bool = False) -> int:
+def load_sec_filings_raw(session: Session, test_mode: bool = False, since: str = None) -> int:
     """
     Load SEC filing text into SEC_FILING_TEXT_RAW table.
     This triggers the SEC_FILINGS_RAW_STREAM for pipeline processing.
-    
+
+    Safe to call repeatedly. The load is a MERGE that only inserts filings whose
+    SEC_DOCUMENT_ID is not already present, so running it again adds new filings and leaves
+    existing ones untouched. That is what lets the weekly refresh reuse the same loader as
+    the initial build.
+
+    Existing rows are deliberately never updated: the chunking task reads SEC_DOCUMENT_IDs
+    from the stream and INSERTs into the chunk table with no matching delete, so touching an
+    already-processed row would duplicate its chunks rather than replace them.
+
     Args:
         session: Active Snowpark session
         test_mode: If True, limit records for faster testing
-    
+        since: Optional 'YYYY-MM-DD' filter on PERIOD_END_DATE, to narrow the source scan.
+            Note this is the period the filing covers, NOT when it was filed - the source
+            table carries no filed or updated timestamp. A filing published this week about
+            an older period would fall outside a narrow `since`, so treat this purely as a
+            performance hint and leave it None whenever completeness matters.
+
     Returns:
-        Number of filings loaded
+        Number of filings actually inserted by this call (0 when already up to date)
     """
     database = config.DATABASE['name']
     raw_schema = config.DATABASE['schemas']['raw']
@@ -1504,48 +1635,59 @@ def load_sec_filings_raw(session: Session, test_mode: bool = False) -> int:
     
     # Limit for test mode
     limit_clause = "LIMIT 100" if test_mode else ""
-    
-    # Load from source into RAW table
+
+    since_clause = f"AND t.PERIOD_END_DATE >= '{since}'::DATE" if since else ""
+
+    # MERGE rather than INSERT so the loader is idempotent — see the docstring for why
+    # there is no WHEN MATCHED branch.
     load_sql = f"""
-    INSERT INTO {raw_table} (
-        SEC_DOCUMENT_ID,
-        CIK,
-        ADSH,
-        VARIABLE,
-        VARIABLE_NAME,
-        PERIOD_END_DATE,
-        FILING_TEXT,
-        TEXT_LENGTH,
-        IssuerID
+    MERGE INTO {raw_table} AS tgt
+    USING (
+        SELECT
+            t.SEC_DOCUMENT_ID,
+            t.CIK,
+            t.ADSH,
+            t.VARIABLE,
+            t.VARIABLE_NAME,
+            t.PERIOD_END_DATE,
+            t.VALUE AS FILING_TEXT,
+            LENGTH(t.VALUE) AS TEXT_LENGTH,
+            i.IssuerID
+        FROM {source_db}.{source_schema}.{source_table} t
+        INNER JOIN {dim_issuer_table} i ON t.CIK = i.CIK
+        INNER JOIN {database}.{curated_schema}.DIM_COVERAGE_UNIVERSE cu ON i.IssuerID = cu.ISSUERID
+        WHERE t.PERIOD_END_DATE >= DATEADD('year', -{config.YEARS_OF_HISTORY}, CURRENT_DATE())
+          AND LENGTH(t.VALUE) > 100
+          {since_clause}
+        -- A MERGE fails outright on a duplicate key in the source, so guard the key even
+        -- though the coverage-universe join does not currently fan out.
+        QUALIFY ROW_NUMBER() OVER (
+            PARTITION BY t.SEC_DOCUMENT_ID ORDER BY LENGTH(t.VALUE) DESC
+        ) = 1
+        {limit_clause}
+    ) AS src
+    ON tgt.SEC_DOCUMENT_ID = src.SEC_DOCUMENT_ID
+    WHEN NOT MATCHED THEN INSERT (
+        SEC_DOCUMENT_ID, CIK, ADSH, VARIABLE, VARIABLE_NAME,
+        PERIOD_END_DATE, FILING_TEXT, TEXT_LENGTH, IssuerID
+    ) VALUES (
+        src.SEC_DOCUMENT_ID, src.CIK, src.ADSH, src.VARIABLE, src.VARIABLE_NAME,
+        src.PERIOD_END_DATE, src.FILING_TEXT, src.TEXT_LENGTH, src.IssuerID
     )
-    SELECT 
-        t.SEC_DOCUMENT_ID,
-        t.CIK,
-        t.ADSH,
-        t.VARIABLE,
-        t.VARIABLE_NAME,
-        t.PERIOD_END_DATE,
-        t.VALUE AS FILING_TEXT,
-        LENGTH(t.VALUE) AS TEXT_LENGTH,
-        i.IssuerID
-    FROM {source_db}.{source_schema}.{source_table} t
-    INNER JOIN {dim_issuer_table} i ON t.CIK = i.CIK
-    INNER JOIN {database}.{curated_schema}.DIM_COVERAGE_UNIVERSE cu ON i.IssuerID = cu.ISSUERID
-    WHERE t.PERIOD_END_DATE >= DATEADD('year', -{config.YEARS_OF_HISTORY}, CURRENT_DATE())
-      AND LENGTH(t.VALUE) > 100
-    {limit_clause}
     """
-    
+
     try:
-        session.sql(load_sql).collect()
-        
-        # Get count for logging
-        count_result = session.sql(f"SELECT COUNT(*) as cnt FROM {raw_table}").collect()
-        filing_count = count_result[0]['CNT']
-        log_detail(f"  Loaded {filing_count:,} SEC filings to RAW table (stream will trigger pipeline)")
-        
-        return filing_count
-        
+        merge_result = session.sql(load_sql).collect()
+        inserted = merge_result[0][0] if merge_result else 0
+
+        total = session.sql(f"SELECT COUNT(*) as cnt FROM {raw_table}").collect()[0]['CNT']
+        if inserted:
+            log_detail(f"  Inserted {inserted:,} new SEC filings ({total:,} total in RAW table, stream will trigger pipeline)")
+        else:
+            log_detail(f"  No new SEC filings ({total:,} already in RAW table)")
+
+        return inserted
+
     except Exception as e:
         log_error(f"Failed to load SEC filings to RAW table: {e}")
         raise
@@ -1796,13 +1938,11 @@ def upload_pdfs_to_stages(session: Session, pdf_base_dir: str = None) -> Tuple[i
         Tuple of (uploaded_count, failed_count)
     """
     if pdf_base_dir is None:
-        # data/ is inside python/, project root is parent of python/
-        python_dir = os.path.dirname(os.path.dirname(__file__))
-        project_root = os.path.dirname(python_dir)
-        pdf_base_dir = os.path.join(
-            project_root,
-            config.UNSTRUCTURED_PDF_OUTPUT_DIR
-        )
+        # Ask pdf_exporter rather than re-deriving the path: it falls back to a
+        # temp directory when the project root is read-only (Code Bundle), and if
+        # the two disagreed the upload would silently find nothing to send.
+        from core import pdf_exporter
+        pdf_base_dir = pdf_exporter.get_output_directory()
     
     if not os.path.exists(pdf_base_dir):
         log_warning(f"PDF directory not found: {pdf_base_dir}")
@@ -1869,16 +2009,24 @@ def _upload_regulatory_pdfs(session: Session) -> Tuple[int, int]:
     uploaded = 0
     failed = 0
 
-    for filename in os.listdir(source_dir):
-        if not filename.lower().endswith('.pdf'):
-            continue
-        file_path = os.path.join(source_dir, filename)
-        try:
-            session.file.put(file_path, f"{stage_fqn}/regulatory_docs", overwrite=True, auto_compress=False)
-            uploaded += 1
-        except Exception as e:
-            log_warning(f"Failed to upload regulatory PDF {filename}: {e}")
-            failed += 1
+    # Walk subdirectories: a download that produced a folder of related PDFs
+    # (as the AIFMD fetch did) was silently dropped by a top-level-only listing,
+    # so the regulation was declared in regulation_sources.yaml but never
+    # appeared in the corpus.
+    for root, _dirs, filenames in os.walk(source_dir):
+        for filename in filenames:
+            if not filename.lower().endswith('.pdf'):
+                continue
+            file_path = os.path.join(root, filename)
+            try:
+                session.file.put(
+                    file_path, f"{stage_fqn}/regulatory_docs",
+                    overwrite=True, auto_compress=False,
+                )
+                uploaded += 1
+            except Exception as e:
+                log_warning(f"Failed to upload regulatory PDF {filename}: {e}")
+                failed += 1
 
     log_detail(f"  Uploaded {uploaded} regulatory PDFs to stage ({failed} failed)")
     return uploaded, failed
@@ -1965,34 +2113,25 @@ def ensure_execute_task_privilege(session: Session) -> bool:
     Returns:
         True if privilege is available or was granted, False otherwise
     """
+    current_role = session.sql("SELECT CURRENT_ROLE()").collect()[0][0]
+    expected_role = config.RBAC['platform_build_role']
+
+    if current_role != expected_role:
+        log_warning(f"  Current role is {current_role}; expected {expected_role} for pipeline builds")
+
     try:
-        current_role = session.sql("SELECT CURRENT_ROLE()").collect()[0][0]
-        
-        # Check if we already have the privilege by trying a harmless operation
-        # Unfortunately there's no direct way to check EXECUTE TASK privilege
-        # We'll try to grant it and handle the error gracefully
-        
-        try:
-            session.sql(f"GRANT EXECUTE TASK ON ACCOUNT TO ROLE {current_role}").collect()
-            log_detail(f"  Granted EXECUTE TASK privilege to role {current_role}")
-            return True
-        except Exception as grant_error:
-            error_msg = str(grant_error)
-            if "already granted" in error_msg.lower() or "privilege" in error_msg.lower():
-                # Privilege may already exist
-                log_detail(f"  EXECUTE TASK privilege check for role {current_role}")
-                return True
-            else:
-                log_warning(f"  Cannot grant EXECUTE TASK privilege (requires ACCOUNTADMIN)")
-                log_warning(f"  Please run as ACCOUNTADMIN: GRANT EXECUTE TASK ON ACCOUNT TO ROLE {current_role};")
-                return False
-                
+        session.sql("SHOW TASKS LIMIT 1").collect()
+        log_detail(f"  EXECUTE TASK prerequisites assumed satisfied for role {current_role}")
+        return True
     except Exception as e:
-        log_warning(f"  Could not check EXECUTE TASK privilege: {e}")
+        log_warning(f"  Could not validate task visibility for role {current_role}: {e}")
+        log_warning(
+            f"  Grant required before build: GRANT EXECUTE TASK ON ACCOUNT TO ROLE {expected_role};"
+        )
         return False
 
 
-def create_all_pipelines(session: Session) -> Dict[str, Tuple[int, int]]:
+def create_all_pipelines(session: Session, full_rebuild: bool = False) -> Dict[str, Tuple[int, int]]:
     """
     Create all unstructured data pipelines (stages, streams, tables, tasks).
     All tasks are created SUSPENDED.
@@ -2001,6 +2140,13 @@ def create_all_pipelines(session: Session) -> Dict[str, Tuple[int, int]]:
     - The current role must have EXECUTE TASK privilege on the account
     - Grant with: GRANT EXECUTE TASK ON ACCOUNT TO ROLE <your_role>;
     
+    Args:
+        session: Snowpark session
+        full_rebuild: Replace the RAW and CORPUS tables rather than creating them
+            only if absent. Defaults to False so a rerun - and the weekly refresh
+            in particular - preserves every previously published vintage. Pass
+            True only for an intentional teardown and rebuild.
+
     Returns:
         Dict mapping pipeline category to (success_count, fail_count)
     """
@@ -2012,17 +2158,17 @@ def create_all_pipelines(session: Session) -> Dict[str, Tuple[int, int]]:
     results = {}
     
     # PDF pipelines
-    results['pdf'] = create_all_pdf_pipelines(session)
+    results['pdf'] = create_all_pdf_pipelines(session, full_rebuild=full_rebuild)
     
     # Corpus pipelines
-    results['corpus'] = create_all_corpus_pipelines(session)
+    results['corpus'] = create_all_corpus_pipelines(session, full_rebuild=full_rebuild)
     
     # Real transcripts pipeline
     results['transcripts'] = (1, 0) if create_transcripts_pipeline(session) else (0, 1)
     
     # SEC filings pipeline
     results['sec_filings'] = (1, 0) if create_sec_filings_pipeline(session) else (0, 1)
-    
+
     # Summary
     total_success = sum(r[0] for r in results.values())
     total_fail = sum(r[1] for r in results.values())
@@ -2060,7 +2206,6 @@ def run_all_pipelines(session: Session, upload_pdfs: bool = True, timeout_second
     
     database = config.DATABASE['name']
     raw_schema = config.DATABASE['schemas']['raw']
-    curated_schema = config.DATABASE['schemas']['curated']
     
     # Upload PDFs if requested
     if upload_pdfs:
@@ -2120,7 +2265,6 @@ def run_all_pipelines(session: Session, upload_pdfs: bool = True, timeout_second
     # Start all pipelines in parallel and record start time
     log_substep(f"Starting {len(pipelines_to_run)} pipelines in parallel")
     started_pipelines = []
-    execution_start_time = time.time()
     
     for name, root_task_fqn in pipelines_to_run:
         try:

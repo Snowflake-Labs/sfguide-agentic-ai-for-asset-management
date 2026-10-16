@@ -22,14 +22,20 @@ Trigger when user asks: "equity research report", "research report", "full resea
 9. **ESG CONSIDERATIONS**: Material ESG factors, ESG rating assessment
 10. **MONITORING PLAN**: KPIs to track, thesis validation signposts, thesis invalidation triggers
 
+## Authorisation Rule
+
+- A specific request for the full report (e.g. "generate a comprehensive equity research report for NVIDIA", "write the full research report with recommendation and scenarios") is full authorisation: run Steps 1, 2 and 3 in one turn without pausing at Stopping Points 1 or 2, then stop after Step 3 (report compiled) and offer PDF or audience adaptation.
+- A vaguer or exploratory request ("start a research report on NVIDIA", "help me build a report") pauses at Stopping Points 1 and 2 as written.
+- PDF generation is never implied: only call `pdf_generator` when the user explicitly asks for a PDF.
+
 ## Workflow
 
 ### Step 1: Financial Foundation
 
-Tool: `fundamentals_analyzer`
+Tool: `research_analyzer`
 Query: Consensus estimates (high/mean/low), price targets (max/avg/min), analyst ratings, historical financials
 
-Tool: `segment_analyzer` + `sec_financials`
+Tool: `research_analyzer`
 Query: Revenue segments, geographic breakdowns, margins, 3-year annual + 4-quarter trends
 
 Present:
@@ -38,7 +44,7 @@ Present:
 - Consensus: [X] analysts, [Y]% Buy, avg target $[X] ([+/-X]% upside)
 - Segment breakdown: revenue by business line and geography
 
-### STOPPING POINT 1 — Financial Data Gathered
+### STOPPING POINT 1 — Financial Data Gathered (skip when the Authorisation Rule grants full authorisation)
 
 "I've gathered the financial foundation — fundamentals, segments, and consensus estimates. I can:
 - **Continue to research phase** (SEC filings, broker research, earnings calls, press releases)
@@ -54,7 +60,7 @@ Tool: `search_sec_filings`
 Query: 10-K risk factors, MD&A narrative, business description, competitive positioning
 
 Tool: `search_external_docs` (filter: broker_research)
-Query: Recent analyst views, sector analysis, competitive positioning, price target rationale
+Query: Recent analyst views, sector analysis, competitive positioning and market share, and the arguments behind the highest and lowest price targets. Use this to explain price-target dispersion (the bull and bear arguments), not just the max/avg/min numbers from `research_analyzer`
 
 Tool: `search_company_events`
 Query: Management guidance, strategic commentary, outlook from recent earnings calls
@@ -62,7 +68,7 @@ Query: Management guidance, strategic commentary, outlook from recent earnings c
 Tool: `search_external_docs` (filter: press_releases)
 Query: Recent catalysts, corporate developments, M&A activity, product launches
 
-### STOPPING POINT 2 — All Research Gathered
+### STOPPING POINT 2 — All Research Gathered (skip when the Authorisation Rule grants full authorisation)
 
 "Research phase complete. Here's what I found:
 - **Financial model**: [1-sentence summary of financial trajectory]
@@ -141,10 +147,10 @@ Parameters: report_title = "[Company] ([Ticker]) — Equity Research Report", do
 - "Check ownership signals?" → `insider-institutional-analysis` skill
 - "Recent earnings insights?" → `earnings-intelligence` skill
 - "Generate PDF?" → `pdf-report-generation` skill
-- "Adapt for different audience?" → `audience-adaptive-narrative` skill
+- "Adapt for different audience?" → `audience-format-adaptation` skill
 
 ## Stopping Points
 
-- After Step 1 (financial foundation): Offer scope adjustment + cross-skill options
-- After Step 2 (all research gathered): Offer report generation + review options
-- After Step 3 (report compiled): Offer PDF generation + audience adaptation
+- After Step 1 (financial foundation): Offer scope adjustment + cross-skill options (skipped under full authorisation)
+- After Step 2 (all research gathered): Offer report generation + review options (skipped under full authorisation)
+- After Step 3 (report compiled): Always stop here. Offer PDF generation + audience adaptation

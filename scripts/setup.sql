@@ -16,17 +16,21 @@
 -- Created by Mats Stellwall, Snowflake, and Snowflake CoCo
 
 -- ============================================================================
--- SAM Demo — Infrastructure Setup (Workspace Prerequisites)
+-- SAM Demo — Full Setup (Infrastructure + Build)
 -- ============================================================================
 --
--- Run this script ONCE.
--- It creates the database, schemas, roles, grants, and enables Cortex features.
+-- Run this script ONCE to stand up the whole demo. It:
+--   1. Creates the warehouses, database, schemas, roles, grants and compute
+--      pools, and enables the Cortex features (Sections 1-8)
+--   2. Creates the build Code Bundle and runs it (Section 9), which generates
+--      the data, semantic views, Cortex Search services, agents and skills
 --
--- After running this script:
---   1. Open python/workspace_main.py
---   2. Connect a notebook service (Python 3.11+, any compute pool, SNOWFLAKE.SNOWPARK.PYPI_SHARED_REPOSITORY Artifact repository)
---   3. Open the terminal and run pip install -r "$PWD/requirements.txt" and restart the kernel
---   6. Click "Run" — the full setup takes ~15-20 minutes
+-- BEFORE YOU START: create a Snowflake Workspace from this Git repository, then
+-- set its name in $ws_name immediately below. That is the only value you need to
+-- edit, and it is at the top so that running the whole script in one go works.
+--
+-- The build is installed and run from here, so there is no pip install, no
+-- kernel restart and no "click Run" step.
 --
 -- REQUIRES: ACCOUNTADMIN role
 -- ============================================================================
@@ -35,6 +39,24 @@ USE ROLE ACCOUNTADMIN;
 
 -- Set query tag for tracking
 ALTER SESSION SET query_tag = '{"origin":"sf_sit-is","name":"agentic_ai_for_asset_management","version":{"major":2,"minor":0},"attributes":{"is_quickstart":1,"source":"sql"}}';
+
+-- ============================================================================
+-- SECTION 0: Configuration — THE ONLY VALUE YOU NEED TO CHANGE
+-- ============================================================================
+-- The name of the Workspace you created from this repository. Section 9 builds
+-- the Code Bundle from it. Set here rather than next to its use in Section 9, so
+-- that running the entire script top to bottom works without editing mid-file.
+--
+-- Run this to see the workspaces you have and where they live:
+--     SHOW WORKSPACES IN ACCOUNT;
+
+SET ws_name = 'SAM_DEMO_WORKSPACE';
+
+-- Git-backed workspaces live in your personal database, USER$<your_user>.PUBLIC.
+-- If SHOW WORKSPACES IN ACCOUNT lists yours in a different database or schema,
+-- replace this expression with that path, for example:
+--   SET bundle_src = 'snow://workspace/"MY_DB"."MY_SCHEMA"."MY_WS"/versions/live';
+SET bundle_src = 'snow://workspace/"USER$' || CURRENT_USER() || '"."PUBLIC"."' || $ws_name || '"/versions/live';
 
 -- ============================================================================
 -- SECTION 1: Warehouses
@@ -87,106 +109,378 @@ CREATE SCHEMA IF NOT EXISTS SAM_DEMO.MARKET_DATA
 CREATE SCHEMA IF NOT EXISTS SAM_DEMO.ML
     COMMENT = 'Machine learning models, predictions, and feature store';
 
+-- FSI_DEMO_CONFIG is shared with the other FSI demos, so unlike SAM_DEMO it may
+-- already exist and hold other demos' objects. IF NOT EXISTS leaves it, and
+-- everything in it, exactly as it is. This demo only uses the APP schema, for
+-- the weekly refresh watermark (REFRESH_STATE).
+CREATE DATABASE IF NOT EXISTS FSI_DEMO_CONFIG
+    COMMENT = 'Shared configuration for FSI demos';
+
+CREATE SCHEMA IF NOT EXISTS FSI_DEMO_CONFIG.APP
+    COMMENT = 'Shared application state for FSI demos';
+
 -- ============================================================================
 -- SECTION 4: Role and Privileges
 -- ============================================================================
 
-CREATE ROLE IF NOT EXISTS SAM_DEMO_ROLE
-    COMMENT = 'Dedicated role for SAM demo operations';
+CREATE ROLE IF NOT EXISTS FSI_DEMO_BUILD_ROLE
+    COMMENT = 'Shared build and platform role for FSI demos';
 
--- Database-level
-GRANT USAGE ON DATABASE SAM_DEMO TO ROLE SAM_DEMO_ROLE;
-GRANT CREATE SCHEMA ON DATABASE SAM_DEMO TO ROLE SAM_DEMO_ROLE;
+CREATE ROLE IF NOT EXISTS SAM_DEMO_USER_ROLE
+    COMMENT = 'Runtime role for consuming the SAM demo';
+
+-- Database-level. Both databases are created above by this script, so the build
+-- role needs no CREATE DATABASE privilege on the account.
+GRANT USAGE ON DATABASE SAM_DEMO TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT USAGE ON DATABASE SAM_DEMO TO ROLE SAM_DEMO_USER_ROLE;
+GRANT CREATE SCHEMA ON DATABASE SAM_DEMO TO ROLE FSI_DEMO_BUILD_ROLE;
 
 -- Schema-level (covers all object types: tables, views, procedures, functions, stages)
-GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
-GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.ML TO ROLE SAM_DEMO_ROLE;
+GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.RAW TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.CURATED TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.AI TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.MARKET_DATA TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT ALL PRIVILEGES ON SCHEMA SAM_DEMO.ML TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT USAGE ON SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON SCHEMA SAM_DEMO.ML TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON ALL TABLES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON ALL TABLES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON ALL TABLES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON ALL TABLES IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON ALL TABLES IN SCHEMA SAM_DEMO.ML TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON FUTURE TABLES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON FUTURE TABLES IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON FUTURE TABLES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON FUTURE TABLES IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON FUTURE TABLES IN SCHEMA SAM_DEMO.ML TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON ALL VIEWS IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON ALL VIEWS IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON ALL VIEWS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON ALL VIEWS IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON ALL VIEWS IN SCHEMA SAM_DEMO.ML TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON FUTURE VIEWS IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON FUTURE VIEWS IN SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON FUTURE VIEWS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON FUTURE VIEWS IN SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON FUTURE VIEWS IN SCHEMA SAM_DEMO.ML TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON ALL STAGES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON FUTURE STAGES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+-- READ on the PDF source stages lets Snowflake CoWork open the cited document from a
+-- Cortex Search citation (agent search tools set stage_path / relative_path_column).
+GRANT READ ON ALL STAGES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_USER_ROLE;
+GRANT READ ON FUTURE STAGES IN SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON ALL FUNCTIONS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON FUTURE FUNCTIONS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON ALL PROCEDURES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON FUTURE PROCEDURES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
 
 -- Role hierarchy
-GRANT ROLE SAM_DEMO_ROLE TO ROLE ACCOUNTADMIN;
-GRANT ROLE SAM_DEMO_ROLE TO ROLE SYSADMIN;
+GRANT ROLE FSI_DEMO_BUILD_ROLE TO ROLE ACCOUNTADMIN;
+GRANT ROLE FSI_DEMO_BUILD_ROLE TO ROLE SYSADMIN;
+GRANT ROLE SAM_DEMO_USER_ROLE TO ROLE FSI_DEMO_BUILD_ROLE;
 SET current_username = CURRENT_USER();
-GRANT ROLE SAM_DEMO_ROLE TO USER IDENTIFIER($current_username);
+GRANT ROLE FSI_DEMO_BUILD_ROLE TO USER IDENTIFIER($current_username);
 
 -- Warehouse privileges
-GRANT USAGE ON WAREHOUSE SAM_DEMO_EXECUTION_WH TO ROLE SAM_DEMO_ROLE;
-GRANT OPERATE ON WAREHOUSE SAM_DEMO_EXECUTION_WH TO ROLE SAM_DEMO_ROLE;
-GRANT MODIFY ON WAREHOUSE SAM_DEMO_EXECUTION_WH TO ROLE SAM_DEMO_ROLE;
-GRANT USAGE ON WAREHOUSE SAM_DEMO_CORTEX_WH TO ROLE SAM_DEMO_ROLE;
-GRANT OPERATE ON WAREHOUSE SAM_DEMO_CORTEX_WH TO ROLE SAM_DEMO_ROLE;
-GRANT MODIFY ON WAREHOUSE SAM_DEMO_CORTEX_WH TO ROLE SAM_DEMO_ROLE;
+GRANT USAGE ON WAREHOUSE SAM_DEMO_EXECUTION_WH TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT OPERATE ON WAREHOUSE SAM_DEMO_EXECUTION_WH TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT MODIFY ON WAREHOUSE SAM_DEMO_EXECUTION_WH TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT USAGE ON WAREHOUSE SAM_DEMO_EXECUTION_WH TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON WAREHOUSE SAM_DEMO_CORTEX_WH TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT OPERATE ON WAREHOUSE SAM_DEMO_CORTEX_WH TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT MODIFY ON WAREHOUSE SAM_DEMO_CORTEX_WH TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT USAGE ON WAREHOUSE SAM_DEMO_CORTEX_WH TO ROLE SAM_DEMO_USER_ROLE;
 
 -- Marketplace data access
-GRANT IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE_PUBLIC_DATA_FREE TO ROLE SAM_DEMO_ROLE;
+GRANT IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE_PUBLIC_DATA_FREE TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE_PUBLIC_DATA_FREE TO ROLE SAM_DEMO_USER_ROLE;
+
+GRANT USAGE ON DATABASE FSI_DEMO_CONFIG TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT USAGE ON DATABASE FSI_DEMO_CONFIG TO ROLE SAM_DEMO_USER_ROLE;
+GRANT CREATE SCHEMA ON DATABASE FSI_DEMO_CONFIG TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT ALL PRIVILEGES ON SCHEMA FSI_DEMO_CONFIG.APP TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT USAGE ON SCHEMA FSI_DEMO_CONFIG.APP TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON ALL TABLES IN SCHEMA FSI_DEMO_CONFIG.APP TO ROLE SAM_DEMO_USER_ROLE;
+GRANT SELECT ON FUTURE TABLES IN SCHEMA FSI_DEMO_CONFIG.APP TO ROLE SAM_DEMO_USER_ROLE;
 
 -- ============================================================================
 -- SECTION 5: Cortex AI Privileges
 -- ============================================================================
 
 -- AI/Cortex component creation grants
-GRANT CREATE AGENT ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT CREATE CORTEX SEARCH SERVICE ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT CREATE SEMANTIC VIEW ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
+GRANT CREATE AGENT ON SCHEMA SAM_DEMO.AI TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT CREATE CORTEX SEARCH SERVICE ON SCHEMA SAM_DEMO.AI TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT CREATE SEMANTIC VIEW ON SCHEMA SAM_DEMO.AI TO ROLE FSI_DEMO_BUILD_ROLE;
 
 -- Account-level Cortex privileges (required for LLM functions)
-GRANT BIND SERVICE ENDPOINT ON ACCOUNT TO ROLE SAM_DEMO_ROLE;
-GRANT DATABASE ROLE SNOWFLAKE.CORTEX_USER TO ROLE SAM_DEMO_ROLE;
+GRANT DATABASE ROLE SNOWFLAKE.CORTEX_USER TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT DATABASE ROLE SNOWFLAKE.CORTEX_USER TO ROLE SAM_DEMO_USER_ROLE;
 
--- Enable cross-region Cortex (required for accounts not in Cortex-enabled regions)
-ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';
+-- Cross-region Cortex: checked, not changed, because it is an account-wide
+-- setting this script should not alter. The agents and AI functions work best
+-- with ANY_REGION; with a narrower setting some models may be unavailable in
+-- this region. Check the result of this statement.
+EXECUTE IMMEDIATE $$
+DECLARE
+    current_value VARCHAR;
+BEGIN
+    SHOW PARAMETERS LIKE 'CORTEX_ENABLED_CROSS_REGION' IN ACCOUNT;
+    SELECT "value" INTO :current_value FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()));
+    IF (UPPER(current_value) = 'ANY_REGION') THEN
+        RETURN 'OK: CORTEX_ENABLED_CROSS_REGION is ANY_REGION';
+    END IF;
+    RETURN 'WARNING: CORTEX_ENABLED_CROSS_REGION is ''' || COALESCE(current_value, '') || '''. For the best experience set it to ''ANY_REGION'': ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = ''ANY_REGION'';';
+END;
+$$;
 
 -- ============================================================================
 -- SECTION 6: Task Privileges (Scheduling)
 -- ============================================================================
--- Required for:
---   - Deploying notebooks as scheduled tasks
---   - Stream-triggered incremental data pipelines
---   - Periodic agent operations (morning briefings, signal extraction)
+-- EXECUTE TASK is required on the OWNER role for any task run, scheduled or via
+-- EXECUTE TASK, because tasks always run with the owner's privileges. The build
+-- role owns every task it creates:
+--   - the document pipeline task graphs (run once by the build, then by the refresh)
+--   - WEEKLY_REFRESH_TASK
+--   - the proactive briefing and alert tasks
+-- EXECUTE MANAGED TASK is not granted: every task specifies a WAREHOUSE, so none
+-- are serverless.
 
-GRANT EXECUTE TASK ON ACCOUNT TO ROLE SAM_DEMO_ROLE;
-GRANT EXECUTE MANAGED TASK ON ACCOUNT TO ROLE SAM_DEMO_ROLE;
-GRANT CREATE TASK ON SCHEMA SAM_DEMO.RAW TO ROLE SAM_DEMO_ROLE;
-GRANT CREATE TASK ON SCHEMA SAM_DEMO.CURATED TO ROLE SAM_DEMO_ROLE;
-GRANT CREATE TASK ON SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_ROLE;
-GRANT CREATE TASK ON SCHEMA SAM_DEMO.MARKET_DATA TO ROLE SAM_DEMO_ROLE;
-GRANT CREATE TASK ON SCHEMA SAM_DEMO.ML TO ROLE SAM_DEMO_ROLE;
+GRANT EXECUTE TASK ON ACCOUNT TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT CREATE WAREHOUSE ON ACCOUNT TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT CREATE TASK ON SCHEMA SAM_DEMO.RAW TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT CREATE TASK ON SCHEMA SAM_DEMO.CURATED TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT CREATE TASK ON SCHEMA SAM_DEMO.AI TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT CREATE TASK ON SCHEMA SAM_DEMO.MARKET_DATA TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT CREATE TASK ON SCHEMA SAM_DEMO.ML TO ROLE FSI_DEMO_BUILD_ROLE;
 
 
 -- ============================================================================
--- SECTION 7: Snowflake Intelligence
+-- SECTION 7: Weekly Refresh Automation (Code Bundle)
 -- ============================================================================
+-- The weekly incremental refresh runs as a Code Bundle on a dedicated compute
+-- pool, driven by SAM_DEMO.AI.WEEKLY_REFRESH_TASK (created by the Python build).
+--
+-- Role split: FSI_DEMO_BUILD_ROLE owns, executes and operates the automation.
+-- SAM_DEMO_USER_ROLE is the demo *consumer* and deliberately gets visibility
+-- only - a demo user triggering a refresh mid-demo would mutate the very data
+-- they are presenting.
 
-CREATE SNOWFLAKE INTELLIGENCE IF NOT EXISTS SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;
-GRANT CREATE SNOWFLAKE INTELLIGENCE ON ACCOUNT TO ROLE SAM_DEMO_ROLE;
-GRANT USAGE ON SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT TO ROLE SAM_DEMO_ROLE;
-GRANT MODIFY ON SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT TO ROLE SAM_DEMO_ROLE;
-GRANT USAGE ON SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT TO ROLE PUBLIC;
+-- MAX_NODES = 1 because exactly one job runs per week.
+--
+-- GEN_X64_G2_4 is the current-generation equivalent of CPU_X64_S: identical
+-- 3 vCPU / 13 GiB, better price-performance. IF NOT EXISTS will not change a pool
+-- that already exists; to migrate it, suspend the pool, run ALTER COMPUTE POOL ... SET INSTANCE_FAMILY
+-- and resume it.
+CREATE COMPUTE POOL IF NOT EXISTS SAM_DEMO_BUNDLE_POOL
+    MIN_NODES = 1
+    MAX_NODES = 1
+    INSTANCE_FAMILY = GEN_X64_G2_4
+    AUTO_SUSPEND_SECS = 300
+    AUTO_RESUME = TRUE
+    INITIALLY_SUSPENDED = TRUE
+    COMMENT = 'Dedicated pool for the SAM demo weekly refresh Code Bundle';
+
+GRANT USAGE ON COMPUTE POOL SAM_DEMO_BUNDLE_POOL TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT MONITOR ON COMPUTE POOL SAM_DEMO_BUNDLE_POOL TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT OPERATE ON COMPUTE POOL SAM_DEMO_BUNDLE_POOL TO ROLE FSI_DEMO_BUILD_ROLE;
+
+-- Pool for the ML notebooks (factor_discovery, market_regime_detection,
+-- credit_risk_model). Attach the notebook service to this pool rather than
+-- picking an arbitrary one, so the ML demos have a predictable environment.
+--
+-- Memory-optimised rather than general purpose: xgboost and especially SHAP are
+-- memory-bound, not CPU-bound. MEM_X64_G2_8 gives 6 vCPU / 58 GiB, versus
+-- 6 vCPU / 28 GiB for the general-purpose GEN_X64_G2_8 at the same vCPU count.
+CREATE COMPUTE POOL IF NOT EXISTS SAM_DEMO_ML_POOL
+    MIN_NODES = 1
+    MAX_NODES = 1
+    INSTANCE_FAMILY = MEM_X64_G2_8
+    AUTO_SUSPEND_SECS = 300
+    AUTO_RESUME = TRUE
+    INITIALLY_SUSPENDED = TRUE
+    COMMENT = 'Pool for the SAM demo ML notebooks';
+
+GRANT USAGE ON COMPUTE POOL SAM_DEMO_ML_POOL TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT MONITOR ON COMPUTE POOL SAM_DEMO_ML_POOL TO ROLE FSI_DEMO_BUILD_ROLE;
+GRANT OPERATE ON COMPUTE POOL SAM_DEMO_ML_POOL TO ROLE FSI_DEMO_BUILD_ROLE;
+
+-- Lets the build role create the bundle. Note: Snowflake still reports this
+-- privilege under its pre-rename name, CREATE NOTEBOOK PROJECT, in SHOW GRANTS.
+GRANT CREATE CODE BUNDLE ON SCHEMA SAM_DEMO.AI TO ROLE FSI_DEMO_BUILD_ROLE;
+
+-- EXECUTE CODE BUNDLE on a compute pool requires USAGE *and MONITOR* on the
+-- query warehouse. Section 4 grants USAGE/OPERATE/MODIFY but not MONITOR, and
+-- without it the scheduled task fails at execution time, not at creation - so
+-- the automation would look correctly installed and never actually run.
+GRANT MONITOR ON WAREHOUSE SAM_DEMO_EXECUTION_WH TO ROLE FSI_DEMO_BUILD_ROLE;
+
+-- Visibility only. The demo narrative is "this refreshes itself every week", so
+-- the demo role can inspect the task and its run history. Deliberately no
+-- OPERATE on the task and no USAGE on the Code Bundle, so it cannot start one.
+GRANT MONITOR ON ALL TASKS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+GRANT MONITOR ON FUTURE TASKS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+
+-- ============================================================================
+-- SECTION 8: Agent Access (Snowflake CoWork)
+-- ============================================================================
+-- No Snowflake CoWork object is created. Without one, CoWork shows every agent
+-- the user's role can use, so visibility is controlled by these grants alone.
+-- Agents run with the caller's default role, which therefore also needs USAGE
+-- on the Cortex Search services the agents call. FUTURE grants cover the
+-- objects the build creates; ALL covers a re-run against an existing build.
+--
+-- If the account already has a CoWork object (SHOW SNOWFLAKE INTELLIGENCES),
+-- CoWork shows only the agents added to it, and the build logs a warning.
+
+GRANT USAGE ON ALL AGENTS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON FUTURE AGENTS IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON ALL CORTEX SEARCH SERVICES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+GRANT USAGE ON FUTURE CORTEX SEARCH SERVICES IN SCHEMA SAM_DEMO.AI TO ROLE SAM_DEMO_USER_ROLE;
+
+-- ============================================================================
+-- SECTION 9: Build the Demo (Code Bundle)
+-- ============================================================================
+-- The full build runs as a Code Bundle rather than by opening a file and
+-- clicking "Run". Packages are installed declaratively from code_bundle.yml, so
+-- there is no manual pip step, and every run is recorded in CODE_BUNDLE_HISTORY.
+--
+-- Source is the workspace live path, not a stage. That resolves a bootstrap
+-- problem: staging files needs a Python client, but this bundle IS how the
+-- Python runs, so it cannot stage its own source. The workspace already holds
+-- the files, so no upload is needed. (The weekly refresh bundle, created later
+-- by the build itself, deliberately uses a stage instead - a scheduled task must
+-- not depend on a user's workspace continuing to exist.)
+--
+-- PREREQUISITE: $ws_name and $bundle_src are set in Section 0 at the top of this
+-- script. If you have not set $ws_name yet, go back and do that now.
+
+USE ROLE FSI_DEMO_BUILD_ROLE;
+USE DATABASE SAM_DEMO;
+USE SCHEMA AI;
+USE WAREHOUSE SAM_DEMO_EXECUTION_WH;
+
+-- Confirm what Section 0 resolved to before creating anything from it.
+SELECT $ws_name AS workspace_name, $bundle_src AS bundle_source;
+
+SET create_bundle_stmt =
+    'CREATE OR REPLACE CODE BUNDLE SAM_DEMO.AI.SAM_BUILD_BUNDLE FROM ''' || $bundle_src ||
+    ''' COMMENT = ''SAM demo full environment build''';
+
+EXECUTE IMMEDIATE $create_bundle_stmt;
+
+-- IMPORTANT: check the result of the statement above. A wrong workspace name does
+-- NOT fail here - the bundle is created and you get only a warning:
+--   "source directory ... does not exist or contains no files"
+-- If you see that warning, fix $ws_name and re-run before continuing, otherwise
+-- the build below fails with a missing entrypoint.
+
+-- ----------------------------------------------------------------------------
+-- Run the build. Takes roughly 45-60 minutes and runs synchronously, so leave
+-- the worksheet open. Progress is visible in the query result.
+--
+-- Measured: 56 minutes on SAM_DEMO_BUNDLE_POOL with a single CPU_X64_S node.
+-- Most of that is Python-side document generation, which is CPU-bound on the
+-- compute pool rather than warehouse work, so INSTANCE_FAMILY on that pool is
+-- the lever if you need it faster. Section 7 declares GEN_X64_G2_4 for new
+-- accounts; an account where the pool already exists keeps its old family,
+-- because IF NOT EXISTS is a no-op - to change it, suspend the pool, run ALTER COMPUTE POOL ... SET INSTANCE_FAMILY
+-- and resume it.
+-- ----------------------------------------------------------------------------
+EXECUTE CODE BUNDLE SAM_DEMO.AI.SAM_BUILD_BUNDLE
+    ENTRYPOINT = 'python/workspace_main.py'
+    ARGUMENTS  = ('--skip-automation');
+
+-- This builds WITHOUT the weekly refresh automation, so the demo data stays
+-- frozen at the build date. To also install the weekly refresh task, which
+-- advances prices, documents and briefings every Monday, you can either 
+-- remove the  ARGUMENTS  = ('--skip-automation') or run afterwards:
+--
+--   EXECUTE CODE BUNDLE SAM_DEMO.AI.SAM_BUILD_BUNDLE
+--       ENTRYPOINT = 'python/workspace_main.py'
+--       ARGUMENTS  = ('--scope', 'automation');
+--
+-- Other useful scopes for rebuilding part of the demo later, without a full
+-- rebuild:
+--
+--   ARGUMENTS = ('--scope', 'agents')      -- redeploy the 8 agents only (~4 min)
+--   ARGUMENTS = ('--scope', 'semantic')    -- semantic views only
+--   ARGUMENTS = ('--scope', 'search')      -- Cortex Search services only
+--   ARGUMENTS = ('--scope', 'ai')          -- semantic + search + agents
+--   ARGUMENTS = ('--scope', 'data')        -- data layers only (includes ML models)
+--   ARGUMENTS = ('--scope', 'ml')          -- train, register (PRODUCTION alias) and score the
+--                                          -- regime and credit PD models, plus the PD what-if procedure
+--   ARGUMENTS = ('--scope', 'automation')  -- weekly refresh task only
+--
+-- AFTER EDITING ANY PYTHON FILE: a bundle version is an immutable snapshot, so
+-- the bundle keeps running the code it was created from until you refresh it.
+-- Commit and push, pull into the Workspace, then either re-run the
+-- CREATE OR REPLACE above or add a version:
+--
+--   ALTER CODE BUNDLE SAM_DEMO.AI.SAM_BUILD_BUNDLE ADD VERSION FROM <$bundle_src>;
+--
+-- Check run history at any time:
+--
+--   SELECT ENTRYPOINT, STATUS, START_TIME, END_TIME, ERROR_MESSAGE
+--   FROM TABLE(SNOWFLAKE.INFORMATION_SCHEMA.CODE_BUNDLE_HISTORY(
+--       BUNDLE_NAME => 'SAM_BUILD_BUNDLE', DATABASE => 'SAM_DEMO', SCHEMA => 'AI'));
 
 -- ============================================================================
 -- DONE — Next Steps
 -- ============================================================================
 --
--- Infrastructure is ready. Now set up the demo data and agents:
---
---   1. Open python/workspace_main.py
---   2. Connect a notebook service:
---      - Python version: 3.11
---      - Compute pool: any available pool
---      - Artifact repositories (optional): SNOWFLAKE.SNOWPARK.PYPI_SHARED_REPOSITORY
---   3. Install packages using the Terminal:
---      Open the Terminal and run the following command:
---      pip install -r "$PWD/requirements.txt"
---   4. Restart the kernel
---   5. Click "Run" — setup takes ~15-20 minutes
+-- The build above created the data, semantic views, search services and agents.
 --
 -- After completion:
---   - Open Snowflake Intelligence to interact with the agents
+--   - Open Snowflake CoWork to interact with the agents
 --   - Open the notebooks (factor_discovery, market_regime_detection, credit_risk_model)
---     for ML workflow demonstrations
+--     for ML workflow demonstrations. Attach the notebook service to
+--     SAM_DEMO_ML_POOL, which is sized for them (memory-optimised, 6 vCPU /
+--     58 GiB) rather than picking an arbitrary pool. Select
+--     SNOWFLAKE.SNOWPARK.PYPI_SHARED_REPOSITORY as the Artifact Repository so
+--     the notebook can install its ML packages.
+--
+-- Prefer to iterate interactively instead of via the bundle? Open
+-- python/workspace_main.py in the Workspace, install packages once from the
+-- terminal with:
+--     pip install -r "$PWD/requirements-workspace.txt"
+-- restart the kernel, and click "Run". With no arguments that is equivalent to a
+-- full build. This avoids having to refresh a bundle version after every edit.
+--
+-- ============================================================================
+-- Weekly refresh — ongoing operations
+-- ============================================================================
+-- The build installs SAM_DEMO.AI.WEEKLY_REFRESH_TASK, which runs every Monday
+-- at 06:00 UTC and advances the demo a week: new prices, trades, positions,
+-- recommendations and any documents whose cadence is due. Nothing needs to be
+-- triggered by hand.
+--
+-- Operator commands (run from a checkout or a Workspace terminal):
+--
+--   Check health     python python/weekly_refresh_main.py --mode status
+--                    Exits non-zero and explains why if the automation is
+--                    unhealthy (task suspended, bundle missing, runs failing).
+--
+--   Deploy changes   python python/weekly_refresh_main.py --mode deploy
+--                    REQUIRED after editing any Python file. A bundle version is
+--                    an immutable snapshot, so until you deploy, the schedule
+--                    keeps executing the previously deployed code.
+--
+--   Fill a gap       python python/weekly_refresh_main.py --mode catch-up --weeks N
+--                    Advances one week at a time, so a demo left idle rebuilds
+--                    week-by-week history rather than jumping to today.
+--
+--   Pause / resume   python python/weekly_refresh_main.py --mode pause
+--                    python python/weekly_refresh_main.py --mode resume
+--
+-- Add --connection-name <conn> to any of the above when running locally.
+--
+-- Note: four of the six Marketplace streams have a 1-day staleness horizon, so
+-- after a long pause the refresh automatically falls back to a date-windowed
+-- read. That is expected, not an error.
 --
 -- ============================================================================
 
-SELECT 'Infrastructure setup complete. Open a Git Workspace and run python/workspace_main.py' AS status;
+SELECT 'Setup complete - infrastructure created and demo built by the Code Bundle above.' AS status;

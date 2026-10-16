@@ -60,7 +60,7 @@ disclosure:
 
 ## Executive Summary
 
-We initiate coverage on {{COMPANY_NAME}} with a **{{RATING}}** rating and 12-month price target of ${{PRICE_TARGET_USD}}. As a leading player in the {{SIC_DESCRIPTION}} sector, the company demonstrates robust fundamentals with revenue growth of {{YOY_REVENUE_GROWTH_PCT}}% year-over-year and strong EBIT margins of {{EBIT_MARGIN_PCT}}%. Our positive view is supported by the company's competitive positioning, technology innovation pipeline, and sustained market share gains in key growth segments.
+We initiate coverage on {{COMPANY_NAME}} with a **{{RATING}}** rating and 12-month price target of ${{PRICE_TARGET_USD}}. Within the {{SIC_DESCRIPTION}} sector, the company {{FUNDAMENTAL_FRAMING}}, with revenue growth of {{YOY_REVENUE_GROWTH_PCT}}% year-over-year and EBIT margins of {{EBIT_MARGIN_PCT}}%. Our {{THESIS_STANCE}} view reflects the company's competitive positioning, technology innovation pipeline, and sustained market share gains in key growth segments.
 
 **Investment Thesis Summary:**
 - Strong market position in a ${{TAM_BILLIONS}}B total addressable market growing at {{MARKET_CAGR_PCT}}% CAGR
@@ -114,7 +114,7 @@ Current market penetration stands at approximately {{MARKET_SHARE_PCT}}%, sugges
 ## Unit Economics Analysis
 
 ### Customer Acquisition and Retention
-{{COMPANY_NAME}} demonstrates strong unit economics that support profitable growth:
+{{COMPANY_NAME}} {{UNIT_ECONOMICS_FRAMING}}:
 
 - **Net Revenue Retention (NRR)**: {{NRR_PCT}}% indicates strong expansion within existing customers
 - **Gross Revenue Retention (GRR)**: Estimated at 92-95%, reflecting low churn

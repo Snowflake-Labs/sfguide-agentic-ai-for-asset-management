@@ -25,33 +25,63 @@
 
 tool_service_map:
   portfolio_management:
-    quantitative_analyzer:
+    portfolio_analyzer:
       type: cortex_analyst
-      service: SAM_ANALYST_VIEW
-    financial_analyzer:
-      type: cortex_analyst
-      service: SAM_SEC_FINANCIALS_VIEW
+      service: SAM_PORTFOLIO_VIEW
     implementation_analyzer:
       type: cortex_analyst
       service: SAM_IMPLEMENTATION_VIEW
-    supply_chain_analyzer:
-      type: cortex_analyst
-      service: SAM_SUPPLY_CHAIN_VIEW
-    stock_prices:
-      type: cortex_analyst
-      service: SAM_STOCK_PRICES_VIEW
     attribution_analyzer:
       type: cortex_analyst
       service: SAM_ATTRIBUTION_VIEW
+    market_analyzer:
+      type: cortex_analyst
+      service: SAM_MARKET_VIEW
+    insights_analyzer:
+      type: cortex_analyst
+      service: SAM_PROACTIVE_INSIGHTS_VIEW
     signals_analyzer:
       type: cortex_analyst
       service: SAM_SIGNALS_VIEW
+    research_analyzer:
+      type: cortex_analyst
+      service: SAM_RESEARCH_VIEW
+    factor_model_analyzer:
+      type: cortex_analyst
+      service: SAM_FACTOR_MODEL_VIEW
+    regime_analyzer:
+      type: cortex_analyst
+      service: SAM_REGIME_VIEW
     portfolio_modelling_analyzer:
       type: cortex_analyst
       service: SAM_PORTFOLIO_MODELLING_VIEW
     tool_results_analyzer:
       type: cortex_analyst
       service: SAM_TOOL_RESULTS_VIEW
+    search_company_events:
+      type: cortex_search
+      service: SAM_COMPANY_EVENTS
+    search_sec_filings:
+      type: cortex_search
+      service: SAM_REAL_SEC_FILINGS
+    search_external_docs:
+      type: cortex_search
+      service: SAM_EXTERNAL_DOCS
+    search_internal_docs:
+      type: cortex_search
+      service: SAM_INTERNAL_DOCS
+    pdf_generator:
+      type: generic
+      service: GENERATE_PDF_REPORT
+    backtest_historical_stress:
+      type: generic
+      service: RUN_STRESS_BACKTEST_TOOL
+    scenario_sensitivity:
+      type: generic
+      service: RUN_SCENARIO_SENSITIVITY_TOOL
+    run_counterfactual:
+      type: generic
+      service: RUN_COUNTERFACTUAL_ANALYSIS
     run_backtest:
       type: generic
       service: RUN_BACKTEST_TOOL
@@ -61,51 +91,13 @@ tool_service_map:
     run_attribution:
       type: generic
       service: RUN_ATTRIBUTION_TOOL
-    counterfactual_analyzer:
+    explain_data_origin:
       type: generic
-      service: COUNTERFACTUAL_ATTRIBUTION
-    search_broker_research:
-      type: cortex_search
-      service: SAM_EXTERNAL_DOCS
-    search_company_events:
-      type: cortex_search
-      service: SAM_COMPANY_EVENTS
-    search_press_releases:
-      type: cortex_search
-      service: SAM_EXTERNAL_DOCS
-    search_macro_events:
-      type: cortex_search
-      service: SAM_INTERNAL_DOCS
-    search_policies:
-      type: cortex_search
-      service: SAM_INTERNAL_DOCS
-    search_report_templates:
-      type: cortex_search
-      service: SAM_INTERNAL_DOCS
-    search_ips_documents:
-      type: cortex_search
-      service: SAM_INTERNAL_DOCS
-    search_sec_filings:
-      type: cortex_search
-      service: SAM_REAL_SEC_FILINGS
-    pdf_generator:
-      type: generic
+      service: EXPLAIN_DATA_ORIGIN
   research:
     research_analyzer:
       type: cortex_analyst
-      service: SAM_SEC_FINANCIALS_VIEW
-    fundamentals_analyzer:
-      type: cortex_analyst
-      service: SAM_FUNDAMENTALS_VIEW
-    segment_analyzer:
-      type: cortex_analyst
-      service: SAM_SEC_FINANCIALS_VIEW
-    insider_trading_analyzer:
-      type: cortex_analyst
-      service: SAM_SEC_FINANCIALS_VIEW
-    institutional_holdings_analyzer:
-      type: cortex_analyst
-      service: SAM_SEC_FINANCIALS_VIEW
+      service: SAM_RESEARCH_VIEW
     search_external_docs:
       type: cortex_search
       service: SAM_EXTERNAL_DOCS
@@ -115,8 +107,12 @@ tool_service_map:
     search_sec_filings:
       type: cortex_search
       service: SAM_REAL_SEC_FILINGS
+    thesis_manager:
+      type: generic
+      service: SP_UPSERT_RESEARCH_THESIS
     pdf_generator:
       type: generic
+      service: GENERATE_PDF_REPORT
 
 agent_evaluations:
   portfolio_management:
@@ -131,14 +127,14 @@ agent_evaluations:
         and content moderation.
       category: core_use_case
       expected_tools:
-      - quantitative_analyzer
+      - portfolio_analyzer
     - input_query: Which holdings have ESG scores below BBB across all portfolios?
       ground_truth_type: static
       ground_truth_output: 'Four companies have ESG grades below the BBB threshold: INTC (Intel) with grade BB and score 35,
         IBM with grade BB and score 38, CSCO (Cisco) with grade B and score 22, and META with grade CCC and score 10.'
       category: core_use_case
       expected_tools:
-      - quantitative_analyzer
+      - portfolio_analyzer
     - input_query: What are the top 10 holdings by market value in SAM Technology & Infrastructure as of {max_date}?
       ground_truth_type: dynamic
       validation_query: |
@@ -156,7 +152,7 @@ agent_evaluations:
       ground_truth_template: 'The top 10 holdings in SAM Technology & Infrastructure as of {max_date} by market value are: {validation_result}'
       category: core_use_case
       expected_tools:
-      - quantitative_analyzer
+      - portfolio_analyzer
     - input_query: Show the sector allocation breakdown for SAM Global Flagship Multi-Asset as of {max_date}
       ground_truth_type: dynamic
       validation_query: |
@@ -173,7 +169,7 @@ agent_evaluations:
       ground_truth_template: 'Sector allocation for SAM Global Flagship Multi-Asset as of {max_date}: {validation_result}'
       category: core_use_case
       expected_tools:
-      - quantitative_analyzer
+      - portfolio_analyzer
     - input_query: How many securities does SAM ESG Leaders Global Equity hold as of {max_date}?
       ground_truth_type: dynamic
       validation_query: |
@@ -185,7 +181,7 @@ agent_evaluations:
       ground_truth_template: SAM ESG Leaders Global Equity holds {validation_result} positions as of {max_date}.
       category: core_use_case
       expected_tools:
-      - quantitative_analyzer
+      - portfolio_analyzer
     - input_query: What is the total market value of SAM Technology & Infrastructure as of {max_date}?
       ground_truth_type: dynamic
       validation_query: |
@@ -197,7 +193,7 @@ agent_evaluations:
       ground_truth_template: The total market value of SAM Technology & Infrastructure as of {max_date} is ${validation_result}.
       category: core_use_case
       expected_tools:
-      - quantitative_analyzer
+      - portfolio_analyzer
     # --- Core Use Cases: Supply Chain & Compliance ---
     - input_query: What are the supply chain dependencies for TSMC?
       ground_truth_type: static
@@ -206,7 +202,7 @@ agent_evaluations:
         as High criticality tier.'
       category: core_use_case
       expected_tools:
-      - supply_chain_analyzer
+      - portfolio_analyzer
     - input_query: Is there a compliance breach for META in SAM AI & Digital Innovation?
       ground_truth_type: static
       ground_truth_output: Yes, there is an ESG downgrade compliance breach for META in the SAM AI & Digital Innovation portfolio.
@@ -214,14 +210,14 @@ agent_evaluations:
         remediation deadline.
       category: core_use_case
       expected_tools:
-      - quantitative_analyzer
+      - portfolio_analyzer
     - input_query: What is our firm's single issuer concentration limit?
       ground_truth_type: static
       ground_truth_output: The firm's single issuer concentration limit is 7% of portfolio market value as a hard breach threshold,
         with a warning threshold at 6.5%.
       category: tool_routing
       expected_tools:
-      - search_policies
+      - search_internal_docs
     # --- Core Use Cases: Attribution ---
     - input_query: Show the Brinson attribution breakdown by sector for SAM Technology & Infrastructure
       ground_truth_type: static
@@ -300,7 +296,7 @@ agent_evaluations:
       ground_truth_template: Apple (AAPL) closed at ${validation_result} on {max_price_date}.
       category: core_use_case
       expected_tools:
-      - stock_prices
+      - market_analyzer
     # --- Tool Routing ---
     - input_query: What did Apple's CEO say about AI strategy in the last earnings call?
       ground_truth_type: static
@@ -315,21 +311,21 @@ agent_evaluations:
         broker research search tool.
       category: tool_routing
       expected_tools:
-      - search_broker_research
+      - search_external_docs
     - input_query: What does the IPS say about fixed income allocation for SAM Multi-Asset Income?
       ground_truth_type: static
       ground_truth_output: The response should contain IPS constraints for SAM Multi-Asset Income, sourced from the IPS documents
         search tool.
       category: tool_routing
       expected_tools:
-      - search_ips_documents
+      - search_internal_docs
     - input_query: Show me NVIDIA's stock price performance over the last 3 months as of {max_date}
       ground_truth_type: static
       ground_truth_output: The response should contain NVIDIA stock price data over a 3-month period, sourced from the stock
         prices tool, not the quantitative analyzer.
       category: tool_routing
       expected_tools:
-      - stock_prices
+      - market_analyzer
     - input_query: What are the IPS equity allocation limits for SAM Global Balanced 60/40?
       ground_truth_type: static
       ground_truth_output: 'SAM Global Balanced 60/40 has a conservative IPS risk profile with the following constraints:
@@ -337,7 +333,7 @@ agent_evaluations:
         of 5%.'
       category: tool_routing
       expected_tools:
-      - search_ips_documents
+      - search_internal_docs
     # --- Multi-Tool Orchestration ---
     - input_query: Compare the risk profile of SAM Technology & Infrastructure vs SAM ESG Leaders Global Equity
       ground_truth_type: static
@@ -345,7 +341,7 @@ agent_evaluations:
         factor exposures), and potentially signals to compare the risk profiles of both portfolios side-by-side.
       category: multi_tool
       expected_tools:
-      - quantitative_analyzer
+      - portfolio_analyzer
       - attribution_analyzer
     - input_query: Run a backtest then interpret the results. What allocation changes would improve the Sharpe ratio?
       ground_truth_type: static
@@ -362,7 +358,7 @@ agent_evaluations:
         suggest valid portfolio names.
       category: edge_case
       expected_tools:
-      - quantitative_analyzer
+      - portfolio_analyzer
     - input_query: Tell me about Apple
       ground_truth_type: static
       ground_truth_output: 'The response should combine information from multiple tools: portfolio holdings data showing Apple
@@ -370,8 +366,8 @@ agent_evaluations:
         and potentially search tools.'
       category: ambiguous
       expected_tools:
-      - quantitative_analyzer
-      - search_broker_research
+      - portfolio_analyzer
+      - search_external_docs
 
   research:
     agent_name: AM_research_copilot
@@ -437,7 +433,7 @@ agent_evaluations:
       ground_truth_template: "Apple consensus EPS estimates: {validation_result}"
       category: core_use_case
       expected_tools:
-      - fundamentals_analyzer
+      - research_analyzer
     - input_query: Show me TSMC's gross margin trend from SEC filings
       ground_truth_type: dynamic
       validation_query: |
@@ -515,7 +511,6 @@ agent_evaluations:
       category: skill_activation
       expected_tools:
       - research_analyzer
-      - fundamentals_analyzer
       - search_external_docs
       - search_company_events
       - search_sec_filings
@@ -533,7 +528,6 @@ agent_evaluations:
       category: skill_activation
       expected_tools:
       - research_analyzer
-      - fundamentals_analyzer
       - search_external_docs
     # --- Tool Routing ---
     - input_query: What is the current analyst consensus rating for Microsoft?
@@ -550,7 +544,7 @@ agent_evaluations:
       ground_truth_template: "Microsoft analyst consensus rating: {validation_result}"
       category: tool_routing
       expected_tools:
-      - fundamentals_analyzer
+      - research_analyzer
     - input_query: Show me the revenue segment breakdown for NVIDIA from SEC filings
       ground_truth_type: static
       ground_truth_output: The response should show NVIDIA's revenue by business segment from SEC filing data, sourced from

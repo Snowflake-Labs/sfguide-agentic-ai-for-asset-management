@@ -136,9 +136,26 @@ tables:
           - company
           - issuer
           - name
-        description: Name of the borrower company
+        description: "Name of the private credit borrower, one of 15 exact names (see values). Filter with = on the exact name, never LIKE or ILIKE; map the user's wording to one of the values first. If the user names a borrower that is not listed, it is not in the private credit book - say so."
         expr: BORROWERNAME
         data_type: VARCHAR(255)
+        is_enum: true
+        sample_values:
+          - Atlas Building Products
+          - Cascade Environmental
+          - Clearview Diagnostics
+          - HealthBridge Clinical Services
+          - Meridian Healthcare Group
+          - Nexus Data Centres
+          - NovaCare Pharmaceuticals
+          - Orion Retail Group
+          - Pacific Food Holdings
+          - Pinnacle Software Solutions
+          - Redwood Hospitality Group
+          - Sentinel Security Services
+          - Sterling Manufacturing Corp
+          - Velocity Logistics Holdings
+          - Vertex Telecom Infrastructure
       - name: borrower_status
         synonyms:
           - watchlist
@@ -148,9 +165,8 @@ tables:
         data_type: VARCHAR(20)
         is_enum: true
         sample_values:
-          - "ACTIVE"
-          - "WATCHLIST"
-          - "DEFAULT"
+          - "Active"
+          - "Watchlist"
       - name: credit_rating
         synonyms:
           - rating
@@ -243,9 +259,11 @@ tables:
         data_type: VARCHAR(134217728)
         is_enum: true
         sample_values:
-          - "COMPLIANT"
-          - "BREACH"
-          - "WAIVER"
+          - "Compliant"
+          - "Tight"
+          - "Breach"
+          - "Waiver Granted"
+          - "Equity Cure"
       - name: covenant_type
         synonyms:
           - covenant
@@ -374,9 +392,10 @@ tables:
         data_type: VARCHAR(50)
         is_enum: true
         sample_values:
-          - "TERM_LOAN"
-          - "REVOLVER"
-          - "DELAYED_DRAW"
+          - "Term Loan B"
+          - "Unitranche"
+          - "Revolver"
+          - "Delayed Draw TL"
       - name: pik_toggle
         synonyms:
           - pik
@@ -390,13 +409,21 @@ tables:
           - rate
           - coupon
           - interest_rate
-        description: Interest rate type e.g. SOFR + 425bps
+        description: "Floating interest rate as SOFR plus a spread, one of the values listed (e.g. SOFR + 425bps)"
         expr: RATETYPE
         data_type: VARCHAR(50)
         is_enum: true
         sample_values:
-          - "FLOATING"
-          - "FIXED"
+          - "SOFR + 350bps"
+          - "SOFR + 375bps"
+          - "SOFR + 400bps"
+          - "SOFR + 425bps"
+          - "SOFR + 450bps"
+          - "SOFR + 475bps"
+          - "SOFR + 500bps"
+          - "SOFR + 525bps"
+          - "SOFR + 550bps"
+          - "SOFR + 575bps"
     facts:
       - name: commitment_mm
         description: "Total commitment amount in millions"
@@ -602,26 +629,24 @@ tables:
         data_type: VARCHAR(50)
         is_enum: true
         sample_values:
-          - "SCREENING"
-          - "DUE_DILIGENCE"
-          - "IC_REVIEW"
-          - "NEGOTIATION"
-          - "CLOSED"
-          - "PASSED"
+          - "Screening"
+          - "Mandate"
+          - "Term Sheet"
+          - "Due Diligence"
+          - "Commitment"
+          - "Allocation"
       - name: deal_type
         synonyms:
           - transaction_type
           - deal_structure
-        description: "Deal type: LBO, Refinancing, Add-on, Incremental TL"
+        description: "Deal type: LBO, Add-on or Refinancing"
         expr: DEALTYPE
         data_type: VARCHAR(50)
         is_enum: true
         sample_values:
-          - "Platform"
+          - "LBO"
           - "Add-on"
-          - "Carve-out"
-          - "Take-Private"
-          - "Growth Capital"
+          - "Refinancing"
       - name: pipeline_facility_type
         synonyms:
           - pipeline_loan_type
@@ -653,9 +678,21 @@ tables:
           - pipeline_target
           - deal_name
           - target_company
-        description: Target company name for pipeline deals
+        description: "Name of the prospective borrower in the new-deal pipeline, one of 10 exact names (see values). Filter with = on the exact name, never LIKE or ILIKE; map the user's wording to one of the values first."
         expr: TARGETNAME
         data_type: VARCHAR(255)
+        is_enum: true
+        sample_values:
+          - Apex Waste Solutions
+          - BrightPath Education
+          - Continental Packaging Inc
+          - Ember Energy Services
+          - Heritage Senior Living
+          - ProVet Animal Health
+          - Quantum Cyber Security
+          - Sapphire Dental Partners
+          - Summit IT Managed Services
+          - TrueNorth Distribution
     facts:
       - name: deal_size_mm
         description: "Deal size in millions"
@@ -716,6 +753,87 @@ tables:
         description: Expected close date for pipeline deals
         expr: EXPECTEDCLOSE
         data_type: DATE
+  - name: sovereign_fiscal
+    synonyms:
+      - sovereign_debt
+      - government_debt
+      - fiscal_outlook
+      - imf_fiscal_monitor
+    description: IMF Fiscal Monitor sovereign fiscal data by country and year — gross and
+      net debt to GDP, fiscal balances, revenue and expenditure. This is the only
+      forward-looking macro series in the demo — it carries IMF projections five years out,
+      flagged by is_forecast. Macro backdrop only — it is deliberately NOT joined to
+      borrowers or facilities, because borrower geography is a region label (US, Europe)
+      rather than a country code, so any link would be invented. Use it to frame rate and
+      sovereign-risk context, never to attribute a number to a specific holding.
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: FACT_SOVEREIGN_FISCAL_OUTLOOK
+    primary_key:
+      columns:
+        - sovereign_fiscal_id
+    dimensions:
+      - name: sovereign_fiscal_id
+        description: Row identifier
+        expr: SOVEREIGN_FISCAL_ID
+        data_type: "NUMBER(38,0)"
+      - name: sovereign_country
+        synonyms:
+          - country_code
+          - sovereign_iso3
+        description: "ISO3 country code, for example USA, GBR, DEU, JPN"
+        expr: COUNTRY_ISO3
+        data_type: VARCHAR(16777216)
+      - name: fiscal_measure
+        synonyms:
+          - debt_measure
+          - fiscal_metric
+        description: "What is being measured, for example 'Gross debt (% of GDP)',
+          'Net lending/borrowing (also referred as overall balance) (% of GDP)',
+          'Revenue (% of GDP)', 'Expenditure (% of GDP)'"
+        expr: MEASURE_NAME
+        data_type: VARCHAR(16777216)
+      - name: sovereign_fiscal_year
+        description: Year the figure relates to
+        expr: FISCAL_YEAR
+        data_type: "NUMBER(38,0)"
+      - name: is_forecast
+        synonyms:
+          - is_projection
+        description: TRUE when the row is an IMF projection rather than an observed
+          historical figure. ALWAYS state this when presenting a forecast value — a 2030
+          debt-to-GDP figure is a projection, not history.
+        expr: IS_FORECAST
+        data_type: BOOLEAN
+        is_enum: true
+        sample_values:
+          - "TRUE"
+          - "FALSE"
+    time_dimensions:
+      - name: sovereign_period_date
+        description: Period end date for the observation or projection
+        expr: PERIOD_DATE
+        data_type: DATE
+    facts:
+      - name: value_pct_gdp
+        synonyms:
+          - debt_to_gdp
+          - pct_of_gdp
+        description: The measured value, expressed as a percent of GDP (120.8 = 120.8% of
+          GDP). Already a percentage — do not multiply by 100.
+        expr: VALUE_PCT_GDP
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: avg_value_pct_gdp
+        description: Average value across the selected countries and years
+        expr: AVG(value_pct_gdp)
+        access_modifier: public_access
+      - name: latest_value_pct_gdp
+        description: Most recent value in the selection
+        expr: MAX(value_pct_gdp)
+        access_modifier: public_access
 relationships:
   - name: covenants_to_facilities
     left_table: covenants
@@ -769,4 +887,8 @@ verified_queries:
   - name: TECHNOLOGY_SECTOR_BENCHMARK_COMPARISON
     sql: "SELECT __borrowers.borrower_name, __borrowers.sector, AVG(__facilities.SPREAD_BPS) AS portfolio_spread_bps, AVG(__financials.total_leverage) AS portfolio_leverage, AVG(__financials.interest_coverage) AS portfolio_icr, (SELECT AVG(__benchmarks.AVGSPREAD_BPS) FROM __benchmarks WHERE __benchmarks.benchmark_sector = 'Technology') AS sector_avg_spread, (SELECT AVG(__benchmarks.DEFAULTRATE_PCT) FROM __benchmarks WHERE __benchmarks.benchmark_sector = 'Technology') AS sector_default_rate, (SELECT AVG(__benchmarks.RECOVERYRATE_PCT) FROM __benchmarks WHERE __benchmarks.benchmark_sector = 'Technology') AS sector_recovery_rate FROM __facilities JOIN __borrowers ON (__facilities.fac_borrower_id = __borrowers.borrower_id) JOIN __financials ON (__financials.fin_borrower_id = __borrowers.borrower_id) WHERE __borrowers.sector = 'Technology' AND __financials.report_date = (SELECT MAX(__financials.report_date) FROM __financials) GROUP BY __borrowers.borrower_name, __borrowers.sector ORDER BY portfolio_spread_bps DESC"
     question: "Compare our Technology sector exposure against the latest Technology sector benchmarks for spread, leverage, and default rates"
+    use_as_onboarding_question: false
+  - name: SOVEREIGN_DEBT_BY_COUNTRY
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_CREDIT_PORTFOLIO_VIEW DIMENSIONS sovereign_fiscal.sovereign_country, sovereign_fiscal.sovereign_fiscal_year, sovereign_fiscal.is_forecast METRICS sovereign_fiscal.latest_value_pct_gdp WHERE sovereign_fiscal.fiscal_measure = 'Gross debt (% of GDP)' AND sovereign_fiscal.sovereign_country IN ('USA', 'GBR', 'DEU', 'JPN') AND sovereign_fiscal.sovereign_fiscal_year = 2026) ORDER BY latest_value_pct_gdp DESC"
+    question: How do major sovereign debt burdens compare as a share of GDP, and is that figure a forecast?
     use_as_onboarding_question: false

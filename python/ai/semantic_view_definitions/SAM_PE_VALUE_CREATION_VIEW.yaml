@@ -25,21 +25,28 @@ tables:
           - portfolio_company
           - portco
           - name
-        description: Portfolio company name
+        description: "Name of the PE portfolio company owned by an APX fund, one of 6 exact names (see values). Filter with = on the exact name, never LIKE or ILIKE; map the user's wording to one of the values first. If the user names a company that is not listed, it is not in the PE portfolio - say so."
         expr: COMPANYNAME
         data_type: VARCHAR(255)
+        is_enum: true
+        sample_values:
+          - ConsumerBrands Nordic
+          - GreenEnergy Systems
+          - LogiFlow DACH
+          - MedDevice Pro
+          - NordicTech Solutions
+          - TelecomInfra AG
       - name: company_status
         synonyms:
           - status
           - investment_status
-        description: "Investment status: Active, Exited, In Diligence"
+        description: "Investment status: Active or Exited"
         expr: STATUS
         data_type: VARCHAR(20)
         is_enum: true
         sample_values:
-          - "ACTIVE"
-          - "EXITED"
-          - "WRITE_DOWN"
+          - "Active"
+          - "Exited"
       - name: deal_lead
         synonyms:
           - partner
@@ -51,9 +58,15 @@ tables:
         synonyms:
           - vehicle
           - investment_fund
-        description: APX fund that owns the company
+        description: "APX fund that owns the company, one of 4 exact fund names (see values). Filter with = on the exact name, never LIKE or ILIKE: APX IX, APX VIII and the two APX Infrastructure funds are different funds."
         expr: FUNDNAME
         data_type: VARCHAR(100)
+        is_enum: true
+        sample_values:
+          - APX IX
+          - APX VIII
+          - APX Infrastructure V
+          - APX Infrastructure IV
       - name: geography
         synonyms:
           - region
@@ -84,7 +97,31 @@ tables:
         description: Investment thesis category
         expr: THESISCATEGORY
         data_type: VARCHAR(50)
+    time_dimensions:
+      - name: acquisition_date
+        synonyms:
+          - entry_date
+          - investment_date
+          - deal_date
+        description: "Date the APX fund acquired the company. Use for holding period and vintage questions."
+        expr: ACQUISITIONDATE
+        data_type: DATE
+      - name: exit_date
+        synonyms:
+          - realisation_date
+          - sale_date
+        description: "Date the company was exited. NULL for Active companies; only populated when company_status = 'Exited'."
+        expr: EXITDATE
+        data_type: DATE
     metrics:
+      - name: total_exit_value
+        synonyms:
+          - exit_proceeds
+          - exit_price
+          - realised_value
+        description: "Exit value in millions EUR. Only populated for Exited companies; NULL for Active companies."
+        expr: SUM(EXITVALUE_MM)
+        access_modifier: public_access
       - name: total_acquisition_value
         synonyms:
           - acquisition_price
@@ -167,8 +204,9 @@ tables:
         sample_values:
           - "Revenue Growth"
           - "Cost Optimization"
-          - "Digital Transformation"
+          - "Digital"
           - "ESG"
+          - "Working Capital"
       - name: initiative_name
         synonyms:
           - initiative
@@ -180,7 +218,7 @@ tables:
       - name: initiative_status
         synonyms:
           - progress
-        description: "Initiative status: On Track, At Risk, Behind, Completed"
+        description: "Initiative status: On Track, At Risk or Behind"
         expr: STATUS
         data_type: VARCHAR(50)
         is_enum: true
@@ -188,7 +226,6 @@ tables:
           - "On Track"
           - "At Risk"
           - "Behind"
-          - "Completed"
       - name: target_metric
         synonyms:
           - metric
@@ -293,9 +330,26 @@ tables:
         data_type: VARCHAR(20)
         is_enum: true
         sample_values:
-          - "GREEN"
-          - "AMBER"
-          - "RED"
+          - "Green"
+          - "Amber"
+          - "Red"
+      - name: kpi_unit
+        synonyms:
+          - unit
+          - unit_of_measure
+        description: "Unit of the KPI value (e.g. %, Score, tCO2/€M). Lower is better for Carbon Intensity and Employee Turnover; higher is better for Customer Satisfaction, Employee NPS and On-Time Delivery."
+        expr: UNIT
+        data_type: VARCHAR(20)
+    time_dimensions:
+      - name: kpi_date
+        synonyms:
+          - kpi_period
+          - period
+          - reporting_date
+          - as_of_date
+        description: "Reporting period date of the KPI observation (quarterly). KPIs have one row per company, KPI and period, so status questions ('which KPIs are Red') must filter to the latest kpi_date, otherwise historical Red readings are mixed in. For trends, group by kpi_date."
+        expr: KPIDATE
+        data_type: DATE
     metrics:
       - name: average_actual_kpi
         synonyms:
@@ -449,3 +503,32 @@ relationships:
     relationship_columns:
       - left_column: metr_pk_portfoliocompanyid
         right_column: comp_pk_portfoliocompanyid
+verified_queries:
+  - name: KPIS_VS_BUDGET_WITH_FLAGS
+    sql: "SELECT c.company_name, k.kpi_name, k.kpi_category, k.kpi_status, AVG(k.actualvalue) AS actual, AVG(k.budgetvalue) AS budget, AVG(k.prioryearvalue) AS prior_year FROM companies AS c LEFT JOIN kpis AS k ON c.comp_pk_portfoliocompanyid = k.kpis_pk_portfoliocompanyid WHERE c.fund = 'APX Infrastructure V' GROUP BY c.company_name, k.kpi_name, k.kpi_category, k.kpi_status ORDER BY CASE WHEN k.kpi_status = 'Red' THEN 1 WHEN k.kpi_status = 'Amber' THEN 2 ELSE 3 END, k.kpi_name"
+    question: "For each portfolio company in APX Infrastructure V, how are the KPIs performing against budget and prior year, and which ones are flagged as red or amber?"
+    use_as_onboarding_question: true
+  - name: AT_RISK_INITIATIVES
+    sql: "SELECT c.company_name, c.sector, c.geography, c.thesis_category, COUNT(DISTINCT i.init_pk_planid) AS total_initiatives, COUNT_IF(i.initiative_status = 'At Risk') AS at_risk, COUNT_IF(i.initiative_status = 'Behind') AS behind, COUNT_IF(i.initiative_status = 'On Track') AS on_track, SUM(i.impactebitda_mm) AS total_ebitda_impact_mm FROM companies AS c LEFT JOIN initiatives AS i ON c.comp_pk_portfoliocompanyid = i.init_pk_portfoliocompanyid WHERE c.company_status = 'Active' AND c.fund = 'APX IX' GROUP BY c.company_name, c.sector, c.geography, c.thesis_category ORDER BY at_risk DESC, behind DESC NULLS LAST"
+    question: "For active portfolio companies in Fund APX IX, which ones have the most at-risk or behind initiatives, and what is the total EBITDA impact of their value creation plans?"
+    use_as_onboarding_question: true
+  - name: FUND_COMPANY_RETURNS
+    sql: "SELECT c.company_name AS company, c.company_status AS status, c.sector, c.subsector, c.geography, c.deal_lead, c.thesis_category AS thesis, AVG(c.irr_pct) AS irr_pct, AVG(c.moic) AS moic, AVG(c.ownershippct) AS ownership_pct, SUM(c.acquisitionprice_mm) AS acquisition_price_mm, AVG(c.entryev_ebitda) AS entry_ev_ebitda FROM companies AS c WHERE c.fund = 'APX Infrastructure IV' GROUP BY 1, 2, 3, 4, 5, 6, 7"
+    question: "What are the key performance metrics — including IRR, MOIC, ownership, acquisition price, and entry EV/EBITDA — for each portfolio company in the APX Infrastructure IV fund, broken down by sector, geography, deal lead, and investment thesis?"
+    use_as_onboarding_question: false
+  - name: RED_STATUS_KPIS
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_PE_VALUE_CREATION_VIEW DIMENSIONS companies.company_name, kpis.kpi_name, kpis.kpi_category, kpis.kpi_status METRICS kpis.average_actual_kpi, kpis.average_budget_kpi WHERE kpis.kpi_status = 'Red') ORDER BY company_name, kpi_name"
+    question: "Show me all Red status KPIs across the portfolio."
+    use_as_onboarding_question: true
+  - name: RED_KPIS_LATEST_PERIOD
+    sql: "WITH latest AS (SELECT MAX(kpis.kpi_date) AS max_date FROM kpis) SELECT c.company_name, k.kpi_name, k.kpi_category, k.kpi_unit, k.kpi_date, AVG(k.average_actual_kpi) AS actual, AVG(k.average_budget_kpi) AS budget FROM kpis AS k JOIN companies AS c ON k.kpis_pk_portfoliocompanyid = c.comp_pk_portfoliocompanyid WHERE k.kpi_status = 'Red' AND k.kpi_date = (SELECT max_date FROM latest) GROUP BY c.company_name, k.kpi_name, k.kpi_category, k.kpi_unit, k.kpi_date ORDER BY c.company_name, k.kpi_name"
+    question: "Which KPIs are currently Red across the PE portfolio?"
+    use_as_onboarding_question: false
+  - name: KPI_TREND_BY_COMPANY
+    sql: "WITH periods AS (SELECT DISTINCT kpis.kpi_date FROM kpis ORDER BY kpis.kpi_date DESC LIMIT 4) SELECT c.company_name, k.kpi_date, k.kpi_status, AVG(k.average_actual_kpi) AS actual, AVG(k.average_budget_kpi) AS budget FROM kpis AS k JOIN companies AS c ON k.kpis_pk_portfoliocompanyid = c.comp_pk_portfoliocompanyid WHERE k.kpi_name = 'Customer Satisfaction' AND k.kpi_date IN (SELECT kpi_date FROM periods) GROUP BY c.company_name, k.kpi_date, k.kpi_status ORDER BY c.company_name, k.kpi_date"
+    question: "Show the Customer Satisfaction trend over the last 4 quarters for each portfolio company."
+    use_as_onboarding_question: false
+  - name: KPI_DETERIORATION_RANKING
+    sql: "WITH bounds AS (SELECT MIN(kpis.kpi_date) AS first_date, MAX(kpis.kpi_date) AS last_date FROM kpis), endpoints AS (SELECT c.company_name, k.kpi_name, k.kpi_unit, AVG(CASE WHEN k.kpi_date = b.first_date THEN k.average_actual_kpi END) AS earliest_value, AVG(CASE WHEN k.kpi_date = b.last_date THEN k.average_actual_kpi END) AS latest_value FROM kpis AS k JOIN companies AS c ON k.kpis_pk_portfoliocompanyid = c.comp_pk_portfoliocompanyid CROSS JOIN bounds AS b WHERE k.kpi_date IN (b.first_date, b.last_date) GROUP BY c.company_name, k.kpi_name, k.kpi_unit) SELECT company_name, kpi_name, kpi_unit, earliest_value, latest_value, latest_value - earliest_value AS change, CASE WHEN kpi_name IN ('Carbon Intensity', 'Employee Turnover') THEN latest_value - earliest_value ELSE earliest_value - latest_value END AS deterioration FROM endpoints WHERE earliest_value IS NOT NULL AND latest_value IS NOT NULL ORDER BY deterioration DESC"
+    question: "Which company KPIs have deteriorated the most from the earliest to the latest period? Remember that for Carbon Intensity and Employee Turnover a rise is a deterioration."
+    use_as_onboarding_question: false

@@ -199,9 +199,14 @@ tables:
           - company_name
           - company
           - issuer_name
-        description: Company legal name
+        description: "Company legal name exactly as stored, e.g. ELI LILLY & CO, TAIWAN SEMICONDUCTOR MANUFACTURING CO LTD, MICROSOFT CORP. Identifies the issuer for filtering and grouping. Users give informal names (Lilly, TSMC): look up the stored value with this column's search lookup and filter with =, never LIKE or ILIKE. If none of the returned names is the company the user meant, the company is not covered - say so rather than substituting a similar name."
         expr: LEGALNAME
         data_type: VARCHAR(16777216)
+        cortex_search_service:
+          service: SAM_ISSUER_NAME_SEARCH
+          literal_column: LEGALNAME
+          database: {{DATABASE}}
+          schema: AI
       - name: sector
         synonyms:
           - gics_sector

@@ -56,7 +56,7 @@ disclosure:
 
 ## Investment Thesis
 
-We maintain our **{{RATING}}** rating on {{COMPANY_NAME}}, reflecting the company's strong execution in a dynamic {{SIC_DESCRIPTION}} landscape. The company continues to demonstrate impressive revenue momentum with {{YOY_REVENUE_GROWTH_PCT}}% year-over-year growth whilst maintaining industry-leading profitability metrics. Our investment case centres on three key pillars: accelerating adoption of the company's cloud-based platform offerings, expanding addressable markets through AI and machine learning capabilities, and operating leverage driving margin expansion.
+We maintain our **{{RATING}}** rating on {{COMPANY_NAME}}, reflecting the company's execution in a dynamic {{SIC_DESCRIPTION}} landscape. The company {{FUNDAMENTAL_FRAMING}}, with revenue growth of {{YOY_REVENUE_GROWTH_PCT}}% year-over-year growth whilst maintaining industry-leading profitability metrics. Our investment case centres on three key pillars: accelerating adoption of the company's cloud-based platform offerings, expanding addressable markets through AI and machine learning capabilities, and operating leverage driving margin expansion.
 
 The company's strategic positioning within high-growth technology segments provides multiple expansion vectors. Management's focus on recurring revenue streams and platform economics has successfully shifted the business model toward more predictable, higher-margin revenue. We expect this transition to continue delivering both top-line growth and profitability improvements over our forecast period.
 
@@ -96,7 +96,7 @@ Regulatory risks warrant close monitoring, particularly around data privacy stan
 
 Our ${{PRICE_TARGET_USD}} price target reflects a blend of valuation methodologies. Our discounted cash flow analysis yields a fair value of ${{PRICE_TARGET_USD}}, assuming normalized growth rates and terminal value multiples consistent with historical sector averages. On a relative basis, our target implies a forward P/E of {{PE_RATIO}}x, representing an appropriate premium to the {{SIC_DESCRIPTION}} sector median given the company's superior growth profile and profitability metrics.
 
-We believe the current valuation adequately reflects the company's quality characteristics whilst providing attractive risk-adjusted return potential. The {{RATING}} rating incorporates both fundamental analysis and technical considerations, suggesting favourable entry points for long-term investors.
+{{CONVICTION_PHRASE}}. The current valuation reflects the company's quality characteristics. The {{RATING}} rating incorporates both fundamental analysis and technical considerations, suggesting favourable entry points for long-term investors.
 
 ## Conclusion
 

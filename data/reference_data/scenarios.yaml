@@ -98,6 +98,24 @@ supply_chain_relationships:
   - Customer
   - 0.05
   - Medium
+- - TSM
+  - AVGO
+  - Customer
+  - 0.08
+  - High
+  - Illustrative share, based on published analyst estimates of Broadcom's share of TSMC revenue (fabless, leading-edge custom ASICs)
+- - TSM
+  - QCOM
+  - Customer
+  - 0.08
+  - High
+  - Illustrative share, based on published analyst estimates of Qualcomm's share of TSMC revenue (fabless Snapdragon SoCs)
+- - TSM
+  - INTC
+  - Customer
+  - 0.06
+  - Medium
+  - Illustrative share, based on published analyst estimates of Intel's outsourced wafer spend at TSMC (compute tiles; Intel also runs its own fabs)
 supply_chain_strengths:
   semiconductors:
     critical_suppliers_share:

@@ -234,18 +234,78 @@ tables:
     - market_data.py (FACT_TREASURY_YIELDS)
   sec_insider_trading:
     table: SEC_INSIDER_TRADING_SECURITIES_INDEX
-    description: SEC Form 4 insider buy/sell transactions for company officers and directors
+    description: SEC insider transactions (Forms 3, 4 and 5) for company officers, directors
+      and 10%+ shareholders. One row per security transaction.
     key_columns:
+    - ADSH
     - ISSUER_CIK
     - TRANSACTION_DATE
     - TRANSACTION_TYPE
     - TRANSACTION_ACTION
     - TRANSACTION_SHARES
     - TRANSACTION_PRICE_PER_SHARE
-    coverage: All SEC Form 4 filers — filtered to demo company CIKs
+    coverage: All SEC Forms 3/4/5 filers — filtered to demo company CIKs
     replaces: null
     used_by:
     - market_data.py (FACT_INSIDER_TRANSACTIONS)
+  sec_insider_reporting_owners:
+    table: SEC_INSIDER_TRADING_REPORTING_OWNERS_INDEX
+    description: The reporting persons named on each insider trading filing — who they are
+      and their relationship to the issuer, for example "Director, Officer - CEO". Joins to
+      sec_insider_trading on ADSH. One row per reporting person per filing, so multiple
+      owners can share an ADSH and the join MUST aggregate to avoid inflating transactions.
+    key_columns:
+    - ADSH
+    - ISSUER_CIK
+    - REPORTING_OWNER_NAME
+    - REPORTING_OWNER_RELATIONSHIP
+    - FORM_TYPE
+    - REPORTED_PERIOD_DATE
+    coverage: 471 demo issuers, 22,378 named insiders. About 2.5% of filings list more than
+      one reporting owner, occasionally 10+.
+    replaces: null
+    used_by:
+    - market_data.py (FACT_INSIDER_TRANSACTIONS — insider name and role)
+  sec_14a_attributes:
+    table: SEC_14A_ATTRIBUTES
+    description: Structured attributes extracted from SEC DEF 14A proxy statements. Long
+      format — one row per company, executive, fiscal year and compensation component, with
+      the amount in VALUE. ENTITY_TYPE gives the role (ceo, cfo, coo, former_ceo,
+      named_executive_officer) and TAG the component (SALARY, BONUS, STOCK_AWARDS,
+      OPTION_AWARDS, NON_EQUITY_INCENTIVE, CHANGE_IN_PENSION, ALL_OTHER_COMPENSATION,
+      TOTAL). Only the executive_compensation CATEGORY is populated — board composition and
+      shareholder proposals are announced but absent from the share, so do not build for
+      them. A fiscal year is restated in later proxies, so dedupe on the latest FILED_DATE.
+    key_columns:
+    - CIK
+    - ENTITY_NAME
+    - ENTITY_TYPE
+    - FISCAL_YEAR
+    - TAG
+    - VALUE
+    - FILED_DATE
+    coverage: 411 demo issuers have CEO compensation, FY2021-2025; 2,201 named executives
+      across 401 of the 503 issuers
+    replaces: null
+    used_by:
+    - market_data.py (FACT_EXECUTIVE_COMPENSATION)
+  imf_indicators:
+    table: INTERNATIONAL_MONETARY_FUND_TIMESERIES
+    attributes_table: INTERNATIONAL_MONETARY_FUND_ATTRIBUTES
+    description: IMF sovereign macro indicators including Fiscal Monitor and Regional
+      Economic Outlook series. The only forward-looking macro source in the demo — it
+      carries IMF projections with dates beyond today, through 2030, alongside history back
+      to 1914. Rows dated after the demo anchor are FORECASTS and must be labelled as such.
+    key_columns:
+    - GEO_ID
+    - DATE
+    - VARIABLE
+    - VALUE
+    coverage: 37 variables have future-dated rows through 2030-12-31 (8,045 rows); sovereign
+      fiscal balances, gross and net debt to GDP, revenue and expenditure
+    replaces: null
+    used_by:
+    - market_data.py (FACT_SOVEREIGN_FISCAL_OUTLOOK)
   climate_watch:
     table: CLIMATE_WATCH_TIMESERIES
     attributes_table: CLIMATE_WATCH_ATTRIBUTES

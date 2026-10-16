@@ -93,9 +93,22 @@ tables:
         synonyms:
           - fund_name
           - strategy_name
-        description: "Portfolio name. All names start with \"SAM \" prefix, e.g. \"SAM Technology & Infrastructure\", \"SAM ESG Leaders Global Equity\", \"SAM Global Flagship Multi-Asset\"."
+        description: "Portfolio name, one of 11 exact names that all start with \"SAM \" (see values). Filter with = on the exact name, never LIKE or ILIKE. Map short names to the full name first - Tech or Technology means SAM Technology & Infrastructure (not SAM Tech Disruptors Equity), Flagship means SAM Global Flagship Multi-Asset, ESG means SAM ESG Leaders Global Equity, 60/40 or Balanced means SAM Global Balanced 60/40."
         expr: PORTFOLIONAME
         data_type: VARCHAR(134217728)
+        is_enum: true
+        sample_values:
+          - SAM Technology & Infrastructure
+          - SAM ESG Leaders Global Equity
+          - SAM Global Flagship Multi-Asset
+          - SAM US Core Equity
+          - SAM Renewable & Climate Solutions
+          - SAM Sustainable Global Equity
+          - SAM AI & Digital Innovation
+          - SAM Global Balanced 60/40
+          - SAM Tech Disruptors Equity
+          - SAM US Value Equity
+          - SAM Multi-Asset Income
       - name: strategy
         synonyms:
           - investment_strategy
@@ -380,10 +393,9 @@ tables:
         data_type: VARCHAR(7)
         is_enum: true
         sample_values:
-          - "PENDING"
-          - "SETTLED"
-          - "FAILED"
-          - "CANCELLED"
+          - "Settled"
+          - "Pending"
+          - "Failed"
     facts:
       - name: settlement_value
         description: "Settlement value of the trade"
@@ -633,3 +645,20 @@ relationships:
     relationship_columns:
       - left_column: tran_pk_securityid
         right_column: secu_pk_securityid
+verified_queries:
+  - name: POSITION_COUNT_AS_OF
+    sql: "SELECT COUNT(DISTINCT p.hold_pk_securityid) AS numpositions FROM holdings AS p JOIN portfolios AS dp ON dp.port_pk_portfolioid = p.hold_pk_portfolioid WHERE dp.portfolio_name = 'SAM ESG Leaders Global Equity' AND p.hold_pk_holdingdate = DATEADD(DAY, 20 * -1, CURRENT_DATE)"
+    question: "How many distinct securities were held in the SAM ESG Leaders Global Equity portfolio 20 days ago?"
+    use_as_onboarding_question: true
+  - name: PORTFOLIO_VALUE_AS_OF
+    sql: "SELECT ROUND(SUM(p.market_value_base), 0) AS totalmarketvalue FROM holdings AS p JOIN portfolios AS dp ON dp.port_pk_portfolioid = p.hold_pk_portfolioid WHERE dp.portfolio_name = 'SAM Technology & Infrastructure' AND p.hold_pk_holdingdate = DATEADD(DAY, 20 * -1, CURRENT_DATE)"
+    question: "What was the total market value of the Technology & Infrastructure portfolio 20 days ago?"
+    use_as_onboarding_question: true
+  - name: CASH_AND_LIQUIDITY
+    sql: "SELECT __portfolios.portfolio_name, AVG(__portfolio_liquidity.cash_position_usd) AS cash_position_usd, AVG(__portfolio_liquidity.net_cashflow_30d_usd) AS net_cashflow_30d_usd, AVG(__portfolio_liquidity.portfolio_liquidity_score) AS liquidity_score FROM portfolio_liquidity JOIN portfolios ON __portfolio_liquidity.port_pk_portfolioid = __portfolios.port_pk_portfolioid WHERE __portfolio_liquidity.port_pk_liquidity_date = (SELECT MAX(port_pk_liquidity_date) FROM portfolio_liquidity) AND __portfolios.portfolio_name = 'SAM Technology & Infrastructure' GROUP BY __portfolios.portfolio_name"
+    question: "What are the current cash position, 30-day net cashflow, and liquidity score for the SAM Technology & Infrastructure portfolio as of the most recent date?"
+    use_as_onboarding_question: false
+  - name: TAX_LOTS_AND_HARVESTING
+    sql: "SELECT __securities.ticker, SUM(__tax_implications.cost_basis_usd) AS cost_basis_usd, SUM(__tax_implications.unrealized_gain_loss_usd) AS unrealized_gain_loss_usd, MAX(CAST(__tax_implications.tax_loss_harvest_opportunity AS VARCHAR)) AS tax_loss_flag, MAX(__tax_implications.tax_treatment) AS tax_treatment FROM tax_implications JOIN securities ON __securities.secu_pk_securityid = __tax_implications.tax_pk_securityid JOIN portfolios ON __portfolios.port_pk_portfolioid = __tax_implications.tax_pk_portfolioid WHERE __portfolios.portfolio_name = 'SAM Technology & Infrastructure' AND __securities.ticker IN ('AAPL', 'MSFT', 'NVDA') AND __tax_implications.tax_pk_tax_date = (SELECT MAX(tax_pk_tax_date) FROM tax_implications) GROUP BY __securities.ticker ORDER BY __securities.ticker"
+    question: "What are the cost basis, unrealized gains or losses, tax-loss harvesting opportunities, and tax treatment for AAPL, MSFT, and NVDA in the SAM Technology & Infrastructure portfolio as of the most recent date?"
+    use_as_onboarding_question: false

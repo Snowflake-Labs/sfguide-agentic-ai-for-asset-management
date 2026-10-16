@@ -9,6 +9,11 @@
 
 document_types:
   broker_research:
+    cadence:
+      period: event_driven
+      triggers: [new_earnings_filing, price_move_gt_pct, rating_threshold_crossed]
+      price_move_threshold_pct: 7.0
+      min_days_between: 21
     table_name: BROKER_RESEARCH_RAW
     corpus_name: PDF_EXTERNAL_CORPUS
     search_service: SAM_EXTERNAL_DOCS
@@ -20,7 +25,42 @@ document_types:
     template_dir: security/broker_research
     variants_per_sector: 3
     coverage_count: 13
+  internal_research:
+    cadence:
+      period: event_driven
+      triggers: [new_earnings_filing, rating_threshold_crossed]
+      min_days_between: 45
+    table_name: INTERNAL_RESEARCH_RAW
+    corpus_name: PDF_INTERNAL_CORPUS
+    search_service: SAM_INTERNAL_DOCS
+    word_count_range:
+    - 1200
+    - 1800
+    applies_to: securities
+    linkage_level: security
+    template_dir: security/internal_research
+    variants_per_sector: 1
+    coverage_count: 8
+  investment_memo:
+    cadence:
+      period: event_driven
+      triggers: [rating_threshold_crossed]
+      min_days_between: 90
+    table_name: INVESTMENT_MEMO_RAW
+    corpus_name: PDF_INTERNAL_CORPUS
+    search_service: SAM_INTERNAL_DOCS
+    word_count_range:
+    - 1200
+    - 1800
+    applies_to: securities
+    linkage_level: security
+    template_dir: security/investment_memo
+    variants_per_sector: 1
+    coverage_count: 6
   company_event_transcripts:
+    cadence:
+      period: quarterly
+      source: real
     table_name: COMPANY_EVENT_TRANSCRIPTS_RAW
     corpus_name: COMPANY_EVENT_TRANSCRIPTS_CORPUS
     search_service: SAM_COMPANY_EVENTS
@@ -41,6 +81,9 @@ document_types:
     chunk_size_tokens: 512
     speaker_mapping_table: COMP_EVENT_SPEAKER_MAPPING
   press_releases:
+    cadence:
+      period: event_driven
+      triggers: [new_sec_filing, corporate_action]
     table_name: PRESS_RELEASES_RAW
     corpus_name: PDF_EXTERNAL_CORPUS
     search_service: SAM_EXTERNAL_DOCS
@@ -54,6 +97,8 @@ document_types:
     coverage_count: 13
     releases_per_company: 4
   ngo_reports:
+    cadence:
+      period: semi_annual
     table_name: NGO_REPORTS_RAW
     corpus_name: PDF_EXTERNAL_CORPUS
     search_service: SAM_EXTERNAL_DOCS
@@ -74,6 +119,8 @@ document_types:
     coverage_count: 13
     reports_per_company: 2
   engagement_notes:
+    cadence:
+      period: quarterly
     table_name: ENGAGEMENT_NOTES_RAW
     corpus_name: PDF_INTERNAL_CORPUS
     search_service: SAM_INTERNAL_DOCS
@@ -87,9 +134,15 @@ document_types:
     - management_meeting
     - shareholder_call
     - compliance_discussion
+    - supply_chain_review
     coverage_count: 13
     notes_per_company: 1
+    focus_engagements:
+    - ticker: GOOGL
+      meeting_type: Supply Chain Review
   policy_docs:
+    cadence:
+      period: annual
     table_name: POLICY_DOCS_RAW
     corpus_name: PDF_INTERNAL_CORPUS
     search_service: SAM_INTERNAL_DOCS
@@ -105,6 +158,8 @@ document_types:
     - investment_management_agreement
     docs_total: 3
   sales_templates:
+    cadence:
+      period: annual
     table_name: SALES_TEMPLATES_RAW
     corpus_name: PDF_INTERNAL_CORPUS
     search_service: SAM_INTERNAL_DOCS
@@ -123,6 +178,8 @@ document_types:
     - product_catalog
     docs_total: 6
   philosophy_docs:
+    cadence:
+      period: annual
     table_name: PHILOSOPHY_DOCS_RAW
     corpus_name: PDF_INTERNAL_CORPUS
     search_service: SAM_INTERNAL_DOCS
@@ -138,6 +195,8 @@ document_types:
     - brand_guidelines
     docs_total: 3
   report_templates:
+    cadence:
+      period: quarterly
     table_name: REPORT_TEMPLATES_RAW
     corpus_name: PDF_INTERNAL_CORPUS
     search_service: SAM_INTERNAL_DOCS
@@ -148,11 +207,13 @@ document_types:
     linkage_level: global
     template_dir: global/report_templates
     template_types:
-    - mandate_compliance
-    - investment_decision
-    - risk_assessment
-    docs_total: 1
+    - esg_committee_report
+    - mandate_compliance_standard
+    - risk_committee_compliance_report
+    docs_total: 3
   macro_events:
+    cadence:
+      period: weekly
     table_name: MACRO_EVENTS_RAW
     corpus_name: PDF_INTERNAL_CORPUS
     search_service: SAM_INTERNAL_DOCS
@@ -197,6 +258,8 @@ document_types:
         facilities including TSMC fabs. Production halts expected for 2-4 weeks with downstream supply chain impacts on global
         technology and automotive sectors.
   custodian_reports:
+    cadence:
+      period: monthly
     table_name: CUSTODIAN_REPORTS_RAW
     corpus_name: PDF_INTERNAL_CORPUS
     search_service: SAM_INTERNAL_DOCS
@@ -217,6 +280,8 @@ document_types:
     - SAM ESG Leaders Global Equity
     docs_per_portfolio: 3
   reconciliation_notes:
+    cadence:
+      period: weekly
     table_name: RECONCILIATION_NOTES_RAW
     corpus_name: PDF_INTERNAL_CORPUS
     search_service: SAM_INTERNAL_DOCS
@@ -233,6 +298,9 @@ document_types:
     - corporate_action_break
     docs_total: 8
   ssi_documents:
+    cadence:
+      period: annual
+      triggers: [counterparty_change]
     table_name: SSI_DOCUMENTS_RAW
     corpus_name: PDF_INTERNAL_CORPUS
     search_service: SAM_INTERNAL_DOCS
@@ -248,6 +316,8 @@ document_types:
     - bond_settlement
     docs_total: 6
   ops_procedures:
+    cadence:
+      period: annual
     table_name: OPS_PROCEDURES_RAW
     corpus_name: PDF_INTERNAL_CORPUS
     search_service: SAM_INTERNAL_DOCS
@@ -263,6 +333,8 @@ document_types:
     - reconciliation_workflow
     docs_total: 3
   strategy_documents:
+    cadence:
+      period: quarterly
     table_name: STRATEGY_DOCUMENTS_RAW
     corpus_name: PDF_INTERNAL_CORPUS
     search_service: SAM_INTERNAL_DOCS
@@ -277,6 +349,8 @@ document_types:
     - board_meeting_summary
     docs_total: 2
   methodology_docs:
+    cadence:
+      period: annual
     table_name: METHODOLOGY_DOCS_RAW
     corpus_name: PDF_INTERNAL_CORPUS
     search_service: SAM_INTERNAL_DOCS
@@ -288,10 +362,14 @@ document_types:
     template_dir: global/methodology_docs
     document_types:
     - keyridge_methodology
+    - monte_carlo_simulation
     - portfolio_theory_primer
     - risk_metrics_reference
-    docs_total: 3
+    docs_total: 4
   ips:
+    cadence:
+      period: annual
+      triggers: [mandate_change]
     table_name: IPS_RAW
     corpus_name: PDF_INTERNAL_CORPUS
     search_service: SAM_INTERNAL_DOCS
@@ -333,10 +411,40 @@ document_types:
       SAM US Value Equity: moderate
       SAM Tech Disruptors Equity: aggressive
   regulatory_docs:
+    cadence:
+      period: event_driven
+      source: real
     table_name: PDF_REGULATORY_RAW
     corpus_name: PDF_REGULATORY_CORPUS
     search_service: SAM_REGULATORY_DOCS
     applies_to: global
     linkage_level: global
     source: real
-    docs_total: 14
+    docs_total: 16
+
+coverage:
+  top_n_per_portfolio: 10
+  scenario_portfolios:
+  - SAM Technology & Infrastructure
+  - SAM Global Flagship Multi-Asset
+  - SAM ESG Leaders Global Equity
+  - SAM Global Balanced 60/40
+  - SAM US Core Equity
+  - SAM US Value Equity
+  - SAM Renewable & Climate Solutions
+  - SAM Sustainable Global Equity
+  universe_doc_types:
+  - broker_research
+  - press_releases
+  - ngo_reports
+  - engagement_notes
+  starter_pack:
+  - broker_research
+  - press_releases
+  - ngo_reports
+  - engagement_notes
+  required_doc_types:
+  - broker_research
+  - press_releases
+  require_recommendation: true
+  backfill_max_names: 20

@@ -46,7 +46,7 @@ disclosure:
 
 ### Core Investment Thesis
 
-{{COMPANY_NAME}} represents a compelling investment opportunity within our technology sector allocation, offering exposure to multiple structural growth themes including cloud computing adoption, AI innovation, and digital transformation. Our analysis indicates the company is well-positioned to sustain above-market revenue growth whilst expanding profitability through operational leverage.
+{{COMPANY_NAME}} warrants a {{THESIS_STANCE}} stance within our technology sector allocation, offering exposure to multiple structural growth themes including cloud computing adoption, AI innovation, and digital transformation. Our analysis indicates the company is well-positioned to sustain above-market revenue growth whilst expanding profitability through operational leverage.
 
 Key thesis elements include: (1) competitive moat strengthening through network effects and switching costs, (2) margin expansion opportunity as cloud business scales and mix shifts toward software, (3) underappreciated AI monetisation potential creating upside optionality, and (4) valuation appearing attractive relative to growth and quality characteristics.
 
@@ -194,7 +194,7 @@ ESG Rating: BBB+ (on AAA-CCC scale) — compatible with ESG-labelled portfolio r
 
 ## Recommendation Summary
 
-We recommend a **{{RATING}}** position in {{COMPANY_NAME}} for inclusion in growth-oriented and technology-focused portfolios. The investment offers attractive exposure to cloud computing and AI themes with reasonable valuation and manageable risk profile. Our ${{TARGET_PRICE_USD}} price target implies {{UPSIDE_POTENTIAL_PCT}}% upside potential, which we view as compelling for a quality growth name.
+We recommend a **{{RATING}}** position in {{COMPANY_NAME}} for inclusion in growth-oriented and technology-focused portfolios. The position offers exposure to cloud computing and AI themes with reasonable valuation and manageable risk profile. Our ${{TARGET_PRICE_USD}} price target implies {{UPSIDE_POTENTIAL_PCT}}% upside potential, which {{THESIS_VERB}} our {{THESIS_STANCE}} stance.
 
 **Suggested Portfolio Allocations**:
 - SAM Technology & Infrastructure: {{TECH_ALLOCATION}}% position

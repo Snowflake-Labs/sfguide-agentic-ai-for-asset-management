@@ -18,7 +18,7 @@ placeholders:
 
 ## Executive Summary
 
-This strategic planning document outlines Simulated Asset Management's key priorities, growth initiatives, and competitive positioning for 2025 and beyond. Our firm continues to demonstrate strong momentum with assets under management reaching £12.5 billion, representing 15% growth year-over-year despite challenging market conditions.
+This strategic planning document outlines Simulated Asset Management's key priorities, growth initiatives, and competitive positioning for 2025 and beyond. Our firm continues to demonstrate strong momentum with assets under management reaching $7.4 billion, representing 15% growth year-over-year despite challenging market conditions.
 
 The asset management industry faces significant structural shifts including fee compression, increased regulatory requirements, and accelerating demand for sustainable investment solutions. Our strategic response focuses on three pillars: product innovation in high-growth segments, operational excellence through technology investment, and distribution expansion into new client segments and geographies.
 
@@ -51,7 +51,7 @@ Sustainable investing represents our highest-conviction growth opportunity. Glob
 
 **Thought Leadership**: Increase visibility through industry conferences, research publications, and media engagement. Position SAM as the authoritative voice on sustainable investing for institutional clients.
 
-**Target**: Grow ESG-focused AUM from £3.2 billion to £5.0 billion by 2027, representing 35% of total firm assets.
+**Target**: Grow ESG-focused AUM from $1.7 billion to $3.0 billion by 2027, representing 35% of total firm assets.
 
 ### Priority 2: Technology and Operational Excellence
 
@@ -81,15 +81,15 @@ Diversifying our client base and distribution channels supports sustainable grow
 
 ## Financial Projections and Resource Requirements
 
-**AUM Growth Trajectory**: We project AUM growth to £15 billion by 2027, representing 7% compound annual growth. Growth drivers include organic flows (£1.5B), market appreciation (£0.8B), and potential acquisition opportunities (£0.5B).
+**AUM Growth Trajectory**: We project AUM growth to $8.5 billion by 2027, representing 7% compound annual growth. Growth drivers include organic flows ($0.6B), market appreciation ($0.3B), and potential acquisition opportunities ($0.2B).
 
-**Revenue and Profitability**: Management fee revenue projected to reach £95 million by 2027, with operating margin improving to 38% from current 35%. Performance fee potential provides additional upside in strong market environments.
+**Revenue and Profitability**: Management fee revenue projected to reach $56 million by 2027, with operating margin improving to 38% from current 35%. Performance fee potential provides additional upside in strong market environments.
 
-**Investment Requirements**: Strategic initiatives require incremental investment of £8 million over three years:
-- Technology infrastructure: £4.0 million
-- ESG research capabilities: £2.0 million  
-- Distribution expansion: £1.5 million
-- Talent acquisition: £0.5 million
+**Investment Requirements**: Strategic initiatives require incremental investment of $5 million over three years:
+- Technology infrastructure: $2.5 million
+- ESG research capabilities: $1.2 million  
+- Distribution expansion: $1.0 million
+- Talent acquisition: $0.3 million
 
 **Return on Investment**: Strategic investments are projected to generate 25% return through revenue growth and cost efficiency gains.
 

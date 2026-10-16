@@ -38,7 +38,7 @@ Lead Analyst: {{ANALYST_NAME}} | {{PUBLISH_DATE}}
 
 ## Executive Summary
 
-We initiate coverage of {{COMPANY_NAME}} with a **{{RATING}}** rating and price target of ${{PRICE_TARGET_USD}}. As a well-established {{SIC_DESCRIPTION}} institution, the company demonstrates solid fundamentals with return on equity of {{ROE_PCT}}% and consistent profitability through market cycles. The bank's diversified business model, strong capital position, and prudent risk management support our constructive investment view.
+We initiate coverage of {{COMPANY_NAME}} with a **{{RATING}}** rating and price target of ${{PRICE_TARGET_USD}}. As a well-established {{SIC_DESCRIPTION}} institution, the company {{FUNDAMENTAL_FRAMING}}, with return on equity of {{ROE_PCT}}%. The bank's business model, capital position and risk management {{THESIS_VERB}} our {{THESIS_STANCE}} investment view.
 
 ## Business Model and Competitive Position
 

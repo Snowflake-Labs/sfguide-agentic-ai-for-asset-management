@@ -1,13 +1,13 @@
 ---
 name: factor-model-explorer
-description: Use this skill when the user asks which factors are driving returns, wants to compare factor performance across periods, or requests ad-hoc factor exploration like "which factors are working this quarter", "compare momentum vs value", or "factor correlations". Also use when the user needs analysis beyond what pre-computed factor views provide.
+description: Use this skill for any prompt mentioning "rank IC", "rank information coefficient", "information coefficient", "IC of [factor]", "regress factor scores on returns", "regression of factor scores", "factor regression", "cross-sectional regression", or "factor predictiveness". Load it BEFORE running any code_execution for factor work. Covers ad-hoc factor research - factor information coefficient (IC) and predictiveness, cross-sectional regression of returns on factor scores, factor correlations and redundancy, factor momentum (rolling Sharpe), comparing factor performance across periods ("which factors are working this quarter", "compare momentum vs value"), or testing a custom factor blend. Do NOT use for Brinson portfolio-versus-benchmark attribution (use multi-level-attribution) or for building a factor-screened shortlist (use multi-factor-screening-strategy).
 ---
 
 # Factor Model Explorer
 
 ## When to Activate
 
-Trigger when user asks: "which factors are driving returns?", "factor performance this quarter", "compare momentum vs value", "custom factor analysis", "factor correlations"
+Trigger when user asks: "rank IC", "compute the rank IC", "information coefficient", "regress factor scores on returns", "regression of factor scores on forward returns", "factor regression", "what is the IC of [factor]", "is [factor] predictive", "regress returns on factor scores", "which factors are working?", "factor performance this quarter", "compare momentum vs value", "custom factor analysis", "factor correlations"
 
 ## Workflow
 
@@ -27,7 +27,7 @@ Convert the Cortex Analyst results from Step 1 into a pandas DataFrame, then cal
 
 | User Intent | Function |
 |-------------|----------|
-| Factor predictiveness / signal quality | `compute_cross_sectional_ic(df, factor_cols, return_col)` |
+| Factor predictiveness / signal quality / rank IC / regression of factor scores on returns | `compute_cross_sectional_ic(df, factor_cols, return_col)` (Spearman rank IC per date; present it as the rank-based cross-sectional regression answer) |
 | Factor overlap / redundancy check | `compute_factor_correlations(df, factor_cols)` |
 | Factor momentum / trend | `compute_rolling_sharpe(df, factor_cols, window)` |
 | Custom factor blend performance | `test_factor_combination(df, weights)` |

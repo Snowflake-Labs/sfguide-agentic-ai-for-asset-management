@@ -1,0 +1,79 @@
+# Code Bundle specification for the SAM AI demo.
+#
+# One spec serves TWO bundles. The specification belongs to the bundle, but the
+# ENTRYPOINT is chosen per execution, so the same spec covers both:
+#
+#   SAM_BUILD_BUNDLE    ENTRYPOINT 'python/workspace_main.py'
+#                       Full environment build. Created and run by
+#                       scripts/workspace_setup.sql, sourced from the WORKSPACE
+#                       live path - it cannot stage its own source, because
+#                       staging needs a Python client and this bundle is how the
+#                       Python runs.
+#
+#   SAM_WEEKLY_BUNDLE   ENTRYPOINT 'python/weekly_refresh_main.py'
+#                       Weekly incremental refresh. Created by the build itself
+#                       (python/data/automation.py), sourced from a STAGE rather
+#                       than a workspace, because a scheduled task must not
+#                       depend on a user's workspace continuing to exist.
+#
+# The bundle root is the repository root, hence the 'python/...' entrypoints.
+# Both entrypoints put python/ on sys.path using os.getcwd(), which is the
+# reliable anchor: __file__ is undefined in a Workspace notebook, and in a bundle
+# the working directory is the bundle root, which mirrors the repo layout.
+#
+# The build bundle is created and run for you by scripts/workspace_setup.sql.
+# The weekly bundle and its task are installed by the build:
+#
+#   CREATE OR REPLACE TASK SAM_DEMO.AI.WEEKLY_REFRESH_TASK
+#       WAREHOUSE = SAM_DEMO_EXECUTION_WH
+#       SCHEDULE  = 'USING CRON 0 6 * * 1 UTC'
+#   AS
+#       EXECUTE CODE BUNDLE SAM_DEMO.AI.SAM_WEEKLY_BUNDLE
+#           ENTRYPOINT = 'python/weekly_refresh_main.py'
+#           ARGUMENTS  = ('--mode', 'weekly');
+#
+#   ALTER TASK SAM_DEMO.AI.WEEKLY_REFRESH_TASK RESUME;
+#
+# Code changes are NOT picked up automatically - a bundle version is an immutable
+# snapshot. After editing any Python file, refresh the bundle:
+#
+#   Weekly:  python python/weekly_refresh_main.py --mode deploy
+#   Build:   re-run the CREATE OR REPLACE in workspace_setup.sql Section 9, or
+#            ALTER CODE BUNDLE SAM_DEMO.AI.SAM_BUILD_BUNDLE ADD VERSION FROM <src>;
+
+bundle:
+  type: custom
+
+  # A compute pool rather than a warehouse: the refresh spends real time in the
+  # Python process - rendering templates, generating PDFs with reportlab - rather
+  # than only pushing SQL down. reportlab also needs pip-installed packages, which
+  # the container runtime handles.
+  compute_type: compute_pool
+  language: python
+
+  compute_options:
+    compute_pool: SAM_DEMO_BUNDLE_POOL
+    # SQL and Snowpark queries from the bundle run here, not on the pool.
+    query_warehouse: SAM_DEMO_EXECUTION_WH
+    # Must be quoted: YAML would read an unquoted version as a number and select
+    # the wrong runtime. Check Snowflake Container Runtime releases for the
+    # current version rather than assuming this one stays latest.
+    runtime_version: 'V2.9-CPU-PY3.12'
+
+  # Packages are installed from Snowflake's shared PyPI artifact repository. This
+  # must be declared explicitly - it is NOT applied implicitly for Code Bundles.
+  # Verified empirically: with neither this nor an external access integration the
+  # run fails with "Failed to install packages from the requirements file"; with
+  # this line and no integration it succeeds.
+  #
+  # This replaced an earlier FSI_DEMO_PYPI_ACCESS external access integration.
+  # The artifact repository is preferable because it needs no network rule and no
+  # ACCOUNTADMIN-created integration. Note the Streamlit deployment path still
+  # uses that integration (see python/ai/tools/streamlit_deploy.py), so it is
+  # still created by scripts/workspace_setup.sql - just no longer needed here.
+  artifact_repositories:
+    - snowflake.snowpark.pypi_shared_repository
+
+  properties:
+    # pyyaml (config and content rules), reportlab (branded PDFs), markdown.
+    requirements_file: requirements.txt

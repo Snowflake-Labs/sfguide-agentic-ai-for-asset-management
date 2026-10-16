@@ -35,12 +35,36 @@ DEMO_DISCLAIMER = (
     "Not intended for actual investment decisions.*"
 )
 
+RESPONSE_STANDARDS = (
+    "Response Standards (apply to every answer):\n"
+    "- Currency: the base currency is USD. Show monetary amounts with \"$\" (e.g. $4.95M, $1.2bn). "
+    "UK English applies to spelling only - never write £ or GBP for USD amounts, and only use another "
+    "currency symbol when the data itself is denominated in that currency.\n"
+    "- Charts: if a chart helps, call data_to_chart straight after the query whose results it plots and "
+    "before writing the narrative that discusses it. Never mention, correct or apologise for a chart in the "
+    "text, never say a chart was mislinked or not generated, and never call data_to_chart again after the "
+    "answer is written. If no chart was produced, simply do not refer to one.\n"
+    "- Close: end every answer with one or two brief, specific next steps you can do (e.g. a drill-down, "
+    "a related check or a report), placed immediately before the demo disclaimer."
+)
+
 ORG_CONTEXT = (
     "Organization Context:\n"
     "- Simulated Asset Management (SAM) is a multi-asset investment firm\n"
-    "- Manages £2.5B AUM across 10 active investment strategies (growth, value, ESG, thematic)\n"
+    "- Manages $7.4bn AUM across 11 portfolios spanning 6 investment strategies (Value, Growth, Core, ESG, Multi-Asset, Income)\n"
     "- FCA-regulated with quarterly compliance reviews and daily risk monitoring\n"
-    "- Data refreshes daily at market close (4 PM ET) with 2-hour processing lag"
+    "- DATA GRAIN: holdings and positions are MONTH-END, not daily. The most recent holding date is the "
+    "latest month-end, which is normally the month before today. Market prices, rates and FX are daily. "
+    "Never assume a mid-month position date exists — if a holdings query returns nothing, fall back to the "
+    "latest available month-end rather than reporting no data."
+)
+
+# Shared data-grain reminder for per-agent error-handling blocks, so the monthly
+# position grain is stated identically everywhere instead of three conflicting
+# "refreshes daily at N PM ET" claims.
+POSITION_GRAIN_NOTE = (
+    "Holdings and positions are month-end only; the latest available date is the most recent month-end. "
+    "Retry with the latest month-end before concluding there is no data."
 )
 
 PORTFOLIO_NAME_MAPPING = (
@@ -64,50 +88,37 @@ PORTFOLIO_NAME_MAPPING = (
 AGENT_SKILLS = {
     'client_advisory': [
         'pdf-report-generation', 'portfolio-name-resolution',
+        'comprehensive-client-briefing',
         'quarterly-client-letter', 'client-review-preparation',
         'rfp-response-preparation', 'regulatory-lookup',
-        'audience-adaptive-narrative', 'multi-level-attribution',
+        'audience-format-adaptation', 'multi-level-attribution',
     ],
     'risk_compliance': [
         'pdf-report-generation', 'regulatory-lookup',
         'esg-mandate-compliance', 'concentration-risk-assessment',
-        'audience-adaptive-narrative',
+        'event-driven-risk-verification',
+        'audience-format-adaptation',
     ],
     'research': [
         'pdf-report-generation', 'investment-memo-generation',
-        'equity-research-report', 'audience-adaptive-narrative',
+        'equity-research-report', 'audience-format-adaptation',
         'earnings-intelligence', 'competitive-intelligence',
         'insider-institutional-analysis',
     ],
-    'investment_strategy': [
-        'factor-model-explorer', 'regulatory-lookup',
-        'audience-adaptive-narrative',
-    ],
     'operations': [
-        'pdf-report-generation', 'audience-adaptive-narrative',
+        'pdf-report-generation', 'audience-format-adaptation',
     ],
     'executive_leadership': [
         'pdf-report-generation', 'portfolio-name-resolution',
-        'executive-briefing', 'competitor-ma-analysis',
-        'data-lineage-explanation', 'audience-adaptive-narrative',
+        'executive-kpi-briefing', 'competitor-ma-analysis',
+        'data-lineage-explanation', 'audience-format-adaptation',
         'attribution-report-generator',
     ],
-    'portfolio_modelling_copilot': [
-        'historical-backtest', 'monte-carlo-simulation',
-        'multi-level-attribution', 'counterfactual-analysis',
-        'portfolio-optimizer', 'audience-adaptive-narrative',
-    ],
     'private_equity': [
-        'audience-adaptive-narrative',
-    ],
-    'pe_deal_sourcing': [
-        'audience-adaptive-narrative',
-    ],
-    'pe_portfolio_monitor': [
-        'audience-adaptive-narrative',
+        'audience-format-adaptation',
     ],
     'private_credit': [
-        'credit-risk-calculator', 'audience-adaptive-narrative',
+        'credit-risk-calculator', 'audience-format-adaptation',
         'covenant-monitoring', 'rate-sensitivity-analysis',
         'deal-pipeline-screening', 'credit-portfolio-review',
     ],
@@ -116,10 +127,12 @@ AGENT_SKILLS = {
         'attribution-report-generator', 'counterfactual-analysis',
         'attribution-anomaly-scan', 'stress-scenario-analysis',
         'concentration-risk-assessment', 'implementation-planning',
-        'audience-adaptive-narrative', 'pdf-report-generation',
+        'audience-format-adaptation', 'pdf-report-generation',
         'data-lineage-explanation',
+        'multi-factor-screening-strategy',
         'portfolio-construction', 'historical-backtest',
         'monte-carlo-simulation', 'portfolio-optimizer',
+        'factor-model-explorer',
     ],
 }
 
@@ -134,7 +147,7 @@ SEARCH_COLUMN_CONFIGS = {
           filterable: false
         PUBLISH_DATE:
           description: "Date the event occurred"
-          type: "date"
+          type: "datetime"
           searchable: false
           filterable: true
         EVENT_TYPE:
@@ -145,17 +158,17 @@ SEARCH_COLUMN_CONFIGS = {
         TICKER:
           description: "Stock ticker symbol, use to filter by company (e.g. NVDA, MSFT, AAPL)"
           type: "string"
-          searchable: true
+          searchable: false
           filterable: true
         COMPANY_NAME:
-          description: "Company name, use to filter by company (e.g. NVIDIA, Microsoft, Apple)"
+          description: "Company name as spelled by the transcript provider, often several spellings per company (NVIDIA CORP and NVIDIA CORPORATION, ELI LILLY & CO and ELI LILLY AND COMPANY), so filtering on it misses events. Filter by TICKER instead; use this column for display only."
           type: "string"
           searchable: true
           filterable: true
         GICS_SECTOR:
           description: "GICS sector classification (e.g. Information Technology, Health Care)"
           type: "string"
-          searchable: true
+          searchable: false
           filterable: true
         SPEAKER_NAME:
           description: "Name of the speaker in the event transcript"
@@ -192,7 +205,7 @@ SEARCH_COLUMN_CONFIGS = {
           filterable: true
         PUBLISH_DATE:
           description: "Date the document was published"
-          type: "date"
+          type: "datetime"
           searchable: false
           filterable: true
         LANGUAGE:
@@ -206,7 +219,7 @@ SEARCH_COLUMN_CONFIGS = {
           searchable: true
           filterable: true
         COMPANY_NAME:
-          description: "Company name, use to filter by company (e.g. NVIDIA, Microsoft, Apple)"
+          description: "Company legal name exactly as stored, e.g. NVIDIA CORP, MICROSOFT CORP, ELI LILLY & CO; informal names such as Nvidia or Lilly do not match. Prefer filtering by TICKER; filter on this column only with the exact stored legal name."
           type: "string"
           searchable: true
           filterable: true
@@ -230,7 +243,7 @@ SEARCH_COLUMN_CONFIGS = {
           filterable: true
         PUBLISH_DATE:
           description: "Date the document was published"
-          type: "date"
+          type: "datetime"
           searchable: false
           filterable: true
         LANGUAGE:
@@ -244,7 +257,7 @@ SEARCH_COLUMN_CONFIGS = {
           searchable: true
           filterable: true
         COMPANY_NAME:
-          description: "Company name, use to filter by company (e.g. NVIDIA, Microsoft, Apple)"
+          description: "Company legal name exactly as stored, e.g. NVIDIA CORP, MICROSOFT CORP, ELI LILLY & CO; informal names such as Nvidia or Lilly do not match. Prefer filtering by TICKER; filter on this column only with the exact stored legal name."
           type: "string"
           searchable: true
           filterable: true
@@ -341,7 +354,7 @@ SEARCH_COLUMN_CONFIGS = {
           filterable: false
         PUBLISH_DATE:
           description: "Effective date of the regulation"
-          type: "date"
+          type: "datetime"
           searchable: false
           filterable: true
         LANGUAGE:
@@ -350,16 +363,127 @@ SEARCH_COLUMN_CONFIGS = {
           searchable: false
           filterable: true"""
     },
+    "SAM_PE_DUE_DILIGENCE": {
+        "columns": """
+        DOCUMENT_TEXT:
+          description: "Full text content of the due diligence document chunk"
+          type: "string"
+          searchable: true
+          filterable: false
+        DOCUMENT_TITLE:
+          description: "Document title"
+          type: "string"
+          searchable: true
+          filterable: true
+        TARGETCOMPANYNAME:
+          description: "Name of the deal target company"
+          type: "string"
+          searchable: true
+          filterable: true
+        DEALID:
+          description: "Numeric deal identifier (e.g. 101, 201), matching DealID in the deal pipeline view"
+          type: "string"
+          searchable: false
+          filterable: true
+        DOCUMENT_TYPE:
+          description: "Document type: Confidential Information Memorandum, Vendor Due Diligence Report, Management Presentation, Commercial Due Diligence Summary"
+          type: "string"
+          searchable: false
+          filterable: true"""
+    },
+    "SAM_PE_BOARD_PACKS": {
+        "columns": """
+        DOCUMENT_TEXT:
+          description: "Full text content of the board pack chunk"
+          type: "string"
+          searchable: true
+          filterable: false
+        DOCUMENT_TITLE:
+          description: "Document title"
+          type: "string"
+          searchable: true
+          filterable: true
+        COMPANYNAME:
+          description: "Name of the portfolio company"
+          type: "string"
+          searchable: true
+          filterable: true
+        PORTFOLIOCOMPANYID:
+          description: "Numeric portfolio company identifier, matching PortfolioCompanyID in the PE views"
+          type: "string"
+          searchable: false
+          filterable: true
+        DOCUMENT_TYPE:
+          description: "Document type (Monthly Board Pack)"
+          type: "string"
+          searchable: false
+          filterable: true
+        REPORTPERIOD:
+          description: "Month the board pack reports on"
+          type: "datetime"
+          searchable: false
+          filterable: true"""
+    },
+    "SAM_PE_EXPERT_NETWORK": {
+        "columns": """
+        DOCUMENT_TEXT:
+          description: "Full text content of the expert call transcript chunk"
+          type: "string"
+          searchable: true
+          filterable: false
+        DOCUMENT_TITLE:
+          description: "Document title"
+          type: "string"
+          searchable: true
+          filterable: true
+        TARGETCOMPANYNAME:
+          description: "Company discussed on the expert call"
+          type: "string"
+          searchable: true
+          filterable: true
+        EXPERTROLE:
+          description: "Expert's background: Former CEO, Industry Consultant, Former Customer Executive"
+          type: "string"
+          searchable: true
+          filterable: true
+        DEALID:
+          description: "Numeric deal identifier the call relates to, if any"
+          type: "string"
+          searchable: false
+          filterable: true
+        PORTFOLIOCOMPANYID:
+          description: "Numeric portfolio company identifier the call relates to, if any"
+          type: "string"
+          searchable: false
+          filterable: true
+        CALLDATE:
+          description: "Date the expert call took place"
+          type: "datetime"
+          searchable: false
+          filterable: true"""
+    },
+}
+
+
+PDF_SOURCE_STAGES = {
+    "SAM_INTERNAL_DOCS": "PDF_INTERNAL_STAGE",
+    "SAM_EXTERNAL_DOCS": "PDF_EXTERNAL_STAGE",
+    "SAM_REGULATORY_DOCS": "PDF_REGULATORY_STAGE",
 }
 
 
 def build_search_tool_resource(tool_name, service_key, database_name, max_results=100):
     cfg = SEARCH_COLUMN_CONFIGS[service_key]
+    source = ""
+    if service_key in PDF_SOURCE_STAGES:
+        raw_schema = config.DATABASE['schemas']['raw']
+        source = f"""
+      stage_path: "@{database_name}.{raw_schema}.{PDF_SOURCE_STAGES[service_key]}"
+      relative_path_column: "SOURCE_FILE_PATH\""""
     return f"""    {tool_name}:
       search_service: "{database_name}.AI.{service_key}"
       id_column: "DOCUMENT_ID"
-      title_column: "DOCUMENT_TITLE"
-      is_multi_index: true
+      title_column: "DOCUMENT_TITLE"{source}
       max_results: {max_results}
       columns_and_descriptions:{cfg['columns']}"""
 
@@ -382,7 +506,6 @@ def build_generic_tool_resource(tool_name, proc_identifier, proc_signature, data
         type: "warehouse"
         warehouse: "{exec_wh}"
       identifier: "{database_name}.AI.{proc_identifier}"
-      name: "{proc_signature}"
       type: "{tool_type}\""""
 
 
@@ -410,7 +533,7 @@ def pdf_generator_tool_spec():
     return """    - tool_spec:
         type: "generic"
         name: "pdf_generator"
-        description: "Generates professional branded PDF reports from markdown content. Use ONLY when user EXPLICITLY requests PDF output."
+        description: "Generates professional branded PDF reports from markdown content. Use ONLY when user EXPLICITLY requests PDF output, or asks to generate or create an IC (investment committee) memo."
         input_schema:
           type: "object"
           properties:
@@ -448,67 +571,30 @@ def build_skills_yaml(skill_names, database_name):
     return "\n".join(lines)
 
 
-def verify_snowflake_intelligence(session: Session) -> bool:
+def warn_if_cowork_object_exists(session: Session) -> None:
     """
-    Verify that Snowflake Intelligence exists.
-    
-    Returns:
-        True if Snowflake Intelligence exists, False otherwise
-    """
-    try:
-        result = session.sql("SHOW SNOWFLAKE INTELLIGENCES").collect()
-        if len(result) == 0:
-            log_error("No Snowflake Intelligence found")
-            log_warning("Before creating agents, you must first create a Snowflake Intelligence object.")
-            log_warning("Run: CREATE SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;")
-            log_warning("See: https://docs.snowflake.com/en/user-guide/snowflake-intelligence")
-            return False
-        return True
-    except Exception as e:
-        log_error(f" Failed to check for Snowflake Intelligence: {e}")
-        return False
+    Warn when the account has a Snowflake CoWork object.
 
-
-def register_agent_with_intelligence(session: Session, database_name: str, ai_schema: str, agent_name: str) -> bool:
+    Without one, CoWork lists every agent the user's role can use, which is how the
+    demo controls visibility. Once an object exists, CoWork lists only the agents added
+    to it, so the demo agents stay hidden until someone adds them.
     """
-    Register an agent with Snowflake Intelligence.
-    First attempts to drop the agent (if it exists from previous run), then adds it.
-    
-    Args:
-        session: Snowpark session
-        database_name: Database name where agent was created
-        ai_schema: AI schema name where agent was created
-        agent_name: Name of the agent (e.g., 'AM_portfolio_copilot')
-    
-    Returns:
-        True if registration succeeded, False otherwise
-    """
-    full_agent_path = f"{database_name}.{ai_schema}.{agent_name}"
-    
-    # Step 1: Try to drop the agent from Intelligence (suppress error if not found)
     try:
-        session.sql(f"""
-            ALTER SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT 
-            DROP AGENT {full_agent_path}
-        """).collect()
-        # Agent was previously registered, successfully dropped
+        rows = session.sql("SHOW SNOWFLAKE INTELLIGENCES").collect()
     except Exception as e:
-        # Agent not found in Intelligence - this is OK, means first time registration
-        error_msg = str(e).lower()
-        if "was not found" not in error_msg and "does not exist" not in error_msg:
-            # Some other error occurred - log it but continue
-            log_warning(f"  Note: Could not drop agent {agent_name} from Intelligence: {e}")
-    
-    # Step 2: Add the agent to Intelligence
-    try:
-        session.sql(f"""
-            ALTER SNOWFLAKE INTELLIGENCE SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT 
-            ADD AGENT {full_agent_path}
-        """).collect()
-        return True
-    except Exception as e:
-        log_warning(f"  Warning: Failed to register agent {agent_name} with Snowflake Intelligence: {e}")
-        return False
+        log_warning(f"  Could not check for a Snowflake CoWork object: {e}")
+        return
+    if not rows:
+        return
+    database_name = config.DATABASE['name']
+    ai_schema = config.DATABASE['schemas']['ai']
+    for row in rows:
+        name = row['name']
+        log_warning(
+            f"  This account has a Snowflake CoWork object ({name}). CoWork only shows the "
+            f"agents added to it, so the demo agents are not visible until you add them:"
+        )
+        log_warning(f"    ALTER SNOWFLAKE INTELLIGENCE {name} ADD AGENT {database_name}.{ai_schema}.<agent_name>;")
 
 
 def escape_sql_string(text: str) -> str:

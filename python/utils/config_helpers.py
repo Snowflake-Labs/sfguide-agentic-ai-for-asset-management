@@ -84,13 +84,6 @@ def get_country_value(country_code: str, path: str, default: Any = None) -> Any:
     return result if result is not None else default
 
 
-def get_strategy_value(strategy: str, category: str, key: str, default: Any = None) -> Any:
-    """Get strategy-based value with _default fallback."""
-    global_config = config.DATA_MODEL['synthetic_distributions']['global']
-    category_config = global_config.get(category, {})
-    
-    strategy_data = category_config.get(strategy, category_config.get('_default', {}))
-    return strategy_data.get(key, default)
 
 
 def get_global_value(path: str, default: Any = None) -> Any:

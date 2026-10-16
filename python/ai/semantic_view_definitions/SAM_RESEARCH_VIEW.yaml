@@ -79,7 +79,7 @@ tables:
           - rating
           - analyst_rating
           - average_rating
-        description: "Average analyst rating (1=Buy, 2=Outperform, 3=Hold, 4=Underperform, 5=Sell)"
+        description: "Average analyst rating (1=Strong Buy, 2=Buy, 3=Hold, 4=Sell, 5=Strong Sell). Lower is more bullish. Derived from price target versus current share price, so it is consistent with the ratings quoted in broker research documents."
         expr: AVG(CASE WHEN DATA_ITEM_ID = 5006 THEN DATA_VALUE END)
         access_modifier: public_access
       - name: estimate_count
@@ -124,9 +124,255 @@ tables:
           - broker
           - research_firm
           - sell_side_firm
-        description: Broker/research firm name
+        description: "Fictional sell-side research house, one of 15 exact names (see values). Filter with = on the exact name, never LIKE or ILIKE."
         expr: BROKER_NAME
         data_type: VARCHAR(134217728)
+        is_enum: true
+        sample_values:
+          - Alder & Finch Investments
+          - Ashfield Partners
+          - Blackstone Ridge Research
+          - Bluehaven Capital Research
+          - Brookline Advisory Group
+          - Crescent Point Analytics
+          - Fairmont Capital Insights
+          - Granite Peak Advisory
+          - Harrow Street Markets
+          - Kingswell Securities Research
+          - Marlowe & Co. Research
+          - Northgate Analytics
+          - Regent Square Analytics
+          - Sterling Wharf Intelligence
+          - Whitestone Equity Research
+  - name: recommendations
+    synonyms:
+      - analyst_ratings
+      - broker_ratings
+      - rating_history
+      - price_target_history
+      - recommendation_history
+    description: >-
+      Point-in-time analyst ratings and price targets, one row per broker per
+      security per weekly/monthly vintage. 40 vintages of history, so this is the
+      table to use for anything about rating changes, upgrades and downgrades,
+      broker dispersion, or how sentiment has moved over time. Ratings and targets
+      are derived from the real close and real SEC fundamentals as at the vintage
+      date. The five-point scale is exactly Strong Buy, Buy, Hold, Sell, Strong
+      Sell - no other labels exist. Broker names are fictional research houses,
+      each with a persistent bias. Coverage is 419 of 503 securities and 3-8
+      brokers per security, so absence of a rating is normal and not an error.
+      Prefer this table over analyst_estimates for anything historical:
+      analyst_estimates holds only the most recent vintage.
+    base_table:
+      database: {{DATABASE}}
+      schema: CURATED
+      table: FACT_RECOMMENDATION
+    primary_key:
+      columns:
+        - reco_pk_recommendation_id
+    dimensions:
+      - name: reco_pk_recommendation_id
+        description: "RECOMMENDATIONID for recommendations"
+        expr: RECOMMENDATIONID
+        data_type: VARCHAR(32)
+      - name: reco_pk_issuerid
+        description: "ISSUERID for recommendations"
+        expr: ISSUERID
+        data_type: "NUMBER(18,0)"
+      - name: reco_pk_securityid
+        description: "SECURITYID for recommendations"
+        expr: SECURITYID
+        data_type: "NUMBER(18,0)"
+      - name: recommendation_ticker
+        synonyms:
+          - rated_ticker
+        description: Ticker of the rated security
+        expr: TICKER
+        data_type: VARCHAR(16777216)
+      - name: recommendation_company_name
+        synonyms:
+          - rated_company
+        description: "Legal name of the rated company exactly as stored, the same values as company_name, e.g. ELI LILLY & CO, META PLATFORMS, INC. Users give informal names (Lilly, Meta): look up the stored value with this column's search lookup and filter with =, never LIKE or ILIKE. If none of the returned names is the company the user meant, the company is not covered - say so rather than substituting a similar name."
+        expr: COMPANYNAME
+        data_type: VARCHAR(16777216)
+        cortex_search_service:
+          service: SAM_ISSUER_NAME_SEARCH
+          literal_column: LEGALNAME
+          database: {{DATABASE}}
+          schema: AI
+      - name: recommendation_sector
+        description: GICS sector of the rated security
+        expr: GICS_SECTOR
+        data_type: VARCHAR(16777216)
+      - name: recommendation_broker_name
+        synonyms:
+          - rating_broker
+          - research_house
+        description: >-
+          Fictional research house that issued the rating. One of 15 exact names
+          (see values); filter with = on the exact name, never LIKE or ILIKE. Each
+          carries a persistent optimism or pessimism bias, so comparing average
+          upside by broker is meaningful.
+        expr: BROKERNAME
+        data_type: VARCHAR(16777216)
+        is_enum: true
+        sample_values:
+          - Alder & Finch Investments
+          - Ashfield Partners
+          - Blackstone Ridge Research
+          - Bluehaven Capital Research
+          - Brookline Advisory Group
+          - Crescent Point Analytics
+          - Fairmont Capital Insights
+          - Granite Peak Advisory
+          - Harrow Street Markets
+          - Kingswell Securities Research
+          - Marlowe & Co. Research
+          - Northgate Analytics
+          - Regent Square Analytics
+          - Sterling Wharf Intelligence
+          - Whitestone Equity Research
+      - name: rating
+        synonyms:
+          - analyst_rating
+          - recommendation
+          - current_rating
+        description: >-
+          Analyst rating on the five-point scale: Strong Buy, Buy, Hold, Sell,
+          Strong Sell. These are the only valid values.
+        expr: RATING
+        data_type: VARCHAR(11)
+      - name: prior_rating
+        synonyms:
+          - previous_rating
+          - rating_before
+        description: The same broker's rating at the previous vintage, NULL on initiation.
+        expr: PRIORRATING
+        data_type: VARCHAR(11)
+      - name: rating_action
+        synonyms:
+          - revision
+          - rating_change
+          - upgrade_downgrade
+        description: >-
+          What the broker did at this vintage: upgrade, downgrade, reiterate or
+          initiate. Filter on upgrade or downgrade to find revisions.
+        expr: RATINGACTION
+        data_type: VARCHAR(9)
+      - name: valuation_basis
+        synonyms:
+          - valuation_method
+        description: >-
+          How fair value was derived: reported_eps (earnings based), derived_eps
+          (net income over shares), or sales_multiple (loss-making names valued on
+          revenue), or price_fallback (no usable reported fundamentals, e.g. no
+          annual SEC filing or mixed-currency filings; target from sector median
+          view plus trailing price momentum). Sales-multiple and price_fallback
+          names carry lower conviction.
+        expr: VALUATIONBASIS
+        data_type: VARCHAR(16777216)
+      - name: driver_summary
+        synonyms:
+          - rating_rationale
+        description: Short text explanation of what drove this rating and target.
+        expr: DRIVERSUMMARY
+        data_type: VARCHAR(16777216)
+    time_dimensions:
+      - name: vintage_date
+        synonyms:
+          - rating_date
+          - recommendation_date
+          - as_of_date
+        description: >-
+          The date this rating was struck. Use this for any time comparison, trend
+          or "latest rating" question. Latest vintage is the current view. To filter
+          to the latest vintage, look up MAX(vintage_date) in a separate query first
+          and filter on the date it returns: a MAX() subquery inside the WHERE
+          clause can fail to compile against this view.
+        expr: VINTAGEDATE
+        data_type: DATE
+      - name: fundamentals_as_of
+        description: Period end date of the SEC fundamentals used for the valuation.
+        expr: FUNDAMENTALSASOF
+        data_type: DATE
+    facts:
+      - name: close_price
+        synonyms:
+          - price_at_rating
+        description: Security close price on the vintage date, in USD.
+        expr: CLOSEPRICE
+        data_type: FLOAT
+      - name: fair_value
+        description: Derived fair value per share, in USD.
+        expr: FAIRVALUE
+        data_type: FLOAT
+      - name: price_target
+        synonyms:
+          - target_price
+          - twelve_month_target
+        description: Broker's 12-month price target, in USD.
+        expr: PRICETARGET
+        data_type: FLOAT
+      - name: prior_price_target
+        description: The same broker's price target at the previous vintage, in USD.
+        expr: PRIORPRICETARGET
+        data_type: FLOAT
+      - name: upside_fraction
+        synonyms:
+          - upside
+          - implied_upside
+        description: >-
+          Implied upside as a FRACTION, not a percentage: 0.0378 means +3.78%.
+          Always multiply by 100 when presenting. Exactly equals
+          price_target / close_price - 1.
+        expr: UPSIDEPCT
+        data_type: FLOAT
+      - name: broker_bias_fraction
+        description: >-
+          The research house's persistent bias as a fraction (-0.08 to +0.10).
+          Multiply by 100 when presenting.
+        expr: BROKERBIASPCT
+        data_type: FLOAT
+    metrics:
+      - name: avg_recommendation_price_target
+        synonyms:
+          - consensus_price_target
+        description: Average price target across brokers, in USD.
+        expr: AVG(price_target)
+        data_type: FLOAT
+      - name: max_recommendation_price_target
+        description: Highest price target across brokers, in USD.
+        expr: MAX(price_target)
+        data_type: FLOAT
+      - name: min_recommendation_price_target
+        description: Lowest price target across brokers, in USD.
+        expr: MIN(price_target)
+        data_type: FLOAT
+      - name: avg_upside_fraction
+        synonyms:
+          - average_upside
+        description: Average implied upside as a FRACTION. Multiply by 100 to present.
+        expr: AVG(upside_fraction)
+        data_type: FLOAT
+      - name: recommendation_count
+        synonyms:
+          - covering_brokers
+          - coverage_count
+        description: Number of broker ratings.
+        expr: COUNT(reco_pk_recommendation_id)
+        data_type: "NUMBER(38,0)"
+      - name: covering_broker_count
+        description: Number of distinct research houses covering the security.
+        expr: COUNT(DISTINCT recommendation_broker_name)
+        data_type: "NUMBER(38,0)"
+      - name: price_target_dispersion
+        synonyms:
+          - target_spread
+        description: >-
+          Spread between the highest and lowest price target, in USD. A wide
+          spread means the street disagrees.
+        expr: MAX(price_target) - MIN(price_target)
+        data_type: FLOAT
   - name: consensus
     synonyms:
       - estimates
@@ -152,14 +398,23 @@ tables:
         synonyms:
           - metric_type
           - consensus_metric
-        description: "Type of consensus estimate: Revenue, Net Income, EBITDA, TAM, Customer Count, NRR. CRITICAL: Always filter or group by estimate_type when querying consensus data — different types have vastly different scales."
+        description: "Type of consensus estimate, using these exact case-sensitive labels: Revenue, Net Income, EBITDA, TAM, Customer Count, NRR. CRITICAL: Always filter or group by estimate_type when querying consensus data — different types have vastly different scales."
         expr: ESTIMATE_TYPE
         data_type: VARCHAR(16777216)
         is_enum: true
         sample_values:
-          - "REVENUE"
-          - "EPS"
-          - "PRICE_TARGET"
+          - "Revenue"
+          - "Net Income"
+          - "EBITDA"
+          - "TAM"
+          - "Customer Count"
+          - "NRR"
+      - name: financial_estimates_usd
+        description: "Filter: consensus estimates of company financials stated in US dollars (Revenue, Net Income, EBITDA). Use when showing estimates side by side in one table or chart. TAM is a market size, and Customer Count and NRR are not dollar amounts, so they cannot share a column with these."
+        expr: ESTIMATE_TYPE IN ('Revenue', 'Net Income', 'EBITDA')
+        data_type: BOOLEAN
+        labels:
+          - filter
     facts:
       - name: consensus_high
         description: "Highest analyst estimate"
@@ -280,6 +535,12 @@ tables:
           - "quarterly"
           - "cumulative_ytd"
           - "balance_sheet_only"
+      - name: annual_figures
+        description: "Filter: full fiscal-year figures from annual filings, one row per company per fiscal year. Use for annual trends and year-over-year comparisons."
+        expr: PERIOD_TYPE = 'annual'
+        data_type: BOOLEAN
+        labels:
+          - filter
     facts:
       - name: capex
         description: "Capital expenditures"
@@ -670,9 +931,14 @@ tables:
           - issuer
           - entity
           - name
-        description: "Company legal name for filtering (e.g., MICROSOFT CORP, APPLE INC., NVIDIA CORP)"
+        description: "Company legal name exactly as stored, e.g. ELI LILLY & CO, TAIWAN SEMICONDUCTOR MANUFACTURING CO LTD, MICROSOFT CORP. Identifies the company for filtering and grouping. Users give informal names (Lilly, TSMC): look up the stored value with this column's search lookup and filter with =, never LIKE or ILIKE. If none of the returned names is the company the user meant, the company is not covered - say so rather than substituting a similar name."
         expr: LegalName
         data_type: VARCHAR(16777216)
+        cortex_search_service:
+          service: SAM_ISSUER_NAME_SEARCH
+          literal_column: LEGALNAME
+          database: {{DATABASE}}
+          schema: AI
       - name: country
         synonyms:
           - country
@@ -729,7 +995,7 @@ tables:
         expr: ISSUERID
         data_type: "NUMBER(38,0)"
       - name: business_segment
-        description: Business segment name
+        description: "Business segment name. Many companies report several overlapping segment hierarchies at once (for example reportable segments and market platforms), so business-segment rows often add up to more than total revenue. Before presenting segments as shares of revenue or in a pie chart, check that the rows add up to total revenue."
         expr: BUSINESS_SEGMENT
         data_type: VARCHAR(16777216)
       - name: business_sub_segment
@@ -747,16 +1013,22 @@ tables:
         expr: FISCAL_PERIOD
         data_type: VARCHAR(16777216)
       - name: seg_fiscal_year
-        description: Fiscal year for segment
+        description: "Fiscal year for segment. To filter to the latest year, take the year from an earlier result and filter on it as a literal (seg_fiscal_year = 2026): a MAX() subquery inside the WHERE clause can fail to compile against this view."
         expr: FISCAL_YEAR
         data_type: "NUMBER(38,0)"
       - name: geography
         synonyms:
           - region
           - geographic_region
-        description: "Geographic segment (Europe, Americas, Asia Pacific)"
+        description: "Geographic area as the company reports it, for example United States, Taiwan, or China and Hong Kong. Names and levels differ between companies, and some mix levels (Americas alongside United States)."
         expr: GEOGRAPHY
         data_type: VARCHAR(16777216)
+      - name: geographic_revenue_breakdown
+        description: "Filter: the geographic revenue rows, with no business segment attached - the breakdown to use for revenue by region. For many companies they add up to total revenue, but some report overlapping levels or only part of their revenue. Before presenting them as shares of revenue or in a pie chart, check that they add up to total revenue."
+        expr: GEOGRAPHY IS NOT NULL AND BUSINESS_SEGMENT IS NULL
+        data_type: BOOLEAN
+        labels:
+          - filter
       - name: legal_entity
         description: Legal entity name
         expr: LEGAL_ENTITY
@@ -804,15 +1076,17 @@ tables:
       - name: insider_issuer_name
         synonyms:
           - insider_company
-        description: Company name for insider transaction
+        description: "Company name as spelled on the insider's Form 4 filing, for display only. Spellings differ from company legal names (e.g. ELI LILLY & Co) and this table has no join to issuers, so filter insider transactions by company with insider_ticker (e.g. LLY), never by this name."
         expr: ISSUER_NAME
         data_type: VARCHAR(16777216)
       - name: insider_ticker
-        description: Ticker for insider transaction
+        description: "Ticker of the company whose insider traded, e.g. LLY, NVDA. Use this to filter insider transactions by company."
         expr: TICKER
         data_type: VARCHAR(16777216)
       - name: form_type
-        description: SEC form type
+        description: "SEC insider form type: 4 for a change in holdings, 3 for an initial
+          filing when someone becomes an insider, 5 for an annual catch-up. Suffix /A marks
+          an amendment."
         expr: FORM_TYPE
         data_type: VARCHAR(16777216)
       - name: security_type
@@ -826,17 +1100,41 @@ tables:
       - name: transaction_action
         synonyms:
           - buy_sell
-        description: "Transaction action: Purchase, Sale, etc."
+        description: "Form 4 direction flag: Acquired or Disposed. Not the same as buy/sell — most acquisitions are grants, awards and option exercises. For open-market buying or selling, also filter transaction_type to the open market purchase or sale types."
         expr: TRANSACTION_ACTION
         data_type: VARCHAR(16777216)
         is_enum: true
         sample_values:
-          - "BUY"
-          - "SELL"
+          - "Acquired"
+          - "Disposed"
       - name: insider_ownership
         description: Direct or indirect ownership
         expr: OWNERSHIP
         data_type: VARCHAR(16777216)
+      - name: insider_name
+        synonyms:
+          - reporting_owner
+          - who_traded
+          - insider_person
+        description: Name of the reporting person on the filing, for example "Ternus John".
+          Where a filing names several co-filers this is the most senior one - an officer
+          or director in preference to a passive 10%+ holder.
+        expr: PRIMARY_INSIDER_NAME
+        data_type: VARCHAR(16777216)
+      - name: insider_role
+        synonyms:
+          - insider_relationship
+          - insider_title
+        description: The reporting person's relationship to the issuer, for example
+          "Director", "Officer - CEO" or "10% Owner". Use this to distinguish a management
+          sale from a financial holder reducing a stake.
+        expr: PRIMARY_INSIDER_ROLE
+        data_type: VARCHAR(16777216)
+      - name: reporting_owner_count
+        description: How many reporting persons the filing named. 1 for the large majority.
+          Higher values mean joint or group filings, where insider_name is one of several.
+        expr: REPORTING_OWNER_COUNT
+        data_type: NUMBER(38,0)
     facts:
       - name: transaction_shares
         description: Number of shares in transaction
@@ -865,8 +1163,19 @@ tables:
         expr: SUM(transaction_shares * transaction_price)
         access_modifier: public_access
       - name: insider_transaction_count
-        description: Number of insider transactions
+        description: Number of insider transactions. NOT the number of people - one insider
+          on a scheduled selling plan can file many transactions. Use distinct_insider_count
+          to count people.
         expr: COUNT(*)
+        access_modifier: public_access
+      - name: distinct_insider_count
+        synonyms:
+          - number_of_insiders
+          - how_many_insiders
+        description: Number of different people who transacted. This is the correct measure
+          for questions like "how many insiders sold" - counting transactions instead
+          overstates it, often by an order of magnitude.
+        expr: COUNT(DISTINCT insider_name)
         access_modifier: public_access
     time_dimensions:
       - name: transaction_date
@@ -901,11 +1210,11 @@ tables:
       - name: inst_ticker
         synonyms:
           - holding_ticker
-        description: Ticker of the held security
+        description: "Ticker of the held security, e.g. NVDA. Use this to filter institutional holdings by company."
         expr: TICKER
         data_type: VARCHAR(16777216)
       - name: inst_security_name
-        description: Name of the held security
+        description: "Name of the held security as reported on the 13F filing, for display only. Spellings differ from company legal names (e.g. AIRBNB INC-CLASS A) and this table has no join to issuers, so filter holdings by company with inst_ticker, never by this name."
         expr: SECURITY_NAME
         data_type: VARCHAR(16777216)
       - name: put_call
@@ -995,10 +1304,7 @@ tables:
         expr: TICKER
         data_type: VARCHAR(20)
       - name: thesis_company_name
-        synonyms:
-          - company
-          - company_name
-        description: Company name for the thesis
+        description: "Company name as entered on the research thesis, for display only. To filter theses by company, use the issuers table's company_name (joined to theses) or thesis_ticker."
         expr: COMPANY_NAME
         data_type: VARCHAR(200)
       - name: thesis_title
@@ -1084,6 +1390,136 @@ tables:
         description: When assumptions were last validated
         expr: LAST_VALIDATED
         data_type: DATE
+  - name: executive_compensation
+    synonyms:
+      - exec_pay
+      - ceo_pay
+      - say_on_pay
+      - management_compensation
+    description: Executive compensation from SEC DEF 14A proxy statements — the Summary
+      Compensation Table for each named executive, by fiscal year. Use for pay-for-performance
+      and say-on-pay questions, and for management alignment alongside insider trading.
+      Covers 417 issuers and 2,629 executives for FY2021-2025. A component left NULL means
+      the company did not report it, which is not the same as zero.
+    base_table:
+      database: {{DATABASE}}
+      schema: MARKET_DATA
+      table: FACT_EXECUTIVE_COMPENSATION
+    primary_key:
+      columns:
+        - exec_comp_id
+    dimensions:
+      - name: exec_comp_id
+        description: Executive compensation row identifier
+        expr: EXEC_COMP_ID
+        data_type: "NUMBER(38,0)"
+      - name: comp_issuerid
+        description: Issuer ID for the compensation record
+        expr: ISSUERID
+        data_type: "NUMBER(38,0)"
+      - name: comp_company_name
+        description: "Company name as reported on the proxy statement, for display only; a few spellings differ from company legal names (e.g. CISCO SYSTEMS, INC.). To filter compensation by company, use the issuers table's company_name, which joins to this table."
+        expr: COMPANY_NAME
+        data_type: VARCHAR(16777216)
+      - name: executive_name
+        synonyms:
+          - exec_name
+          - officer_name
+        description: Name of the named executive officer
+        expr: EXECUTIVE_NAME
+        data_type: VARCHAR(16777216)
+      - name: executive_role
+        synonyms:
+          - exec_title
+          - officer_role
+        description: "Role as classified on the proxy: ceo, cfo, coo,
+          named_executive_officer, or a former_ prefix for someone who has left the role.
+          The former_ values are useful for succession and turnover questions."
+        expr: EXECUTIVE_ROLE
+        data_type: VARCHAR(16777216)
+        is_enum: true
+        sample_values:
+          - "ceo"
+          - "cfo"
+          - "coo"
+          - "named_executive_officer"
+          - "former_ceo"
+          - "former_cfo"
+          - "former_coo"
+      - name: comp_fiscal_year
+        description: Fiscal year the compensation relates to, 2021 to 2025. Where a year was
+          restated in a later proxy this holds the most recently filed figure.
+        expr: FISCAL_YEAR
+        data_type: "NUMBER(38,0)"
+    facts:
+      - name: salary
+        description: Base salary in USD
+        expr: SALARY
+        data_type: NUMBER
+        access_modifier: public_access
+      - name: bonus
+        description: Discretionary bonus in USD
+        expr: BONUS
+        data_type: NUMBER
+        access_modifier: public_access
+      - name: stock_awards
+        description: Grant-date fair value of stock awards in USD
+        expr: STOCK_AWARDS
+        data_type: NUMBER
+        access_modifier: public_access
+      - name: option_awards
+        description: Grant-date fair value of option awards in USD
+        expr: OPTION_AWARDS
+        data_type: NUMBER
+        access_modifier: public_access
+      - name: non_equity_incentive
+        description: Non-equity incentive plan compensation in USD
+        expr: NON_EQUITY_INCENTIVE
+        data_type: NUMBER
+        access_modifier: public_access
+      - name: all_other_compensation
+        description: All other compensation in USD
+        expr: ALL_OTHER_COMPENSATION
+        data_type: NUMBER
+        access_modifier: public_access
+      - name: total_compensation
+        synonyms:
+          - total_pay
+          - total_package
+        description: Total compensation as reported in the Summary Compensation Table, USD
+        expr: TOTAL_COMPENSATION
+        data_type: NUMBER
+        access_modifier: public_access
+      - name: variable_pay_ratio
+        synonyms:
+          - pay_at_risk
+          - performance_pay_share
+        description: Equity plus incentive pay divided by total compensation, as a fraction
+          (0.97 = 97%). The usual proxy for how much of a package is performance-linked
+          rather than fixed. Multiply by 100 when presenting as a percentage. NULL for a
+          small number of filings where the reported components exceed the reported total,
+          so the ratio cannot be computed reliably.
+        expr: VARIABLE_PAY_RATIO
+        data_type: FLOAT
+        access_modifier: public_access
+    metrics:
+      - name: avg_total_compensation
+        description: Average total compensation across the selected executives
+        expr: AVG(total_compensation)
+        access_modifier: public_access
+      - name: median_total_compensation
+        description: Median total compensation, more representative than the average because
+          a single mega-grant can distort the mean
+        expr: MEDIAN(total_compensation)
+        access_modifier: public_access
+      - name: avg_variable_pay_ratio
+        description: Average share of pay that is performance-linked
+        expr: AVG(variable_pay_ratio)
+        access_modifier: public_access
+      - name: executive_count
+        description: Number of executive-year records
+        expr: COUNT(*)
+        access_modifier: public_access
 relationships:
   - name: analysts_to_brokers
     left_table: analysts
@@ -1115,6 +1551,12 @@ relationships:
     relationship_columns:
       - left_column: cons_pk_issuerid
         right_column: issu_pk_issuerid
+  - name: recommendations_to_issuers
+    left_table: recommendations
+    right_table: issuers
+    relationship_columns:
+      - left_column: reco_pk_issuerid
+        right_column: issu_pk_issuerid
   - name: financials_to_issuers
     left_table: financials
     right_table: issuers
@@ -1133,9 +1575,15 @@ relationships:
     relationship_columns:
       - left_column: thes_pk_issuerid
         right_column: issu_pk_issuerid
+  - name: exec_comp_to_issuers
+    left_table: executive_compensation
+    right_table: issuers
+    relationship_columns:
+      - left_column: comp_issuerid
+        right_column: issu_pk_issuerid
 module_custom_instructions:
-  sql_generation: "CRITICAL: NEVER aggregate income statement metrics across different period_type values — cumulative_ytd overlaps quarterly and will double-count. Balance sheet metrics are point-in-time and safe with any period_type. CONSENSUS ESTIMATES: ALWAYS filter estimate_type when querying consensus data — mixing Revenue ($100B+) with NRR (90-140%) produces meaningless results. Retrieve ALL estimate types in one query using GROUP BY estimate_type. Use total_revenue, total_net_income, total_ebitda, total_tam, average_gross_margin_pct, average_operating_margin_pct, average_net_margin_pct, average_revenue_growth_pct as needed. Always order by fiscal_year descending."
-  question_categorization: "If users ask about 'financials', 'fundamentals', 'revenue', 'earnings', 'margins', use financials metrics. If users ask about 'estimates' or 'consensus', use consensus table. If users ask about 'price targets' or 'ratings', use analyst_estimates table. If users ask about 'analysts' or 'brokers', include analysts and brokers dimensions. If users ask about 'TAM', 'market size', 'addressable market', use total_tam metric (note: estimated). If users ask about 'segments', 'geographic revenue', 'business segments', use segments table. Filter fiscal_period = 'FY' for annual segment data. If users ask about 'insider trading', 'Form 4', 'executive buys/sells', use insider_transactions table. If users ask about 'institutional holdings', '13F', 'institutional ownership', 'who owns', use institutional_holdings table. If users ask about 'thesis', 'investment thesis', 'my thesis', 'validate thesis', 'assumptions', use theses table. Query by THESIS_ID if provided, otherwise by ticker/company_name and STAGE='ACTIVE'."
+  sql_generation: "CRITICAL: NEVER aggregate income statement metrics across different period_type values — cumulative_ytd overlaps quarterly and will double-count. Balance sheet metrics are point-in-time and safe with any period_type. CONSENSUS ESTIMATES: ALWAYS filter estimate_type when querying consensus data — mixing Revenue ($100B+) with NRR (90-140%) produces meaningless results. Retrieve ALL estimate types in one query using GROUP BY estimate_type. Use total_revenue, total_net_income, total_ebitda, total_tam, average_gross_margin_pct, average_operating_margin_pct, average_net_margin_pct, average_revenue_growth_pct as needed. Always order by fiscal_year descending. PRESENTATION: results are displayed exactly as returned, so round in the query and cast to a fixed-point decimal - CAST(ROUND(x, 1) AS DECIMAL(38, 1)) - because a rounded FLOAT still displays as 215.90000000000001. Currency in billions to one decimal (millions when under 1B), percentages on a 0-100 scale to one decimal, per-share values to two decimals. LATEST PERIOD: to restrict to the latest fiscal year or rating date, compute the maximum in a CTE and join to it (see the verified queries). Never put a MAX() subquery in the WHERE clause - it can compile to a correlated aggregate and fail. OUTPUT COLUMNS: when a question is about one company or one period, do not return a column that holds the same value on every row (company name, ticker, a single date) - state it in the table title instead. COMPANY NAMES: filter a company only with = on its exact stored legal name (from the company_name search lookup) or its ticker, including preliminary lookups that check whether a company is covered - never LIKE or ILIKE."
+  question_categorization: "If users ask about 'financials', 'fundamentals', 'revenue', 'earnings', 'margins', use financials metrics. If users ask about 'estimates' or 'consensus', use consensus table. If users ask about 'price targets' or 'ratings', use recommendations table. If users ask about 'analysts' or 'brokers', include analysts and brokers dimensions. If users ask about 'TAM', 'market size', 'addressable market', use total_tam metric (note: estimated). If users ask about 'segments', 'geographic revenue', 'business segments', use segments table. Filter fiscal_period = 'FY' for annual segment data. If users ask about 'insider trading', 'Form 4', 'executive buys/sells', use insider_transactions table. If users ask about 'institutional holdings', '13F', 'institutional ownership', 'who owns', use institutional_holdings table. If users ask about 'thesis', 'investment thesis', 'my thesis', 'validate thesis', 'assumptions', use theses table. Query by THESIS_ID if provided, otherwise by ticker/company_name and STAGE='ACTIVE'."
 verified_queries:
   - name: ANNUAL_REVENUE_BY_COMPANY
     sql: "SELECT __issuers.company_name, __financials.fiscal_year, SUM(__financials.revenue) AS total_revenue, SUM(__financials.net_income) AS total_net_income, AVG(__financials.gross_margin_pct) AS average_gross_margin_pct FROM __financials JOIN __issuers ON (__financials.fina_pk_issuerid = __issuers.issu_pk_issuerid) WHERE __financials.period_type = 'annual' GROUP BY __issuers.company_name, __financials.fiscal_year ORDER BY __financials.fiscal_year DESC"
@@ -1161,9 +1609,13 @@ verified_queries:
     sql: "SELECT __issuers.company_name, __consensus.estimate_type, AVG(__consensus.consensus_mean) AS average_consensus_mean, MAX(__consensus.consensus_high) AS max_consensus_high, MIN(__consensus.consensus_low) AS min_consensus_low, AVG(__consensus.num_estimates) AS average_num_estimates FROM __consensus JOIN __issuers ON (__consensus.cons_pk_issuerid = __issuers.issu_pk_issuerid) WHERE __issuers.company_name = 'NVIDIA CORP' GROUP BY __issuers.company_name, __consensus.estimate_type ORDER BY __consensus.estimate_type"
     question: What are all the consensus estimates for NVIDIA?
     use_as_onboarding_question: true
-  - name: PRICE_TARGETS
-    sql: "SELECT __issuers.company_name, COUNT(*) AS estimate_count FROM __analyst_estimates JOIN __issuers ON (__analyst_estimates.anal_pk_issuerid = __issuers.issu_pk_issuerid) GROUP BY __issuers.company_name"
-    question: What are the analyst price targets?
+  - name: STREET_VIEW
+    sql: "WITH latest AS (SELECT MAX(__recommendations.vintage_date) AS vintage_date FROM __recommendations WHERE __recommendations.recommendation_ticker = 'NVDA') SELECT latest.vintage_date, COUNT(DISTINCT __recommendations.recommendation_broker_name) AS brokers, COUNT_IF(__recommendations.rating IN ('Strong Buy', 'Buy')) AS buy_ratings, COUNT_IF(__recommendations.rating = 'Hold') AS hold_ratings, COUNT_IF(__recommendations.rating IN ('Sell', 'Strong Sell')) AS sell_ratings, CAST(ROUND(AVG(__recommendations.price_target), 2) AS DECIMAL(38, 2)) AS avg_price_target_usd, CAST(ROUND(MIN(__recommendations.price_target), 2) AS DECIMAL(38, 2)) AS low_price_target_usd, CAST(ROUND(MAX(__recommendations.price_target), 2) AS DECIMAL(38, 2)) AS high_price_target_usd, CAST(ROUND(AVG(__recommendations.close_price), 2) AS DECIMAL(38, 2)) AS share_price_usd, CAST(ROUND(100 * AVG(__recommendations.upside_fraction), 1) AS DECIMAL(38, 1)) AS avg_upside_pct FROM __recommendations JOIN latest ON __recommendations.vintage_date = latest.vintage_date WHERE __recommendations.recommendation_ticker = 'NVDA' GROUP BY latest.vintage_date"
+    question: What is the latest street view on NVIDIA - analyst ratings, price targets and upside to the current share price?
+    use_as_onboarding_question: false
+  - name: GEOGRAPHIC_REVENUE_BREAKDOWN
+    sql: "WITH latest AS (SELECT __segments.seg_issuer_id, MAX(__segments.seg_fiscal_year) AS fiscal_year FROM __segments JOIN __issuers ON (__segments.seg_issuer_id = __issuers.issu_pk_issuerid) WHERE __issuers.company_name = 'NVIDIA CORP' AND __segments.seg_fiscal_period = 'FY' AND __segments.geographic_revenue_breakdown GROUP BY __segments.seg_issuer_id), regions AS (SELECT latest.seg_issuer_id, latest.fiscal_year, __segments.geography, MAX(__segments.segment_revenue) AS region_revenue FROM __segments JOIN latest ON (__segments.seg_issuer_id = latest.seg_issuer_id AND __segments.seg_fiscal_year = latest.fiscal_year) WHERE __segments.seg_fiscal_period = 'FY' AND __segments.geographic_revenue_breakdown GROUP BY latest.seg_issuer_id, latest.fiscal_year, __segments.geography), filed AS (SELECT __financials.fina_pk_issuerid, __financials.fiscal_year, MAX(__financials.revenue) AS revenue FROM __financials WHERE __financials.annual_figures GROUP BY __financials.fina_pk_issuerid, __financials.fiscal_year) SELECT regions.fiscal_year, regions.geography, CAST(ROUND(regions.region_revenue / 1e9, 1) AS DECIMAL(38, 1)) AS revenue_usd_b, CAST(ROUND(100 * regions.region_revenue / filed.revenue, 1) AS DECIMAL(38, 1)) AS share_of_revenue_pct, CAST(ROUND(100 * SUM(regions.region_revenue) OVER () / filed.revenue, 1) AS DECIMAL(38, 1)) AS regions_cover_pct_of_revenue FROM regions LEFT JOIN filed ON (regions.seg_issuer_id = filed.fina_pk_issuerid AND regions.fiscal_year = filed.fiscal_year) ORDER BY revenue_usd_b DESC"
+    question: How is NVIDIA's revenue split by geography in the latest fiscal year, and what share of total revenue does each region contribute?
     use_as_onboarding_question: false
   - name: ACTIVE_THESIS_FOR_COMPANY
     sql: "SELECT __theses.thesis_ticker, __theses.thesis_title, __theses.thesis_summary, __theses.thesis_recommendation, __theses.thesis_conviction, __theses.thesis_health, __theses.thesis_key_assumptions, __theses.thesis_entry_price, __theses.thesis_target_price, __theses.thesis_validation_notes, __theses.thesis_last_validated FROM __theses JOIN __issuers ON (__theses.thes_pk_issuerid = __issuers.issu_pk_issuerid) WHERE __issuers.company_name = 'APPLE INC.' AND __theses.thesis_stage = 'ACTIVE'"
@@ -1172,4 +1624,12 @@ verified_queries:
   - name: THESIS_BY_ID
     sql: "SELECT __theses.thes_pk_thesis_id, __theses.thesis_ticker, __theses.thesis_title, __theses.thesis_summary, __theses.thesis_recommendation, __theses.thesis_conviction, __theses.thesis_health, __theses.thesis_key_assumptions, __theses.thesis_entry_price, __theses.thesis_target_price, __theses.thesis_stop_loss, __theses.thesis_validation_notes FROM __theses WHERE __theses.thes_pk_thesis_id = 1"
     question: Show me thesis with ID 1
+    use_as_onboarding_question: false
+  - name: CEO_PAY_RANKING
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_RESEARCH_VIEW DIMENSIONS executive_compensation.comp_company_name, executive_compensation.executive_name METRICS executive_compensation.avg_total_compensation, executive_compensation.avg_variable_pay_ratio WHERE executive_compensation.executive_role = 'ceo' AND executive_compensation.comp_fiscal_year = 2025) ORDER BY avg_total_compensation DESC LIMIT 10"
+    question: Which CEOs were paid the most in FY2025 and how much of it was performance-linked?
+    use_as_onboarding_question: false
+  - name: MEDIAN_PAY_BY_ROLE_AND_YEAR
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_RESEARCH_VIEW DIMENSIONS executive_compensation.comp_fiscal_year, executive_compensation.executive_role METRICS executive_compensation.median_total_compensation, executive_compensation.executive_count WHERE executive_compensation.executive_role IN ('ceo', 'cfo')) ORDER BY comp_fiscal_year, executive_role"
+    question: How has median CEO and CFO pay moved year on year?
     use_as_onboarding_question: false

@@ -99,34 +99,32 @@ def create_upsert_procedure(session: Session):
         BEGIN
             v_assumptions := TRY_PARSE_JSON(p_key_assumptions);
             
-            SELECT THESIS_ID INTO v_thesis_id
+            SELECT MAX(THESIS_ID) INTO :v_thesis_id
             FROM {database}.CURATED.FACT_RESEARCH_THESES
-            WHERE ISSUERID = p_issuerid AND THESIS_TITLE = p_thesis_title
-            LIMIT 1;
+            WHERE ISSUERID = :p_issuerid AND THESIS_TITLE = :p_thesis_title;
 
             IF (v_thesis_id IS NOT NULL) THEN
                 UPDATE {database}.CURATED.FACT_RESEARCH_THESES
-                SET THESIS_SUMMARY = p_thesis_summary,
-                    RECOMMENDATION = COALESCE(p_recommendation, RECOMMENDATION),
-                    CONVICTION = COALESCE(p_conviction, CONVICTION),
-                    KEY_ASSUMPTIONS = COALESCE(v_assumptions, KEY_ASSUMPTIONS),
-                    STAGE = COALESCE(p_stage, STAGE),
-                    HEALTH_STATUS = COALESCE(p_health_status, HEALTH_STATUS),
-                    ENTRY_PRICE = COALESCE(p_entry_price, ENTRY_PRICE),
-                    TARGET_PRICE = COALESCE(p_target_price, TARGET_PRICE),
-                    STOP_LOSS = COALESCE(p_stop_loss, STOP_LOSS),
+                SET THESIS_SUMMARY = COALESCE(:p_thesis_summary, THESIS_SUMMARY),
+                    RECOMMENDATION = COALESCE(:p_recommendation, RECOMMENDATION),
+                    CONVICTION = COALESCE(:p_conviction, CONVICTION),
+                    KEY_ASSUMPTIONS = COALESCE(:v_assumptions, KEY_ASSUMPTIONS),
+                    STAGE = COALESCE(:p_stage, STAGE),
+                    HEALTH_STATUS = COALESCE(:p_health_status, HEALTH_STATUS),
+                    ENTRY_PRICE = COALESCE(:p_entry_price, ENTRY_PRICE),
+                    TARGET_PRICE = COALESCE(:p_target_price, TARGET_PRICE),
+                    STOP_LOSS = COALESCE(:p_stop_loss, STOP_LOSS),
                     UPDATED_AT = CURRENT_TIMESTAMP()
-                WHERE THESIS_ID = v_thesis_id;
+                WHERE THESIS_ID = :v_thesis_id;
                 RETURN 'Updated thesis ' || v_thesis_id::VARCHAR;
             ELSE
                 INSERT INTO {database}.CURATED.FACT_RESEARCH_THESES
                     (ISSUERID, TICKER, COMPANY_NAME, THESIS_TITLE, THESIS_SUMMARY,
                      RECOMMENDATION, CONVICTION, KEY_ASSUMPTIONS, STAGE, HEALTH_STATUS,
                      ENTRY_PRICE, TARGET_PRICE, STOP_LOSS)
-                VALUES
-                    (p_issuerid, p_ticker, p_company_name, p_thesis_title, p_thesis_summary,
-                     p_recommendation, p_conviction, v_assumptions, COALESCE(p_stage, 'RESEARCH'),
-                     COALESCE(p_health_status, 'GREEN'), p_entry_price, p_target_price, p_stop_loss);
+                SELECT :p_issuerid, :p_ticker, :p_company_name, :p_thesis_title, :p_thesis_summary,
+                     :p_recommendation, :p_conviction, :v_assumptions, COALESCE(:p_stage, 'RESEARCH'),
+                     COALESCE(:p_health_status, 'GREEN'), :p_entry_price, :p_target_price, :p_stop_loss;
                 RETURN 'Created new thesis for ' || p_company_name;
             END IF;
         END;
@@ -134,13 +132,18 @@ def create_upsert_procedure(session: Session):
     """).collect()
 
 
-def seed_research_theses(session: Session):
-    """Seed realistic investment theses from reference_data/research_theses.yaml."""
+def seed_research_theses(session: Session, reset: bool = False):
+    """Seed theses from reference_data/research_theses.yaml.
+
+    Without reset only fixtures missing by (ISSUERID, THESIS_TITLE) are added, so
+    theses written or edited by the agent survive a redeploy.
+    """
     database = config.DATABASE['name']
     schema = 'CURATED'
 
-    log_substep("Truncating existing theses")
-    session.sql(f"DELETE FROM {database}.{schema}.FACT_RESEARCH_THESES").collect()
+    if reset:
+        log_substep("Resetting existing theses")
+        session.sql(f"DELETE FROM {database}.{schema}.FACT_RESEARCH_THESES").collect()
 
     today = datetime.now().date()
     theses = config.REF_DATA['research_theses']['theses']
@@ -178,20 +181,25 @@ def seed_research_theses(session: Session):
              RECOMMENDATION, CONVICTION, KEY_ASSUMPTIONS, STAGE, HEALTH_STATUS,
              LAST_VALIDATED, VALIDATION_NOTES, ENTRY_PRICE, TARGET_PRICE, STOP_LOSS,
              SUPPORTING_DOCS, CREATED_AT, UPDATED_AT)
-        SELECT $1,$2,$3,$4,$5,$6,$7,
-               PARSE_JSON($8),
-               $9,$10,$11,$12,$13,$14,$15,
-               PARSE_JSON($16),
-               DATEADD('day', -$17, CURRENT_TIMESTAMP()),
-               DATEADD('day', -$18, CURRENT_TIMESTAMP())
-        FROM VALUES {','.join(rows)}
+        SELECT v.$1,v.$2,v.$3,v.$4,v.$5,v.$6,v.$7,
+               PARSE_JSON(v.$8),
+               v.$9,v.$10,v.$11,v.$12,v.$13,v.$14,v.$15,
+               PARSE_JSON(v.$16),
+               DATEADD('day', -v.$17, CURRENT_TIMESTAMP()),
+               DATEADD('day', -v.$18, CURRENT_TIMESTAMP())
+        FROM VALUES {','.join(rows)} v
+        WHERE NOT EXISTS (
+            SELECT 1 FROM {database}.{schema}.FACT_RESEARCH_THESES t
+            WHERE t.ISSUERID = v.$1 AND t.THESIS_TITLE = v.$4
+        )
     """).collect()
 
-    log_info(f"Seeded {len(theses)} research theses across pipeline stages")
+    log_info(f"Seeded research theses ({len(theses)} fixtures, missing ones only)" if not reset
+             else f"Seeded {len(theses)} research theses across pipeline stages")
 
 
-def setup_thesis_tracker(session: Session):
-    """Full setup: table + procedure + seed data."""
+def setup_thesis_tracker(session: Session, reset: bool = False):
+    """Table + procedure + fixtures. reset=True wipes analyst-authored theses."""
     create_research_theses_table(session)
     create_upsert_procedure(session)
-    seed_research_theses(session)
+    seed_research_theses(session, reset=reset)

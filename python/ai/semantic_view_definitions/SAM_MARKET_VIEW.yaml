@@ -1,5 +1,5 @@
 name: SAM_MARKET_VIEW
-description: "Consolidated market domain view covering macro regime classification (VIX-based volatility and market regimes), stress scenarios (10 historical + hypothetical crisis simulations), historical stress periods (COVID, GFC, Taper Tantrum, Rate Hike, Banking Crisis), US Treasury yield curve (14 maturities from 1M to 30Y), stock prices (daily OHLCV for 865+ tickers), and global macro data (policy rates for 73 countries, FX rates, US economic indicators, country-level GHG emissions)."
+description: "Consolidated market domain view covering macro regime classification (VIX-based volatility and market regimes), stress scenarios (10 historical + hypothetical crisis simulations), historical stress periods (COVID, GFC, Taper Tantrum, Rate Hike, Banking Crisis), US Treasury yield curve (14 maturities from 1M to 30Y), stock prices (daily OHLCV for 502 tickers), and global macro data (policy rates for 73 countries, FX rates, US economic indicators, country-level GHG emissions)."
 tables:
   - name: macro_regime
     synonyms:
@@ -7,7 +7,7 @@ tables:
       - volatility_regime
       - macro_environment
       - market_conditions
-    description: "Macro market regime classification. Volatility: LOW_VOL (<15), NORMAL (15-20), ELEVATED (20-30), HIGH_VOL (>30). Market: RISK_ON, RISK_OFF, TRANSITIONAL, NEUTRAL."
+    description: "Macro market regime classification. Volatility: LOW_VOL (<15), NORMAL (15-20), ELEVATED (20-30), HIGH_VOL (>30). Market: RISK_ON, RISK_OFF, TRANSITIONAL (from the ML regime model)."
     base_table:
       database: "{{DATABASE}}"
       schema: CURATED
@@ -20,7 +20,7 @@ tables:
         synonyms:
           - risk_regime
           - market_state
-        description: "Market regime: RISK_ON, RISK_OFF, TRANSITIONAL, NEUTRAL"
+        description: "Market regime from the ML regime model: RISK_ON, RISK_OFF, TRANSITIONAL"
         expr: MARKET_REGIME
         data_type: VARCHAR(12)
         is_enum: true
@@ -116,26 +116,33 @@ tables:
       - name: scenario_type
         synonyms:
           - crisis_type
-        description: "Scenario type: Historical or Hypothetical"
+        description: "Scenario category, one of the values listed (e.g. Market Crash, Rate Shock, Credit Crisis)"
         expr: SCENARIO_TYPE
         data_type: VARCHAR(50)
         is_enum: true
         sample_values:
-          - "HISTORICAL"
-          - "HYPOTHETICAL"
+          - "Market Crash"
+          - "Rate Shock"
+          - "Credit Crisis"
+          - "FX Shock"
+          - "Commodity Shock"
+          - "Geopolitical"
+          - "Sector Crash"
+          - "Macro Stress"
+          - "Liquidity Crisis"
       - name: scenario_description
         description: Detailed scenario description
         expr: DESCRIPTION
         data_type: VARCHAR(500)
       - name: scenario_severity
-        description: "Severity level of the scenario"
+        description: "Severity level of the scenario: Moderate, Severe or Extreme"
         expr: SEVERITY
         data_type: VARCHAR(20)
         is_enum: true
         sample_values:
-          - "MODERATE"
-          - "SEVERE"
-          - "EXTREME"
+          - "Moderate"
+          - "Severe"
+          - "Extreme"
       - name: historical_reference
         description: Reference to historical event
         expr: HISTORICAL_REFERENCE
@@ -332,15 +339,20 @@ tables:
         expr: SIC_DESCRIPTION
         data_type: VARCHAR(16777216)
       - name: stock_company_name
-        description: Company legal name
+        description: "Company legal name exactly as stored, e.g. ELI LILLY & CO, TAIWAN SEMICONDUCTOR MANUFACTURING CO LTD, MICROSOFT CORP. Identifies the company whose stock is priced. Users give informal names (Lilly, TSMC): look up the stored value with this column's search lookup and filter with =, never LIKE or ILIKE, or filter by ticker. If none of the returned names is the company the user meant, the company is not covered - say so rather than substituting a similar name."
         expr: LEGALNAME
         data_type: VARCHAR(16777216)
+        cortex_search_service:
+          service: SAM_ISSUER_NAME_SEARCH
+          literal_column: LEGALNAME
+          database: {{DATABASE}}
+          schema: AI
   - name: prices
     synonyms:
       - stock_prices
       - daily_prices
       - market_data
-    description: Daily OHLCV stock prices for 865+ tickers
+    description: Daily OHLCV stock prices for 502 tickers
     base_table:
       database: "{{DATABASE}}"
       schema: MARKET_DATA
@@ -480,16 +492,17 @@ tables:
         expr: INDICATOR_NAME
         data_type: VARCHAR(16777216)
       - name: indicator_type
-        description: "Type: MACRO, LABOR, etc."
+        description: "Indicator category derived from the indicator name: GDP, INFLATION, UNEMPLOYMENT, INTEREST_RATE, EMPLOYMENT or OTHER"
         expr: INDICATOR_TYPE
         data_type: VARCHAR(13)
         is_enum: true
         sample_values:
           - "GDP"
-          - "CPI"
+          - "INFLATION"
           - "UNEMPLOYMENT"
-          - "RETAIL_SALES"
-          - "INDUSTRIAL_PRODUCTION"
+          - "INTEREST_RATE"
+          - "EMPLOYMENT"
+          - "OTHER"
       - name: indicator_measure
         description: What the indicator measures
         expr: MEASURE
@@ -678,3 +691,28 @@ relationships:
         right_column: sto_issuerid
 module_custom_instructions:
   sql_generation: "CONSOLIDATED MARKET DOMAIN VIEW — covers macro regime, stress scenarios, historical crises, treasury yields, stock prices, and global macro data.\n\nMAP OF TABLES AND USE CASES:\n- macro_regime: Current market regime (VIX-based), daily granularity. Use for 'what regime are we in', 'risk on or off', 'VIX level'.\n- scenarios + scenario_shocks: Stress test definitions with factor shocks. Use for 'stress test', 'crisis simulation', 'what if market crashes'.\n- stress_periods: Historical crisis reference data. Use for 'past crises', '2008 crisis', 'COVID crash', 'when did GFC start'.\n- treasury_yields: Daily yield curve across 14 maturities. Use for 'yield curve', 'term structure', '10-year yield', 'rate environment'.\n- prices + stock_securities + stock_issuers: Daily stock OHLCV. Use for 'stock price', 'how did AAPL do', 'volume', 'price history'.\n- econ_indicators: US economic data (GDP, CPI, unemployment). Use for 'economic outlook', 'inflation', 'GDP growth'.\n- fx_rates: Daily FX rates. Use for 'dollar strength', 'EUR/USD', 'currency rates'.\n- policy_rates: Central bank rates. Use for 'Fed funds rate', 'SOFR', 'ECB rate', 'rate hikes'.\n- country_emissions: GHG emissions by country/sector. Use for 'carbon footprint', 'country emissions'.\n\nNote: These tables are INDEPENDENT — no cross-table joins except scenarios↔shocks and prices↔securities↔issuers. Each sub-domain answers different question types."
+verified_queries:
+  - name: FED_FUNDS_TREND
+    sql: "SELECT DATE_TRUNC('MONTH', rate_date) AS mth, AVG(policy_rate) AS avg_fed_rate FROM policy_rates WHERE policy_country = 'United States' AND rate_date >= '2026-01-01' AND rate_name = 'Central bank policy rates: US Federal Reserve System - End of period (Daily)' GROUP BY 1 ORDER BY 1 DESC"
+    question: "How has the average US Fed funds rate trended month by month so far this year?"
+    use_as_onboarding_question: false
+  - name: SP500_CUMULATIVE_RETURN
+    sql: "WITH daily AS (SELECT regime_date, spx_return FROM macro_regime WHERE NOT spx_return IS NULL AND regime_date <= CURRENT_DATE AND regime_date >= DATEADD(YEAR, 3 * -1, CURRENT_DATE)) SELECT regime_date AS trade_date, ROUND(EXP(SUM(LN(1 + spx_return)) OVER (ORDER BY regime_date)) - 1, 4) AS spx_cum_return FROM daily ORDER BY regime_date"
+    question: "How has the S&P 500 cumulative return trended over the past 3 years?"
+    use_as_onboarding_question: true
+  - name: TREASURY_YIELD_CHANGES
+    sql: "WITH latest AS (SELECT MAX(yield_date) AS d FROM treasury_yields) SELECT t.maturity_code, t.yield_pct AS curr_yield, p.yield_pct AS prev_yield, (t.yield_pct - p.yield_pct) * 100 AS chg_bps FROM treasury_yields AS t JOIN latest AS l ON l.d = t.yield_date LEFT JOIN treasury_yields AS p ON p.maturity_code = t.maturity_code AND p.yield_date = (SELECT MAX(yield_date) FROM treasury_yields WHERE l.d > yield_date) WHERE t.maturity_code IN ('2Y', '10Y', '30Y') ORDER BY t.maturity_years"
+    question: "How have the 2-year, 10-year, and 30-year Treasury yields changed since the previous trading day?"
+    use_as_onboarding_question: true
+  - name: SP500_RISK_RETURN_STATS
+    sql: "WITH daily AS (SELECT regime_date, spx_return FROM macro_regime WHERE NOT spx_return IS NULL AND regime_date <= CURRENT_DATE AND regime_date >= DATEADD(YEAR, 3 * -1, CURRENT_DATE)), compounded AS (SELECT EXP(SUM(LN(1 + spx_return))) - 1 AS total_return, COUNT(*) AS trading_days, STDDEV(spx_return) * SQRT(252) AS annualized_vol FROM daily), drawdown_calc AS (SELECT regime_date, EXP(SUM(LN(1 + spx_return)) OVER (ORDER BY regime_date)) AS cum_wealth FROM daily), running_peak AS (SELECT regime_date, cum_wealth, MAX(cum_wealth) OVER (ORDER BY regime_date) AS peak FROM drawdown_calc), dd AS (SELECT MIN(cum_wealth / NULLIF(NULLIF(peak, 0), 0) - 1) AS max_dd FROM running_peak) SELECT ROUND(c.total_return * 100, 2) AS total_return_pct, ROUND((POWER(1 + c.total_return, 252.0 / NULLIF(NULLIF(c.trading_days, 0), 0)) - 1) * 100, 2) AS annualized_return_pct, ROUND(c.annualized_vol * 100, 2) AS annualized_vol_pct, ROUND(dd.max_dd * 100, 2) AS max_drawdown_pct, c.trading_days FROM compounded AS c, dd"
+    question: "What were the S&P 500's total return, annualized return, volatility, and maximum drawdown over the past 3 years?"
+    use_as_onboarding_question: false
+  - name: TREASURY_YIELD_CURVE_SHAPE
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_MARKET_VIEW DIMENSIONS treasury_yields.maturity_label, treasury_yields.maturity_years, treasury_yields.yield_date METRICS treasury_yields.average_yield WHERE treasury_yields.yield_date = (SELECT MAX(DATE) FROM {{DATABASE}}.MARKET_DATA.FACT_TREASURY_YIELDS)) ORDER BY maturity_years"
+    question: "What does the current US Treasury yield curve look like? Is it inverted, and what does that signal for growth themes?"
+    use_as_onboarding_question: true
+  - name: EMISSIONS_BY_COUNTRY_AND_SECTOR
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_MARKET_VIEW DIMENSIONS country_emissions.emission_country, country_emissions.emission_sector METRICS country_emissions.total_emissions WHERE country_emissions.emission_country IN ('USA', 'CHN', 'DEU', 'FRA') AND country_emissions.emission_sector NOT LIKE 'Total%' AND country_emissions.emission_year = (SELECT MAX(YEAR_DATE) FROM {{DATABASE}}.MARKET_DATA.FACT_COUNTRY_EMISSIONS)) ORDER BY emission_country, total_emissions DESC"
+    question: "Compare greenhouse gas emissions between the US, China, and the EU. Which sectors contribute most?"
+    use_as_onboarding_question: false

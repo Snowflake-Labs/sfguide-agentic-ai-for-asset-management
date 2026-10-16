@@ -41,12 +41,39 @@ regulations:
   - id: eu_aifmd_ii
     title: "Alternative Investment Fund Managers Directive II (AIFMD II)"
     file: eu_aifmd_ii_directive.pdf
-    source_url: "https://eur-lex.europa.eu/eli/dir/2024/927/oj/eng"
+    # The ELI-style URL (eli/dir/2024/927/oj/eng) serves an HTML landing page,
+    # not a PDF, which is why this was the one regulation that never ingested.
+    # Use the same CELEX PDF form as every other entry here.
+    source_url: "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32024L0927"
     regulatory_body: European Parliament
     reference: "Directive (EU) 2024/927"
     jurisdiction: EU
     effective_date: "2026-04-16"
     am_relevance: "Alternative fund management, delegation arrangements, loan origination, liquidity management, depositary rules"
+
+  # AIFMD II amends these two, so the compliance scenario needs the base texts to
+  # answer "what changed" rather than only the amending directive. Both were
+  # already downloaded alongside AIFMD II but were never declared, so they never
+  # reached the corpus.
+  - id: eu_aifmd_i
+    title: "Alternative Investment Fund Managers Directive (AIFMD)"
+    file: aifmd_directive_2011_61.pdf
+    source_url: "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32011L0061"
+    regulatory_body: European Parliament
+    reference: "Directive 2011/61/EU"
+    jurisdiction: EU
+    effective_date: "2013-07-22"
+    am_relevance: "Base AIFM authorisation, remuneration, leverage and reporting obligations amended by AIFMD II"
+
+  - id: eu_aifmd_cdr
+    title: "AIFMD Commission Delegated Regulation"
+    file: aifmd_cdr_231_2013.pdf
+    source_url: "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32013R0231"
+    regulatory_body: European Commission
+    reference: "Commission Delegated Regulation (EU) No 231/2013"
+    jurisdiction: EU
+    effective_date: "2013-07-22"
+    am_relevance: "Detailed AIFMD implementing rules: leverage calculation, valuation, depositary duties, risk management"
 
   - id: eu_sfdr
     title: "Sustainable Finance Disclosure Regulation (SFDR)"

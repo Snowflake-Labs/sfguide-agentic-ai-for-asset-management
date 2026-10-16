@@ -84,6 +84,77 @@ def verify_table_access(session, database: str, schema: str, table: str) -> tupl
         return (False, error_msg)
 
 
+def verify_prerequisites(session) -> None:
+    """
+    Verify the account-level objects created by scripts/workspace_setup.sql exist.
+
+    The build no longer creates roles, grants or warehouses - that SQL script is
+    the single source of truth, because the account-level work it does
+    (CREATE COMPUTE POOL, CREATE INTEGRATION, marketplace listing
+    requests) needs ACCOUNTADMIN, which a build run cannot assume.
+
+    This fails fast with one actionable message instead of letting the build die
+    later on a confusing "does not exist or not authorized" from deep inside a
+    data step.
+
+    Raises:
+        RuntimeError: if anything required is missing.
+    """
+    import config
+
+    build_role = config.RBAC['platform_build_role']
+    problems: List[str] = []
+
+    # The build role must exist AND be granted to this user. Checking with USE
+    # ROLE rather than SHOW ROLES because SHOW would also succeed for a role the
+    # user cannot actually activate.
+    try:
+        session.sql(f"USE ROLE {build_role}").collect()
+    except Exception as e:
+        problems.append(f"cannot use role {build_role} ({e})")
+
+    for key in ('execution', 'cortex_search'):
+        warehouse_name = config.WAREHOUSES[key]['name']
+        try:
+            if not session.sql(f"SHOW WAREHOUSES LIKE '{warehouse_name}'").collect():
+                problems.append(f"warehouse {warehouse_name} does not exist")
+        except Exception as e:
+            problems.append(f"cannot check warehouse {warehouse_name} ({e})")
+
+    shared_database = config.RBAC['shared_database']
+    for database_name in (config.DATABASE['name'], shared_database):
+        try:
+            if not session.sql(f"SHOW DATABASES LIKE '{database_name}'").collect():
+                problems.append(f"database {database_name} does not exist")
+        except Exception as e:
+            problems.append(f"cannot check database {database_name} ({e})")
+
+    if problems:
+        raise RuntimeError(
+            "Prerequisites are missing:\n  - "
+            + "\n  - ".join(problems)
+            + "\n\nRun scripts/workspace_setup.sql as ACCOUNTADMIN first. It creates the "
+              "roles, grants, warehouses and compute pools this build depends on."
+        )
+
+    warn_if_cross_region_not_any(session)
+
+
+def warn_if_cross_region_not_any(session) -> None:
+    """Warn, without changing it, when CORTEX_ENABLED_CROSS_REGION is not ANY_REGION."""
+    try:
+        rows = session.sql("SHOW PARAMETERS LIKE 'CORTEX_ENABLED_CROSS_REGION' IN ACCOUNT").collect()
+    except Exception as e:
+        log_warning(f"  Could not read CORTEX_ENABLED_CROSS_REGION: {e}")
+        return
+    current_value = rows[0]['value'] if rows else ''
+    if str(current_value).upper() != 'ANY_REGION':
+        log_warning(
+            f"  CORTEX_ENABLED_CROSS_REGION is '{current_value}'. For the best experience set it to "
+            "'ANY_REGION' (as ACCOUNTADMIN: ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';)"
+        )
+
+
 def cleanup_temp_objects(session: Session) -> None:
     """
     Clean up any leftover Snowpark temp objects that may cause conflicts.
@@ -111,9 +182,6 @@ def cleanup_temp_objects(session: Session) -> None:
                 pass
     except Exception:
         pass
-
-
-cleanup_temp_stages = cleanup_temp_objects
 
 
 def prefetch_security_contexts(
@@ -258,7 +326,18 @@ def prefetch_sec_financials(
     ciks: List[str],
     num_periods: int = 8
 ) -> Dict[str, Dict[Tuple[int, str], Dict[str, Any]]]:
-    """Prefetch SEC financial metrics for multiple CIKs in a single query."""
+    """Prefetch SEC financial metrics for multiple CIKs in a single query.
+
+    Returns both quarterly rows and the annual ('FY') row, keyed by (year, period).
+    Annual rows matter because a broker note quoting "annual revenue of $X" must use
+    the reported full-year figure - annualising one quarter by four is badly wrong for
+    any company whose growth is not flat.
+
+    YoY growth lags by one row within (CIK, FISCAL_PERIOD) so a quarter compares with
+    the same quarter a year earlier and FY compares with the prior FY. num_periods is
+    applied separately to annual and quarterly rows, so adding FY does not evict
+    quarters.
+    """
     if not ciks:
         return {}
     
@@ -296,11 +375,14 @@ def prefetch_sec_financials(
                     FREE_CASH_FLOW,
                     DEBT_TO_EQUITY,
                     CURRENT_RATIO,
-                    LAG(REVENUE, 4) OVER (PARTITION BY CIK ORDER BY PERIOD_END_DATE) as REVENUE_PRIOR_YEAR,
-                    ROW_NUMBER() OVER (PARTITION BY CIK ORDER BY PERIOD_END_DATE DESC) as rn
+                    LAG(REVENUE, 1) OVER (PARTITION BY CIK, FISCAL_PERIOD ORDER BY PERIOD_END_DATE) as REVENUE_PRIOR_YEAR,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY CIK, CASE WHEN FISCAL_PERIOD = 'FY' THEN 'A' ELSE 'Q' END
+                        ORDER BY PERIOD_END_DATE DESC
+                    ) as rn
                 FROM {database_name}.MARKET_DATA.FACT_SEC_FINANCIALS
                 WHERE CIK IN ({cik_list})
-                  AND FISCAL_PERIOD IN ('Q1', 'Q2', 'Q3', 'Q4')
+                  AND FISCAL_PERIOD IN ('Q1', 'Q2', 'Q3', 'Q4', 'FY')
             )
             SELECT 
                 *,
@@ -357,3 +439,40 @@ def prefetch_sec_financials(
         
     except Exception:
         return {}
+
+
+def prefetch_recommendations(
+    session: Session,
+    database_name: str,
+    security_ids: List[int]
+) -> Dict[int, List[Dict[str, Any]]]:
+    """Prefetch grounded recommendations for multiple SecurityIDs in one query.
+
+    Returns SecurityID -> list of recommendation rows, ordered newest vintage
+    first. Callers resolve the row as-of a document's publish date, so a note
+    dated 18 months ago quotes the house view that was current then rather than
+    today's. See resolve_recommendation_as_of in core/hydration_engine.py.
+
+    Every broker in the universe is fictional (config.BROKER_NAMES), so a
+    document and its recommendation row share the same broker identity.
+    """
+    if not security_ids:
+        return {}
+
+    id_list = ", ".join(str(sid) for sid in security_ids)
+
+    rows = session.sql(f"""
+        SELECT
+            SecurityID, VintageDate, BrokerName, Rating, PriorRating,
+            RatingAction, PriceTarget, PriorPriceTarget, ClosePrice, UpsidePct,
+            FairValue, ValuationBasis, DriverSummary
+        FROM {database_name}.CURATED.FACT_RECOMMENDATION
+        WHERE SecurityID IN ({id_list})
+        ORDER BY SecurityID, VintageDate DESC, BrokerName
+    """).collect()
+
+    grouped: Dict[int, List[Dict[str, Any]]] = {}
+    for row in rows:
+        record = row.as_dict()
+        grouped.setdefault(record['SECURITYID'], []).append(record)
+    return grouped

@@ -32,6 +32,7 @@ from ai.agents._common import (
     common_tool_specs,
     common_tool_resources,
     DEMO_DISCLAIMER,
+    RESPONSE_STANDARDS,
     PORTFOLIO_NAME_MAPPING,
     AGENT_SKILLS,
 )
@@ -57,6 +58,8 @@ Presentation:
 
 PDF Download Link (REQUIRED when PDF is generated):
 When you call pdf_generator, ALWAYS include the returned download link verbatim in your response so the user can click it to download the PDF.
+
+{RESPONSE_STANDARDS}
 
 {DEMO_DISCLAIMER}"""
 
@@ -104,23 +107,31 @@ OUTPUT FORMAT GUIDANCE:
 - NEVER generate slide-deck format output
 
 MULTI-SECTION REPORT HANDLING:
-- Make SEPARATE quantitative_analyzer calls for each section
+- Make SEPARATE analyst calls for each section, using the tool that owns that section's data:
+  performance and attribution -> attribution_analyzer; holdings and allocation -> portfolio_analyzer;
+  client flows and relationship detail -> client_analyzer
 - NEVER combine different result types in a single SQL query
 
 CRITICAL - Date Handling:
 - ALWAYS request 'latest' or 'most recent' data instead of specific quarters or dates
 
 Boundaries:
-- You specialise in client-facing reporting and communications. For investment analysis, redirect to the Research CoPilot.
-- For compliance matters, redirect to the Compliance Advisor.
-- For portfolio construction, redirect to the Portfolio Modelling CoPilot.
+- You specialise in client-facing reporting and communications. For company or investment analysis, redirect to Research Co-Pilot (AM Demo).
+- For compliance, mandate breach or ESG matters, redirect to Risk & Compliance (AM Demo).
+- For portfolio construction, backtesting or simulation, redirect to Portfolio Manager Co-Pilot (AM Demo).
 
 Workflow notes:
+- For comprehensive annual client briefings, institutional review packs, or full client briefing requests that combine performance, template structure, philosophy, and compliance, load the comprehensive-client-briefing skill first.
 - For quarterly client letters, the quarterly-client-letter skill provides the full 5-step workflow.
 - For client meeting preparation, the client-review-preparation skill provides the full 4-step workflow.
 - For RFP response preparation, the rfp-response-preparation skill provides the full 5-step workflow.
 - For PDF generation guidance, the pdf-report-generation skill provides formatting rules.
 - For regulatory lookups, the regulatory-lookup skill provides the regulation-to-filter mapping table.
+- For performance explanation in client or prospect language ("performance story", "what drove returns", "what's driven the returns", "explain performance to a prospect/client", "why did the fund outperform/underperform"), load the multi-level-attribution skill first and present in its Client/Prospect style. This also applies to follow-ups comparing performance across portfolios for a prospect.
+
+Critical routing note:
+- Do not freehand broad client briefing requests with direct tools alone when the user is clearly asking for a complete annual review or institutional client briefing workflow.
+- Use direct tools without the skill only for narrower, single-section asks such as a single headline return figure, client flow lookups, template lookup, or isolated disclosure questions.
 
 Error Handling:
 
@@ -154,6 +165,7 @@ def create_sales_advisor(session: Session):
 CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_client_advisory_copilot
   COMMENT = 'Client relationship intelligence: prepare meeting briefs, generate performance narratives, draft client letters, build RFP responses, analyse flow patterns, and identify at-risk or cross-sell opportunities.'
   PROFILE = '{{"display_name": "Sales Advisor (AM Demo)"}}'
+  COPY GRANTS
   FROM SPECIFICATION
   $$
   models:
@@ -162,26 +174,23 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_client_advisory_copilot
     budget:
       seconds: {config.AGENT_BUDGET_SECONDS}
       tokens: {config.AGENT_BUDGET_TOKENS}
+    tool_not_accessible: accept
   instructions:
     system: "You are a client reporting and relationship specialist at a UK-based asset management firm. You prepare professional client communications, performance reports, and investment commentary following SAM brand standards."
     response: "{response_formatted}"
     orchestration: "{orchestration_formatted}"
     sample_questions:
       - question: "Prepare a quarterly performance summary for our largest client"
-        answer: "I will compile portfolio performance, attribution highlights, and market commentary for a professional client update."
       - question: "What is the flow history for client ABC?"
-        answer: "I will retrieve the complete subscription and redemption history for the specified client account."
       - question: "Generate a PDF client letter for Q4"
-        answer: "I will retrieve the quarterly client letter template and populate it with the latest performance data."
       - question: "What SFDR disclosure requirements apply to our ESG fund RFP response?"
-        answer: "I will retrieve the SFDR regulation text covering Article 8 product disclosure requirements."
 {skills_yaml}
   tools:
 {common_tool_specs()}
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "portfolio_analyzer"
-        description: "Analyzes portfolio performance, holdings, sector allocation for client reporting. Data Coverage: 10 portfolios, 14,000+ securities, 12 months history. IMPORTANT: Always request 'latest' or 'most recent' data."
+        description: "Analyzes portfolio performance, holdings, sector allocation for client reporting. Data Coverage: 11 portfolios, 503 securities, 5 years of monthly holdings history. IMPORTANT: Always request 'latest' or 'most recent' data."
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "client_analyzer"
@@ -190,11 +199,11 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_client_advisory_copilot
     - tool_spec:
         type: "cortex_search"
         name: "search_internal_docs"
-        description: "Searches internal firm documents. Filter by DOCUMENT_TYPE: sales_templates, philosophy_docs, policy_docs. IMPORTANT: always use persist_to_table."
+        description: "Searches internal firm documents. Filter by DOCUMENT_TYPE: sales_templates, philosophy_docs, policy_docs."
     - tool_spec:
         type: "cortex_search"
         name: "search_regulations"
-        description: "Searches official regulatory documents (EU, UK, US). Filter by JURISDICTION, REGULATORY_BODY, or REGULATION_ID. IMPORTANT: always use persist_to_table."
+        description: "Searches official regulatory documents (EU, UK, US). Filter by JURISDICTION, REGULATORY_BODY, or REGULATION_ID."
     - tool_spec:
         type: "cortex_analyst_text_to_sql"
         name: "research_analyzer"
@@ -217,7 +226,7 @@ CREATE OR REPLACE AGENT {database_name}.{ai_schema}.AM_client_advisory_copilot
           When NOT to Use:
           - Holdings/weights (use portfolio_analyzer)
           - Client flow data (use client_analyzer)
-          - Deep factor analysis (redirect to Attribution Intelligence)
+          - Deep factor analysis (redirect to Portfolio Manager Co-Pilot (AM Demo))
   tool_resources:
 {common_resources}
 {analyst_quantitative}

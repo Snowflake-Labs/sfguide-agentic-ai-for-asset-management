@@ -13,7 +13,7 @@ Trigger when user asks: "compare companies", "competitive analysis", "peer analy
 
 ### Step 1: Identify Competitive Set
 
-Tool: `segment_analyzer`
+Tool: `research_analyzer`
 Query: Revenue by segment and geography for the primary company — identify which markets they compete in
 
 Tool: `search_external_docs`
@@ -26,10 +26,10 @@ Present:
 
 ### Step 2: Financial Comparison
 
-Tool: `fundamentals_analyzer`
+Tool: `research_analyzer`
 Query: Key financial metrics for primary company + each identified peer — revenue growth, gross margin, operating margin, P/E, EV/Revenue
 
-Tool: `sec_financials`
+Tool: `research_analyzer`
 Query: Trailing 4-quarter financials for comparison if fundamentals view lacks depth
 
 Present:
@@ -62,8 +62,11 @@ Use full tool suite (fundamentals_analyzer + sec_financials + search_sec_filings
 
 ### Step 3b: Market Share Analysis (if user chooses market share)
 
-Tool: `segment_analyzer`
+Tool: `research_analyzer`
 Query: Multi-year segment revenue for the primary company and key peers
+
+Tool: `search_external_docs` (filter: broker_research)
+Query: Market share estimates and share-shift commentary for [company] and peers in [segment]. Always run this: segment revenue alone does not give market share, so quote the broker figure (with source and date) for any share percentage, and label your own revenue-growth comparison as relative growth, not share
 
 Present:
 - Revenue by segment over 3 years for each company

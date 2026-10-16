@@ -1,13 +1,13 @@
 ---
 name: rate-sensitivity-analysis
-description: Use this skill when the user asks about interest rate exposure, floating rate risk, SOFR impact, rate sensitivity, rate shock scenarios, coverage ratio impact from rate changes, PIK triggers, or SOFR floor protection. Also use for "what happens if rates rise", "floating rate exposure", "rate impact on portfolio", or "which borrowers are most vulnerable to rate rises".
+description: Use this skill for ANY question about the credit portfolio's interest rate exposure, including simple summaries such as "what is our floating rate exposure", "summary of floating rate exposure - commitments, drawn amounts, weighted average spread, breakdown by facility type", or fixed vs floating split. Load it even when the question looks like a single lookup or matches a verified query. Also covers floating rate risk, SOFR impact, rate sensitivity, rate shock scenarios, coverage ratio impact from rate changes, PIK triggers, or SOFR floor protection. Also use for "what happens if rates rise", "floating rate exposure", "rate impact on portfolio", or "which borrowers are most vulnerable to rate rises".
 ---
 
 # Rate Sensitivity Analysis
 
 ## When to Activate
 
-Trigger when user asks: "rate sensitivity", "floating rate exposure", "SOFR impact", "rate shock", "what happens if rates rise", "interest rate risk", "coverage impact from rates", "PIK trigger", "SOFR floor", "rate protection", "most vulnerable to rate rises", "rate environment"
+Trigger when user asks: "rate sensitivity", "floating rate exposure", "summary of floating rate exposure", "commitments and drawn amounts by facility type", "weighted average spread", "fixed vs floating", "SOFR impact", "rate shock", "what happens if rates rise", "interest rate risk", "coverage impact from rates", "PIK trigger", "SOFR floor", "rate protection", "most vulnerable to rate rises", "rate environment"
 
 ## Workflow
 
@@ -16,7 +16,7 @@ Trigger when user asks: "rate sensitivity", "floating rate exposure", "SOFR impa
 Tool: `credit_portfolio_analyzer`
 Query: Portfolio-level floating vs fixed split, SOFR floor coverage, weighted average spread, weighted average all-in yield
 
-Tool: `macro_data_analyzer`
+Tool: `market_analyzer`
 Query: Current SOFR rate, recent trajectory, forward curve expectations
 
 Present:
@@ -47,18 +47,32 @@ Which would be most useful?"
 
 ### Step 2a: Rate Shock Modelling (if user chooses)
 
-Tool: `credit_portfolio_analyzer`
-Query: All borrowers with current DSCR, then model coverage at SOFR +100/+200/+300bp
+Tool: `credit_portfolio_analyzer` (one query, all arithmetic in SQL)
+Query: For every borrower, the latest **Min Interest Coverage** covenant test (`covenant_type` = 'Min Interest Coverage': `actual_value`, `covenant_threshold`, `headroom`, `covenant_status`, `breach_flag`, `test_date`) plus drawn amount and floating/fixed terms, with coverage shocked at SOFR +100/+200/+300bp in the same query.
+
+Base coverage (mandatory): the starting ICR is the covenant-tested `actual_value` (ACTUALVALUE) from the latest test, not interest coverage recomputed from EBITDA / interest expense. Apply the shock to that tested figure (scale the tested ICR by current interest cost / shocked interest cost on the floating drawn balance). Recompute from EBITDA only for a borrower with no ICR covenant test, and label it "recomputed - no tested ICR".
+
+Covenant thresholds are borrower-specific (e.g. 2.3x for one borrower, 1.75x for another). ALWAYS use each borrower's actual `covenant_threshold` from `credit_portfolio_analyzer`. NEVER assume a generic or "typical" floor such as 2.0x, and never compute the shock in bash or code_execution. A borrower with no interest-coverage covenant is shown as "No ICR covenant", not tested against an assumed level. Note where SOFR floors or fixed-rate facilities mute the shock.
 
 Present:
 - Impact table:
 
-| Borrower | Current DSCR | +100bp | +200bp | +300bp | Breaches At |
-|----------|-------------|--------|--------|--------|-------------|
-| [Name] | [X]x | [Y]x | [Z]x | [W]x | +[N]bp |
+| Borrower | Covenant Min ICR | Current ICR | +100bp | +200bp | +300bp | Breaches At |
+|----------|------------------|-------------|--------|--------|--------|-------------|
+| [Name] | [T]x | [X]x | [Y]x | [Z]x | [W]x | +[N]bp |
 
 - Portfolio aggregate: "At +200bp, [X] borrowers would breach coverage covenant"
-- Most sensitive: "[Borrower] breaches DSCR covenant at just +[X]bp above current rates"
+- Most sensitive: "[Borrower] breaches its [T]x interest coverage covenant at just +[X]bp above current rates"
+
+### Resilience Cross-Check (mandatory before calling any borrower resilient, safe or well-protected)
+
+Tool: `credit_portfolio_analyzer`
+Query: Current covenant status for the borrower across ALL covenant types at the latest test date (`covenant_status`, `breach_flag`, `headroom`, waiver flags).
+
+Tool: `credit_risk_analyzer`
+Query: Latest `pd_score` for the borrower (latest QUARTER_DATE).
+
+Only describe a borrower as resilient if it has no current breach, waiver or watch status on any covenant AND its latest PD is not elevated. Otherwise say, e.g., "survives +300bp on interest coverage, but is currently in breach of its leverage covenant (PD 34%)". Always quote the covenant status and PD alongside a resilience claim.
 
 ### Step 2b: Vulnerable Borrower Deep-Dive (if user chooses)
 

@@ -21,7 +21,7 @@ Extract: Minimum ESG grade (typically BBB), exclusion lists, SFDR classification
 
 ### Step 2: Check Current Grades
 
-Tool: `quantitative_analyzer`
+Tool: `portfolio_analyzer`
 
 Query: "Current ESG grades for all holdings in SAM [portfolio]"
 
@@ -54,6 +54,24 @@ Synthesise into remediation report:
 - Short-term (30 days): Escalated engagement with company management
 - Medium-term (90 days): If no improvement, begin orderly divestment
 - Ongoing: Monitor for grade recovery
+
+### Step 6: Replacement Candidates (when asked for replacements or a divestment redeployment)
+
+Tool: `portfolio_analyzer` (one candidate query, filters applied in SQL)
+
+Query: "Replacement candidates for SAM [portfolio]: latest ESG grade, sector and weight, with no esg_controversies row where controversy_is_active = TRUE and controversy_severity is High or Medium, ESG grade BBB or better, excluding [name being replaced]". The controversy exclusion is a hard WHERE filter on the `esg_controversies` logical table (dimensions `controversy_severity`, `controversy_is_active`, metric `active_controversy_count`) inside the candidate query; the view's ESG_REPLACEMENT_CANDIDATES verified query is the template, never a post-filter applied after the results come back.
+
+Tool: `portfolio_analyzer` (second query, for transparency only)
+
+Query: "Names in the same candidate universe with an active High or Medium esg_controversies row or ESG grade below BBB, with severity and grade". These are the excluded names; list them separately and never as eligible.
+
+Optional: `search_external_docs` (DOCUMENT_TYPE = 'ngo_reports') only to cite the NGO source and date for an excluded name; it does not decide eligibility.
+
+Rules (all mandatory):
+- Eligible candidates come only from the filtered query. Do not re-add a name the filter removed, and do not drop the filter if it returns few rows.
+- Exclude the name being replaced and any name sharing its controversy.
+- If fewer than three candidates remain, say so rather than relaxing the filter.
+- Present the eligible shortlist, then a separate "Excluded and why" table (ticker, controversy severity or grade).
 
 ## SFDR Classification Requirements
 

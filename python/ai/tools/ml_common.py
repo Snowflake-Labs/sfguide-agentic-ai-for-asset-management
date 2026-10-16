@@ -47,19 +47,24 @@ def ensure_ml_schema(session: Session):
 
 
 def get_feature_store(session: Session):
-    from snowflake.ml.feature_store import FeatureStore
+    from snowflake.ml.feature_store import FeatureStore, CreationMode
     return FeatureStore(
         session=session,
         database=config.DATABASE['name'],
         name=config.DATABASE['schemas']['ml'],
-        default_warehouse=config.ML_CONFIG['feature_store_warehouse']
+        default_warehouse=config.ML_CONFIG['feature_store_warehouse'],
+        creation_mode=CreationMode.CREATE_IF_NOT_EXIST,
     )
 
 
-def register_entity(session: Session, name: str, join_keys: List[str]):
+def register_entity(session: Session, name: str, join_keys: List[str], desc: str = "", fs=None):
     from snowflake.ml.feature_store import Entity
-    fs = get_feature_store(session)
-    entity = Entity(name=name, join_keys=join_keys)
+    fs = fs or get_feature_store(session)
+    existing = {row['NAME'] for row in fs.list_entities().collect()}
+    if name.upper() in existing:
+        log_detail(f"  Entity exists: {name}")
+        return fs.get_entity(name)
+    entity = Entity(name=name, join_keys=join_keys, desc=desc)
     fs.register_entity(entity)
     log_detail(f"  Entity registered: {name} (keys: {join_keys})")
     return entity

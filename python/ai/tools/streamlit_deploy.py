@@ -89,7 +89,7 @@ def create_container_runtime_resources(session, compute_pool: str):
     ai_schema = config.DATABASE['schemas']['ai']
     
     streamlit_config = config.STREAMLIT
-    instance_family = streamlit_config.get('compute_pool_instance_family', 'CPU_X64_S')
+    instance_family = streamlit_config.get('compute_pool_instance_family', 'GEN_X64_G2_4')
     min_nodes = streamlit_config.get('compute_pool_min_nodes', 1)
     max_nodes = streamlit_config.get('compute_pool_max_nodes', 1)
     eai_name = streamlit_config.get('external_access_integration')

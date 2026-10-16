@@ -46,7 +46,7 @@ disclosure:
 
 ### Core Investment Thesis
 
-{{COMPANY_NAME}} represents a compelling opportunity within our financials allocation, offering exposure to rising interest rates, digital transformation in financial services, and economic growth through leveraged balance sheet exposure. Our analysis indicates the company demonstrates strong credit quality, improving capital efficiency, and attractive valuation relative to historical averages and sector peers.
+{{COMPANY_NAME}} warrants a {{THESIS_STANCE}} stance within our financials allocation, offering exposure to rising interest rates, digital transformation in financial services, and economic growth through leveraged balance sheet exposure. Our analysis indicates the company demonstrates strong credit quality, improving capital efficiency, and attractive valuation relative to historical averages and sector peers.
 
 The institution's competitive advantages stem from its established customer relationships, digital capabilities, diversified revenue streams, and disciplined risk management. Recent financial performance indicates improving return on equity, whilst the balance sheet positioning provides upside to earnings estimates as interest rates normalize.
 

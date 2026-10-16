@@ -26,18 +26,28 @@ tables:
           - signal_source
           - data_source
           - extraction_source
-        description: "Source of the signal: price_action, volume_spike, regime_change, yield_curve, compliance, esg_downgrade, insider_cluster, institutional_exit, sector_rotation, cross_asset, factor_drift, attribution_anomaly, transcript_nlp, sec_risk_delta, supply_chain, thesis_challenge"
+        description: "Source of the signal: the extractor that produced it, one of the values listed"
         expr: SOURCE_TYPE
         data_type: VARCHAR(50)
         is_enum: true
         sample_values:
           - "price_action"
-          - "compliance"
+          - "volume_spike"
           - "regime_change"
+          - "yield_curve"
+          - "compliance"
+          - "esg_downgrade"
+          - "insider_cluster"
+          - "institutional_exit"
+          - "sector_rotation"
+          - "cross_asset"
           - "factor_drift"
           - "attribution_anomaly"
+          - "thesis_tracker"
           - "transcript_nlp"
-          - "insider_cluster"
+          - "sec_risk_delta"
+          - "supply_chain"
+          - "thesis_challenge"
       - name: entity_type
         synonyms:
           - target_type
@@ -95,7 +105,7 @@ tables:
           - priority
           - urgency_level
           - time_sensitivity
-        description: "Time sensitivity: immediate, today, this_week, background"
+        description: "Time sensitivity: immediate, today or this_week"
         expr: URGENCY
         data_type: VARCHAR(20)
         is_enum: true
@@ -103,19 +113,16 @@ tables:
           - "immediate"
           - "today"
           - "this_week"
-          - "background"
       - name: status
         synonyms:
           - signal_status
           - read_status
-        description: "Current status: new, viewed, acted_on, dismissed, expired"
+        description: "Signal status. The pipeline writes every signal as new; there is no viewed or dismissed workflow yet."
         expr: STATUS
         data_type: VARCHAR(20)
         is_enum: true
         sample_values:
           - "new"
-          - "viewed"
-          - "dismissed"
       - name: extraction_tier
         synonyms:
           - processing_tier

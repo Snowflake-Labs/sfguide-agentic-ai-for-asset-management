@@ -137,7 +137,7 @@ tables:
       - name: back_pk_run_id
         description: "RUN_ID for backtest_ts"
         expr: RUN_ID
-        data_type: "NUMBER(38,0)"
+        data_type: VARCHAR(36)
     facts:
       - name: daily_return
         synonyms:
@@ -198,7 +198,7 @@ tables:
       - name: port_pk_run_id
         description: "RUN_ID for portfolios"
         expr: RUN_ID
-        data_type: "NUMBER(38,0)"
+        data_type: VARCHAR(36)
     facts:
       - name: ticker
         synonyms:
@@ -239,7 +239,7 @@ tables:
       - name: sim_pk_run_id
         description: "RUN_ID for sim_paths"
         expr: RUN_ID
-        data_type: "NUMBER(38,0)"
+        data_type: VARCHAR(36)
     facts:
       - name: path_median
         synonyms:
@@ -462,7 +462,7 @@ tables:
       - name: sim_pk_run_id
         description: "RUN_ID for sim_terminal"
         expr: RUN_ID
-        data_type: "NUMBER(38,0)"
+        data_type: VARCHAR(36)
       - name: sample_index
         description: Terminal value sample index
         expr: SAMPLE_INDEX
@@ -522,26 +522,26 @@ module_custom_instructions:
   question_categorization: "Questions about backtest performance, returns, volatility, drawdowns, and Sharpe ratios should query backtest_runs and backtest_ts tables. Questions about simulation projections, probabilities, and fan charts should query sim_runs and sim_paths tables. Questions about terminal distributions should query sim_terminal. Questions about portfolio composition should query portfolios. The RUN_ID is always required - if not provided, ask the user for it."
 verified_queries:
   - name: BACKTEST_TIMESERIES_FOR_RUN
-    sql: "SELECT __backtest_ts.trade_date, __backtest_ts.portfolio_value, __backtest_ts.daily_return, __backtest_ts.drawdown FROM __backtest_ts WHERE __backtest_ts.RUN_ID = ? ORDER BY __backtest_ts.AS_OF_DATE"
+    sql: "SELECT __backtest_ts.back_pk_portfolio_idx, __backtest_ts.trade_date, __backtest_ts.portfolio_value, __backtest_ts.daily_return, __backtest_ts.drawdown FROM __backtest_ts WHERE __backtest_ts.back_pk_run_id = ? ORDER BY __backtest_ts.back_pk_portfolio_idx, __backtest_ts.trade_date"
     question: Show me the daily portfolio values for this backtest run
     use_as_onboarding_question: true
   - name: BACKTEST_SUMMARY_FOR_RUN
-    sql: "SELECT __backtest_runs.total_return_pct, __backtest_runs.annualized_return_pct, __backtest_runs.annualized_volatility_pct, __backtest_runs.backtest_sharpe_ratio, __backtest_runs.backtest_sortino_ratio, __backtest_runs.max_drawdown_pct, __backtest_runs.final_value FROM __backtest_runs WHERE __backtest_runs.RUN_ID = ?"
+    sql: "SELECT __backtest_runs.backtest_portfolio_index, __backtest_runs.total_return_pct, __backtest_runs.annualized_return_pct, __backtest_runs.annualized_volatility_pct, __backtest_runs.backtest_sharpe_ratio, __backtest_runs.backtest_sortino_ratio, __backtest_runs.max_drawdown_pct, __backtest_runs.final_value FROM __backtest_runs WHERE __backtest_runs.backtest_run_id = ? ORDER BY __backtest_runs.backtest_portfolio_index"
     question: What are the backtest performance metrics for this run?
     use_as_onboarding_question: false
   - name: SIMULATION_PATHS_FOR_RUN
-    sql: "SELECT __sim_paths.day_index, __sim_paths.path_p5, __sim_paths.path_p25, __sim_paths.path_median, __sim_paths.path_p75, __sim_paths.path_p95 FROM __sim_paths WHERE __sim_paths.RUN_ID = ? ORDER BY __sim_paths.DAY_INDEX"
+    sql: "SELECT __sim_paths.sim_pk_portfolio_idx, __sim_paths.day_index, __sim_paths.path_p5, __sim_paths.path_p25, __sim_paths.path_median, __sim_paths.path_p75, __sim_paths.path_p95 FROM __sim_paths WHERE __sim_paths.sim_pk_run_id = ? ORDER BY __sim_paths.sim_pk_portfolio_idx, __sim_paths.day_index"
     question: Show me the simulation percentile paths for this run
     use_as_onboarding_question: true
   - name: SIMULATION_SUMMARY_FOR_RUN
-    sql: "SELECT __sim_runs.median_terminal_value, __sim_runs.mean_terminal_value, __sim_runs.terminal_p5, __sim_runs.terminal_p95, __sim_runs.probability_of_loss, __sim_runs.probability_of_doubling, __sim_runs.simulation_expected_return FROM __sim_runs WHERE __sim_runs.RUN_ID = ?"
+    sql: "SELECT __sim_runs.simulation_portfolio_index, __sim_runs.median_terminal_value, __sim_runs.mean_terminal_value, __sim_runs.terminal_p5, __sim_runs.terminal_p95, __sim_runs.probability_of_loss, __sim_runs.probability_of_doubling, __sim_runs.simulation_expected_return FROM __sim_runs WHERE __sim_runs.simulation_run_id = ? ORDER BY __sim_runs.simulation_portfolio_index"
     question: What are the simulation outcome metrics for this run?
     use_as_onboarding_question: false
   - name: RUN_PORTFOLIO_WEIGHTS
-    sql: "SELECT __portfolios.ticker, __portfolios.weight FROM __portfolios WHERE __portfolios.RUN_ID = ? ORDER BY __portfolios.WEIGHT DESC"
+    sql: "SELECT __portfolios.port_pk_portfolio_idx, __portfolios.ticker, __portfolios.weight FROM __portfolios WHERE __portfolios.port_pk_run_id = ? ORDER BY __portfolios.port_pk_portfolio_idx, __portfolios.weight DESC"
     question: What portfolio weights were used for this run?
     use_as_onboarding_question: false
   - name: TERMINAL_VALUE_DISTRIBUTION
-    sql: SELECT __sim_terminal.terminal_value FROM __sim_terminal WHERE __sim_terminal.RUN_ID = ? ORDER BY __sim_terminal.SAMPLE_INDEX
+    sql: "SELECT __sim_terminal.sim_pk_portfolio_idx, __sim_terminal.terminal_value FROM __sim_terminal WHERE __sim_terminal.sim_pk_run_id = ? ORDER BY __sim_terminal.sim_pk_portfolio_idx, __sim_terminal.sample_index"
     question: Show me the terminal value distribution for this simulation run
     use_as_onboarding_question: false

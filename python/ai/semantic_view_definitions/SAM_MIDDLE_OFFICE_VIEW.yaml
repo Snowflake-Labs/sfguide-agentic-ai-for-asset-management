@@ -42,11 +42,9 @@ tables:
         data_type: VARCHAR(16)
         is_enum: true
         sample_values:
-          - "SETTLEMENT"
-          - "DIVIDEND"
-          - "FEE"
-          - "TRANSFER"
-          - "MARGIN"
+          - "Trade Settlement"
+          - "Dividend"
+          - "Fee"
     facts:
       - name: movement_amount
         description: "Cash movement amount"
@@ -179,12 +177,45 @@ tables:
         data_type: VARCHAR(8)
         is_enum: true
         sample_values:
-          - "DIVIDEND"
-          - "STOCK_SPLIT"
-          - "RIGHTS_ISSUE"
-          - "MERGER"
-          - "SPIN_OFF"
+          - "Dividend"
+          - "Split"
+          - "Merger"
+      - name: processing_status
+        synonyms:
+          - corporate_action_status
+          - action_status
+        description: "Corporate action processing status: Announced (not yet processed), Pending (in progress) or Processed. Unprocessed actions are Announced or Pending."
+        expr: PROCESSINGSTATUS
+        data_type: VARCHAR(9)
+        is_enum: true
+        sample_values:
+          - "Processed"
+          - "Announced"
+          - "Pending"
+      - name: action_details
+        synonyms:
+          - corporate_action_details
+        description: "Free-text details of the corporate action (e.g. dividend amount, split ratio)"
+        expr: ACTIONDETAILS
+        data_type: VARCHAR(16777216)
+    facts:
+      - name: portfolios_affected
+        description: "Number of SAM portfolios holding the security affected by this corporate action"
+        expr: PORTFOLIOSAFFECTED
+        data_type: "NUMBER(2,0)"
+        access_modifier: public_access
     metrics:
+      - name: total_portfolios_affected
+        synonyms:
+          - portfolios_affected_count
+          - affected_portfolios
+        description: "Sum of portfolios affected across corporate actions (a portfolio can be counted once per action)"
+        expr: SUM(portfolios_affected)
+        access_modifier: public_access
+      - name: max_portfolios_affected
+        description: "Largest number of portfolios affected by a single corporate action"
+        expr: MAX(portfolios_affected)
+        access_modifier: public_access
       - name: action_count
         synonyms:
           - actions
@@ -226,9 +257,31 @@ tables:
         synonyms:
           - broker_name
           - trading_partner
-        description: Counterparty name
+        description: "Name of the trading, clearing or custody counterparty, one of 20 exact names (see values). Filter with = on the exact name, never LIKE or ILIKE: similar names are different counterparties (JP Morgan is the broker, JPM Custody the custodian)."
         expr: CounterpartyName
         data_type: VARCHAR(16777216)
+        is_enum: true
+        sample_values:
+          - BNP Paribas
+          - BNY Mellon
+          - Bank of America
+          - Barclays
+          - Citi
+          - Clearing Firm A
+          - Clearing Firm B
+          - Credit Suisse
+          - Deutsche Bank
+          - Goldman Sachs
+          - HSBC Custody
+          - JP Morgan
+          - JPM Custody
+          - Market Maker A
+          - Morgan Stanley
+          - Northern Trust
+          - Prime Broker A
+          - Prime Broker B
+          - State Street
+          - UBS
       - name: counterparty_type
         synonyms:
           - broker_type
@@ -265,9 +318,19 @@ tables:
           - custodian
           - bank
           - depository
-        description: Custodian name
+        description: "Name of the custodian bank, one of 8 exact names (see values). Filter with = on the exact name, never LIKE or ILIKE. A custodian is not a trading counterparty: JPMorgan Custody (custodian) and JP Morgan (counterparty in counterparties) are separate entities."
         expr: CustodianName
         data_type: VARCHAR(16777216)
+        is_enum: true
+        sample_values:
+          - BNP Paribas Securities Services
+          - BNY Mellon
+          - Citi Custody
+          - Deutsche Bank Custody
+          - HSBC Custody
+          - JPMorgan Custody
+          - Northern Trust
+          - State Street
   - name: nav
     synonyms:
       - net_asset_value
@@ -289,6 +352,44 @@ tables:
         description: "NAVID for nav"
         expr: NAVID
         data_type: "NUMBER(38,0)"
+      - name: calculation_status
+        synonyms:
+          - nav_status
+          - nav_calculation_status
+        description: "NAV calculation status: Calculated or Pending Review"
+        expr: CALCULATIONSTATUS
+        data_type: VARCHAR(14)
+        is_enum: true
+        sample_values:
+          - "Calculated"
+          - "Pending Review"
+      - name: approval_status
+        synonyms:
+          - nav_approval_status
+          - sign_off_status
+        description: "NAV approval status: Approved or Pending"
+        expr: APPROVALSTATUS
+        data_type: VARCHAR(8)
+        is_enum: true
+        sample_values:
+          - "Approved"
+          - "Pending"
+      - name: anomalies_detected
+        synonyms:
+          - nav_anomaly
+          - anomaly
+          - nav_exception
+        description: "Description of anomaly flagged during NAV calculation; NULL when no anomaly. Filter with IS NOT NULL to find NAVs with anomalies."
+        expr: ANOMALIESDETECTED
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - "NAV change >2% from prior day"
+          - "Missing prices detected"
+          - "Zero NAV Movement Anomaly"
+      - name: approved_by
+        description: "User who approved the NAV"
+        expr: APPROVEDBY
+        data_type: VARCHAR(16777216)
     facts:
       - name: nav_per_share
         description: "Net asset value per share"
@@ -300,7 +401,26 @@ tables:
         expr: TotalAssets
         data_type: FLOAT
         access_modifier: public_access
+      - name: net_assets
+        description: "Net assets (total assets minus total liabilities) for the NAV calculation"
+        expr: NETASSETS
+        data_type: FLOAT
+        access_modifier: public_access
     metrics:
+      - name: sum_net_assets
+        synonyms:
+          - net_assets_total
+          - fund_net_assets
+          - nav_total
+        description: "Total net assets in USD (assets minus liabilities). Use with a single calculation_date - summing across dates double counts."
+        expr: SUM(net_assets)
+        access_modifier: public_access
+      - name: nav_anomaly_count
+        synonyms:
+          - anomaly_count
+        description: "Number of NAV calculations with an anomaly flagged"
+        expr: COUNT(ANOMALIESDETECTED)
+        access_modifier: public_access
       - name: average_nav_per_share
         synonyms:
           - nav
@@ -350,7 +470,7 @@ tables:
       - name: portfolio_name
         synonyms:
           - fund_name
-        description: "Portfolio name. All names start with \"SAM \" prefix, e.g. \"SAM Technology & Infrastructure\", \"SAM ESG Leaders Global Equity\"."
+        description: "Portfolio name, one of 11 exact names that all start with \"SAM \" (see values). Filter with = on the exact name, never LIKE or ILIKE. Map short names to the full name first - Tech or Technology means SAM Technology & Infrastructure (not SAM Tech Disruptors Equity), Flagship means SAM Global Flagship Multi-Asset, ESG means SAM ESG Leaders Global Equity, 60/40 or Balanced means SAM Global Balanced 60/40."
         expr: PortfolioName
         data_type: VARCHAR(134217728)
         is_enum: true
@@ -394,14 +514,14 @@ tables:
       - name: break_type
         synonyms:
           - exception_type
-        description: Break type
+        description: "Break type: Position, Cash or Price"
         expr: BREAKTYPE
         data_type: VARCHAR(8)
         is_enum: true
         sample_values:
-          - "POSITION"
-          - "CASH"
-          - "PRICE"
+          - "Position"
+          - "Cash"
+          - "Price"
       - name: recon_status
         synonyms:
           - resolution_status
@@ -410,9 +530,9 @@ tables:
         data_type: VARCHAR(13)
         is_enum: true
         sample_values:
-          - "OPEN"
-          - "RESOLVED"
-          - "ESCALATED"
+          - "Open"
+          - "Investigating"
+          - "Resolved"
     facts:
       - name: reconciliation_difference
         description: "Difference between expected and actual values"
@@ -479,9 +599,14 @@ tables:
         synonyms:
           - company_name
           - security_name
-        description: Company name
+        description: "Company legal name of the security exactly as stored, e.g. ELI LILLY & CO, NVIDIA CORP. Users give informal names (Lilly, Nvidia): look up the stored value with this column's search lookup and filter with =, never LIKE or ILIKE, or filter by ticker. If none of the returned names is the company the user meant, the company is not held - say so rather than substituting a similar name."
         expr: Description
         data_type: VARCHAR(16777216)
+        cortex_search_service:
+          service: SAM_ISSUER_NAME_SEARCH
+          literal_column: LEGALNAME
+          database: {{DATABASE}}
+          schema: AI
       - name: ticker
         synonyms:
           - ticker_symbol
@@ -530,10 +655,32 @@ tables:
         data_type: VARCHAR(7)
         is_enum: true
         sample_values:
-          - "PENDING"
-          - "SETTLED"
-          - "FAILED"
-          - "CANCELLED"
+          - "Settled"
+          - "Pending"
+          - "Failed"
+      - name: failure_reason
+        synonyms:
+          - fail_reason
+          - settlement_failure_reason
+          - break_reason
+        description: "Reason a settlement failed; NULL for settlements that did not fail"
+        expr: FAILUREREASON
+        data_type: VARCHAR(16777216)
+        is_enum: true
+        sample_values:
+          - "SSI mismatch"
+          - "Counterparty system issue"
+          - "Insufficient shares"
+      - name: settlement_currency
+        synonyms:
+          - currency
+          - settlement_ccy
+        description: "ISO currency code of the settlement"
+        expr: CURRENCY
+        data_type: VARCHAR(3)
+        is_enum: true
+        sample_values:
+          - "USD"
     facts:
       - name: settlement_value
         description: "Settlement value of the trade"
@@ -670,6 +817,14 @@ verified_queries:
     question: What is the current cash position?
     use_as_onboarding_question: true
   - name: CORPORATE_ACTIONS
-    sql: SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_MIDDLE_OFFICE_VIEW METRICS ACTION_COUNT DIMENSIONS action_type)
+    sql: "SELECT * FROM SEMANTIC_VIEW({{DATABASE}}.AI.SAM_MIDDLE_OFFICE_VIEW METRICS action_count, total_portfolios_affected DIMENSIONS action_type, processing_status WHERE processing_status IN ('Announced', 'Pending'))"
     question: What corporate actions are pending?
+    use_as_onboarding_question: false
+  - name: FAILED_SETTLEMENTS_BY_REASON
+    sql: "SELECT __settlements.failure_reason, __settlements.settlement_currency, COUNT(DISTINCT __settlements.sett_pk_settlementid) AS FAILED_COUNT, SUM(__settlements.settlement_value) AS FAILED_VALUE FROM __settlements WHERE __settlements.settlement_status = 'Failed' GROUP BY __settlements.failure_reason, __settlements.settlement_currency ORDER BY FAILED_COUNT DESC"
+    question: Why are settlements failing? Break down failed settlements by failure reason and currency.
+    use_as_onboarding_question: false
+  - name: NAV_EXCEPTIONS
+    sql: "SELECT __portfolios.portfolio_name, __nav.calculation_date, __nav.calculation_status, __nav.approval_status, __nav.anomalies_detected, SUM(__nav.net_assets) AS NET_ASSETS FROM __nav JOIN __portfolios ON __nav.nav_pk_portfolioid = __portfolios.port_pk_portfolioid WHERE __nav.anomalies_detected IS NOT NULL OR __nav.approval_status = 'Pending' OR __nav.calculation_status = 'Pending Review' GROUP BY __portfolios.portfolio_name, __nav.calculation_date, __nav.calculation_status, __nav.approval_status, __nav.anomalies_detected ORDER BY __nav.calculation_date DESC"
+    question: Which NAV calculations have anomalies or are pending review or approval?
     use_as_onboarding_question: false
